@@ -1,125 +1,176 @@
 # DispatchFlow
 
-DispatchFlow 是一个面向园区无人配送场景的调度演示项目，当前包含：
+DispatchFlow 是一个面向园区短驳配送场景的无人车调度系统原型，目标是把：
 
-- 管理端前端大屏与业务页面
-- Spring Boot 后端聚合服务
-- 园区车辆仿真、订单调度、车辆状态回传
-- 园区简化下单接口
+- 移动端下单
+- 调度任务生成
+- 自动派车
+- 车辆状态机执行
+- 低电量返充
+- 监控大屏联动
+- RabbitMQ 事件驱动
 
-当前项目适合的运行方式是：
+串成一个完整的后端闭环。
 
-- 前端本地或静态部署
-- 后端独立运行
-- MySQL / Redis / RabbitMQ 作为依赖服务单独运行
+这个项目的重点不是“地图上有小车在动”，而是用 Java 后端把订单、任务、车辆、状态机和事件流转真正接起来。
 
-## 目录结构
+## 项目亮点
+
+### 1. 订单驱动调度
+
+移动端或管理端下单后，不是直接操作车辆，而是先创建订单，再生成调度任务，最后触发自动派车。
+
+核心代码：
+
+- [back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotCommandServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotCommandServiceImpl.java)
+
+### 2. 自动派车与选车策略
+
+调度任务自动分配时，系统会：
+
+- 先获取任务锁，避免并发重复派车
+- 查询可分配车辆
+- 根据取货点选择最近车辆
+- 派车失败时降级到人工介入
+
+核心代码：
+
+- [back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchTaskServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchTaskServiceImpl.java)
+- [back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotServiceImpl.java)
+
+### 3. 车辆状态机
+
+车辆不会瞬间完成任务，而是按状态机推进：
+
+- `STANDBY`
+- `TO_PICKUP`
+- `LOADING`
+- `TO_DROPOFF`
+- `UNLOADING`
+- `TO_CHARGING`
+- `CHARGING`
+- `RETURNING_TO_STANDBY`
+- `OFFLINE`
+
+送货完成后，系统会根据电量决定：
+
+- 返回待命位
+- 或直接进入充电位
+
+核心代码：
+
+- [back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotSimulationServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotSimulationServiceImpl.java)
+
+### 4. 车辆回报驱动任务状态变更
+
+任务状态不是后端随意修改，而是由车辆执行回报驱动：
+
+- `START_EXECUTE`
+- `TASK_SUCCESS`
+- `TASK_FAILED`
+
+这让系统结构更接近真实车端接入模式。
+
+核心代码：
+
+- [back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/VehicleReportServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/VehicleReportServiceImpl.java)
+
+### 5. RabbitMQ + Outbox 事件驱动
+
+任务创建、任务派车、任务执行、任务完成、异常处理等关键节点都会发布事件。
+
+项目没有直接在业务事务里裸发消息，而是采用：
+
+- RabbitMQ
+- Outbox 本地消息表
+- 事务提交后发送
+- 失败后定时重试
+
+核心代码：
+
+- [back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/RabbitDispatchEventPublisher.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/RabbitDispatchEventPublisher.java)
+- [back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/impl/DispatchEventOutboxServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/impl/DispatchEventOutboxServiceImpl.java)
+- [back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/impl/DispatchEventRetryScheduler.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/impl/DispatchEventRetryScheduler.java)
+
+## 技术栈
+
+### 前端
+
+- Vue 3
+- TypeScript
+- Vite
+- Ant Design Vue
+- Leaflet
+
+### 后端
+
+- Java 21
+- Spring Boot 3.3
+- MyBatis-Plus
+
+### 中间件
+
+- MySQL
+- Redis
+- RabbitMQ
+
+## 仓库结构
 
 ```text
 DispatchFlow/
-├─ front/          Vue 3 + Vite 前端
-├─ back/           Java Spring Boot 多模块后端
-├─ docs/           需求与任务文档
+├─ front/   前端项目，包含大屏、订单、车辆、移动端下单页
+├─ back/    后端多模块项目
 └─ README.md
 ```
 
 后端模块说明：
 
-- `fsd-common`：公共模型、枚举、异常
+- `fsd-common`：公共模型、异常、枚举
 - `fsd-order`：订单域
-- `fsd-dispatch`：调度域、园区仿真、路径规划
-- `fsd-vehicle`：车辆域、车辆上报
+- `fsd-dispatch`：调度域、状态机、事件驱动、园区仿真
+- `fsd-vehicle`：车辆域、车辆回报
 - `fsd-admin-api`：管理端聚合接口
 - `fsd-bootstrap`：启动模块
 
-## 技术栈
+## 当前已实现能力
 
-- 前端：Vue 3、TypeScript、Vite、Ant Design Vue、Leaflet
-- 后端：Java 21、Spring Boot 3.3、MyBatis-Plus
-- 中间件：MySQL、Redis、RabbitMQ
+### 管理端 / 大屏
 
-## 本地开发
+- 园区布局加载
+- 车辆实时位置展示
+- 订单链路展示
+- 停车充电观察层
+- 车辆状态、电量、目标点展示
 
-### 1. 前置依赖
+### 移动端
 
-- Node.js 18+
-- JDK 21
-- Maven 3.9+
-- Docker Desktop 或本机安装的 MySQL / Redis / RabbitMQ
+- 选择取货点和送货点
+- 创建订单
+- 在同页查看配送过程
 
-### 2. 启动依赖服务
+### 后端
 
-当前后端默认按本地 Docker 端口读取：
+- 园区布局接口
+- 车辆快照接口
+- 订单快照接口
+- 简化下单接口
+- 自动派车
+- 车辆状态机仿真
+- 低电量返充
+- RabbitMQ 事件发布与重试
 
-- MySQL：`127.0.0.1:3307`
-- Redis：`127.0.0.1:6380`
-- RabbitMQ：`127.0.0.1:5673`
+## 核心接口
 
-如果你继续使用 Docker 跑依赖，保持这些端口即可。
-
-数据库默认配置在：
-
-- [application.yml](D:\Administrator\Desktop\Project\DispatchFlow\back\fsd-bootstrap\src\main\resources\application.yml)
-
-初始化数据库后再启动后端。SQL 文件位于：
-
-- `back/sql/`
-
-### 3. 启动后端
-
-注意：根 `pom.xml` 是聚合工程，不能直接在 `back/` 根目录执行 `mvn spring-boot:run`。
-
-正确方式：
-
-```bash
-cd back
-mvn -pl fsd-bootstrap -am spring-boot:run
-```
-
-默认端口：
-
-- 后端：`http://localhost:8080`
-- Swagger：`http://localhost:8080/swagger-ui.html`
-- OpenAPI：`http://localhost:8080/api-docs`
-
-### 4. 启动前端
-
-```bash
-cd front
-npm install
-npm run dev
-```
-
-默认端口：
-
-- 前端：`http://localhost:3000`
-
-Vite 已配置代理：
-
-- `/api -> http://localhost:8080`
-
-配置文件：
-
-- [vite.config.ts](D:\Administrator\Desktop\Project\DispatchFlow\front\vite.config.ts)
-
-## 当前园区相关接口
-
-### 查询接口
+### 园区监控接口
 
 - `GET /api/admin/park/layout`
 - `GET /api/admin/park/stations`
 - `GET /api/admin/park/vehicles`
 - `GET /api/admin/park/orders`
 
-### 下单接口
+### 园区下单接口
 
 - `POST /api/admin/park/orders`
-
-这是园区简化下单接口，一次完成：
-
-- 创建订单
-- 创建调度任务
-- 自动分配车辆
 
 请求示例：
 
@@ -133,35 +184,61 @@ Vite 已配置代理：
 }
 ```
 
-### 车辆大屏新增字段
+## 本地运行
 
-`GET /api/admin/park/vehicles` 当前已包含：
+### 环境要求
 
-- `runtimeStage`
-- `targetCode`
-- `targetType`
-- `charging`
-- `lowBattery`
+- Node.js 18+
+- JDK 21
+- Maven 3.9+
+- MySQL / Redis / RabbitMQ
 
-当前运行阶段可能值包括：
+### 默认依赖端口
 
-- `STANDBY`
-- `TO_PICKUP`
-- `LOADING`
-- `TO_DROPOFF`
-- `UNLOADING`
-- `TO_CHARGING`
-- `CHARGING`
-- `RETURNING_TO_STANDBY`
-- `OFFLINE`
+后端默认读取：
 
-详细任务流见：
+- MySQL：`127.0.0.1:3307`
+- Redis：`127.0.0.1:6380`
+- RabbitMQ：`127.0.0.1:5673`
 
-- [park-pilot-task-flow.md](D:\Administrator\Desktop\Project\DispatchFlow\docs\park-pilot-task-flow.md)
+配置文件：
+
+- [back/fsd-bootstrap/src/main/resources/application.yml](back/fsd-bootstrap/src/main/resources/application.yml)
+
+### 启动后端
+
+注意：根 `back/pom.xml` 是聚合工程，不能直接在 `back/` 根目录裸跑 `mvn spring-boot:run`。
+
+正确方式：
+
+```bash
+cd back
+mvn -pl fsd-bootstrap -am spring-boot:run
+```
+
+默认访问地址：
+
+- Backend: `http://localhost:8080`
+- Swagger: `http://localhost:8080/swagger-ui.html`
+- OpenAPI: `http://localhost:8080/api-docs`
+
+### 启动前端
+
+```bash
+cd front
+npm install
+npm run dev
+```
+
+默认访问地址：
+
+- Frontend: `http://localhost:3000`
+
+前端通过 Vite 代理访问后端 `/api`。
 
 ## 测试
 
-推荐命令：
+推荐执行：
 
 ```bash
 cd back
@@ -169,104 +246,32 @@ mvn -pl fsd-admin-api -am test
 mvn -pl fsd-bootstrap -am test
 ```
 
-## 生产上线建议
+## 为什么这个项目适合调度后端岗位
 
-### 最简单的上线结构
+这个项目和普通 CRUD 项目最大的区别在于：
 
-一台服务器、一个公网 IP，建议这样部署：
+- 有明确的订单 -> 任务 -> 车辆执行闭环
+- 有自动派车和失败降级
+- 有车辆状态机
+- 有低电量返充逻辑
+- 有设备回报驱动状态流转
+- 有 RabbitMQ + Outbox 事件驱动设计
 
-1. Nginx
-2. 前端静态文件
-3. 后端 Jar
-4. MySQL
-5. Redis
-6. RabbitMQ
+如果要继续往真实生产系统演进，下一步最自然的方向是：
 
-推荐访问方式：
+- 更复杂的选车算法
+- 故障重调度
+- 候补排队
+- WebSocket 实时推送
+- Spring Cloud 微服务拆分
 
-- `http://你的IP/` -> 前端页面
-- `http://你的IP/api/...` -> 后端接口，由 Nginx 反向代理到 `127.0.0.1:8080`
+## 当前最值得阅读的代码入口
 
-这样前端和后端共用一个 IP，对手机访问最直接。
+如果只想快速理解这个项目，建议按下面顺序看：
 
-### 推荐部署形态
-
-- 前端：`npm run build` 后产出 `front/dist/`，交给 Nginx 托管
-- 后端：`mvn -pl fsd-bootstrap -am package`，运行 `fsd-bootstrap` 产出的 Jar
-- 依赖服务：可继续使用 Docker，也可改成本机服务
-
-### Nginx 反向代理思路
-
-建议路由规则：
-
-- `/` -> 前端静态文件目录
-- `/api/` -> `http://127.0.0.1:8080`
-
-这样手机浏览器、管理端、后续 App 都只需要访问同一个域名或同一个 IP。
-
-## 手机下单怎么做
-
-### 不建议一开始就直接做原生 App
-
-如果你现在目标是尽快上线并验证业务，优先级应该是：
-
-1. 先做手机 H5 下单页
-2. 让 H5 直接调用 `POST /api/admin/park/orders`
-3. 后面再决定是否封装成 App
-
-原因很简单：
-
-- 一台服务器一个 IP 完全够用
-- 手机浏览器直接访问就能下单
-- 开发成本远低于 Android / iOS 双端原生
-- 后端接口可以保持不变
-
-### 最简单落地方案
-
-方案 A：手机网页下单
-
-- 单独做一个移动端页面
-- 部署在同一台服务器上
-- 手机访问 `http://你的IP/mobile` 或 `http://你的IP/order`
-- 页面调用 `/api/admin/park/stations` 获取站点
-- 页面调用 `/api/admin/park/orders` 提交订单
-
-这是当前最适合你的方案。
-
-### 如果后面一定要“App”
-
-你有三种选择：
-
-1. H5 页面直接用
-2. H5 外包成壳 App
-3. UniApp / Flutter 做正式 App
-
-建议顺序：
-
-1. 先做 H5
-2. 验证下单流程、调度链路、异常处理
-3. 再决定是否封装成 App
-
-### 单服务器单 IP 的访问方式
-
-只要服务器公网可访问，你就可以：
-
-- 手机浏览器直接访问 `http://你的IP`
-- H5 下单页请求同域 `/api/admin/park/orders`
-- 不需要额外第二台服务器
-
-真正要注意的是：
-
-- 服务器安全组开放 `80` 和必要端口
-- 后端不要直接裸露在公网高危端口上，尽量走 Nginx
-- 最好尽快绑定域名并上 HTTPS
-
-## 下一步建议
-
-如果你准备进入上线阶段，建议按这个顺序推进：
-
-1. 做一个移动端简化下单页
-2. 用同一台服务器部署前端静态资源和后端服务
-3. 用 Nginx 统一 `/` 和 `/api`
-4. 做最基本的登录或下单鉴权
-5. 再考虑封装成 App
+1. [back/fsd-admin-api/src/main/java/com/fsd/admin/controller/AdminDispatchController.java](back/fsd-admin-api/src/main/java/com/fsd/admin/controller/AdminDispatchController.java)
+2. [back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotCommandServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotCommandServiceImpl.java)
+3. [back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchTaskServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchTaskServiceImpl.java)
+4. [back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotSimulationServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotSimulationServiceImpl.java)
+5. [back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/VehicleReportServiceImpl.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/VehicleReportServiceImpl.java)
+6. [back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/RabbitDispatchEventPublisher.java](back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/RabbitDispatchEventPublisher.java)

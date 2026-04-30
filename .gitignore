@@ -9,6 +9,7 @@ Thumbs.db
 .golutra/
 project/
 DISPATCHFLOW/
+docs/
 
 # Frontend
 front/node_modules/
@@ -26,3 +27,4 @@ back/boot.err.log
 # Env / temp
 *.tmp
 *.temp
+
