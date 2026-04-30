@@ -1,0 +1,9 @@
+.git
+.idea
+.mvn
+**/target
+**/.DS_Store
+boot.out.log
+boot.err.log
+fsd-bootstrap/boot.out.log
+fsd-bootstrap/boot.err.log

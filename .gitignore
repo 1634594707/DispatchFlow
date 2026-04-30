@@ -1,0 +1,28 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local agent / workspace metadata
+.agents/
+.golutra/
+project/
+DISPATCHFLOW/
+
+# Frontend
+front/node_modules/
+front/dist/
+
+# Backend
+back/.m2/
+back/**/target/
+back/boot.out.log
+back/boot.err.log
+
+# Logs
+*.log
+
+# Env / temp
+*.tmp
+*.temp

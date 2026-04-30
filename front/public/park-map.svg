@@ -1,0 +1,291 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06090F" />
+      <stop offset="100%" stop-color="#0D1117" />
+    </linearGradient>
+    <linearGradient id="waterGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0D2137" />
+      <stop offset="100%" stop-color="#0A1929" />
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A1F12" />
+      <stop offset="100%" stop-color="#071510" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+      <feMerge>
+        <feMergeNode in="coloredBlur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="glowStrong">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur" />
+      <feMerge>
+        <feMergeNode in="coloredBlur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <pattern id="gridPattern" width="50" height="50" patternUnits="userSpaceOnUse">
+      <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#161B22" stroke-width="0.5" opacity="0.3" />
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="800" fill="url(#bgGrad)" />
+  <rect width="1200" height="800" fill="url(#gridPattern)" />
+
+  <rect x="50" y="60" width="1100" height="700" rx="8" ry="8" fill="none" stroke="#21262D" stroke-width="2" stroke-dasharray="8,4" />
+
+  <ellipse cx="1080" cy="150" rx="60" ry="40" fill="url(#waterGrad)" stroke="#1E3A5F" stroke-width="1.5" opacity="0.8" />
+  <ellipse cx="1070" cy="145" rx="35" ry="20" fill="none" stroke="#1E3A5F" stroke-width="0.8" opacity="0.5" />
+  <text x="1080" y="155" text-anchor="middle" fill="#3B82F6" font-size="10" font-family="JetBrains Mono, monospace" opacity="0.6">水景</text>
+
+  <rect x="60" y="65" width="100" height="50" rx="4" fill="url(#greenGrad)" stroke="#1A3A1A" stroke-width="1" />
+  <rect x="1000" y="710" width="80" height="40" rx="4" fill="url(#greenGrad)" stroke="#1A3A1A" stroke-width="1" />
+  <circle cx="500" cy="400" r="25" fill="url(#greenGrad)" stroke="#1A3A1A" stroke-width="1" />
+  <circle cx="700" cy="400" r="20" fill="url(#greenGrad)" stroke="#1A3A1A" stroke-width="1" />
+
+  <line x1="100" y1="120" x2="220" y2="120" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="220" y1="120" x2="420" y2="120" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="420" y1="120" x2="620" y2="120" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="620" y1="120" x2="820" y2="120" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="820" y1="120" x2="1020" y2="120" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+
+  <line x1="100" y1="700" x2="220" y2="700" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="220" y1="700" x2="420" y2="700" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="420" y1="700" x2="620" y2="700" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="620" y1="700" x2="820" y2="700" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="820" y1="700" x2="1020" y2="700" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+
+  <line x1="100" y1="120" x2="100" y2="250" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="100" y1="250" x2="100" y2="550" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="100" y1="550" x2="100" y2="700" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+
+  <line x1="1020" y1="120" x2="1020" y2="250" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="1020" y1="250" x2="1020" y2="550" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+  <line x1="1020" y1="550" x2="1020" y2="700" stroke="#161B22" stroke-width="28" stroke-linecap="round" />
+
+  <line x1="100" y1="250" x2="220" y2="250" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="220" y1="250" x2="420" y2="250" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="420" y1="250" x2="620" y2="250" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="620" y1="250" x2="820" y2="250" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="820" y1="250" x2="1020" y2="250" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+
+  <line x1="100" y1="550" x2="220" y2="550" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="220" y1="550" x2="420" y2="550" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="420" y1="550" x2="620" y2="550" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="620" y1="550" x2="820" y2="550" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="820" y1="550" x2="1020" y2="550" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+
+  <line x1="220" y1="120" x2="220" y2="250" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="220" y1="250" x2="220" y2="550" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="220" y1="550" x2="220" y2="700" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+
+  <line x1="420" y1="120" x2="420" y2="250" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="420" y1="250" x2="420" y2="550" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="420" y1="550" x2="420" y2="700" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+
+  <line x1="620" y1="120" x2="620" y2="250" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="620" y1="250" x2="620" y2="550" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="620" y1="550" x2="620" y2="700" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+
+  <line x1="820" y1="120" x2="820" y2="250" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="820" y1="250" x2="820" y2="550" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+  <line x1="820" y1="550" x2="820" y2="700" stroke="#161B22" stroke-width="24" stroke-linecap="round" />
+
+  <line x1="100" y1="120" x2="1020" y2="120" stroke="#2D333B" stroke-width="1" stroke-dasharray="8,6" />
+  <line x1="100" y1="700" x2="1020" y2="700" stroke="#2D333B" stroke-width="1" stroke-dasharray="8,6" />
+  <line x1="100" y1="250" x2="1020" y2="250" stroke="#2D333B" stroke-width="1" stroke-dasharray="8,6" />
+  <line x1="100" y1="550" x2="1020" y2="550" stroke="#2D333B" stroke-width="1" stroke-dasharray="8,6" />
+
+  <rect x="160" y="70" width="120" height="45" rx="4" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <rect x="360" y="70" width="120" height="45" rx="4" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <rect x="560" y="70" width="120" height="45" rx="4" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <rect x="760" y="70" width="120" height="45" rx="4" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <text x="220" y="97" text-anchor="middle" fill="#8B949E" font-size="11" font-family="JetBrains Mono, monospace">出货仓库 A</text>
+  <text x="420" y="97" text-anchor="middle" fill="#8B949E" font-size="11" font-family="JetBrains Mono, monospace">出货仓库 B</text>
+  <text x="620" y="97" text-anchor="middle" fill="#8B949E" font-size="11" font-family="JetBrains Mono, monospace">出货仓库 C</text>
+  <text x="820" y="97" text-anchor="middle" fill="#8B949E" font-size="11" font-family="JetBrains Mono, monospace">出货仓库 D</text>
+
+  <rect x="160" y="730" width="120" height="25" rx="4" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <rect x="360" y="730" width="120" height="25" rx="4" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <rect x="560" y="730" width="120" height="25" rx="4" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <rect x="760" y="730" width="120" height="25" rx="4" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <text x="220" y="747" text-anchor="middle" fill="#8B949E" font-size="10" font-family="JetBrains Mono, monospace">收货区 1</text>
+  <text x="420" y="747" text-anchor="middle" fill="#8B949E" font-size="10" font-family="JetBrains Mono, monospace">收货区 2</text>
+  <text x="620" y="747" text-anchor="middle" fill="#8B949E" font-size="10" font-family="JetBrains Mono, monospace">收货区 3</text>
+  <text x="820" y="747" text-anchor="middle" fill="#8B949E" font-size="10" font-family="JetBrains Mono, monospace">收货区 4</text>
+
+  <rect x="300" y="300" width="150" height="80" rx="6" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <text x="375" y="345" text-anchor="middle" fill="#8B949E" font-size="11" font-family="JetBrains Mono, monospace">分拣中心</text>
+
+  <rect x="550" y="320" width="120" height="60" rx="6" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <text x="610" y="355" text-anchor="middle" fill="#8B949E" font-size="11" font-family="JetBrains Mono, monospace">中转仓库</text>
+
+  <rect x="750" y="300" width="100" height="70" rx="6" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <text x="800" y="340" text-anchor="middle" fill="#8B949E" font-size="11" font-family="JetBrains Mono, monospace">质检区</text>
+
+  <rect x="920" y="150" width="80" height="50" rx="4" fill="#0D1117" stroke="#21262D" stroke-width="1.5" />
+  <text x="960" y="180" text-anchor="middle" fill="#8B949E" font-size="10" font-family="JetBrains Mono, monospace">办公区</text>
+
+  <rect x="55" y="670" width="180" height="95" rx="6" fill="#0A0E14" stroke="#32C5FF" stroke-width="1.5" stroke-dasharray="4,2" />
+  <text x="145" y="690" text-anchor="middle" fill="#7BD8FF" font-size="10" font-family="JetBrains Mono, monospace" opacity="0.9">停车充电区</text>
+  <text x="145" y="705" text-anchor="middle" fill="#FFB020" font-size="8" font-family="JetBrains Mono, monospace" opacity="0.8">车辆待命时可直接补能</text>
+
+  <rect x="68" y="694" width="24" height="14" rx="2" fill="#161B22" stroke="#32C5FF" stroke-width="1" />
+  <rect x="108" y="694" width="24" height="14" rx="2" fill="#161B22" stroke="#32C5FF" stroke-width="1" />
+  <rect x="148" y="694" width="24" height="14" rx="2" fill="#161B22" stroke="#32C5FF" stroke-width="1" />
+  <rect x="188" y="694" width="24" height="14" rx="2" fill="#161B22" stroke="#32C5FF" stroke-width="1" />
+  <text x="80" y="705" text-anchor="middle" fill="#32C5FF" font-size="8" font-family="JetBrains Mono, monospace">P1</text>
+  <text x="120" y="705" text-anchor="middle" fill="#32C5FF" font-size="8" font-family="JetBrains Mono, monospace">P2</text>
+  <text x="160" y="705" text-anchor="middle" fill="#32C5FF" font-size="8" font-family="JetBrains Mono, monospace">P3</text>
+  <text x="200" y="705" text-anchor="middle" fill="#32C5FF" font-size="8" font-family="JetBrains Mono, monospace">P4</text>
+
+  <circle cx="80" cy="740" r="10" fill="none" stroke="#FFB020" stroke-width="1.5" />
+  <circle cx="140" cy="740" r="10" fill="none" stroke="#FFB020" stroke-width="1.5" />
+  <text x="80" y="744" text-anchor="middle" fill="#FFB020" font-size="8" font-family="JetBrains Mono, monospace">P5</text>
+  <text x="140" y="744" text-anchor="middle" fill="#FFB020" font-size="8" font-family="JetBrains Mono, monospace">P6</text>
+  <path d="M196 734 l6 0 0 12 -6 0" fill="none" stroke="#FFB020" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M205 734 l0 12" fill="none" stroke="#FFB020" stroke-width="1.6" stroke-linecap="round" />
+  <circle cx="201" cy="749" r="1.5" fill="#FFB020" />
+  <text x="200" y="760" text-anchor="middle" fill="#FFB020" font-size="7" font-family="JetBrains Mono, monospace">补能接口</text>
+
+  <g filter="url(#glow)">
+    <circle cx="100" cy="120" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="220" cy="120" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="420" cy="120" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="620" cy="120" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="820" cy="120" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="1020" cy="120" r="5" fill="#00B4D8" opacity="0.8" />
+
+    <circle cx="100" cy="250" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="220" cy="250" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="420" cy="250" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="620" cy="250" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="820" cy="250" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="1020" cy="250" r="5" fill="#00B4D8" opacity="0.8" />
+
+    <circle cx="100" cy="550" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="220" cy="550" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="420" cy="550" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="620" cy="550" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="820" cy="550" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="1020" cy="550" r="5" fill="#00B4D8" opacity="0.8" />
+
+    <circle cx="100" cy="700" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="220" cy="700" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="420" cy="700" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="620" cy="700" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="820" cy="700" r="5" fill="#00B4D8" opacity="0.8" />
+    <circle cx="1020" cy="700" r="5" fill="#00B4D8" opacity="0.8" />
+  </g>
+
+  <g font-family="JetBrains Mono, monospace" font-size="8" fill="#6E7681">
+    <text x="100" y="108" text-anchor="middle">R1</text>
+    <text x="220" y="108" text-anchor="middle">R2</text>
+    <text x="420" y="108" text-anchor="middle">R3</text>
+    <text x="620" y="108" text-anchor="middle">R4</text>
+    <text x="820" y="108" text-anchor="middle">R5</text>
+    <text x="1020" y="108" text-anchor="middle">R6</text>
+    <text x="85" y="255" text-anchor="end">R7</text>
+    <text x="220" y="240" text-anchor="middle">R8</text>
+    <text x="420" y="240" text-anchor="middle">R9</text>
+    <text x="620" y="240" text-anchor="middle">R10</text>
+    <text x="820" y="240" text-anchor="middle">R11</text>
+    <text x="1035" y="255">R12</text>
+    <text x="85" y="555" text-anchor="end">R13</text>
+    <text x="220" y="540" text-anchor="middle">R14</text>
+    <text x="420" y="540" text-anchor="middle">R15</text>
+    <text x="620" y="540" text-anchor="middle">R16</text>
+    <text x="820" y="540" text-anchor="middle">R17</text>
+    <text x="1035" y="555">R18</text>
+    <text x="100" y="718" text-anchor="middle">R19</text>
+    <text x="220" y="718" text-anchor="middle">R20</text>
+    <text x="420" y="718" text-anchor="middle">R21</text>
+    <text x="620" y="718" text-anchor="middle">R22</text>
+    <text x="820" y="718" text-anchor="middle">R23</text>
+    <text x="1020" y="718" text-anchor="middle">R24</text>
+  </g>
+
+  <g filter="url(#glowStrong)">
+    <circle cx="220" cy="170" r="12" fill="#00E676" opacity="0.9" />
+    <circle cx="220" cy="170" r="8" fill="#06090F" />
+    <text x="220" y="174" text-anchor="middle" fill="#00E676" font-size="10" font-weight="bold" font-family="JetBrains Mono, monospace">A1</text>
+
+    <circle cx="420" cy="170" r="12" fill="#00E676" opacity="0.9" />
+    <circle cx="420" cy="170" r="8" fill="#06090F" />
+    <text x="420" y="174" text-anchor="middle" fill="#00E676" font-size="10" font-weight="bold" font-family="JetBrains Mono, monospace">A2</text>
+
+    <circle cx="620" cy="170" r="12" fill="#00E676" opacity="0.9" />
+    <circle cx="620" cy="170" r="8" fill="#06090F" />
+    <text x="620" y="174" text-anchor="middle" fill="#00E676" font-size="10" font-weight="bold" font-family="JetBrains Mono, monospace">A3</text>
+
+    <circle cx="820" cy="170" r="12" fill="#00E676" opacity="0.9" />
+    <circle cx="820" cy="170" r="8" fill="#06090F" />
+    <text x="820" y="174" text-anchor="middle" fill="#00E676" font-size="10" font-weight="bold" font-family="JetBrains Mono, monospace">A4</text>
+  </g>
+
+  <g filter="url(#glowStrong)">
+    <circle cx="220" cy="620" r="12" fill="#FF3D71" opacity="0.9" />
+    <circle cx="220" cy="620" r="8" fill="#06090F" />
+    <text x="220" y="624" text-anchor="middle" fill="#FF3D71" font-size="10" font-weight="bold" font-family="JetBrains Mono, monospace">B1</text>
+
+    <circle cx="420" cy="620" r="12" fill="#FF3D71" opacity="0.9" />
+    <circle cx="420" cy="620" r="8" fill="#06090F" />
+    <text x="420" y="624" text-anchor="middle" fill="#FF3D71" font-size="10" font-weight="bold" font-family="JetBrains Mono, monospace">B2</text>
+
+    <circle cx="620" cy="620" r="12" fill="#FF3D71" opacity="0.9" />
+    <circle cx="620" cy="620" r="8" fill="#06090F" />
+    <text x="620" y="624" text-anchor="middle" fill="#FF3D71" font-size="10" font-weight="bold" font-family="JetBrains Mono, monospace">B3</text>
+
+    <circle cx="820" cy="620" r="12" fill="#FF3D71" opacity="0.9" />
+    <circle cx="820" cy="620" r="8" fill="#06090F" />
+    <text x="820" y="624" text-anchor="middle" fill="#FF3D71" font-size="10" font-weight="bold" font-family="JetBrains Mono, monospace">B4</text>
+  </g>
+
+  <g font-family="JetBrains Mono, monospace" font-size="9" opacity="0.7">
+    <text x="220" y="195" text-anchor="middle" fill="#00E676">取货站 A1</text>
+    <text x="420" y="195" text-anchor="middle" fill="#00E676">取货站 A2</text>
+    <text x="620" y="195" text-anchor="middle" fill="#00E676">取货站 A3</text>
+    <text x="820" y="195" text-anchor="middle" fill="#00E676">取货站 A4</text>
+    <text x="220" y="645" text-anchor="middle" fill="#FF3D71">送货站 B1</text>
+    <text x="420" y="645" text-anchor="middle" fill="#FF3D71">送货站 B2</text>
+    <text x="620" y="645" text-anchor="middle" fill="#FF3D71">送货站 B3</text>
+    <text x="820" y="645" text-anchor="middle" fill="#FF3D71">送货站 B4</text>
+  </g>
+
+  <g fill="#2D333B" opacity="0.5">
+    <polygon points="300,115 310,120 300,125" />
+    <polygon points="520,115 530,120 520,125" />
+    <polygon points="720,115 730,120 720,125" />
+    <polygon points="920,115 930,120 920,125" />
+
+    <polygon points="300,695 310,700 300,705" />
+    <polygon points="500,695 510,700 500,705" />
+    <polygon points="700,695 710,700 700,705" />
+    <polygon points="900,695 910,700 900,705" />
+
+    <polygon points="300,245 310,250 300,255" />
+    <polygon points="500,245 510,250 500,255" />
+    <polygon points="700,245 710,250 700,255" />
+    <polygon points="900,245 910,250 900,255" />
+
+    <polygon points="300,545 310,550 300,555" />
+    <polygon points="500,545 510,550 500,555" />
+    <polygon points="700,545 710,550 700,555" />
+    <polygon points="900,545 910,550 900,555" />
+
+    <polygon points="215,180 220,190 225,180" />
+    <polygon points="415,350 420,360 425,350" />
+    <polygon points="615,350 620,360 625,350" />
+    <polygon points="815,350 820,360 825,350" />
+  </g>
+
+  <rect x="60" y="65" width="88" height="20" rx="4" fill="#06090F" stroke="#21262D" stroke-width="1" />
+  <text x="104" y="79" text-anchor="middle" fill="#E6EDF3" font-size="10" font-weight="bold" font-family="JetBrains Mono, monospace">园区总览</text>
+
+  <line x1="1050" y1="780" x2="1150" y2="780" stroke="#8B949E" stroke-width="1" />
+  <line x1="1050" y1="775" x2="1050" y2="785" stroke="#8B949E" stroke-width="1" />
+  <line x1="1150" y1="775" x2="1150" y2="785" stroke="#8B949E" stroke-width="1" />
+  <text x="1100" y="775" text-anchor="middle" fill="#8B949E" font-size="8" font-family="JetBrains Mono, monospace">100m</text>
+</svg>

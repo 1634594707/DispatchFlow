@@ -1,0 +1,252 @@
+@import './theme.less';
+
+:root {
+  --fsd-bg-deep: #06090F;
+  --fsd-bg-base: #0D1117;
+  --fsd-bg-elevated: #161B22;
+  --fsd-bg-hover: #1C2128;
+  --fsd-border: #21262D;
+  --fsd-border-active: #30363D;
+  --fsd-text-primary: #E6EDF3;
+  --fsd-text-secondary: #8B949E;
+  --fsd-text-tertiary: #6E7681;
+  --fsd-accent: #00B4D8;
+  --fsd-accent-glow: rgba(0, 180, 216, 0.15);
+  --fsd-success: #00E676;
+  --fsd-warning: #FFB020;
+  --fsd-error: #FF3D71;
+  --fsd-gradient-card: linear-gradient(135deg, rgba(0, 180, 216, 0.03) 0%, rgba(13, 17, 23, 0) 100%);
+  --fsd-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --fsd-shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --fsd-radius: 8px;
+  --fsd-radius-lg: 12px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--fsd-bg-deep);
+  color: var(--fsd-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Scrollbar
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--fsd-border);
+  border-radius: 3px;
+
+  &:hover {
+    background: var(--fsd-border-active);
+  }
+}
+
+// Ant Design Vue Dark Overrides
+.ant-layout {
+  background: var(--fsd-bg-deep) !important;
+}
+
+.ant-layout-sider {
+  background: var(--fsd-bg-base) !important;
+  border-right: 1px solid var(--fsd-border) !important;
+}
+
+.ant-layout-header {
+  background: var(--fsd-bg-base) !important;
+  border-bottom: 1px solid var(--fsd-border) !important;
+}
+
+.ant-menu-dark,
+.ant-menu-dark .ant-menu-sub {
+  background: transparent !important;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  background: var(--fsd-accent-glow) !important;
+  color: var(--fsd-accent) !important;
+}
+
+.ant-menu-dark .ant-menu-item {
+  color: var(--fsd-text-secondary) !important;
+  border-radius: var(--fsd-radius) !important;
+  margin: 2px 8px !important;
+
+  &:hover {
+    color: var(--fsd-text-primary) !important;
+    background: var(--fsd-bg-hover) !important;
+  }
+}
+
+.ant-card {
+  background: var(--fsd-bg-base) !important;
+  border: 1px solid var(--fsd-border) !important;
+  border-radius: var(--fsd-radius-lg) !important;
+}
+
+.ant-table {
+  background: transparent !important;
+}
+
+.ant-table-thead > tr > th {
+  background: var(--fsd-bg-elevated) !important;
+  border-bottom: 1px solid var(--fsd-border) !important;
+  color: var(--fsd-text-secondary) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--fsd-border) !important;
+  color: var(--fsd-text-primary) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: var(--fsd-bg-hover) !important;
+}
+
+.ant-pagination .ant-pagination-item {
+  background: var(--fsd-bg-elevated) !important;
+  border: 1px solid var(--fsd-border) !important;
+
+  a {
+    color: var(--fsd-text-secondary) !important;
+  }
+
+  &.ant-pagination-item-active {
+    background: var(--fsd-accent-glow) !important;
+    border-color: var(--fsd-accent) !important;
+
+    a {
+      color: var(--fsd-accent) !important;
+    }
+  }
+}
+
+.ant-btn-default {
+  background: var(--fsd-bg-elevated) !important;
+  border: 1px solid var(--fsd-border) !important;
+  color: var(--fsd-text-primary) !important;
+
+  &:hover {
+    border-color: var(--fsd-accent) !important;
+    color: var(--fsd-accent) !important;
+  }
+}
+
+.ant-input,
+.ant-input-number,
+.ant-select-selector,
+.ant-picker {
+  background: var(--fsd-bg-elevated) !important;
+  border: 1px solid var(--fsd-border) !important;
+  color: var(--fsd-text-primary) !important;
+
+  &:hover,
+  &:focus {
+    border-color: var(--fsd-accent) !important;
+  }
+}
+
+.ant-select-dropdown {
+  background: var(--fsd-bg-elevated) !important;
+  border: 1px solid var(--fsd-border) !important;
+}
+
+.ant-select-item {
+  color: var(--fsd-text-secondary) !important;
+
+  &-option-active,
+  &-option-selected {
+    background: var(--fsd-accent-glow) !important;
+    color: var(--fsd-accent) !important;
+  }
+}
+
+.ant-modal-content {
+  background: var(--fsd-bg-base) !important;
+  border: 1px solid var(--fsd-border) !important;
+  border-radius: var(--fsd-radius-lg) !important;
+}
+
+.ant-modal-header {
+  background: var(--fsd-bg-elevated) !important;
+  border-bottom: 1px solid var(--fsd-border) !important;
+}
+
+.ant-drawer-content {
+  background: var(--fsd-bg-base) !important;
+}
+
+.ant-drawer-header {
+  background: var(--fsd-bg-elevated) !important;
+  border-bottom: 1px solid var(--fsd-border) !important;
+}
+
+.ant-badge-status-success { background: var(--fsd-success) !important; }
+.ant-badge-status-error { background: var(--fsd-error) !important; }
+.ant-badge-status-warning { background: var(--fsd-warning) !important; }
+.ant-badge-status-processing { background: var(--fsd-accent) !important; }
+
+.ant-breadcrumb {
+  color: var(--fsd-text-tertiary) !important;
+
+  a {
+    color: var(--fsd-text-secondary) !important;
+
+    &:hover {
+      color: var(--fsd-accent) !important;
+    }
+  }
+
+  > span:last-child {
+    color: var(--fsd-text-primary) !important;
+  }
+}
+
+// Animations
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 61, 113, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 61, 113, 0); }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out both;
+}
+
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
