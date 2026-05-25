@@ -1,269 +1,142 @@
 # DispatchFlow
 
-DispatchFlow 是一个面向园区短驳配送场景的无人车调度系统原型，覆盖了移动端下单、调度任务生成、自动派车、车辆状态机执行、低电量返充、监控大屏联动以及 RabbitMQ 事件驱动等核心能力。
+DispatchFlow 是一个面向**园区短驳配送**场景的无人车调度系统原型。它用真实后端架构的方式，跑通从下单到车辆执行、充电、异常处置的完整业务闭环：
 
-项目目标不是单纯完成一个“地图上小车移动”的演示，而是尽可能用真实后端系统的方式，构建一条完整的业务闭环：
+`下单 → 订单 → 调度任务 → 自动/手动派车 → 车辆状态机执行 → 回报联动 → 完成/失败 → 待命或充电`
 
-`下单 -> 订单创建 -> 调度任务生成 -> 自动派车 -> 车辆执行 -> 车辆回报 -> 任务完成/失败 -> 回待命位或充电`
-
----
-
-## 一、项目背景
-
-在园区无人配送、工厂物料短驳、仓储周转配送这类场景中，调度系统的核心不是展示页面，而是后端如何管理以下对象之间的关系：
-
-- 订单
-- 调度任务
-- 车辆
-- 站点
-- 路网
-- 停车/充电位
-- 异常与人工介入
-
-DispatchFlow 围绕这几个核心对象，搭建了一个可运行、可联调、可扩展的调度系统雏形。
+当前版本已完成 **Phase 1 领域整合**：仿真与业务解耦、Fleet 运行态 Redis 持久化、统一充电策略、异常分级与自动闭环。
 
 ---
 
-## 二、项目能力概览
+## 亮点能力
 
-当前版本已经具备以下能力：
-
-### 1. 园区监控与可视化
-
-- 园区底图加载
-- 车辆实时位置展示
-- 订单链路展示
-- 停车/充电观察层
-- 车辆当前状态、电量、目标点展示
-
-### 2. 园区简化下单
-
-- 支持移动端选择取货点和送货点
-- 下单后自动创建订单
-- 自动生成调度任务
-- 自动触发派车
-
-### 3. 调度任务管理
-
-- 调度任务创建
-- 自动派车
-- 手动派车
-- 派车失败进入人工介入
-- 调度异常记录
-
-### 4. 车辆状态机执行
-
-车辆执行过程不是瞬时完成，而是经历：
-
-- 待命
-- 前往取货
-- 装货
-- 前往送货
-- 卸货
-- 前往充电
-- 充电
-- 返回待命
-- 离线
-
-### 5. 低电量返充
-
-- 任务执行过程中持续消耗电量
-- 任务完成后自动评估电量
-- 电量不足时自动转入充电流程
-- 电量恢复后返回待命位
-
-### 6. 事件驱动
-
-系统关键节点支持事件发布：
-
-- 任务创建
-- 任务已分配
-- 任务执行中
-- 任务成功
-- 任务失败
-- 异常创建
-- 异常解决
-
-同时引入 Outbox 模式，降低业务状态与消息投递不一致的问题。
+| 模块 | 说明 |
+|------|------|
+| 多园区调度 | `t_park / t_station`，订单绑定园区，监控与下单按园区隔离 |
+| Fleet 运行态 | `FleetRuntimeService` + Redis，重启后监控页仍可恢复位置/电量/插枪状态 |
+| 充电语义 | 满电插枪 = **待命中（STANDBY）**，不掉电、可接单；接单自动拔枪 |
+| 能量策略 | `FleetChargePolicy` 统一低电阈值、可派单 SOC、充电速率与空闲充电规则 |
+| 仿真 Adapter | `SimulationFleetAdapter` 负责 tick 推进，经统一入口写运行态，便于后续接真实车端 |
+| 异常闭环 | 分级（INFO/WARN/ERROR/CRITICAL）、OPEN 去重、派车成功自动 resolve |
+| 事件驱动 | RabbitMQ + Outbox，保证任务/异常等关键事件可靠投递 |
 
 ---
 
-## 三、技术栈
+## 技术栈
 
-### 前端
+**前端：** Vue 3 · TypeScript · Vite · Ant Design Vue · Leaflet
 
-- Vue 3
-- TypeScript
-- Vite
-- Ant Design Vue
-- Leaflet
+**后端：** Java 21 · Spring Boot 3.3 · MyBatis-Plus
 
-### 后端
-
-- Java 21
-- Spring Boot 3.3
-- MyBatis-Plus
-
-### 中间件
-
-- MySQL
-- Redis
-- RabbitMQ
+**中间件：** MySQL · Redis · RabbitMQ
 
 ---
 
-## 四、项目结构
+## 项目结构
 
 ```text
 DispatchFlow/
-├─ front/                前端工程
-├─ back/                 后端工程
+├─ front/          前端（监控大屏、管理端、移动下单）
+├─ back/           后端 Maven 多模块
+│  ├─ fsd-common       公共枚举、响应、异常
+│  ├─ fsd-order        订单域
+│  ├─ fsd-dispatch     调度、Fleet、仿真、异常、事件
+│  ├─ fsd-vehicle      车辆占用与回报
+│  ├─ fsd-admin-api    管理端 API 聚合
+│  ├─ fsd-bootstrap    启动模块
+│  └─ sql/init/        Flyway 风格初始化脚本
 └─ README.md
 ```
 
-### 前端目录
-
-`front/` 主要包含：
-
-- 管理端页面
-- 车辆监控大屏
-- 订单、任务、车辆列表与详情
-- 移动端简化下单页
-
-### 后端目录
-
-`back/` 是 Maven 多模块工程，模块划分如下：
-
-- `fsd-common`
-  公共模型、异常、枚举、统一响应结构
-
-- `fsd-order`
-  订单域，负责订单创建、订单状态流转、订单查询
-
-- `fsd-dispatch`
-  调度域，负责调度任务、自动派车、异常处理、事件驱动、园区仿真、状态机推进
-
-- `fsd-vehicle`
-  车辆域，负责车辆状态、车辆占用与释放、车辆回报处理
-
-- `fsd-admin-api`
-  管理端聚合接口层，对前端统一暴露订单、任务、车辆、异常、园区调度相关能力
-
-- `fsd-bootstrap`
-  启动模块，负责应用装配与运行
-
 ---
 
-## 五、核心业务链路
+## 架构概览
 
-### 1. 园区下单链路
-
-移动端或管理端发起下单后，系统会执行：
-
-1. 校验取货点和送货点
-2. 创建订单
-3. 创建调度任务
-4. 自动派车
-5. 返回订单号、任务号、派车结果
-
-核心代码：
-
-- [ParkPilotCommandServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotCommandServiceImpl.java)
-
-### 2. 自动派车链路
-
-自动派车时，系统会执行：
-
-1. 获取任务锁，避免并发重复派车
-2. 校验任务状态
-3. 查询可分配车辆
-4. 根据取货点选择最近车辆
-5. 占用车辆
-6. 任务状态推进为 `ASSIGNED`
-7. 若派车失败，则进入 `MANUAL_PENDING`
-
-核心代码：
-
-- [DispatchTaskServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchTaskServiceImpl.java)
-- [ParkPilotServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotServiceImpl.java)
-
-### 3. 车辆执行链路
-
-车辆任务执行采用状态机推进，不是直接瞬时完成。系统通过定时任务驱动车辆经历完整生命周期：
-
-- `TO_PICKUP`
-- `LOADING`
-- `TO_DROPOFF`
-- `UNLOADING`
-- `TO_CHARGING`
-- `CHARGING`
-- `RETURNING_TO_STANDBY`
-
-核心代码：
-
-- [ParkPilotSimulationServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotSimulationServiceImpl.java)
-
-### 4. 车辆回报链路
-
-车辆通过执行回报驱动任务状态变化，例如：
-
-- `START_EXECUTE`
-- `TASK_SUCCESS`
-- `TASK_FAILED`
-
-任务、订单和车辆状态由回报统一联动推进。
-
-核心代码：
-
-- [VehicleReportServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/VehicleReportServiceImpl.java)
-
-### 5. 事件驱动链路
-
-关键业务动作会发布领域事件，并通过 RabbitMQ 分发。为了保证消息发送可靠性，项目使用：
-
-- 本地消息表（Outbox）
-- 事务提交后发送
-- 失败重试调度
-
-核心代码：
-
-- [RabbitDispatchEventPublisher](back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/RabbitDispatchEventPublisher.java)
-- [DispatchEventOutboxServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/impl/DispatchEventOutboxServiceImpl.java)
-- [DispatchEventRetryScheduler](back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/impl/DispatchEventRetryScheduler.java)
-
----
-
-## 六、核心接口
-
-### 园区与站点（多园区）
-
-站点数据存储在 MySQL：`t_park`、`t_station`（初始化脚本见 `back/sql/init/V4__park_and_station.sql`）。
-
-导入 SQL 时请使用 **utf8mb4**（避免中文乱码 `é»˜è®¤...`）：
-
-```powershell
-docker cp back\sql\init\V4__park_and_station.sql fsd-mysql:/tmp/V4.sql
-docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V4.sql"
+```text
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  前端监控页  │────▶│  fsd-admin-api   │────▶│  fsd-dispatch   │
+└─────────────┘     └──────────────────┘     └────────┬────────┘
+                                                       │
+                       ┌───────────────────────────────┼───────────────────────────────┐
+                       ▼                               ▼                               ▼
+              FleetRuntimeService            DispatchTaskService              DispatchExceptionService
+              (Redis 运行态)                  (自动/手动派车)                    (分级 / 去重 / resolve)
+                       ▲                               │
+                       │                               ▼
+              SimulationFleetAdapter          FleetChargePolicy
+              (仿真 tick 写遥测)                 (派单 SOC / 充电规则)
+                       │
+              ParkPilotSimulationServiceImpl
+              (状态机推进，非瞬时完成)
 ```
 
-若已乱码，执行修复脚本：`back/sql/init/V5__fix_charset_data.sql`（同样加 `--default-character-set=utf8mb4`）。
+### Fleet 运行态语义（Phase 1）
 
-- `GET /api/admin/parks` — 园区列表
-- `GET /api/admin/park/layout?parkId=` — 园区底图与路网（`parkId` 可选，默认园区）
-- `GET /api/admin/park/stations?parkId=` — 站点列表
+| 状态 | 含义 |
+|------|------|
+| `STANDBY + pluggedIn + SOC=100%` | 插枪待命中，不掉电，可被派单 |
+| 接单瞬间 | `pluggedIn=false`，拔枪出发 |
+| 低电 / 无单 | 自动前往充电，充至 `fullSoc` 后回待命 |
+| 忙碌 / 空闲 | 差异化耗电；充电与前往充电过程不掉电 |
 
-### 园区监控接口
+核心包：`back/fsd-dispatch/src/main/java/com/fsd/dispatch/fleet/`
 
-- `GET /api/admin/park/layout`
-- `GET /api/admin/park/stations`
-- `GET /api/admin/park/vehicles`
-- `GET /api/admin/park/orders`
+---
 
-### 园区下单接口
+## 核心业务链路
 
-- `POST /api/admin/park/orders`
+### 1. 园区下单
 
-请求示例：
+1. 校验取货/送货站点 → 2. 创建订单 → 3. 创建调度任务 → 4. 自动派车
+
+→ [ParkPilotCommandServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotCommandServiceImpl.java)
+
+### 2. 自动派车
+
+任务锁 → 状态校验 → 可分配车辆（经 `FleetChargePolicy` 过滤 SOC）→ 最近车 → 占用 → `ASSIGNED`；失败则 `MANUAL_PENDING`
+
+→ [DispatchTaskServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchTaskServiceImpl.java)
+
+### 3. 车辆执行（状态机）
+
+`TO_PICKUP → LOADING → TO_DROPOFF → UNLOADING → TO_CHARGING → CHARGING → RETURNING_TO_STANDBY`
+
+仿真 tick 经 `SimulationFleetAdapter` 写 Redis，监控 API 读 `FleetRuntimeService` 组装快照。
+
+→ [ParkPilotSimulationServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotSimulationServiceImpl.java)
+
+### 4. 异常与人工介入
+
+- 仿真随机离线默认 **INFO 审计**，不刷 OPEN 异常
+- 派车失败产生 OPEN 异常（去重）
+- 重新派车成功 → 自动 `resolveOpenExceptionsForTask`
+- 支持处置动作：`REASSIGN` / `MARK_FAILED` / `CLOSE` / `VEHICLE_OFFLINE`
+
+→ [DispatchExceptionServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchExceptionServiceImpl.java)
+
+### 5. 事件驱动
+
+Outbox + 事务后发送 + 失败重试
+
+→ [RabbitDispatchEventPublisher](back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/RabbitDispatchEventPublisher.java)
+
+---
+
+## 核心 API
+
+### 园区与监控
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/admin/parks` | 园区列表 |
+| GET | `/api/admin/park/layout?parkId=` | 底图与路网 |
+| GET | `/api/admin/park/stations?parkId=` | 站点列表 |
+| GET | `/api/admin/park/vehicles` | 车辆运行态快照 |
+| GET | `/api/admin/park/orders` | 园区订单 |
+
+### 园区下单
+
+`POST /api/admin/park/orders`
 
 ```json
 {
@@ -278,34 +151,50 @@ docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4
 
 ---
 
-## 七、本地运行说明
+## 本地运行
 
-### 1. 环境要求
+### 环境要求
 
-- Node.js 18+
-- JDK 21
-- Maven 3.9+
-- MySQL
-- Redis
-- RabbitMQ
+Node.js 18+ · JDK 21 · Maven 3.9+ · MySQL · **Redis** · RabbitMQ
 
-### 2. 默认依赖端口
+### 默认端口
 
-后端默认使用以下本地依赖：
+| 服务 | 地址 |
+|------|------|
+| MySQL | `127.0.0.1:3307` |
+| Redis | `127.0.0.1:6380` |
+| RabbitMQ | `127.0.0.1:5673` |
+| 后端 API | `http://localhost:8080` |
+| 前端 | `http://localhost:3000` |
+| Swagger | `http://localhost:8080/swagger-ui.html` |
 
-- MySQL：`127.0.0.1:3307`
-- Redis：`127.0.0.1:6380`
-- RabbitMQ：`127.0.0.1:5673`
+配置：[application.yml](back/fsd-bootstrap/src/main/resources/application.yml)
 
-配置文件：
+Fleet 能量策略（`fsd.fleet.energy.*`）：
 
-- [back/fsd-bootstrap/src/main/resources/application.yml](back/fsd-bootstrap/src/main/resources/application.yml)
+```yaml
+fsd:
+  fleet:
+    energy:
+      low-soc-threshold: 25
+      min-assignable-soc: 30
+      full-soc: 100
+      plugged-standby-no-drain: true
+      idle-charge-when-no-demand: true
+```
 
-### 3. 启动后端
+### 数据库迁移
 
-注意：`back/pom.xml` 是聚合工程，不能直接在 `back/` 根目录执行 `mvn spring-boot:run`。
+除 V4/V5 多园区脚本外，Phase 1 需执行：
 
-正确方式（**必须带 `-am`**，否则会加载旧的 `fsd-admin-api` jar，园区接口 `/api/admin/park/*` 会 404）：
+```powershell
+docker cp back\sql\init\V6__exception_severity.sql fsd-mysql:/tmp/V6.sql
+docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V6.sql"
+```
+
+### 启动后端
+
+> `back/pom.xml` 是聚合工程，**必须带 `-am`**，否则园区接口会 404。
 
 ```bash
 cd back
@@ -313,24 +202,14 @@ mvn -pl fsd-bootstrap -am clean install -DskipTests
 mvn -pl fsd-bootstrap spring-boot:run
 ```
 
-不要写成一条 `... clean spring-boot:run`，否则 Maven 可能在父工程 `fsd-core-server` 上执行 run 并报错「找不到 main class」。
-
-Windows 也可直接：
+Windows 快捷方式：
 
 ```powershell
 cd back
 .\run-dev.ps1
 ```
 
-若监控页提示「后端接口未找到」，请先停止当前后端（Ctrl+C），再执行上述命令完整重启。
-
-默认访问地址：
-
-- API：`http://localhost:8080`
-- Swagger：`http://localhost:8080/swagger-ui.html`
-- OpenAPI：`http://localhost:8080/api-docs`
-
-### 4. 启动前端
+### 启动前端
 
 ```bash
 cd front
@@ -338,52 +217,51 @@ npm install
 npm run dev
 ```
 
-默认访问地址：
-
-- Frontend：`http://localhost:3000`
-
-前端通过 Vite 代理访问 `/api` 到后端服务。
-
 ---
 
-## 八、测试
-
-推荐执行以下测试命令：
+## 测试
 
 ```bash
 cd back
-mvn -pl fsd-admin-api -am test
+mvn -pl fsd-dispatch -am test
 mvn -pl fsd-bootstrap -am test
 ```
 
----
-
-## 九、推荐阅读代码顺序
-
-如果希望快速理解整个项目，建议按以下顺序阅读代码：
-
-1. [AdminDispatchController](back/fsd-admin-api/src/main/java/com/fsd/admin/controller/AdminDispatchController.java)
-2. [ParkPilotCommandServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotCommandServiceImpl.java)
-3. [DispatchTaskServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchTaskServiceImpl.java)
-4. [ParkPilotServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotServiceImpl.java)
-5. [ParkPilotSimulationServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotSimulationServiceImpl.java)
-6. [VehicleReportServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/VehicleReportServiceImpl.java)
-7. [RabbitDispatchEventPublisher](back/fsd-dispatch/src/main/java/com/fsd/dispatch/event/RabbitDispatchEventPublisher.java)
+Phase 1 新增：`FleetChargePolicyImplTest` 等 Fleet/异常相关单测。
 
 ---
 
-## 十、项目定位
+## 推荐阅读顺序
 
-这个项目更适合被定义为：
+1. [AdminDispatchController](back/fsd-admin-api/src/main/java/com/fsd/admin/controller/AdminDispatchController.java) — API 入口
+2. [FleetRuntimeService](back/fsd-dispatch/src/main/java/com/fsd/dispatch/fleet/service/FleetRuntimeService.java) — 运行态抽象
+3. [RedisFleetRuntimeServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/fleet/service/impl/RedisFleetRuntimeServiceImpl.java) — Redis 持久化
+4. [FleetChargePolicyImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/fleet/policy/FleetChargePolicyImpl.java) — 充电/派单策略
+5. [SimulationFleetAdapter](back/fsd-dispatch/src/main/java/com/fsd/dispatch/fleet/simulation/SimulationFleetAdapter.java) — 仿真适配
+6. [DispatchTaskServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchTaskServiceImpl.java) — 派车逻辑
+7. [ParkPilotSimulationServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotSimulationServiceImpl.java) — 状态机 tick
+8. [DispatchExceptionServiceImpl](back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/DispatchExceptionServiceImpl.java) — 异常闭环
 
-**一个面向园区短驳配送场景的无人车调度系统后端原型。**
+---
 
-它的重点不在于“可视化大屏”，而在于：
+## 演进路线
 
-- 订单驱动调度
-- 任务状态流转
-- 自动派车
-- 车辆状态机
-- 低电量返充
-- RabbitMQ 事件驱动
-- 面向真实调度系统的后端结构设计
+| 阶段 | 状态 | 内容 |
+|------|------|------|
+| Phase 1 | 后端已完成 | Fleet 运行态、仿真 Adapter、能量策略、异常闭环 |
+| Phase 1 | 待做 | 调度工作台前端（任务池 + 异常快捷处置） |
+| Phase 2 | 规划中 | 充电位占用、WebSocket 实时推送、评分派单 |
+| Phase 3+ | 规划中 | 真实车端接入、运营报表、权限与审计 |
+
+---
+
+## 项目定位
+
+DispatchFlow 是一个**可联调、可扩展的无人车调度后端原型**，重点在于：
+
+- 订单驱动的任务调度，而非单纯地图动画
+- Fleet 运行态与业务状态分离，仿真可替换为真实遥测
+- 充电、派单、异常等规则集中在领域层，避免逻辑散落
+- 面向真实调度系统的模块划分与事件驱动设计
+
+适合作为调度系统后端的学习参考、面试项目或进一步对接真实车端的起点。
