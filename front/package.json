@@ -1,5 +1,6 @@
 {
-  "name": "fsd-web",
+  "name": "dispatchflow-web",
+  "description": "DispatchFlow admin console and vehicle monitoring UI",
   "private": true,
   "version": "0.1.0",
   "type": "module",

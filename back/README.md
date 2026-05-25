@@ -1,39 +1,54 @@
-# FSD-Core MVP
+# DispatchFlow Backend
 
-FSD-Core 是商用无人配送车辆智能调度平台。
+Java 21 / Spring Boot 3 modular monolith for autonomous vehicle dispatch in campus logistics scenarios.
 
-当前目录为 `MVP` 阶段后端工程骨架，采用：
+## Modules
 
-- `Java 21`
-- `Spring Boot 3`
-- `MyBatis-Plus`
-- `MySQL`
-- `Redis`
-- `RabbitMQ`
-- `Maven 多模块 + 模块化单体`
+| Module | Description |
+|--------|-------------|
+| `fsd-common` | Shared enums, exceptions, API response models |
+| `fsd-order` | Order domain |
+| `fsd-dispatch` | Dispatch tasks, fleet runtime, simulation, exceptions, events |
+| `fsd-vehicle` | Vehicle occupancy and execution reports |
+| `fsd-admin-api` | Admin REST API aggregation |
+| `fsd-bootstrap` | Application entry point |
 
-## 模块
-
-- `fsd-common`：通用枚举、异常、响应模型、日志上下文
-- `fsd-order`：订单域
-- `fsd-dispatch`：调度域
-- `fsd-vehicle`：车辆域
-- `fsd-admin-api`：管理端接口聚合
-- `fsd-bootstrap`：启动模块
-
-## 初始化
-
-1. 安装 `Maven 3.9+` 并加入 `PATH`
-2. 初始化数据库：执行 [sql/init/V1__init_schema.sql](sql/init/V1__init_schema.sql)
-3. 启动中间件：`MySQL`、`Redis`、`RabbitMQ`
-4. 执行：
+## Quick start
 
 ```bash
-mvn clean package
+# Infrastructure (from repo root)
+docker compose up -d mysql redis rabbitmq
+
+# Backend
+mvn -pl fsd-bootstrap -am clean install -DskipTests
+mvn -pl fsd-bootstrap spring-boot:run
 ```
 
-5. 运行启动模块：
+Windows: `.\run-dev.ps1`
+
+## API documentation
+
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- OpenAPI JSON: `http://localhost:8080/api-docs`
+
+## Database
+
+Initialization scripts: `sql/init/V1__init_schema.sql` through `V6__exception_severity.sql`.
+
+Fresh Docker MySQL containers apply all scripts automatically. See [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) for upgrade paths.
+
+## Tests
 
 ```bash
-mvn -pl fsd-bootstrap -am spring-boot:run
+mvn -pl fsd-bootstrap -am test
 ```
+
+## Docker
+
+Full stack including backend image:
+
+```bash
+docker compose up -d
+```
+
+Compose file: [docker-compose.yml](docker-compose.yml)

@@ -62,7 +62,7 @@
         </div>
 
         <a-card title="状态变更历史" size="small" style="margin-top: 16px;">
-          <a-empty description="MVP 暂未接入状态变更日志" />
+          <a-empty description="暂无操作日志记录" />
         </a-card>
       </template>
     </a-spin>

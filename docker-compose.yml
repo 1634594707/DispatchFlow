@@ -1,0 +1,10 @@
+# DispatchFlow — full-stack local environment
+# Usage:
+#   docker compose up -d              # infrastructure + backend
+#   cd front && npm run dev           # frontend (separate terminal)
+#
+# Ports (defaults):
+#   MySQL 3307 | Redis 6380 | RabbitMQ 5673/15673 | API 8080
+
+include:
+  - path: back/docker-compose.yml

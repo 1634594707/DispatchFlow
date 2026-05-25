@@ -9,8 +9,12 @@ Thumbs.db
 .golutra/
 project/
 DISPATCHFLOW/
-docs/
 README.original.md
+docs/*
+!docs/ARCHITECTURE.md
+!docs/DEPLOYMENT.md
+!docs/ROADMAP.md
+docs/private/
 
 # Frontend
 front/node_modules/

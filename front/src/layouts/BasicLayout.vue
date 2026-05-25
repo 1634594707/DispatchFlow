@@ -24,8 +24,8 @@
         </div>
         <transition name="fade">
           <div v-if="!collapsed" class="logo-text">
-            <span class="logo-title">FSD-Core</span>
-            <span class="logo-sub">智能调度平台</span>
+            <span class="logo-title">DispatchFlow</span>
+            <span class="logo-sub">无人车调度平台</span>
           </div>
         </transition>
       </div>

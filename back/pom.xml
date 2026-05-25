@@ -15,8 +15,8 @@
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>fsd-core-server</name>
-    <description>FSD-Core MVP backend project</description>
+    <name>dispatchflow-server</name>
+    <description>DispatchFlow — autonomous vehicle dispatch platform for campus logistics</description>
 
     <modules>
         <module>fsd-common</module>
