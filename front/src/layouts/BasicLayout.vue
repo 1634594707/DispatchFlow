@@ -175,6 +175,7 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import { queryExceptions } from '@/api/exception'
+import { ExceptionStatus } from '@/constants/enums'
 import type { ExceptionAdminListItem } from '@/types/exception'
 import type { PageResponse } from '@/types/api'
 
@@ -257,7 +258,7 @@ async function handleNotificationOpen(open: boolean) {
     const res = await queryExceptions({
       pageNo: 1,
       pageSize: 8,
-      exceptionStatus: 'OPEN',
+      exceptionStatus: ExceptionStatus.OPEN,
     })
     const page = res.data as unknown as PageResponse<ExceptionAdminListItem>
     notificationItems.value = page.records || []
