@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fsd.common.enums.DispatchTaskStatus;
+import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
@@ -27,10 +28,10 @@ import com.fsd.order.service.OrderStateService;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.service.VehicleService;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -56,8 +57,23 @@ class DispatchTaskServiceImplTest {
     @Mock
     private DispatchEventPublisher eventPublisher;
 
-    @InjectMocks
+    private final ParkPilotProperties parkPilotProperties = new ParkPilotProperties();
     private DispatchTaskServiceImpl dispatchTaskService;
+
+    @BeforeEach
+    void setUp() {
+        dispatchTaskService = new DispatchTaskServiceImpl(
+                dispatchTaskMapper,
+                dispatchTaskStateService,
+                operateLogService,
+                dispatchExceptionService,
+                orderStateService,
+                vehicleService,
+                parkPilotService,
+                parkPilotProperties,
+                dispatchLockService,
+                eventPublisher);
+    }
 
     @Test
     void createTaskShouldPersistPendingTask() {
@@ -134,7 +150,7 @@ class DispatchTaskServiceImplTest {
         assertEquals(DispatchTaskStatus.MANUAL_PENDING.name(), response.getStatus());
         assertNull(response.getVehicleId());
         verify(dispatchExceptionService).recordException(3002L, 1002L, null,
-                "AUTO_ASSIGN_NO_VEHICLE", "No assignable vehicle found");
+                "AUTO_ASSIGN_NO_VEHICLE", "No assignable vehicle found (offline, busy, or battery below threshold)");
         verify(orderStateService, never()).markDispatched(any(), any());
         verify(dispatchLockService).releaseTaskLock(3002L, "lock-2");
     }

@@ -77,9 +77,28 @@ public class ParkPilotProperties {
 
         private int offlineDurationSeconds = 8;
 
-        private double offlineProbability = 0.02D;
+        private double offlineProbability = 0.005D;
 
-        private int lowBatteryThreshold = 20;
+        /** SOC at or below this value is treated as low battery (must charge). */
+        private int lowBatteryThreshold = 25;
+
+        /** Vehicles below this SOC are excluded from auto-assign. */
+        private int minAssignableBattery = 30;
+
+        /** Target SOC before leaving the charging pile. */
+        private int fullChargeLevel = 100;
+
+        /** Battery points recovered per simulation tick while CHARGING. */
+        private int chargeRatePerTick = 4;
+
+        /** Minimum displayed SOC while discharging. */
+        private int reserveBatteryFloor = 8;
+
+        /** Busy drain: subtract 1% every N movement ticks (1 = every tick). */
+        private int busyDrainIntervalTicks = 4;
+
+        /** Idle drain probability per tick (0-1). */
+        private double idleDrainProbability = 0.06D;
     }
 
     @Data

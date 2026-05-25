@@ -3,6 +3,7 @@ package com.fsd.dispatch.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.exception.BusinessException;
+import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
@@ -45,6 +46,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
     private final OrderStateService orderStateService;
     private final VehicleService vehicleService;
     private final ParkPilotService parkPilotService;
+    private final ParkPilotProperties parkPilotProperties;
     private final DispatchLockService dispatchLockService;
     private final DispatchEventPublisher eventPublisher;
 
@@ -55,6 +57,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
                                    OrderStateService orderStateService,
                                    VehicleService vehicleService,
                                    ParkPilotService parkPilotService,
+                                   ParkPilotProperties parkPilotProperties,
                                    DispatchLockService dispatchLockService,
                                    DispatchEventPublisher eventPublisher) {
         this.dispatchTaskMapper = dispatchTaskMapper;
@@ -64,6 +67,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
         this.orderStateService = orderStateService;
         this.vehicleService = vehicleService;
         this.parkPilotService = parkPilotService;
+        this.parkPilotProperties = parkPilotProperties;
         this.dispatchLockService = dispatchLockService;
         this.eventPublisher = eventPublisher;
     }
@@ -112,9 +116,10 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
             operateLogService.record(taskEntity.getId(), "AUTO_ASSIGN", beforeStatus, taskEntity.getStatus(),
                     "SYSTEM", "system", "system", "Auto assign started");
 
-            List<VehicleEntity> candidates = vehicleService.listAssignableVehicles();
+            List<VehicleEntity> candidates = filterAssignableByBattery(vehicleService.listAssignableVehicles());
             if (candidates.isEmpty()) {
-                moveToManualPending(taskEntity, "AUTO_ASSIGN_NO_VEHICLE", "No assignable vehicle found");
+                moveToManualPending(taskEntity, "AUTO_ASSIGN_NO_VEHICLE",
+                        "No assignable vehicle found (offline, busy, or battery below threshold)");
                 return DispatchTaskAssignResponse.builder()
                         .taskId(taskEntity.getId())
                         .status(taskEntity.getStatus())
@@ -263,6 +268,19 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
                 .eq(DispatchTaskEntity::getDeleted, 0)
                 .eq(DispatchTaskEntity::getStatus, status));
         return count == null ? 0L : count;
+    }
+
+    private List<VehicleEntity> filterAssignableByBattery(List<VehicleEntity> candidates) {
+        if (!parkPilotProperties.isEnabled() || !parkPilotProperties.getSimulation().isEnabled()) {
+            return candidates;
+        }
+        int minAssignableBattery = parkPilotProperties.getSimulation().getMinAssignableBattery();
+        return candidates.stream()
+                .filter(vehicle -> {
+                    int battery = vehicle.getBatteryLevel() == null ? 100 : vehicle.getBatteryLevel();
+                    return battery >= minAssignableBattery;
+                })
+                .toList();
     }
 
     private void moveToManualPending(DispatchTaskEntity taskEntity, String reasonCode, String reasonMessage) {

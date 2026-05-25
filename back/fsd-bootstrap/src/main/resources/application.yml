@@ -273,8 +273,14 @@ fsd:
       vehicle-count: ${FSD_PARK_SIMULATION_VEHICLE_COUNT:4}
       max-trail-size: ${FSD_PARK_SIMULATION_MAX_TRAIL_SIZE:30}
       offline-duration-seconds: ${FSD_PARK_SIMULATION_OFFLINE_DURATION_SECONDS:8}
-      offline-probability: ${FSD_PARK_SIMULATION_OFFLINE_PROBABILITY:0.02}
-      low-battery-threshold: ${FSD_PARK_SIMULATION_LOW_BATTERY_THRESHOLD:20}
+      offline-probability: ${FSD_PARK_SIMULATION_OFFLINE_PROBABILITY:0.005}
+      low-battery-threshold: ${FSD_PARK_SIMULATION_LOW_BATTERY_THRESHOLD:25}
+      min-assignable-battery: ${FSD_PARK_SIMULATION_MIN_ASSIGNABLE_BATTERY:30}
+      full-charge-level: ${FSD_PARK_SIMULATION_FULL_CHARGE_LEVEL:100}
+      charge-rate-per-tick: ${FSD_PARK_SIMULATION_CHARGE_RATE_PER_TICK:4}
+      reserve-battery-floor: ${FSD_PARK_SIMULATION_RESERVE_BATTERY_FLOOR:8}
+      busy-drain-interval-ticks: ${FSD_PARK_SIMULATION_BUSY_DRAIN_INTERVAL_TICKS:4}
+      idle-drain-probability: ${FSD_PARK_SIMULATION_IDLE_DRAIN_PROBABILITY:0.06}
   dispatch:
     outbox:
       retry-delay-ms: ${FSD_DISPATCH_OUTBOX_RETRY_DELAY_MS:30000}

@@ -1,9 +1,12 @@
 package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.enums.VehicleDispatchStatus;
 import com.fsd.common.enums.VehicleOnlineStatus;
 import com.fsd.dispatch.config.ParkPilotProperties;
+import com.fsd.dispatch.entity.DispatchTaskEntity;
+import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.common.exception.BusinessException;
@@ -35,27 +38,34 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationService {
 
-    private static final BigDecimal MIN_BATTERY_LEVEL = new BigDecimal("10");
-    private static final int CHARGE_RECOVERY_PER_TICK = 8;
-    private static final int CHARGE_COMPLETE_LEVEL = 95;
     private static final String PILOT_VEHICLE_PREFIX = "PARK-";
+    private static final List<String> DISPATCH_DEMAND_STATUSES = List.of(
+            DispatchTaskStatus.PENDING.name(),
+            DispatchTaskStatus.ASSIGNING.name(),
+            DispatchTaskStatus.MANUAL_PENDING.name(),
+            DispatchTaskStatus.ASSIGNED.name(),
+            DispatchTaskStatus.EXECUTING.name());
 
     private final ParkPilotProperties parkPilotProperties;
     private final VehicleMapper vehicleMapper;
+    private final DispatchTaskMapper dispatchTaskMapper;
     private final OrderStateService orderStateService;
     private final VehicleReportService vehicleReportService;
     private final ParkRoutePlannerService parkRoutePlannerService;
     private final ParkStationService parkStationService;
     private final Map<Long, VehicleRuntimeState> runtimeStates = new ConcurrentHashMap<>();
+    private boolean dispatchDemandActive;
 
     public ParkPilotSimulationServiceImpl(ParkPilotProperties parkPilotProperties,
                                           VehicleMapper vehicleMapper,
+                                          DispatchTaskMapper dispatchTaskMapper,
                                           OrderStateService orderStateService,
                                           VehicleReportService vehicleReportService,
                                           ParkRoutePlannerService parkRoutePlannerService,
                                           ParkStationService parkStationService) {
         this.parkPilotProperties = parkPilotProperties;
         this.vehicleMapper = vehicleMapper;
+        this.dispatchTaskMapper = dispatchTaskMapper;
         this.orderStateService = orderStateService;
         this.vehicleReportService = vehicleReportService;
         this.parkRoutePlannerService = parkRoutePlannerService;
@@ -126,6 +136,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         if (!parkPilotProperties.isEnabled() || !parkPilotProperties.getSimulation().isEnabled()) {
             return;
         }
+        dispatchDemandActive = hasDispatchDemand();
         for (VehicleEntity vehicle : listPilotVehicles()) {
             tickVehicle(vehicle);
         }
@@ -204,7 +215,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             }
             default -> state.stage = "TO_PICKUP";
         }
-        reduceBattery(vehicle, true);
+        reduceBattery(vehicle, true, state);
         vehicle.setLastReportTime(LocalDateTime.now());
         vehicleMapper.updateById(vehicle);
         recordPoint(state, vehicle);
@@ -231,6 +242,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             state.routeIndex = 1;
             state.holdUntil = null;
             state.offlineUntil = null;
+            state.busyMoveTicks = 0;
         }
     }
 
@@ -244,11 +256,22 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void routeAfterDelivery(VehicleEntity vehicle, VehicleRuntimeState state) {
-        if (isLowBattery(vehicle)) {
+        if (isLowBattery(vehicle) || shouldPreferCharging()) {
             routeToCharging(state);
             return;
         }
         routeToStandby(state);
+    }
+
+    private boolean shouldPreferCharging() {
+        return !dispatchDemandActive;
+    }
+
+    private boolean hasDispatchDemand() {
+        Long count = dispatchTaskMapper.selectCount(new LambdaQueryWrapper<DispatchTaskEntity>()
+                .eq(DispatchTaskEntity::getDeleted, 0)
+                .in(DispatchTaskEntity::getStatus, DISPATCH_DEMAND_STATUSES));
+        return count != null && count > 0;
     }
 
     private ParkStationResponse getStation(Long stationId) {
@@ -256,6 +279,9 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void maybeGoOffline(VehicleRuntimeState state) {
+        if (!dispatchDemandActive) {
+            return;
+        }
         if (state.offlineUntil == null
                 && "STANDBY".equals(state.stage)
                 && ThreadLocalRandom.current().nextDouble() < parkPilotProperties.getSimulation().getOfflineProbability()) {
@@ -265,28 +291,30 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void processIdleStage(VehicleEntity vehicle, VehicleRuntimeState state) {
-        if (isLowBattery(vehicle) && !"TO_CHARGING".equals(state.stage) && !"CHARGING".equals(state.stage)) {
-            routeToCharging(state);
-        }
+        redirectIdleVehicleIfNeeded(vehicle, state);
         switch (state.stage) {
             case "TO_CHARGING" -> {
                 moveVehicleAlongRoute(vehicle, state);
-                reduceBattery(vehicle, false);
                 if (state.routeIndex >= state.route.size()) {
                     state.stage = "CHARGING";
                     state.route = List.of();
                     state.routeIndex = 0;
+                    state.holdUntil = null;
                 }
             }
             case "CHARGING" -> {
                 recoverBattery(vehicle);
-                if (!isLowBattery(vehicle) || vehicle.getBatteryLevel() >= CHARGE_COMPLETE_LEVEL) {
+                if (isFullyCharged(vehicle) && dispatchDemandActive) {
                     routeToStandby(state);
                 }
             }
             case "RETURNING_TO_STANDBY" -> {
+                if (shouldPreferCharging()) {
+                    routeToCharging(state);
+                    break;
+                }
                 moveVehicleAlongRoute(vehicle, state);
-                reduceBattery(vehicle, false);
+                reduceBattery(vehicle, false, state);
                 if (state.routeIndex >= state.route.size()) {
                     state.stage = "STANDBY";
                     state.route = List.of();
@@ -294,16 +322,37 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                 }
             }
             case "STANDBY" -> {
+                if (shouldPreferCharging()) {
+                    routeToCharging(state);
+                    break;
+                }
                 ensureStandbyLocation(state);
                 if (state.route != null && state.routeIndex < state.route.size()) {
                     moveVehicleAlongRoute(vehicle, state);
                 }
-                reduceBattery(vehicle, false);
+                reduceBattery(vehicle, false, state);
             }
             default -> {
-                routeToStandby(state);
+                if (shouldPreferCharging()) {
+                    routeToCharging(state);
+                } else {
+                    routeToStandby(state);
+                }
                 processIdleStage(vehicle, state);
             }
+        }
+    }
+
+    private void redirectIdleVehicleIfNeeded(VehicleEntity vehicle, VehicleRuntimeState state) {
+        if (isChargingStage(state.stage) || "RETURNING_TO_STANDBY".equals(state.stage)) {
+            return;
+        }
+        if (isLowBattery(vehicle)) {
+            routeToCharging(state);
+            return;
+        }
+        if (shouldPreferCharging() && !"STANDBY".equals(state.stage)) {
+            routeToCharging(state);
         }
     }
 
@@ -355,23 +404,46 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         }
     }
 
-    private void reduceBattery(VehicleEntity vehicle, boolean busy) {
-        int current = vehicle.getBatteryLevel() == null ? 100 : vehicle.getBatteryLevel();
-        int drain = busy ? 1 : 0;
-        if (busy || ThreadLocalRandom.current().nextDouble() < 0.2D) {
-            current = Math.max(MIN_BATTERY_LEVEL.intValue(), current - drain - (busy ? 0 : 1));
+    private void reduceBattery(VehicleEntity vehicle, boolean busy, VehicleRuntimeState state) {
+        if (isChargingStage(state.stage)) {
+            return;
+        }
+        ParkPilotProperties.SimulationConfig simulation = parkPilotProperties.getSimulation();
+        int current = normalizeBattery(vehicle.getBatteryLevel());
+        int floor = simulation.getReserveBatteryFloor();
+        if (busy) {
+            state.busyMoveTicks = state.busyMoveTicks + 1;
+            int interval = Math.max(1, simulation.getBusyDrainIntervalTicks());
+            if (state.busyMoveTicks % interval == 0) {
+                current = Math.max(floor, current - 1);
+            }
+        } else if (ThreadLocalRandom.current().nextDouble() < simulation.getIdleDrainProbability()) {
+            current = Math.max(floor, current - 1);
         }
         vehicle.setBatteryLevel(current);
     }
 
     private void recoverBattery(VehicleEntity vehicle) {
-        int current = vehicle.getBatteryLevel() == null ? 100 : vehicle.getBatteryLevel();
-        vehicle.setBatteryLevel(Math.min(100, current + CHARGE_RECOVERY_PER_TICK));
+        ParkPilotProperties.SimulationConfig simulation = parkPilotProperties.getSimulation();
+        int current = normalizeBattery(vehicle.getBatteryLevel());
+        int fullLevel = simulation.getFullChargeLevel();
+        vehicle.setBatteryLevel(Math.min(fullLevel, current + simulation.getChargeRatePerTick()));
     }
 
     private boolean isLowBattery(VehicleEntity vehicle) {
-        int batteryLevel = vehicle.getBatteryLevel() == null ? 100 : vehicle.getBatteryLevel();
-        return batteryLevel <= parkPilotProperties.getSimulation().getLowBatteryThreshold();
+        return normalizeBattery(vehicle.getBatteryLevel()) <= parkPilotProperties.getSimulation().getLowBatteryThreshold();
+    }
+
+    private boolean isFullyCharged(VehicleEntity vehicle) {
+        return normalizeBattery(vehicle.getBatteryLevel()) >= parkPilotProperties.getSimulation().getFullChargeLevel();
+    }
+
+    private boolean isChargingStage(String stage) {
+        return "TO_CHARGING".equals(stage) || "CHARGING".equals(stage);
+    }
+
+    private int normalizeBattery(Integer batteryLevel) {
+        return batteryLevel == null ? 100 : batteryLevel;
     }
 
     private boolean isNear(BigDecimal currentX, BigDecimal currentY, BigDecimal targetX, BigDecimal targetY) {
@@ -433,6 +505,10 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void routeToStandby(VehicleRuntimeState state) {
+        if (shouldPreferCharging()) {
+            routeToCharging(state);
+            return;
+        }
         ensureStandbyLocation(state);
         state.stage = "RETURNING_TO_STANDBY";
         routeToTarget(state, state.standbyPoint, "STANDBY");
@@ -443,6 +519,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     private void routeToCharging(VehicleRuntimeState state) {
         ensureStandbyLocation(state);
+        state.busyMoveTicks = 0;
         state.stage = "TO_CHARGING";
         routeToTarget(state, state.chargingPoint, "CHARGING");
         if (state.routeIndex >= state.route.size()) {
@@ -514,6 +591,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         private LocalDateTime offlineUntil;
         private List<ParkPointResponse> route = List.of();
         private int routeIndex;
+        private int busyMoveTicks;
         private final Deque<ParkPointResponse> trail = new ArrayDeque<>();
     }
 }

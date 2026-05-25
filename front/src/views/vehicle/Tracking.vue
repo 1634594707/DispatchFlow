@@ -16,70 +16,62 @@
 
       <div v-if="!panelCollapsed" class="panel-content">
         <header class="panel-header">
-          <div class="header-main">
-            <div class="live-badge" :class="{ live: backendOnline }">
-              <span class="live-pulse"></span>
-              {{ backendOnline ? 'LIVE' : 'OFFLINE' }}
+          <div class="header-row">
+            <div class="header-title-wrap">
+              <span class="live-badge" :class="{ live: backendOnline }">
+                <span class="live-pulse"></span>
+                {{ backendOnline ? 'LIVE' : 'OFFLINE' }}
+              </span>
+              <h1 class="header-title">园区车辆监控</h1>
             </div>
-            <h1>园区车辆监控</h1>
-            <p class="header-sub">{{ activeParkName }} · {{ currentTime }}</p>
+            <div class="header-actions">
+              <router-link class="mobile-entry" to="/mobile/order" title="移动下单">下单</router-link>
+              <button class="refresh-btn" :class="{ spinning: refreshing }" title="刷新" @click="manualRefresh">
+                <ReloadOutlined />
+              </button>
+            </div>
           </div>
-          <div class="header-actions">
-            <router-link class="mobile-entry" to="/mobile/order">移动下单</router-link>
-            <button class="refresh-btn" :class="{ spinning: refreshing }" title="刷新" @click="manualRefresh">
-              <ReloadOutlined />
-            </button>
-          </div>
+          <p class="header-sub">{{ activeParkName }} · {{ currentTime }}</p>
         </header>
 
-        <div class="park-select-row">
-          <span class="park-select-label">园区</span>
-          <a-select
-            v-model:value="selectedParkId"
-            class="park-select"
-            popup-class-name="park-select-dropdown"
-            size="small"
-            :loading="loadingParks"
-            :options="parkOptions"
-            placeholder="选择园区"
-            @change="handleParkChange"
-          />
+        <div class="panel-toolbar">
+          <label class="toolbar-field">
+            <span class="toolbar-label">园区</span>
+            <a-select
+              v-model:value="selectedParkId"
+              class="park-select"
+              popup-class-name="park-select-dropdown"
+              size="small"
+              :loading="loadingParks"
+              :options="parkOptions"
+              placeholder="选择园区"
+              @change="handleParkChange"
+            />
+          </label>
         </div>
 
-        <section class="stat-grid">
-          <button class="stat-card total" :class="{ active: activeFilter === 'all' }" @click="filterByStatus('all')">
-            <span class="stat-icon">Σ</span>
-            <span class="stat-body">
-              <span class="stat-value">{{ vehicles.length }}</span>
-              <span class="stat-label">全部车辆</span>
-            </span>
+        <div class="stat-strip">
+          <button class="stat-item total" :class="{ active: activeFilter === 'all' }" @click="filterByStatus('all')">
+            <span class="stat-value">{{ vehicles.length }}</span>
+            <span class="stat-label">全部</span>
           </button>
-          <button class="stat-card online" :class="{ active: activeFilter === 'ONLINE' }" @click="filterByStatus('ONLINE')">
-            <span class="stat-icon">●</span>
-            <span class="stat-body">
-              <span class="stat-value">{{ onlineCount }}</span>
-              <span class="stat-label">在线</span>
-            </span>
+          <button class="stat-item online" :class="{ active: activeFilter === 'ONLINE' }" @click="filterByStatus('ONLINE')">
+            <span class="stat-value">{{ onlineCount }}</span>
+            <span class="stat-label">在线</span>
           </button>
-          <button class="stat-card busy" :class="{ active: activeFilter === 'BUSY' }" @click="filterByStatus('BUSY')">
-            <span class="stat-icon">▶</span>
-            <span class="stat-body">
-              <span class="stat-value">{{ busyCount }}</span>
-              <span class="stat-label">执行中</span>
-            </span>
+          <button class="stat-item busy" :class="{ active: activeFilter === 'BUSY' }" @click="filterByStatus('BUSY')">
+            <span class="stat-value">{{ busyCount }}</span>
+            <span class="stat-label">执行中</span>
           </button>
-          <button class="stat-card charging" :class="{ active: activeFilter === 'CHARGING' }" @click="filterByStatus('CHARGING')">
-            <span class="stat-icon">⚡</span>
-            <span class="stat-body">
-              <span class="stat-value">{{ chargingCount }}</span>
-              <span class="stat-label">充电中</span>
-            </span>
+          <button class="stat-item charging" :class="{ active: activeFilter === 'CHARGING' }" @click="filterByStatus('CHARGING')">
+            <span class="stat-value">{{ chargingCount }}</span>
+            <span class="stat-label">充电</span>
           </button>
-        </section>
+        </div>
 
-        <div class="filter-row">
+        <div class="filter-bar">
           <button
-            v-for="item in filterOptions"
+            v-for="item in extraFilterOptions"
             :key="item.value"
             class="filter-chip"
             :class="{ active: activeFilter === item.value }"
@@ -87,89 +79,90 @@
           >
             {{ item.label }}
           </button>
-        </div>
-
-        <div class="layer-row">
-          <button class="filter-chip" :class="{ active: showChargeLayer }" @click="toggleChargeLayer">
+          <button class="filter-chip filter-chip-layer" :class="{ active: showChargeLayer }" @click="toggleChargeLayer">
             充电图层
           </button>
         </div>
 
-        <section class="section">
-          <div class="section-head">
-            <span>车辆</span>
-            <span>{{ filteredVehicles.length }}</span>
-          </div>
-          <div class="card-list">
-            <button
-              v-for="vehicle in filteredVehicles"
-              :key="vehicle.vehicleId"
-              class="info-card vehicle-card"
-              :class="{ selected: selectedId === vehicle.vehicleId, offline: vehicle.onlineStatus === 'OFFLINE' }"
-              @click="focusVehicle(vehicle)"
-            >
-              <div class="card-top">
-                <strong>{{ vehicle.vehicleCode }}</strong>
-                <span class="status-dot" :class="vehicle.onlineStatus === 'ONLINE' ? 'dot-online' : 'dot-offline'"></span>
-              </div>
-              <div class="card-name">{{ vehicle.vehicleName }}</div>
-              <div class="card-meta">
-                <span>{{ dispatchLabel(vehicle.dispatchStatus) }}</span>
-                <span class="stage-pill" :class="stageClass(vehicle.runtimeStage)">
-                  {{ stageLabel(vehicle.runtimeStage) }}
-                </span>
-                <span>{{ vehicle.batteryLevel }}%</span>
-              </div>
-              <div class="card-tags">
-                <span v-if="vehicle.targetCode" class="mini-tag target-tag">
-                  {{ targetLabel(vehicle.targetType) }} {{ vehicle.targetCode }}
-                </span>
-                <span v-if="vehicle.charging" class="mini-tag charging-tag">充电中</span>
-                <span v-if="vehicle.lowBattery" class="mini-tag risk-tag">低电量</span>
-              </div>
-            </button>
-            <div v-if="filteredVehicles.length === 0" class="empty-state">
-              <InboxOutlined />
-              <span>暂无车辆</span>
+        <div class="panel-body">
+          <section class="panel-section">
+            <div class="section-head">
+              <span class="section-title">车辆</span>
+              <span class="section-count">{{ filteredVehicles.length }}</span>
             </div>
-          </div>
-        </section>
+            <div class="card-list">
+              <button
+                v-for="vehicle in filteredVehicles"
+                :key="vehicle.vehicleId"
+                class="info-card vehicle-card"
+                :class="{ selected: selectedId === vehicle.vehicleId, offline: vehicle.onlineStatus === 'OFFLINE' }"
+                @click="focusVehicle(vehicle)"
+              >
+                <div class="vehicle-card-head">
+                  <div class="vehicle-id-block">
+                    <strong>{{ vehicle.vehicleCode }}</strong>
+                    <span class="vehicle-name">{{ vehicle.vehicleName }}</span>
+                  </div>
+                  <span class="status-dot" :class="vehicle.onlineStatus === 'ONLINE' ? 'dot-online' : 'dot-offline'"></span>
+                </div>
+                <div class="vehicle-card-meta">
+                  <span class="meta-dispatch">{{ dispatchLabel(vehicle.dispatchStatus) }}</span>
+                  <span class="stage-pill" :class="stageClass(vehicle.runtimeStage)">
+                    {{ stageLabel(vehicle.runtimeStage) }}
+                  </span>
+                  <span class="meta-battery" :class="{ low: vehicle.lowBattery }">{{ vehicle.batteryLevel }}%</span>
+                </div>
+                <div v-if="vehicle.targetCode || vehicle.charging || vehicle.lowBattery" class="card-tags">
+                  <span v-if="vehicle.targetCode" class="mini-tag target-tag">
+                    {{ targetLabel(vehicle.targetType) }} {{ vehicle.targetCode }}
+                  </span>
+                  <span v-if="vehicle.charging" class="mini-tag charging-tag">充电中</span>
+                  <span v-if="vehicle.lowBattery" class="mini-tag risk-tag">低电量</span>
+                </div>
+              </button>
+              <div v-if="filteredVehicles.length === 0" class="empty-state">
+                <InboxOutlined />
+                <span>暂无车辆</span>
+              </div>
+            </div>
+          </section>
 
-        <section class="section">
-          <div class="section-head">
-            <span>订单链路</span>
-            <span>{{ parkOrders.length }}</span>
-          </div>
-          <div class="card-list order-list">
-            <div v-for="order in parkOrders.slice(0, 8)" :key="order.orderId" class="info-card order-card">
-              <div class="card-top">
-                <router-link :to="`/orders/${order.orderId}`" class="order-link">
-                  {{ order.orderNo || `ORDER-${order.orderId}` }}
-                </router-link>
-                <span class="stage-pill" :class="stageClass(order.runtimeStage)">
-                  {{ stageLabel(order.runtimeStage) }}
-                </span>
+          <section class="panel-section panel-section-orders">
+            <div class="section-head">
+              <span class="section-title">订单链路</span>
+              <span class="section-count">{{ parkOrders.length }}</span>
+            </div>
+            <div class="card-list order-list">
+              <div v-for="order in parkOrders.slice(0, 8)" :key="order.orderId" class="info-card order-card">
+                <div class="order-card-head">
+                  <router-link :to="`/orders/${order.orderId}`" class="order-link">
+                    {{ order.orderNo || `ORDER-${order.orderId}` }}
+                  </router-link>
+                  <span class="stage-pill" :class="stageClass(order.runtimeStage)">
+                    {{ stageLabel(order.runtimeStage) }}
+                  </span>
+                </div>
+                <div class="route-line">
+                  <span>{{ order.pickupStation.stationCode }}</span>
+                  <span class="route-arrow">→</span>
+                  <span>{{ order.dropoffStation.stationCode }}</span>
+                </div>
+                <div class="order-card-foot">
+                  <span>{{ order.vehicleCode || '待分配' }}</span>
+                  <span>{{ formatOrderTime(order.updatedAt) }}</span>
+                </div>
               </div>
-              <div class="route-line">
-                <span>{{ order.pickupStation.stationCode }}</span>
-                <span class="route-arrow">→</span>
-                <span>{{ order.dropoffStation.stationCode }}</span>
-              </div>
-              <div class="card-meta">
-                <span>{{ order.vehicleCode || '待分配车辆' }}</span>
-                <span>{{ formatOrderTime(order.updatedAt) }}</span>
+              <div v-if="parkOrders.length === 0" class="empty-state">
+                <InboxOutlined />
+                <span>暂无订单</span>
               </div>
             </div>
-            <div v-if="parkOrders.length === 0" class="empty-state">
-              <InboxOutlined />
-              <span>暂无订单</span>
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
         <footer class="panel-footer">
-          <span>{{ currentTime }}</span>
           <span>低电量 {{ lowBatteryCount }} 台</span>
+          <span class="footer-time">{{ currentTime }}</span>
         </footer>
       </div>
     </aside>
@@ -310,11 +303,8 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let clockTimer: ReturnType<typeof setInterval> | null = null
 let currentMarkerScale = 1
 
-const filterOptions = [
+const extraFilterOptions = [
   { label: '全部', value: 'all' },
-  { label: '在线', value: 'ONLINE' },
-  { label: '执行中', value: 'BUSY' },
-  { label: '充电中', value: 'CHARGING' },
   { label: '低电量', value: 'LOW_BATTERY' },
   { label: '离线', value: 'OFFLINE' },
 ]
@@ -1021,7 +1011,8 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 18px;
+  gap: 0;
+  padding: 16px;
   border: 1px solid var(--track-border);
   border-radius: 16px;
   background: var(--track-bg-panel);
@@ -1029,25 +1020,48 @@ onUnmounted(() => {
   box-shadow:
     0 16px 40px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  min-height: 0;
 }
 
-.panel-header,
+.panel-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
 .section-head,
-.card-top,
-.card-meta,
 .detail-header,
 .detail-row,
 .panel-footer,
-.filter-row,
 .route-line,
-.header-actions {
+.header-row,
+.header-actions,
+.vehicle-card-head,
+.vehicle-card-meta,
+.order-card-head,
+.order-card-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.header-actions {
+.header-row {
+  gap: 10px;
+  min-width: 0;
+}
+
+.header-title-wrap {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.header-actions {
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .api-alert {
@@ -1086,18 +1100,26 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.header-main h1 {
-  margin: 8px 0 0;
+.header-title {
+  margin: 0;
   color: var(--track-text);
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .header-sub {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--track-text-muted);
   font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .live-badge {
@@ -1131,21 +1153,29 @@ onUnmounted(() => {
   animation: pulse 1.6s ease-in-out infinite;
 }
 
-.park-select-row {
+.panel-toolbar {
+  margin-top: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--track-border);
+}
+
+.toolbar-field {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 14px;
+  width: 100%;
 }
 
-.park-select-label {
+.toolbar-label {
   color: var(--track-text-muted);
   font-size: 12px;
   flex-shrink: 0;
+  width: 32px;
 }
 
 .park-select {
   flex: 1;
+  min-width: 0;
 }
 
 :deep(.park-select .ant-select-selector) {
@@ -1161,14 +1191,16 @@ onUnmounted(() => {
 }
 
 .mobile-entry {
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 8px;
   background: var(--track-accent-soft);
   border: 1px solid var(--track-border-accent);
   color: var(--track-accent);
   text-decoration: none;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: background 0.2s ease, border-color 0.2s ease;
 
   &:hover {
@@ -1198,120 +1230,80 @@ onUnmounted(() => {
   animation: spin 0.6s linear;
 }
 
-.stat-grid {
+.stat-strip {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-top: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 12px;
 }
 
-.stat-card {
+.stat-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
+  gap: 2px;
+  padding: 8px 4px;
   border: 1px solid var(--track-border);
-  border-radius: 12px;
-  background: rgba(22, 27, 34, 0.55);
+  border-radius: 10px;
+  background: rgba(22, 27, 34, 0.45);
   color: var(--track-text);
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  text-align: left;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  text-align: center;
 }
 
-.stat-card:hover {
+.stat-item:hover {
   border-color: rgba(48, 54, 61, 1);
-  background: rgba(28, 33, 40, 0.75);
+  background: rgba(28, 33, 40, 0.7);
 }
 
-.stat-card.active {
+.stat-item.active {
   border-color: var(--track-border-accent);
   background: var(--track-accent-soft);
-  box-shadow: inset 3px 0 0 var(--track-accent);
 }
 
-.stat-card.online.active {
+.stat-item.online.active {
   border-color: rgba(61, 220, 151, 0.35);
   background: rgba(61, 220, 151, 0.08);
-  box-shadow: inset 3px 0 0 var(--track-success);
 }
 
-.stat-card.busy.active {
+.stat-item.busy.active {
   border-color: rgba(108, 182, 255, 0.35);
   background: rgba(0, 180, 216, 0.08);
-  box-shadow: inset 3px 0 0 var(--track-busy);
 }
 
-.stat-card.charging.active {
+.stat-item.charging.active {
   border-color: rgba(227, 179, 65, 0.35);
   background: rgba(255, 176, 32, 0.08);
-  box-shadow: inset 3px 0 0 var(--track-warning);
 }
 
-.stat-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  background: rgba(13, 17, 23, 0.8);
-  border: 1px solid var(--track-border);
-  flex-shrink: 0;
+.stat-item .stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.2;
 }
 
-.stat-card.total .stat-icon {
-  color: var(--track-text-muted);
-}
-
-.stat-card.online .stat-icon {
-  color: var(--track-success);
-  border-color: rgba(61, 220, 151, 0.25);
-}
-
-.stat-card.busy .stat-icon {
-  color: var(--track-busy);
-  border-color: rgba(108, 182, 255, 0.25);
-}
-
-.stat-card.charging .stat-icon {
-  color: var(--track-warning);
-  border-color: rgba(227, 179, 65, 0.25);
-}
-
-.stat-card.total .stat-value {
+.stat-item.total .stat-value {
   color: var(--track-text);
 }
 
-.stat-card.online .stat-value {
+.stat-item.online .stat-value {
   color: var(--track-success);
 }
 
-.stat-card.busy .stat-value {
+.stat-item.busy .stat-value {
   color: var(--track-busy);
 }
 
-.stat-card.charging .stat-value {
+.stat-item.charging .stat-value {
   color: var(--track-warning);
 }
 
-.stat-body {
-  min-width: 0;
-}
-
-.stat-value {
-  display: block;
-  font-size: 22px;
-  font-weight: 700;
-  font-family: 'JetBrains Mono', monospace;
-  line-height: 1.1;
-}
-
-.stat-label {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
+.stat-item .stat-label {
+  font-size: 10px;
   color: var(--track-text-muted);
+  letter-spacing: 0.02em;
 }
 
 @keyframes pulse {
@@ -1319,26 +1311,23 @@ onUnmounted(() => {
   50% { opacity: 0.45; transform: scale(0.85); }
 }
 
-.filter-row,
-.layer-row {
-  gap: 8px;
-  justify-content: flex-start;
-  margin-top: 14px;
+.filter-bar {
+  display: flex;
   flex-wrap: wrap;
-}
-
-.layer-row {
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 10px;
+  padding-bottom: 12px;
 }
 
 .filter-chip {
-  padding: 6px 12px;
+  padding: 5px 10px;
   border: 1px solid var(--track-border);
-  border-radius: 8px;
+  border-radius: 999px;
   background: rgba(22, 27, 34, 0.5);
   color: var(--track-text-muted);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.2;
   transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
 
   &:hover {
@@ -1353,38 +1342,75 @@ onUnmounted(() => {
   color: var(--track-accent);
 }
 
-.section {
-  margin-top: 16px;
+.filter-chip-layer {
+  margin-left: auto;
+}
+
+.panel-body {
+  flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  margin-top: 4px;
+  padding-right: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.panel-section {
+  padding-top: 14px;
+}
+
+.panel-section-orders {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--track-border);
 }
 
 .section-head {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.section-title {
+  color: var(--track-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(22, 27, 34, 0.8);
+  border: 1px solid var(--track-border);
   color: var(--track-text-dim);
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  font-family: 'JetBrains Mono', monospace;
   font-weight: 600;
 }
 
 .card-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 208px;
-  overflow: auto;
-  padding-right: 4px;
+  gap: 6px;
 }
 
 .order-list {
-  max-height: 190px;
+  padding-bottom: 4px;
 }
 
 .info-card {
   width: 100%;
-  padding: 12px;
+  padding: 10px 12px;
   border: 1px solid var(--track-border);
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(22, 27, 34, 0.45);
   text-align: left;
   color: var(--track-text);
@@ -1410,25 +1436,70 @@ onUnmounted(() => {
   opacity: 0.68;
 }
 
-.card-name {
-  margin-top: 4px;
-  color: #8fa7bf;
-  font-size: 12px;
+.vehicle-id-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--track-text);
+  }
 }
 
-.card-meta,
-.route-line {
-  margin-top: 8px;
-  gap: 8px;
-  color: #7f96ad;
+.vehicle-name {
+  color: var(--track-text-dim);
   font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vehicle-card-meta {
+  margin-top: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.meta-dispatch {
+  color: var(--track-text-muted);
+  font-size: 11px;
+}
+
+.meta-battery {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--track-text-muted);
+}
+
+.meta-battery.low {
+  color: var(--track-warning);
+}
+
+.route-line {
+  margin-top: 6px;
+  gap: 6px;
+  justify-content: flex-start;
+  color: var(--track-text-muted);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.order-card-foot {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--track-text-dim);
 }
 
 .card-tags {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .mini-tag,
@@ -1508,11 +1579,22 @@ onUnmounted(() => {
   color: var(--track-text-muted);
 }
 
+.order-card-head {
+  gap: 8px;
+  min-width: 0;
+}
+
 .order-link,
 .detail-link {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #eaf4ff;
   text-decoration: none;
   font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
 }
 
 .route-arrow {
@@ -1529,12 +1611,17 @@ onUnmounted(() => {
 }
 
 .panel-footer {
-  margin-top: auto;
-  padding-top: 14px;
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--track-border);
   color: var(--track-text-dim);
-  font-size: 12px;
+  font-size: 11px;
+}
+
+.footer-time {
   font-family: 'JetBrains Mono', monospace;
+  color: var(--track-text-muted);
 }
 
 .legend {
@@ -1647,8 +1734,12 @@ onUnmounted(() => {
     width: 320px;
   }
 
-  .stat-grid {
+  .stat-strip {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filter-chip-layer {
+    margin-left: 0;
   }
 }
 </style>

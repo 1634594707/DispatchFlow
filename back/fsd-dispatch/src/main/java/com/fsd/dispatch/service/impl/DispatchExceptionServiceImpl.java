@@ -30,6 +30,9 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
     @Override
     @Transactional
     public void recordException(Long taskId, Long orderId, Long vehicleId, String exceptionType, String exceptionMsg) {
+        if (hasOpenException(taskId, exceptionType)) {
+            return;
+        }
         DispatchExceptionRecordEntity entity = new DispatchExceptionRecordEntity();
         entity.setTaskId(taskId);
         entity.setOrderId(orderId);
@@ -65,6 +68,17 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         return exceptionRecordMapper.selectList(new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
                 .eq(DispatchExceptionRecordEntity::getExceptionStatus, "OPEN")
                 .orderByDesc(DispatchExceptionRecordEntity::getOccurTime));
+    }
+
+    private boolean hasOpenException(Long taskId, String exceptionType) {
+        if (taskId == null || exceptionType == null) {
+            return false;
+        }
+        Long count = exceptionRecordMapper.selectCount(new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
+                .eq(DispatchExceptionRecordEntity::getTaskId, taskId)
+                .eq(DispatchExceptionRecordEntity::getExceptionType, exceptionType)
+                .eq(DispatchExceptionRecordEntity::getExceptionStatus, "OPEN"));
+        return count != null && count > 0;
     }
 
     private Map<String, Object> buildPayload(DispatchExceptionRecordEntity entity) {
