@@ -281,6 +281,17 @@ fsd:
       reserve-battery-floor: ${FSD_PARK_SIMULATION_RESERVE_BATTERY_FLOOR:8}
       busy-drain-interval-ticks: ${FSD_PARK_SIMULATION_BUSY_DRAIN_INTERVAL_TICKS:4}
       idle-drain-probability: ${FSD_PARK_SIMULATION_IDLE_DRAIN_PROBABILITY:0.06}
+  fleet:
+    energy:
+      low-soc-threshold: ${FSD_FLEET_ENERGY_LOW_SOC_THRESHOLD:25}
+      min-assignable-soc: ${FSD_FLEET_ENERGY_MIN_ASSIGNABLE_SOC:30}
+      full-soc: ${FSD_FLEET_ENERGY_FULL_SOC:100}
+      charge-rate-per-tick: ${FSD_FLEET_ENERGY_CHARGE_RATE_PER_TICK:4}
+      reserve-soc-floor: ${FSD_FLEET_ENERGY_RESERVE_SOC_FLOOR:8}
+      busy-drain-interval-ticks: ${FSD_FLEET_ENERGY_BUSY_DRAIN_INTERVAL_TICKS:4}
+      idle-drain-probability: ${FSD_FLEET_ENERGY_IDLE_DRAIN_PROBABILITY:0.06}
+      plugged-standby-no-drain: ${FSD_FLEET_ENERGY_PLUGGED_STANDBY_NO_DRAIN:true}
+      idle-charge-when-no-demand: ${FSD_FLEET_ENERGY_IDLE_CHARGE_WHEN_NO_DEMAND:true}
   dispatch:
     outbox:
       retry-delay-ms: ${FSD_DISPATCH_OUTBOX_RETRY_DELAY_MS:30000}

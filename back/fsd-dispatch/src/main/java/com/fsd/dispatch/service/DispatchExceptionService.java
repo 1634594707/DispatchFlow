@@ -7,7 +7,13 @@ public interface DispatchExceptionService {
 
     void recordException(Long taskId, Long orderId, Long vehicleId, String exceptionType, String exceptionMsg);
 
+    void recordException(Long taskId, Long orderId, Long vehicleId, String exceptionType, String exceptionMsg, String severity);
+
     void resolveException(Long exceptionId, DispatchExceptionResolveRequest request);
 
+    void resolveOpenExceptionsForTask(Long taskId, String resolverId, String remark);
+
     java.util.List<DispatchExceptionRecordEntity> listOpenExceptions();
+
+    java.util.List<DispatchExceptionRecordEntity> listOpenExceptionsByTaskId(Long taskId);
 }

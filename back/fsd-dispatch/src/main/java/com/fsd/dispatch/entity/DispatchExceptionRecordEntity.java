@@ -25,6 +25,10 @@ public class DispatchExceptionRecordEntity {
 
     private String exceptionMsg;
 
+    private String severity;
+
+    private String resolveAction;
+
     private LocalDateTime occurTime;
 
     private LocalDateTime resolvedTime;

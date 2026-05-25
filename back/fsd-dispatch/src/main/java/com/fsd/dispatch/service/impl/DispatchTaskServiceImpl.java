@@ -3,7 +3,7 @@ package com.fsd.dispatch.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.exception.BusinessException;
-import com.fsd.dispatch.config.ParkPilotProperties;
+import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
@@ -46,7 +46,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
     private final OrderStateService orderStateService;
     private final VehicleService vehicleService;
     private final ParkPilotService parkPilotService;
-    private final ParkPilotProperties parkPilotProperties;
+    private final FleetChargePolicy fleetChargePolicy;
     private final DispatchLockService dispatchLockService;
     private final DispatchEventPublisher eventPublisher;
 
@@ -57,7 +57,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
                                    OrderStateService orderStateService,
                                    VehicleService vehicleService,
                                    ParkPilotService parkPilotService,
-                                   ParkPilotProperties parkPilotProperties,
+                                   FleetChargePolicy fleetChargePolicy,
                                    DispatchLockService dispatchLockService,
                                    DispatchEventPublisher eventPublisher) {
         this.dispatchTaskMapper = dispatchTaskMapper;
@@ -67,7 +67,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
         this.orderStateService = orderStateService;
         this.vehicleService = vehicleService;
         this.parkPilotService = parkPilotService;
-        this.parkPilotProperties = parkPilotProperties;
+        this.fleetChargePolicy = fleetChargePolicy;
         this.dispatchLockService = dispatchLockService;
         this.eventPublisher = eventPublisher;
     }
@@ -158,6 +158,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
             dispatchTaskMapper.updateById(taskEntity);
 
             orderStateService.markDispatched(taskEntity.getOrderId(), taskEntity.getId());
+            dispatchExceptionService.resolveOpenExceptionsForTask(taskEntity.getId(), "system", "Auto assign success");
             operateLogService.record(taskEntity.getId(), "AUTO_ASSIGN", DispatchTaskStatus.ASSIGNING.name(),
                     DispatchTaskStatus.ASSIGNED.name(), "SYSTEM", "system", "system", "Auto assign success");
             eventPublisher.publish(DispatchEventType.TASK_ASSIGNED, String.valueOf(taskEntity.getId()), buildTaskPayload(taskEntity));
@@ -194,6 +195,8 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
             dispatchTaskMapper.updateById(taskEntity);
 
             orderStateService.markDispatched(taskEntity.getOrderId(), taskEntity.getId());
+            dispatchExceptionService.resolveOpenExceptionsForTask(taskEntity.getId(), request.getOperatorId(),
+                    "Manual assign success");
             operateLogService.record(taskEntity.getId(), "MANUAL_ASSIGN", beforeStatus, DispatchTaskStatus.ASSIGNED.name(),
                     "DISPATCHER", request.getOperatorId(), request.getOperatorName(), request.getRemark());
             eventPublisher.publish(DispatchEventType.TASK_MANUAL_ASSIGNED, String.valueOf(taskEntity.getId()), buildTaskPayload(taskEntity));
@@ -271,15 +274,8 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
     }
 
     private List<VehicleEntity> filterAssignableByBattery(List<VehicleEntity> candidates) {
-        if (!parkPilotProperties.isEnabled() || !parkPilotProperties.getSimulation().isEnabled()) {
-            return candidates;
-        }
-        int minAssignableBattery = parkPilotProperties.getSimulation().getMinAssignableBattery();
         return candidates.stream()
-                .filter(vehicle -> {
-                    int battery = vehicle.getBatteryLevel() == null ? 100 : vehicle.getBatteryLevel();
-                    return battery >= minAssignableBattery;
-                })
+                .filter(fleetChargePolicy::isAssignable)
                 .toList();
     }
 
@@ -293,7 +289,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
         operateLogService.record(taskEntity.getId(), "ENTER_MANUAL_PENDING", beforeStatus,
                 DispatchTaskStatus.MANUAL_PENDING.name(), "SYSTEM", "system", "system", reasonMessage);
         dispatchExceptionService.recordException(taskEntity.getId(), taskEntity.getOrderId(), taskEntity.getVehicleId(),
-                reasonCode, reasonMessage);
+                reasonCode, reasonMessage, com.fsd.common.enums.ExceptionSeverity.WARN.name());
         eventPublisher.publish(DispatchEventType.TASK_MANUAL_PENDING, String.valueOf(taskEntity.getId()), buildTaskPayload(taskEntity));
     }
 

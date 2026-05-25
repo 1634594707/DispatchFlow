@@ -10,7 +10,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fsd.common.enums.DispatchTaskStatus;
-import com.fsd.dispatch.config.ParkPilotProperties;
+import com.fsd.dispatch.config.FleetEnergyProperties;
+import com.fsd.dispatch.fleet.policy.FleetChargePolicyImpl;
 import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
@@ -57,7 +58,8 @@ class DispatchTaskServiceImplTest {
     @Mock
     private DispatchEventPublisher eventPublisher;
 
-    private final ParkPilotProperties parkPilotProperties = new ParkPilotProperties();
+    private final FleetChargePolicyImpl fleetChargePolicy =
+            new FleetChargePolicyImpl(new FleetEnergyProperties());
     private DispatchTaskServiceImpl dispatchTaskService;
 
     @BeforeEach
@@ -70,7 +72,7 @@ class DispatchTaskServiceImplTest {
                 orderStateService,
                 vehicleService,
                 parkPilotService,
-                parkPilotProperties,
+                fleetChargePolicy,
                 dispatchLockService,
                 eventPublisher);
     }
@@ -114,6 +116,7 @@ class DispatchTaskServiceImplTest {
 
         VehicleEntity vehicleEntity = new VehicleEntity();
         vehicleEntity.setId(9001L);
+        vehicleEntity.setBatteryLevel(80);
 
         when(dispatchTaskStateService.getTask(3001L)).thenReturn(taskEntity);
         doNothing().when(dispatchTaskStateService).assertCanAutoAssign(taskEntity);
@@ -128,6 +131,7 @@ class DispatchTaskServiceImplTest {
         assertEquals(9001L, response.getVehicleId());
         verify(vehicleService).occupyVehicle(9001L, 3001L, 1001L);
         verify(orderStateService).markDispatched(1001L, 3001L);
+        verify(dispatchExceptionService).resolveOpenExceptionsForTask(3001L, "system", "Auto assign success");
         verify(dispatchExceptionService, never()).recordException(any(), any(), any(), any(), any());
         verify(dispatchLockService).releaseTaskLock(3001L, "lock-1");
     }
@@ -150,7 +154,7 @@ class DispatchTaskServiceImplTest {
         assertEquals(DispatchTaskStatus.MANUAL_PENDING.name(), response.getStatus());
         assertNull(response.getVehicleId());
         verify(dispatchExceptionService).recordException(3002L, 1002L, null,
-                "AUTO_ASSIGN_NO_VEHICLE", "No assignable vehicle found (offline, busy, or battery below threshold)");
+                "AUTO_ASSIGN_NO_VEHICLE", "No assignable vehicle found (offline, busy, or battery below threshold)", "WARN");
         verify(orderStateService, never()).markDispatched(any(), any());
         verify(dispatchLockService).releaseTaskLock(3002L, "lock-2");
     }
@@ -169,6 +173,7 @@ class DispatchTaskServiceImplTest {
 
         VehicleEntity vehicleEntity = new VehicleEntity();
         vehicleEntity.setId(9004L);
+        vehicleEntity.setBatteryLevel(80);
 
         when(dispatchTaskStateService.getTask(3004L)).thenReturn(taskEntity);
         doNothing().when(dispatchTaskStateService).assertCanAutoAssign(taskEntity);
@@ -182,7 +187,7 @@ class DispatchTaskServiceImplTest {
 
         assertEquals(DispatchTaskStatus.MANUAL_PENDING.name(), response.getStatus());
         verify(dispatchExceptionService).recordException(3004L, 1004L, null,
-                "AUTO_ASSIGN_POINT_INVALID", "Park station not found");
+                "AUTO_ASSIGN_POINT_INVALID", "Park station not found", "WARN");
         verify(dispatchLockService).releaseTaskLock(3004L, "lock-4");
     }
 

@@ -301,10 +301,12 @@ class DispatchConcurrencyIntegrationTest {
                     exception_type VARCHAR(32) NOT NULL,
                     exception_status VARCHAR(32) NOT NULL,
                     exception_msg VARCHAR(255),
+                    severity VARCHAR(16) NOT NULL DEFAULT 'WARN',
                     occur_time TIMESTAMP NOT NULL,
                     resolved_time TIMESTAMP,
                     resolver_id VARCHAR(64),
                     resolve_remark VARCHAR(255),
+                    resolve_action VARCHAR(32),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
