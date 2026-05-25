@@ -5,6 +5,7 @@ import com.fsd.common.model.ApiResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -21,6 +22,11 @@ public class GlobalExceptionHandler {
                 .map(error -> error.getField() + " " + error.getDefaultMessage())
                 .orElse("Request validation failed");
         return ApiResponse.failure("VALIDATION_ERROR", message);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ApiResponse<Void> handleNoResourceFound(NoResourceFoundException ex) {
+        return ApiResponse.failure("NOT_FOUND", "接口不存在，请确认后端已启动且为最新版本: " + ex.getResourcePath());
     }
 
     @ExceptionHandler(Exception.class)

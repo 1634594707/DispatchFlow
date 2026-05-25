@@ -2,6 +2,12 @@
   <div class="tracking-page">
     <div ref="mapContainer" class="map-container"></div>
 
+    <div v-if="apiError" class="api-alert">
+      <span class="api-alert-dot"></span>
+      <span>{{ apiError }}</span>
+      <button type="button" class="api-alert-retry" @click="bootstrapData">重试</button>
+    </div>
+
     <aside class="side-panel" :class="{ collapsed: panelCollapsed }">
       <button class="panel-toggle" @click="panelCollapsed = !panelCollapsed">
         <RightOutlined v-if="!panelCollapsed" />
@@ -10,34 +16,64 @@
 
       <div v-if="!panelCollapsed" class="panel-content">
         <header class="panel-header">
-          <div>
-            <div class="eyebrow">Park Pilot</div>
-            <h1>车辆监控</h1>
+          <div class="header-main">
+            <div class="live-badge" :class="{ live: backendOnline }">
+              <span class="live-pulse"></span>
+              {{ backendOnline ? 'LIVE' : 'OFFLINE' }}
+            </div>
+            <h1>园区车辆监控</h1>
+            <p class="header-sub">{{ activeParkName }} · {{ currentTime }}</p>
           </div>
           <div class="header-actions">
             <router-link class="mobile-entry" to="/mobile/order">移动下单</router-link>
-            <button class="refresh-btn" :class="{ spinning: refreshing }" @click="manualRefresh">
+            <button class="refresh-btn" :class="{ spinning: refreshing }" title="刷新" @click="manualRefresh">
               <ReloadOutlined />
             </button>
           </div>
         </header>
 
+        <div class="park-select-row">
+          <span class="park-select-label">园区</span>
+          <a-select
+            v-model:value="selectedParkId"
+            class="park-select"
+            popup-class-name="park-select-dropdown"
+            size="small"
+            :loading="loadingParks"
+            :options="parkOptions"
+            placeholder="选择园区"
+            @change="handleParkChange"
+          />
+        </div>
+
         <section class="stat-grid">
-          <button class="stat-card" @click="filterByStatus('all')">
-            <span class="stat-value">{{ vehicles.length }}</span>
-            <span class="stat-label">全部车辆</span>
+          <button class="stat-card total" :class="{ active: activeFilter === 'all' }" @click="filterByStatus('all')">
+            <span class="stat-icon">Σ</span>
+            <span class="stat-body">
+              <span class="stat-value">{{ vehicles.length }}</span>
+              <span class="stat-label">全部车辆</span>
+            </span>
           </button>
-          <button class="stat-card online" @click="filterByStatus('ONLINE')">
-            <span class="stat-value">{{ onlineCount }}</span>
-            <span class="stat-label">在线</span>
+          <button class="stat-card online" :class="{ active: activeFilter === 'ONLINE' }" @click="filterByStatus('ONLINE')">
+            <span class="stat-icon">●</span>
+            <span class="stat-body">
+              <span class="stat-value">{{ onlineCount }}</span>
+              <span class="stat-label">在线</span>
+            </span>
           </button>
-          <button class="stat-card busy" @click="filterByStatus('BUSY')">
-            <span class="stat-value">{{ busyCount }}</span>
-            <span class="stat-label">执行中</span>
+          <button class="stat-card busy" :class="{ active: activeFilter === 'BUSY' }" @click="filterByStatus('BUSY')">
+            <span class="stat-icon">▶</span>
+            <span class="stat-body">
+              <span class="stat-value">{{ busyCount }}</span>
+              <span class="stat-label">执行中</span>
+            </span>
           </button>
-          <button class="stat-card charging" @click="filterByStatus('CHARGING')">
-            <span class="stat-value">{{ chargingCount }}</span>
-            <span class="stat-label">充电中</span>
+          <button class="stat-card charging" :class="{ active: activeFilter === 'CHARGING' }" @click="filterByStatus('CHARGING')">
+            <span class="stat-icon">⚡</span>
+            <span class="stat-body">
+              <span class="stat-value">{{ chargingCount }}</span>
+              <span class="stat-label">充电中</span>
+            </span>
           </button>
         </section>
 
@@ -142,8 +178,8 @@
       <div class="legend-item"><span class="legend-dot station-a"></span><span>取货站</span></div>
       <div class="legend-item"><span class="legend-dot station-b"></span><span>送货站</span></div>
       <div class="legend-item"><span class="legend-dot parking"></span><span>停车/充电位</span></div>
-      <div class="legend-item"><span class="legend-dot charging"></span><span>充电状态</span></div>
-      <div class="legend-item"><span class="legend-dot busy"></span><span>订单链路</span></div>
+      <div class="legend-item"><span class="legend-dot legend-dot-charging"></span><span>充电状态</span></div>
+      <div class="legend-item"><span class="legend-dot legend-dot-busy"></span><span>订单链路</span></div>
     </div>
 
     <div v-if="selectedVehicle" class="detail-mask" @click.self="selectedId = null">
@@ -223,8 +259,15 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import StatusBadge from '@/components/common/StatusBadge.vue'
-import { getParkLayout, getParkOrders, getParkVehicles } from '@/api/park'
-import type { ParkLayout, ParkOrderSnapshot, ParkPoint, ParkStation, ParkVehicleSnapshot } from '@/types/park'
+import { getParkLayout, getParkOrders, getParkVehicles, listParks } from '@/api/park'
+import type {
+  ParkLayout,
+  ParkOrderSnapshot,
+  ParkPoint,
+  ParkStation,
+  ParkSummary,
+  ParkVehicleSnapshot,
+} from '@/types/park'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
@@ -239,6 +282,23 @@ const currentTime = ref(dayjs().format('HH:mm:ss'))
 const vehicles = ref<ParkVehicleSnapshot[]>([])
 const parkOrders = ref<ParkOrderSnapshot[]>([])
 const parkLayout = ref<ParkLayout | null>(null)
+const parks = ref<ParkSummary[]>([])
+const selectedParkId = ref<number | undefined>()
+const loadingParks = ref(false)
+const apiError = ref('')
+const backendOnline = ref(false)
+
+const parkOptions = computed(() =>
+  parks.value.map(park => ({
+    value: park.parkId,
+    label: park.parkName,
+  })),
+)
+
+const activeParkName = computed(() => {
+  const park = parks.value.find(item => item.parkId === selectedParkId.value)
+  return park?.parkName || parkLayout.value?.parkName || '默认园区'
+})
 
 let map: L.Map | null = null
 let markersLayer: L.LayerGroup | null = null
@@ -630,8 +690,23 @@ function focusVehicle(vehicle: ParkVehicleSnapshot) {
   map?.flyTo(toLatLng(vehicle.x, vehicle.y), 2, { duration: 0.8 })
 }
 
+async function fetchParks() {
+  loadingParks.value = true
+  try {
+    const response = await listParks()
+    parks.value = response.data || []
+    if (!selectedParkId.value) {
+      const defaultPark = parks.value.find(p => p.defaultPark) || parks.value[0]
+      selectedParkId.value = defaultPark?.parkId
+    }
+  } finally {
+    loadingParks.value = false
+  }
+}
+
 async function fetchLayout() {
-  const response = await getParkLayout()
+  if (!selectedParkId.value) return
+  const response = await getParkLayout(selectedParkId.value)
   parkLayout.value = response.data
   loadParkImage()
   drawStations()
@@ -651,10 +726,36 @@ async function fetchOrders() {
   drawOrderChains()
 }
 
+async function bootstrapData() {
+  apiError.value = ''
+  try {
+    await fetchParks()
+    await fetchLayout()
+    await Promise.all([fetchVehicles(), fetchOrders()])
+    backendOnline.value = true
+  } catch {
+    backendOnline.value = false
+    apiError.value = '无法连接调度后端（localhost:8080），请启动后点击重试'
+  }
+}
+
+async function handleParkChange() {
+  try {
+    await fetchLayout()
+    await Promise.all([fetchVehicles(), fetchOrders()])
+  } catch {
+    apiError.value = '切换园区失败，请确认后端服务正常'
+  }
+}
+
 async function manualRefresh() {
   refreshing.value = true
   try {
     await Promise.all([fetchVehicles(), fetchOrders()])
+    backendOnline.value = true
+    apiError.value = ''
+  } catch {
+    backendOnline.value = false
   } finally {
     setTimeout(() => {
       refreshing.value = false
@@ -668,11 +769,10 @@ watch(filteredVehicles, () => {
 
 onMounted(async () => {
   initMap()
-  await fetchLayout()
-  await Promise.all([fetchVehicles(), fetchOrders()])
+  await bootstrapData()
   pollTimer = setInterval(() => {
-    fetchVehicles()
-    fetchOrders()
+    fetchVehicles().then(() => { backendOnline.value = true }).catch(() => { backendOnline.value = false })
+    fetchOrders().catch(() => undefined)
   }, 3000)
   clockTimer = setInterval(() => {
     currentTime.value = dayjs().format('HH:mm:ss')
@@ -693,10 +793,23 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  --track-bg-deep: #06090f;
+  --track-bg-panel: rgba(13, 17, 23, 0.94);
+  --track-border: rgba(33, 38, 45, 0.9);
+  --track-border-accent: rgba(0, 180, 216, 0.22);
+  --track-text: #e6edf3;
+  --track-text-muted: #8b949e;
+  --track-text-dim: #6e7681;
+  --track-accent: #00b4d8;
+  --track-accent-soft: rgba(0, 180, 216, 0.1);
+  --track-success: #3ddc97;
+  --track-busy: #6cb6ff;
+  --track-warning: #e3b341;
+  --track-danger: #ff7b9c;
   background:
-    radial-gradient(circle at 20% 20%, rgba(62, 166, 255, 0.18), transparent 28%),
-    radial-gradient(circle at 80% 18%, rgba(0, 214, 143, 0.14), transparent 24%),
-    linear-gradient(180deg, #08111d 0%, #050913 100%);
+    radial-gradient(ellipse 80% 50% at 15% 0%, rgba(0, 180, 216, 0.06), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 85% 10%, rgba(0, 230, 118, 0.04), transparent 45%),
+    linear-gradient(180deg, #070b12 0%, var(--track-bg-deep) 100%);
   --map-marker-scale: 1;
   --map-line-weight-scale: 1;
 }
@@ -707,7 +820,7 @@ onUnmounted(() => {
 }
 
 :deep(.leaflet-container) {
-  background: #09101b;
+  background: #070b12;
   font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
 }
 
@@ -876,7 +989,7 @@ onUnmounted(() => {
   top: 16px;
   left: 16px;
   bottom: 16px;
-  width: 380px;
+  width: 400px;
   z-index: 1000;
 }
 
@@ -891,12 +1004,17 @@ onUnmounted(() => {
   z-index: 2;
   width: 28px;
   height: 28px;
-  border: 1px solid rgba(62, 166, 255, 0.28);
+  border: 1px solid var(--track-border);
   border-left: none;
   border-radius: 0 8px 8px 0;
-  background: rgba(6, 12, 22, 0.92);
-  color: #9cb5d1;
+  background: rgba(13, 17, 23, 0.95);
+  color: var(--track-text-muted);
   cursor: pointer;
+
+  &:hover {
+    color: var(--track-accent);
+    border-color: var(--track-border-accent);
+  }
 }
 
 .panel-content {
@@ -904,11 +1022,13 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   padding: 18px;
-  border: 1px solid rgba(62, 166, 255, 0.14);
-  border-radius: 20px;
-  background: rgba(6, 12, 22, 0.86);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--track-border);
+  border-radius: 16px;
+  background: var(--track-bg-panel);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .panel-header,
@@ -930,38 +1050,148 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-.eyebrow {
-  color: #58b6ff;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.api-alert {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 122, 69, 0.35);
+  background: rgba(42, 14, 8, 0.92);
+  color: #ffd5c4;
+  font-size: 13px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
 }
 
-.panel-header h1 {
+.api-alert-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ff7a45;
+  box-shadow: 0 0 12px #ff7a45;
+}
+
+.api-alert-retry {
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 176, 32, 0.4);
+  border-radius: 999px;
+  background: rgba(255, 176, 32, 0.12);
+  color: #ffe2a8;
+  cursor: pointer;
+}
+
+.header-main h1 {
+  margin: 8px 0 0;
+  color: var(--track-text);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.header-sub {
   margin: 4px 0 0;
-  color: #f4f8fc;
-  font-size: 22px;
+  color: var(--track-text-muted);
+  font-size: 12px;
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 61, 113, 0.28);
+  background: rgba(255, 61, 113, 0.08);
+  color: #ff8fab;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.live-badge.live {
+  border-color: rgba(61, 220, 151, 0.3);
+  background: rgba(61, 220, 151, 0.08);
+  color: #3ddc97;
+}
+
+.live-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.live-badge.live .live-pulse {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.park-select-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.park-select-label {
+  color: var(--track-text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.park-select {
+  flex: 1;
+}
+
+:deep(.park-select .ant-select-selector) {
+  background: rgba(22, 27, 34, 0.9) !important;
+  border-color: var(--track-border) !important;
+  color: var(--track-text) !important;
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif !important;
+}
+
+:deep(.park-select .ant-select-selection-item) {
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif !important;
+  letter-spacing: 0.02em;
 }
 
 .mobile-entry {
   padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(62, 166, 255, 0.12);
-  border: 1px solid rgba(62, 166, 255, 0.24);
-  color: #dff0ff;
+  border-radius: 8px;
+  background: var(--track-accent-soft);
+  border: 1px solid var(--track-border-accent);
+  color: var(--track-accent);
   text-decoration: none;
   font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    background: rgba(0, 180, 216, 0.16);
+    color: #7ee8ff;
+  }
 }
 
 .refresh-btn,
 .detail-close {
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #b7c9dc;
+  border: 1px solid var(--track-border);
+  border-radius: 8px;
+  background: rgba(22, 27, 34, 0.6);
+  color: var(--track-text-muted);
   cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    color: var(--track-accent);
+    border-color: var(--track-border-accent);
+  }
 }
 
 .refresh-btn.spinning {
@@ -970,36 +1200,123 @@ onUnmounted(() => {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 16px;
 }
 
 .stat-card {
-  padding: 12px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #dce7f4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--track-border);
+  border-radius: 12px;
+  background: rgba(22, 27, 34, 0.55);
+  color: var(--track-text);
   cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  text-align: left;
 }
 
-.stat-card.online .stat-value { color: #00d68f; }
-.stat-card.busy .stat-value { color: #3ea6ff; }
-.stat-card.charging .stat-value { color: #ffb020; }
+.stat-card:hover {
+  border-color: rgba(48, 54, 61, 1);
+  background: rgba(28, 33, 40, 0.75);
+}
+
+.stat-card.active {
+  border-color: var(--track-border-accent);
+  background: var(--track-accent-soft);
+  box-shadow: inset 3px 0 0 var(--track-accent);
+}
+
+.stat-card.online.active {
+  border-color: rgba(61, 220, 151, 0.35);
+  background: rgba(61, 220, 151, 0.08);
+  box-shadow: inset 3px 0 0 var(--track-success);
+}
+
+.stat-card.busy.active {
+  border-color: rgba(108, 182, 255, 0.35);
+  background: rgba(0, 180, 216, 0.08);
+  box-shadow: inset 3px 0 0 var(--track-busy);
+}
+
+.stat-card.charging.active {
+  border-color: rgba(227, 179, 65, 0.35);
+  background: rgba(255, 176, 32, 0.08);
+  box-shadow: inset 3px 0 0 var(--track-warning);
+}
+
+.stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  background: rgba(13, 17, 23, 0.8);
+  border: 1px solid var(--track-border);
+  flex-shrink: 0;
+}
+
+.stat-card.total .stat-icon {
+  color: var(--track-text-muted);
+}
+
+.stat-card.online .stat-icon {
+  color: var(--track-success);
+  border-color: rgba(61, 220, 151, 0.25);
+}
+
+.stat-card.busy .stat-icon {
+  color: var(--track-busy);
+  border-color: rgba(108, 182, 255, 0.25);
+}
+
+.stat-card.charging .stat-icon {
+  color: var(--track-warning);
+  border-color: rgba(227, 179, 65, 0.25);
+}
+
+.stat-card.total .stat-value {
+  color: var(--track-text);
+}
+
+.stat-card.online .stat-value {
+  color: var(--track-success);
+}
+
+.stat-card.busy .stat-value {
+  color: var(--track-busy);
+}
+
+.stat-card.charging .stat-value {
+  color: var(--track-warning);
+}
+
+.stat-body {
+  min-width: 0;
+}
 
 .stat-value {
   display: block;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   font-family: 'JetBrains Mono', monospace;
+  line-height: 1.1;
 }
 
 .stat-label {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 11px;
-  color: #88a2bf;
+  color: var(--track-text-muted);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
 }
 
 .filter-row,
@@ -1016,17 +1333,24 @@ onUnmounted(() => {
 
 .filter-chip {
   padding: 6px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #9fb4ca;
+  border: 1px solid var(--track-border);
+  border-radius: 8px;
+  background: rgba(22, 27, 34, 0.5);
+  color: var(--track-text-muted);
   cursor: pointer;
+  font-size: 12px;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+
+  &:hover {
+    color: var(--track-text);
+    border-color: rgba(48, 54, 61, 1);
+  }
 }
 
 .filter-chip.active {
-  border-color: rgba(62, 166, 255, 0.5);
-  background: rgba(62, 166, 255, 0.12);
-  color: #d7ecff;
+  border-color: var(--track-border-accent);
+  background: var(--track-accent-soft);
+  color: var(--track-accent);
 }
 
 .section {
@@ -1036,10 +1360,11 @@ onUnmounted(() => {
 
 .section-head {
   margin-bottom: 10px;
-  color: #9ab0c6;
-  font-size: 12px;
+  color: var(--track-text-dim);
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
+  font-weight: 600;
 }
 
 .card-list {
@@ -1058,20 +1383,27 @@ onUnmounted(() => {
 .info-card {
   width: 100%;
   padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--track-border);
+  border-radius: 12px;
+  background: rgba(22, 27, 34, 0.45);
   text-align: left;
-  color: #eef4fb;
+  color: var(--track-text);
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .vehicle-card {
   cursor: pointer;
+
+  &:hover {
+    border-color: rgba(48, 54, 61, 1);
+    background: rgba(28, 33, 40, 0.65);
+  }
 }
 
 .vehicle-card.selected {
-  border-color: rgba(62, 166, 255, 0.4);
-  box-shadow: inset 0 0 0 1px rgba(62, 166, 255, 0.2);
+  border-color: var(--track-border-accent);
+  background: var(--track-accent-soft);
+  box-shadow: inset 2px 0 0 var(--track-accent);
 }
 
 .vehicle-card.offline {
@@ -1147,33 +1479,33 @@ onUnmounted(() => {
 }
 
 .stage-idle {
-  background: rgba(0, 214, 143, 0.12);
-  color: #00d68f;
+  background: rgba(61, 220, 151, 0.12);
+  color: var(--track-success);
 }
 
 .stage-moving {
-  background: rgba(62, 166, 255, 0.14);
-  color: #74c2ff;
+  background: rgba(0, 180, 216, 0.12);
+  color: var(--track-busy);
 }
 
 .stage-loading {
-  background: rgba(255, 176, 32, 0.14);
-  color: #ffb020;
+  background: rgba(255, 176, 32, 0.12);
+  color: var(--track-warning);
 }
 
 .stage-charging {
-  background: rgba(255, 122, 69, 0.14);
-  color: #ff9f6b;
+  background: rgba(255, 176, 32, 0.1);
+  color: #e3b341;
 }
 
 .stage-risk {
-  background: rgba(255, 77, 109, 0.14);
-  color: #ff6a87;
+  background: rgba(255, 61, 113, 0.12);
+  color: var(--track-danger);
 }
 
 .stage-default {
-  background: rgba(255, 255, 255, 0.08);
-  color: #b4c6d8;
+  background: rgba(110, 118, 129, 0.15);
+  color: var(--track-text-muted);
 }
 
 .order-link,
@@ -1199,8 +1531,8 @@ onUnmounted(() => {
 .panel-footer {
   margin-top: auto;
   padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  color: #7d94aa;
+  border-top: 1px solid var(--track-border);
+  color: var(--track-text-dim);
   font-size: 12px;
   font-family: 'JetBrains Mono', monospace;
 }
@@ -1212,11 +1544,11 @@ onUnmounted(() => {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 12px 14px;
-  border: 1px solid rgba(62, 166, 255, 0.14);
-  border-radius: 14px;
-  background: rgba(6, 12, 22, 0.84);
-  backdrop-filter: blur(14px);
+  padding: 10px 14px;
+  border: 1px solid var(--track-border);
+  border-radius: 12px;
+  background: rgba(13, 17, 23, 0.88);
+  backdrop-filter: blur(12px);
   z-index: 1000;
 }
 
@@ -1224,21 +1556,36 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #a7bdd3;
+  color: var(--track-text-muted);
   font-size: 11px;
 }
 
 .legend-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
+  flex-shrink: 0;
 }
 
-.station-a { background: #00d68f; }
-.station-b { background: #ff4d6d; }
-.parking { background: #3ea6ff; }
-.charging { background: #ffb020; }
-.busy { background: #58b6ff; }
+.legend-dot.station-a {
+  background: var(--track-success);
+}
+
+.legend-dot.station-b {
+  background: var(--track-danger);
+}
+
+.legend-dot.parking {
+  background: var(--track-accent);
+}
+
+.legend-dot.legend-dot-charging {
+  background: var(--track-warning);
+}
+
+.legend-dot.legend-dot-busy {
+  background: var(--track-busy);
+}
 
 .detail-mask {
   position: absolute;

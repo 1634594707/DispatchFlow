@@ -8,7 +8,8 @@ const instance: AxiosInstance = axios.create({
   baseURL: API_BASE,
   timeout: REQUEST_TIMEOUT,
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json;charset=UTF-8',
+    Accept: 'application/json;charset=UTF-8',
   },
 })
 
@@ -27,8 +28,9 @@ instance.interceptors.response.use(
     if (data.success) {
       return data as any
     }
-    message.error(data.message || '请求失败')
-    return Promise.reject(new Error(data.message || '请求失败'))
+    const errMsg = friendlyApiMessage(data.code, data.message)
+    message.error(errMsg)
+    return Promise.reject(new Error(errMsg))
   },
   (error) => {
     if (error.response) {
@@ -63,5 +65,13 @@ instance.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+function friendlyApiMessage(code?: string, raw?: string): string {
+  if (!raw) return '请求失败'
+  if (raw.includes('No static resource') || code === 'NOT_FOUND') {
+    return '后端接口未找到，请在 back/fsd-bootstrap 目录执行 mvn spring-boot:run 并重启后端'
+  }
+  return raw
+}
 
 export default instance

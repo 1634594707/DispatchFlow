@@ -21,6 +21,7 @@ import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
 import com.fsd.dispatch.vo.ParkOrderCreateResponse;
 import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
+import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
 import com.fsd.order.service.OrderAdminQueryService;
@@ -37,6 +38,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -140,14 +142,25 @@ public class AdminDispatchController {
         return ApiResponse.success(adminDashboardService.getSummary());
     }
 
+    @GetMapping("/parks")
+    public ApiResponse<List<ParkResponse>> listParks() {
+        return ApiResponse.success(parkPilotService.listParks());
+    }
+
     @GetMapping("/park/layout")
-    public ApiResponse<ParkLayoutResponse> getParkLayout() {
-        return ApiResponse.success(parkPilotService.getLayout());
+    public ApiResponse<ParkLayoutResponse> getParkLayout(@RequestParam(required = false) Long parkId) {
+        if (parkId == null) {
+            return ApiResponse.success(parkPilotService.getLayout());
+        }
+        return ApiResponse.success(parkPilotService.getLayout(parkId));
     }
 
     @GetMapping("/park/stations")
-    public ApiResponse<List<ParkStationResponse>> listParkStations() {
-        return ApiResponse.success(parkPilotService.listStations());
+    public ApiResponse<List<ParkStationResponse>> listParkStations(@RequestParam(required = false) Long parkId) {
+        if (parkId == null) {
+            return ApiResponse.success(parkPilotService.listStations());
+        }
+        return ApiResponse.success(parkPilotService.listStations(parkId));
     }
 
     @GetMapping("/park/vehicles")

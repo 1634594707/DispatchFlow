@@ -11,6 +11,12 @@ public class ParkLayoutResponse {
 
     private boolean enabled;
 
+    private Long parkId;
+
+    private String parkCode;
+
+    private String parkName;
+
     private Integer width;
 
     private Integer height;

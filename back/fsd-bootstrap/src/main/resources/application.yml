@@ -2,7 +2,7 @@ spring:
   application:
     name: fsd-core-server
   datasource:
-    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3307}/${DB_NAME:fsd_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=${DB_TIMEZONE:Asia/Shanghai}
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3307}/${DB_NAME:fsd_core}?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_general_ci&serverTimezone=${DB_TIMEZONE:Asia/Shanghai}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -19,6 +19,11 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 management:
   endpoints:
@@ -35,6 +40,7 @@ springdoc:
 fsd:
   park:
     enabled: ${FSD_PARK_ENABLED:true}
+    default-park-code: ${FSD_PARK_DEFAULT_CODE:DEFAULT}
     width: ${FSD_PARK_WIDTH:1200}
     height: ${FSD_PARK_HEIGHT:800}
     min-zoom: ${FSD_PARK_MIN_ZOOM:-1}
@@ -211,6 +217,8 @@ fsd:
         to: R18
       - from: R18
         to: R24
+    # Stations are stored in t_park / t_station (see sql/init/V4__park_and_station.sql).
+    # YAML list below is only used by ParkDataInitializer when DB has no parks.
     stations:
       - id: 101
         code: A1

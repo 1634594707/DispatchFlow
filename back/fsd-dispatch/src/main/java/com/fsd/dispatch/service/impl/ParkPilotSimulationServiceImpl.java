@@ -5,6 +5,7 @@ import com.fsd.common.enums.VehicleDispatchStatus;
 import com.fsd.common.enums.VehicleOnlineStatus;
 import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
+import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
@@ -44,18 +45,21 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private final OrderStateService orderStateService;
     private final VehicleReportService vehicleReportService;
     private final ParkRoutePlannerService parkRoutePlannerService;
+    private final ParkStationService parkStationService;
     private final Map<Long, VehicleRuntimeState> runtimeStates = new ConcurrentHashMap<>();
 
     public ParkPilotSimulationServiceImpl(ParkPilotProperties parkPilotProperties,
                                           VehicleMapper vehicleMapper,
                                           OrderStateService orderStateService,
                                           VehicleReportService vehicleReportService,
-                                          ParkRoutePlannerService parkRoutePlannerService) {
+                                          ParkRoutePlannerService parkRoutePlannerService,
+                                          ParkStationService parkStationService) {
         this.parkPilotProperties = parkPilotProperties;
         this.vehicleMapper = vehicleMapper;
         this.orderStateService = orderStateService;
         this.vehicleReportService = vehicleReportService;
         this.parkRoutePlannerService = parkRoutePlannerService;
+        this.parkStationService = parkStationService;
     }
 
     @Override
@@ -248,18 +252,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private ParkStationResponse getStation(Long stationId) {
-        return parkPilotProperties.getStations().stream()
-                .filter(station -> Objects.equals(station.getId(), stationId))
-                .findFirst()
-                .map(station -> ParkStationResponse.builder()
-                        .stationId(station.getId())
-                        .stationCode(station.getCode())
-                        .stationName(station.getName())
-                        .x(station.getX())
-                        .y(station.getY())
-                        .area(station.getArea())
-                        .build())
-                .orElseThrow(() -> new BusinessException("PARK_STATION_NOT_FOUND", "Park station not found"));
+        return parkStationService.requireStation(stationId);
     }
 
     private void maybeGoOffline(VehicleRuntimeState state) {

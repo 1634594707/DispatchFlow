@@ -1,41 +1,38 @@
-package com.fsd.order.entity;
+package com.fsd.dispatch.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Data;
 
 @Data
-@TableName("t_order")
-public class OrderEntity {
+@TableName("t_park")
+public class ParkEntity {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String orderNo;
+    private String parkCode;
 
-    private String externalOrderNo;
+    private String parkName;
 
-    private String sourceType;
+    private Integer mapWidth;
 
-    private String bizType;
+    private Integer mapHeight;
 
-    private Long parkId;
+    private Integer minZoom;
 
-    private Long pickupPointId;
+    private Integer maxZoom;
 
-    private Long dropoffPointId;
-
-    private String priority;
+    private BigDecimal vehicleSpeedPxPerSecond;
 
     private String status;
 
-    private Long dispatchTaskId;
+    private Integer defaultFlag;
 
     private String remark;
-
-    private String createdBy;
 
     private LocalDateTime createdAt;
 

@@ -4,10 +4,22 @@ export interface ParkPoint {
   y: number
 }
 
+export interface ParkSummary {
+  parkId: number
+  parkCode: string
+  parkName: string
+  mapWidth?: number
+  mapHeight?: number
+  defaultPark: boolean
+}
+
 export interface ParkStation {
+  parkId: number
+  parkCode: string
   stationId: number
   stationCode: string
   stationName: string
+  stationType?: string
   x: number
   y: number
   area: string
@@ -26,6 +38,9 @@ export interface ParkRoadSegment {
 
 export interface ParkLayout {
   enabled: boolean
+  parkId?: number
+  parkCode?: string
+  parkName?: string
   width: number
   height: number
   minZoom: number
@@ -78,6 +93,7 @@ export interface ParkOrderSnapshot {
 }
 
 export interface ParkOrderCreateRequest {
+  parkId?: number
   externalOrderNo?: string
   pickupStationId: number
   dropoffStationId: number

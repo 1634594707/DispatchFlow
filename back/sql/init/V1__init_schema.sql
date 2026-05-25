@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS `t_order` (
   `external_order_no` VARCHAR(64) DEFAULT NULL COMMENT '外部订单号',
   `source_type` VARCHAR(32) NOT NULL COMMENT '订单来源',
   `biz_type` VARCHAR(32) NOT NULL COMMENT '业务类型',
+  `park_id` BIGINT DEFAULT NULL COMMENT '所属园区ID',
   `pickup_point_id` BIGINT NOT NULL COMMENT '取货点ID',
   `dropoff_point_id` BIGINT NOT NULL COMMENT '送达点ID',
   `priority` VARCHAR(32) NOT NULL COMMENT '优先级',
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS `t_order` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_order_no` (`order_no`),
   KEY `idx_external_order_no` (`external_order_no`),
+  KEY `idx_park_id` (`park_id`),
   KEY `idx_status_created_at` (`status`, `created_at`),
   KEY `idx_dispatch_task_id` (`dispatch_task_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='订单表';

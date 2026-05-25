@@ -8,6 +8,8 @@ public class ParkOrderCreateRequest {
 
     private String externalOrderNo;
 
+    private Long parkId;
+
     @NotNull(message = "pickupStationId is required")
     private Long pickupStationId;
 

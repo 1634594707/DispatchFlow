@@ -235,6 +235,23 @@ DispatchFlow/
 
 ## 六、核心接口
 
+### 园区与站点（多园区）
+
+站点数据存储在 MySQL：`t_park`、`t_station`（初始化脚本见 `back/sql/init/V4__park_and_station.sql`）。
+
+导入 SQL 时请使用 **utf8mb4**（避免中文乱码 `é»˜è®¤...`）：
+
+```powershell
+docker cp back\sql\init\V4__park_and_station.sql fsd-mysql:/tmp/V4.sql
+docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V4.sql"
+```
+
+若已乱码，执行修复脚本：`back/sql/init/V5__fix_charset_data.sql`（同样加 `--default-character-set=utf8mb4`）。
+
+- `GET /api/admin/parks` — 园区列表
+- `GET /api/admin/park/layout?parkId=` — 园区底图与路网（`parkId` 可选，默认园区）
+- `GET /api/admin/park/stations?parkId=` — 站点列表
+
 ### 园区监控接口
 
 - `GET /api/admin/park/layout`
@@ -250,6 +267,7 @@ DispatchFlow/
 
 ```json
 {
+  "parkId": 1,
   "externalOrderNo": "PARK-DEMO-001",
   "pickupStationId": 101,
   "dropoffStationId": 201,
@@ -287,12 +305,24 @@ DispatchFlow/
 
 注意：`back/pom.xml` 是聚合工程，不能直接在 `back/` 根目录执行 `mvn spring-boot:run`。
 
-正确方式：
+正确方式（**必须带 `-am`**，否则会加载旧的 `fsd-admin-api` jar，园区接口 `/api/admin/park/*` 会 404）：
 
 ```bash
 cd back
-mvn -pl fsd-bootstrap -am spring-boot:run
+mvn -pl fsd-bootstrap -am clean install -DskipTests
+mvn -pl fsd-bootstrap spring-boot:run
 ```
+
+不要写成一条 `... clean spring-boot:run`，否则 Maven 可能在父工程 `fsd-core-server` 上执行 run 并报错「找不到 main class」。
+
+Windows 也可直接：
+
+```powershell
+cd back
+.\run-dev.ps1
+```
+
+若监控页提示「后端接口未找到」，请先停止当前后端（Ctrl+C），再执行上述命令完整重启。
 
 默认访问地址：
 

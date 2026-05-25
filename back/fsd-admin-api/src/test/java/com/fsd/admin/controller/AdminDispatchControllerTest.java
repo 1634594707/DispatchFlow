@@ -221,7 +221,7 @@ class AdminDispatchControllerTest {
                 .yFieldAlias("currentLatitude")
                 .build());
 
-        ApiResponse<ParkLayoutResponse> response = adminDispatchController.getParkLayout();
+        ApiResponse<ParkLayoutResponse> response = adminDispatchController.getParkLayout(null);
 
         assertEquals(1200, response.getData().getWidth());
         assertEquals("currentLongitude", response.getData().getXFieldAlias());
@@ -245,7 +245,7 @@ class AdminDispatchControllerTest {
                 ParkStationResponse.builder().stationId(101L).stationCode("A1").build()
         ));
 
-        ApiResponse<List<ParkStationResponse>> response = adminDispatchController.listParkStations();
+        ApiResponse<List<ParkStationResponse>> response = adminDispatchController.listParkStations(null);
 
         assertEquals(1, response.getData().size());
         assertEquals("A1", response.getData().getFirst().getStationCode());

@@ -96,15 +96,44 @@
               <ReloadOutlined />
             </a-button>
           </a-tooltip>
-          <a-popover trigger="click" placement="bottomRight">
+          <a-popover trigger="click" placement="bottomRight" @openChange="handleNotificationOpen">
             <template #content>
-              <div style="width: 280px;">
-                <div class="notification-header">系统通知</div>
-                <a-empty :image="simpleImage" description="暂无通知" />
+              <div class="notification-panel">
+                <div class="notification-header">
+                  <span>待处理异常</span>
+                  <a
+                    v-if="notificationCount > 0"
+                    class="notification-link"
+                    @click="router.push('/exceptions')"
+                  >
+                    查看全部
+                  </a>
+                </div>
+                <a-spin :spinning="notificationLoading">
+                  <div v-if="notificationItems.length > 0" class="notification-list">
+                    <button
+                      v-for="item in notificationItems"
+                      :key="item.id"
+                      type="button"
+                      class="notification-item"
+                      @click="goException(item.id)"
+                    >
+                      <span class="notification-type">{{ item.exceptionType }}</span>
+                      <span class="notification-msg">{{ item.exceptionMsg || '调度异常' }}</span>
+                      <span class="notification-time">{{ formatNotificationTime(item.occurTime) }}</span>
+                    </button>
+                  </div>
+                  <a-empty v-else :image="simpleImage" description="暂无待处理通知" />
+                </a-spin>
               </div>
             </template>
             <a-button type="text" class="header-icon-btn notification-btn">
-              <a-badge :count="3" :offset="[-4, 4]">
+              <a-badge
+                :count="notificationCount"
+                :overflow-count="99"
+                :show-zero="false"
+                :offset="[-4, 4]"
+              >
                 <BellOutlined />
               </a-badge>
             </a-button>
@@ -142,6 +171,15 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty } from 'ant-design-vue'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import 'dayjs/locale/zh-cn'
+import { queryExceptions } from '@/api/exception'
+import type { ExceptionAdminListItem } from '@/types/exception'
+import type { PageResponse } from '@/types/api'
+
+dayjs.extend(relativeTime)
+dayjs.locale('zh-cn')
 import {
   DashboardOutlined,
   FileTextOutlined,
@@ -165,6 +203,10 @@ const exceptionStore = useExceptionStore()
 
 const collapsed = ref(false)
 const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE
+const notificationLoading = ref(false)
+const notificationItems = ref<ExceptionAdminListItem[]>([])
+
+const notificationCount = computed(() => exceptionStore.openCount)
 
 const menuKeyMap: Record<string, string> = {
   '/dashboard': 'dashboard',
@@ -207,6 +249,32 @@ const breadcrumbItems = computed(() => {
     return { label, path }
   })
 })
+
+async function handleNotificationOpen(open: boolean) {
+  if (!open) return
+  notificationLoading.value = true
+  try {
+    const res = await queryExceptions({
+      pageNo: 1,
+      pageSize: 8,
+      exceptionStatus: 'OPEN',
+    })
+    const page = res.data as unknown as PageResponse<ExceptionAdminListItem>
+    notificationItems.value = page.records || []
+  } catch {
+    notificationItems.value = []
+  } finally {
+    notificationLoading.value = false
+  }
+}
+
+function formatNotificationTime(value: string) {
+  return dayjs(value).fromNow()
+}
+
+function goException(exceptionId: number) {
+  router.push('/exceptions')
+}
 
 function handleMenuClick({ key }: { key: string }) {
   const pathMap: Record<string, string> = {
@@ -395,11 +463,77 @@ onUnmounted(() => {
   margin-left: 64px;
 }
 
+.notification-panel {
+  width: 300px;
+}
+
 .notification-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-weight: 600;
   font-size: 14px;
   color: var(--fsd-text-primary);
   margin-bottom: 12px;
+}
+
+.notification-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fsd-accent);
+  text-decoration: none;
+
+  &:hover {
+    color: #7ee8ff;
+  }
+}
+
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.notification-item {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--fsd-border);
+  border-radius: 8px;
+  background: rgba(22, 27, 34, 0.5);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+
+  &:hover {
+    border-color: rgba(0, 180, 216, 0.35);
+    background: rgba(0, 180, 216, 0.08);
+  }
+}
+
+.notification-type {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fsd-warning);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.notification-msg {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--fsd-text-primary);
+  line-height: 1.4;
+}
+
+.notification-time {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--fsd-text-tertiary);
 }
 
 .fade-enter-active,

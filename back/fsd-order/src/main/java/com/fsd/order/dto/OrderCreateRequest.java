@@ -16,6 +16,8 @@ public class OrderCreateRequest {
     @NotBlank(message = "bizType is required")
     private String bizType;
 
+    private Long parkId;
+
     @NotNull(message = "pickupPointId is required")
     private Long pickupPointId;
 

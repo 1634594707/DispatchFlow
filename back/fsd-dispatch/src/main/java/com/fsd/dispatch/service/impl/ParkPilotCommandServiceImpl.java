@@ -4,8 +4,9 @@ import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
 import com.fsd.dispatch.dto.ParkOrderCreateRequest;
 import com.fsd.dispatch.service.DispatchTaskService;
+import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.service.ParkPilotCommandService;
-import com.fsd.dispatch.service.ParkPilotService;
+import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
 import com.fsd.dispatch.vo.DispatchTaskCreateResponse;
 import com.fsd.dispatch.vo.ParkOrderCreateResponse;
@@ -26,21 +27,25 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
 
     private final OrderService orderService;
     private final DispatchTaskService dispatchTaskService;
-    private final ParkPilotService parkPilotService;
+    private final ParkStationService parkStationService;
 
     public ParkPilotCommandServiceImpl(OrderService orderService,
                                        DispatchTaskService dispatchTaskService,
-                                       ParkPilotService parkPilotService) {
+                                       ParkStationService parkStationService) {
         this.orderService = orderService;
         this.dispatchTaskService = dispatchTaskService;
-        this.parkPilotService = parkPilotService;
+        this.parkStationService = parkStationService;
     }
 
     @Override
     @Transactional
     public ParkOrderCreateResponse createParkOrder(ParkOrderCreateRequest request) {
-        parkPilotService.getStation(request.getPickupStationId());
-        parkPilotService.getStation(request.getDropoffStationId());
+        ParkEntity park = request.getParkId() == null
+                ? parkStationService.requireDefaultPark()
+                : parkStationService.requirePark(request.getParkId());
+        parkStationService.assertStationInPark(request.getPickupStationId(), park.getId());
+        parkStationService.assertStationInPark(request.getDropoffStationId(), park.getId());
+        parkStationService.assertStationsBelongToSamePark(request.getPickupStationId(), request.getDropoffStationId());
         if (Objects.equals(request.getPickupStationId(), request.getDropoffStationId())) {
             throw new BusinessException("PARK_ORDER_STATION_INVALID", "Pickup and dropoff station cannot be the same");
         }
@@ -49,6 +54,7 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
         orderRequest.setExternalOrderNo(resolveExternalOrderNo(request.getExternalOrderNo()));
         orderRequest.setSourceType("PARK");
         orderRequest.setBizType("DELIVERY");
+        orderRequest.setParkId(park.getId());
         orderRequest.setPickupPointId(request.getPickupStationId());
         orderRequest.setDropoffPointId(request.getDropoffStationId());
         orderRequest.setPriority(request.getPriority() == null || request.getPriority().isBlank() ? "P2" : request.getPriority());

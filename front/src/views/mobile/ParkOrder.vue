@@ -144,6 +144,17 @@
         </div>
 
         <a-form layout="vertical">
+          <a-form-item label="所属园区">
+            <a-select
+              v-model:value="form.parkId"
+              placeholder="选择园区"
+              size="large"
+              :loading="loadingParks"
+              :options="parkOptions"
+              @change="handleParkChange"
+            />
+          </a-form-item>
+
           <a-form-item label="取货站点">
             <a-select
               v-model:value="form.pickupStationId"
@@ -152,7 +163,7 @@
               :loading="loadingStations"
               show-search
               option-filter-prop="label"
-              :options="stationOptions"
+              :options="pickupStationOptions"
             />
           </a-form-item>
 
@@ -288,17 +299,27 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
-import { createParkOrder, getParkLayout, getParkOrders, getParkStations, getParkVehicles } from '@/api/park'
+import {
+  createParkOrder,
+  getParkLayout,
+  getParkOrders,
+  getParkStations,
+  getParkVehicles,
+  listParks,
+} from '@/api/park'
 import type {
   ParkLayout,
   ParkOrderCreateRequest,
   ParkOrderCreateResponse,
   ParkOrderSnapshot,
   ParkStation,
+  ParkSummary,
   ParkVehicleSnapshot,
 } from '@/types/park'
 
+const loadingParks = ref(false)
 const loadingStations = ref(false)
+const parks = ref<ParkSummary[]>([])
 const submitting = ref(false)
 const stations = ref<ParkStation[]>([])
 const vehicles = ref<ParkVehicleSnapshot[]>([])
@@ -309,12 +330,20 @@ const trackedOrderId = ref<number | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const form = reactive<ParkOrderCreateRequest>({
+  parkId: undefined,
   externalOrderNo: '',
   pickupStationId: undefined as unknown as number,
   dropoffStationId: undefined as unknown as number,
   priority: 'P1',
   remark: '',
 })
+
+const parkOptions = computed(() =>
+  parks.value.map(park => ({
+    value: park.parkId,
+    label: park.parkName,
+  })),
+)
 
 const priorities = [
   { value: 'P0', label: '最高优先' },
@@ -323,15 +352,23 @@ const priorities = [
   { value: 'P3', label: '低优先级' },
 ]
 
-const stationOptions = computed(() =>
-  stations.value.map(station => ({
-    value: station.stationId,
-    label: `${station.stationCode} · ${station.stationName}`,
-  })),
+const pickupStationOptions = computed(() =>
+  stations.value
+    .filter(station => !station.stationType || station.stationType === 'PICKUP' || station.stationType === 'GENERAL')
+    .map(station => ({
+      value: station.stationId,
+      label: `${station.stationCode} · ${station.stationName}`,
+    })),
 )
 
 const dropoffOptions = computed(() =>
-  stationOptions.value.filter(option => option.value !== form.pickupStationId),
+  stations.value
+    .filter(station => !station.stationType || station.stationType === 'DROPOFF' || station.stationType === 'GENERAL')
+    .filter(station => station.stationId !== form.pickupStationId)
+    .map(station => ({
+      value: station.stationId,
+      label: `${station.stationCode} · ${station.stationName}`,
+    })),
 )
 
 const selectedPickup = computed(() =>
@@ -434,25 +471,65 @@ function formatTime(value: string | null) {
   return dayjs(value).format('HH:mm:ss')
 }
 
+function applyDefaultStations() {
+  const pickupCandidates = stations.value.filter(
+    station => !station.stationType || station.stationType === 'PICKUP' || station.stationType === 'GENERAL',
+  )
+  const dropoffCandidates = stations.value.filter(
+    station => !station.stationType || station.stationType === 'DROPOFF' || station.stationType === 'GENERAL',
+  )
+  if (!form.pickupStationId && pickupCandidates[0]) {
+    form.pickupStationId = pickupCandidates[0].stationId
+  }
+  if (!form.dropoffStationId) {
+    const dropoff = dropoffCandidates.find(station => station.stationId !== form.pickupStationId)
+    if (dropoff) {
+      form.dropoffStationId = dropoff.stationId
+    }
+  }
+}
+
+async function fetchParks() {
+  loadingParks.value = true
+  try {
+    const response = await listParks()
+    parks.value = response.data || []
+    if (!form.parkId) {
+      const defaultPark = parks.value.find(park => park.defaultPark) || parks.value[0]
+      if (defaultPark) {
+        form.parkId = defaultPark.parkId
+      }
+    }
+  } finally {
+    loadingParks.value = false
+  }
+}
+
 async function fetchStations() {
+  if (!form.parkId) {
+    stations.value = []
+    return
+  }
   loadingStations.value = true
   try {
-    const response = await getParkStations()
+    const response = await getParkStations(form.parkId)
     stations.value = response.data || []
-    if (!form.pickupStationId && stations.value[0]) {
-      form.pickupStationId = stations.value[0].stationId
-    }
-    if (!form.dropoffStationId && stations.value[1]) {
-      form.dropoffStationId = stations.value[1].stationId
-    }
+    applyDefaultStations()
   } finally {
     loadingStations.value = false
   }
 }
 
 async function fetchLayout() {
-  const response = await getParkLayout()
+  if (!form.parkId) return
+  const response = await getParkLayout(form.parkId)
   parkLayout.value = response.data
+}
+
+async function handleParkChange() {
+  form.pickupStationId = undefined as unknown as number
+  form.dropoffStationId = undefined as unknown as number
+  await Promise.all([fetchStations(), fetchLayout()])
 }
 
 async function fetchOrders() {
@@ -489,6 +566,7 @@ async function submitOrder() {
   submitting.value = true
   try {
     const response = await createParkOrder({
+      parkId: form.parkId,
       externalOrderNo: form.externalOrderNo?.trim() || undefined,
       pickupStationId: form.pickupStationId,
       dropoffStationId: form.dropoffStationId,
@@ -507,6 +585,7 @@ async function submitOrder() {
 }
 
 onMounted(async () => {
+  await fetchParks()
   await Promise.all([fetchStations(), fetchLayout(), fetchOrders(), fetchVehicles()])
   pollTimer = setInterval(() => {
     fetchOrders()

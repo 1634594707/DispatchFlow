@@ -14,6 +14,8 @@ public class ParkPilotProperties {
 
     private boolean enabled = true;
 
+    private String defaultParkCode = "DEFAULT";
+
     private Integer width = 1200;
 
     private Integer height = 800;

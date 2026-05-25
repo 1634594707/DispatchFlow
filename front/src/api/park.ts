@@ -6,15 +6,24 @@ import type {
   ParkOrderCreateResponse,
   ParkOrderSnapshot,
   ParkStation,
+  ParkSummary,
   ParkVehicleSnapshot,
 } from '@/types/park'
 
-export function getParkLayout() {
-  return request.get<any, ApiResponse<ParkLayout>>('/admin/park/layout')
+export function listParks() {
+  return request.get<any, ApiResponse<ParkSummary[]>>('/admin/parks')
 }
 
-export function getParkStations() {
-  return request.get<any, ApiResponse<ParkStation[]>>('/admin/park/stations')
+export function getParkLayout(parkId?: number) {
+  return request.get<any, ApiResponse<ParkLayout>>('/admin/park/layout', {
+    params: parkId != null ? { parkId } : undefined,
+  })
+}
+
+export function getParkStations(parkId?: number) {
+  return request.get<any, ApiResponse<ParkStation[]>>('/admin/park/stations', {
+    params: parkId != null ? { parkId } : undefined,
+  })
 }
 
 export function getParkVehicles() {

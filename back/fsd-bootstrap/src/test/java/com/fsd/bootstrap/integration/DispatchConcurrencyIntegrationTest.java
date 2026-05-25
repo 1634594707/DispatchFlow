@@ -58,6 +58,7 @@ class DispatchConcurrencyIntegrationTest {
     @BeforeEach
     void setUp() {
         recreateSchema();
+        seedParkData();
         executorService = Executors.newFixedThreadPool(2);
         when(dispatchLockService.acquireTaskLock(anyLong())).thenAnswer(invocation -> "lock-" + invocation.getArgument(0));
         doNothing().when(dispatchLockService).releaseTaskLock(anyLong(), any());
@@ -166,6 +167,48 @@ class DispatchConcurrencyIntegrationTest {
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_task");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_order");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_vehicle");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_station");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_park");
+
+        jdbcTemplate.execute("""
+                CREATE TABLE t_park (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    park_code VARCHAR(64) NOT NULL,
+                    park_name VARCHAR(128) NOT NULL,
+                    map_width INT,
+                    map_height INT,
+                    min_zoom INT,
+                    max_zoom INT,
+                    vehicle_speed_px_per_second DECIMAL(10,2),
+                    status VARCHAR(32) NOT NULL,
+                    default_flag TINYINT NOT NULL DEFAULT 0,
+                    remark VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    version INT DEFAULT 0,
+                    deleted TINYINT DEFAULT 0
+                )
+                """);
+
+        jdbcTemplate.execute("""
+                CREATE TABLE t_station (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    park_id BIGINT NOT NULL,
+                    station_code VARCHAR(64) NOT NULL,
+                    station_name VARCHAR(128) NOT NULL,
+                    station_type VARCHAR(32) NOT NULL,
+                    coord_x DECIMAL(12,4) NOT NULL,
+                    coord_y DECIMAL(12,4) NOT NULL,
+                    area VARCHAR(32),
+                    status VARCHAR(32) NOT NULL,
+                    sort_order INT DEFAULT 0,
+                    remark VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    version INT DEFAULT 0,
+                    deleted TINYINT DEFAULT 0
+                )
+                """);
 
         jdbcTemplate.execute("""
                 CREATE TABLE t_order (
@@ -174,6 +217,7 @@ class DispatchConcurrencyIntegrationTest {
                     external_order_no VARCHAR(64),
                     source_type VARCHAR(32) NOT NULL,
                     biz_type VARCHAR(32) NOT NULL,
+                    park_id BIGINT,
                     pickup_point_id BIGINT NOT NULL,
                     dropoff_point_id BIGINT NOT NULL,
                     priority VARCHAR(32) NOT NULL,
@@ -280,6 +324,22 @@ class DispatchConcurrencyIntegrationTest {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
+                """);
+    }
+
+    private void seedParkData() {
+        jdbcTemplate.update("""
+                INSERT INTO t_park (
+                    id, park_code, park_name, map_width, map_height, min_zoom, max_zoom,
+                    vehicle_speed_px_per_second, status, default_flag, version, deleted
+                ) VALUES (1, 'DEFAULT', 'Default Park', 1200, 800, -1, 3, 8, 'ACTIVE', 1, 0, 0)
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO t_station (
+                    id, park_id, station_code, station_name, station_type, coord_x, coord_y, area, status, sort_order, version, deleted
+                ) VALUES
+                (101, 1, 'A1', 'A1 Pickup', 'PICKUP', 220, 170, 'A', 'ACTIVE', 1, 0, 0),
+                (201, 1, 'B1', 'B1 Dropoff', 'DROPOFF', 220, 620, 'B', 'ACTIVE', 11, 0, 0)
                 """);
     }
 }

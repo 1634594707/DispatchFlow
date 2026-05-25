@@ -3,10 +3,13 @@ package com.fsd.dispatch.service.impl;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
+import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.ParkPilotService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
+import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
+import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkRoadNodeResponse;
@@ -33,6 +36,7 @@ import org.springframework.stereotype.Service;
 public class ParkPilotServiceImpl implements ParkPilotService {
 
     private final ParkPilotProperties parkPilotProperties;
+    private final ParkStationService parkStationService;
     private final ParkPilotSimulationService parkPilotSimulationService;
     private final VehicleMapper vehicleMapper;
     private final ParkRoutePlannerService parkRoutePlannerService;
@@ -40,12 +44,14 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     private final DispatchTaskMapper dispatchTaskMapper;
 
     public ParkPilotServiceImpl(ParkPilotProperties parkPilotProperties,
+                                ParkStationService parkStationService,
                                 ParkPilotSimulationService parkPilotSimulationService,
                                 VehicleMapper vehicleMapper,
                                 ParkRoutePlannerService parkRoutePlannerService,
                                 OrderMapper orderMapper,
                                 DispatchTaskMapper dispatchTaskMapper) {
         this.parkPilotProperties = parkPilotProperties;
+        this.parkStationService = parkStationService;
         this.parkPilotSimulationService = parkPilotSimulationService;
         this.vehicleMapper = vehicleMapper;
         this.parkRoutePlannerService = parkRoutePlannerService;
@@ -54,17 +60,33 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     }
 
     @Override
+    public List<ParkResponse> listParks() {
+        return parkStationService.listActiveParks();
+    }
+
+    @Override
     public ParkLayoutResponse getLayout() {
+        return getLayout(parkStationService.requireDefaultPark().getId());
+    }
+
+    @Override
+    public ParkLayoutResponse getLayout(Long parkId) {
+        ParkEntity park = parkStationService.requirePark(parkId);
         return ParkLayoutResponse.builder()
                 .enabled(parkPilotProperties.isEnabled())
-                .width(parkPilotProperties.getWidth())
-                .height(parkPilotProperties.getHeight())
-                .minZoom(parkPilotProperties.getMinZoom())
-                .maxZoom(parkPilotProperties.getMaxZoom())
-                .vehicleSpeedPxPerSecond(parkPilotProperties.getVehicleSpeedPxPerSecond())
+                .parkId(park.getId())
+                .parkCode(park.getParkCode())
+                .parkName(park.getParkName())
+                .width(resolveMapDimension(park.getMapWidth(), parkPilotProperties.getWidth()))
+                .height(resolveMapDimension(park.getMapHeight(), parkPilotProperties.getHeight()))
+                .minZoom(resolveMapDimension(park.getMinZoom(), parkPilotProperties.getMinZoom()))
+                .maxZoom(resolveMapDimension(park.getMaxZoom(), parkPilotProperties.getMaxZoom()))
+                .vehicleSpeedPxPerSecond(park.getVehicleSpeedPxPerSecond() != null
+                        ? park.getVehicleSpeedPxPerSecond()
+                        : parkPilotProperties.getVehicleSpeedPxPerSecond())
                 .xFieldAlias(parkPilotProperties.getXFieldAlias())
                 .yFieldAlias(parkPilotProperties.getYFieldAlias())
-                .stations(listStations())
+                .stations(listStations(parkId))
                 .parkingSpots(parkPilotProperties.getParkingSpots().stream()
                         .map(point -> ParkPointResponse.builder()
                                 .code(point.getCode())
@@ -90,18 +112,21 @@ public class ParkPilotServiceImpl implements ParkPilotService {
 
     @Override
     public List<ParkStationResponse> listStations() {
-        return parkPilotProperties.getStations().stream()
-                .map(this::toStationResponse)
-                .toList();
+        return listStations(parkStationService.requireDefaultPark().getId());
+    }
+
+    @Override
+    public List<ParkStationResponse> listStations(Long parkId) {
+        return parkStationService.listStations(parkId);
     }
 
     @Override
     public ParkStationResponse getStation(Long stationId) {
-        return parkPilotProperties.getStations().stream()
-                .filter(station -> stationId.equals(station.getId()))
-                .findFirst()
-                .map(this::toStationResponse)
-                .orElseThrow(() -> new BusinessException("PARK_STATION_NOT_FOUND", "Park station not found"));
+        return parkStationService.requireStation(stationId);
+    }
+
+    private Integer resolveMapDimension(Integer parkValue, Integer fallback) {
+        return parkValue != null ? parkValue : fallback;
     }
 
     @Override
@@ -131,13 +156,14 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                 .filter(vehicle -> vehicle.getCurrentTaskId() != null)
                 .collect(Collectors.toMap(ParkVehicleSnapshotResponse::getCurrentTaskId, Function.identity(), (left, right) -> left));
 
-        Set<Long> stationIds = parkPilotProperties.getStations().stream()
-                .map(ParkPilotProperties.StationConfig::getId)
+        ParkEntity defaultPark = parkStationService.requireDefaultPark();
+        Set<Long> stationIds = parkStationService.listStations(defaultPark.getId()).stream()
+                .map(ParkStationResponse::getStationId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         return orderMapper.selectList(null).stream()
                 .filter(order -> order.getDeleted() == null || order.getDeleted() == 0)
-                .filter(order -> stationIds.contains(order.getPickupPointId()) && stationIds.contains(order.getDropoffPointId()))
+                .filter(order -> matchesParkOrder(order, defaultPark.getId(), stationIds))
                 .sorted(Comparator.comparing(OrderEntity::getUpdatedAt,
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(20)
@@ -160,15 +186,12 @@ public class ParkPilotServiceImpl implements ParkPilotService {
         }
     }
 
-    private ParkStationResponse toStationResponse(ParkPilotProperties.StationConfig station) {
-        return ParkStationResponse.builder()
-                .stationId(station.getId())
-                .stationCode(station.getCode())
-                .stationName(station.getName())
-                .x(station.getX())
-                .y(station.getY())
-                .area(station.getArea())
-                .build();
+    private boolean matchesParkOrder(OrderEntity order, Long defaultParkId, Set<Long> defaultParkStationIds) {
+        if (order.getParkId() != null) {
+            return defaultParkId.equals(order.getParkId());
+        }
+        return defaultParkStationIds.contains(order.getPickupPointId())
+                && defaultParkStationIds.contains(order.getDropoffPointId());
     }
 
     private double calculatePathLength(List<ParkPointResponse> route) {
