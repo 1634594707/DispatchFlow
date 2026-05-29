@@ -52,19 +52,22 @@ docker compose up -d mysql redis rabbitmq
 
 ### 2. Database initialization
 
-On **first** MySQL container start, scripts in `back/sql/init/` run automatically (V1–V9).
+On **first** MySQL container start, scripts in `back/sql/init/` run automatically in **filename order** (`V01` … `V11`). Use zero-padded prefixes so `V10` does not run before `V01`.
 
-For an **existing** database, apply missing migrations manually (example V6 / V7):
+For an **existing** database, apply missing migrations manually (example V06 / V07):
 
 ```bash
-docker cp back/sql/init/V6__exception_severity.sql fsd-mysql:/tmp/V6.sql
-docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V6.sql"
-docker cp back/sql/init/V7__parking_slot_and_charging_pile.sql fsd-mysql:/tmp/V7.sql
-docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V7.sql"
-docker cp back/sql/init/V8__charging_session.sql fsd-mysql:/tmp/V8.sql
-docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V8.sql"
-docker cp back/sql/init/V9__road_network.sql fsd-mysql:/tmp/V9.sql
-docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V9.sql"
+docker cp back/sql/init/V06__exception_severity.sql fsd-mysql:/tmp/V06.sql
+docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V06.sql"
+docker cp back/sql/init/V07__parking_slot_and_charging_pile.sql fsd-mysql:/tmp/V07.sql
+docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V07.sql"
+```
+
+After a failed first init (`Table doesn't exist` on `V10`), wipe the volume and retry:
+
+```bash
+docker compose down -v
+docker compose up -d
 ```
 
 Always use `--default-character-set=utf8mb4` when importing SQL with Chinese content.
@@ -120,4 +123,5 @@ DispatchFlow ships without built-in authentication. Before exposing to a network
 | Park API 404 | Stale JAR / wrong Maven target | `mvn -pl fsd-bootstrap -am clean install` then restart |
 | Empty vehicle map | Redis not running | Start Redis; restart backend |
 | Chinese garbled in DB | Wrong charset on import | Re-import with `utf8mb4`; run V5 fix script |
-| Exceptions missing severity | V6 not applied | Run V6 migration manually |
+| MySQL init fails on V10, `t_vehicle` missing | SQL files sorted `V10` before `V1` | Use `V01`–`V11` scripts; `docker compose down -v` then retry |
+| Exceptions missing severity | V06 not applied | Run V06 migration manually |

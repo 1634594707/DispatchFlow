@@ -1,5 +1,5 @@
 -- Multi-park and station tables (replaces YAML station config as source of truth).
--- Prerequisite: run V1__init_schema.sql first (creates fsd_core and t_order).
+-- Prerequisite: run V01__init_schema.sql first (creates fsd_core and t_order).
 
 CREATE DATABASE IF NOT EXISTS `fsd_core`
   DEFAULT CHARACTER SET utf8mb4

@@ -1,5 +1,5 @@
 -- Phase 3: real vehicle gateway — link mode, commands, credentials
--- Prerequisite: V1__init_schema.sql (t_vehicle)
+-- Prerequisite: V01__init_schema.sql (t_vehicle)
 
 USE `fsd_core`;
 

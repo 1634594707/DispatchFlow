@@ -1,5 +1,5 @@
 -- Parking slots and charging piles (replaces YAML parking-spots as source of truth over time).
--- Prerequisite: V4__park_and_station.sql (t_park).
+-- Prerequisite: V04__park_and_station.sql (t_park).
 
 USE `fsd_core`;
 

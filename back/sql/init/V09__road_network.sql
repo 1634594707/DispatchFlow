@@ -1,5 +1,5 @@
 -- Road network nodes and segments (replaces YAML road-nodes / road-segments as source of truth over time).
--- Prerequisite: V4__park_and_station.sql (t_park).
+-- Prerequisite: V04__park_and_station.sql (t_park).
 
 USE `fsd_core`;
 
