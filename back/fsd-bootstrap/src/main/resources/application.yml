@@ -217,7 +217,7 @@ fsd:
         to: R18
       - from: R18
         to: R24
-    # Stations are stored in t_park / t_station (see sql/init/V04__park_and_station.sql).
+    # Stations are stored in t_park / t_station (see sql/migrations/V04__park_and_station.sql).
     # YAML list below is only used by ParkDataInitializer when DB has no parks.
     stations:
       - id: 101

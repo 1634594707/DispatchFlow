@@ -33,7 +33,7 @@ Windows: `.\run-dev.ps1`
 
 ## Database
 
-Initialization scripts: `sql/init/V01__init_schema.sql` through `V11__admin_user.sql` (zero-padded for Docker init order).
+Initialization: `sql/migrations/V01__init_schema.sql` through `V11__admin_user.sql`, applied by `sql/init/00-run-migrations.sh` on first Docker MySQL start.
 
 Fresh Docker MySQL containers apply all scripts automatically. See [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) for upgrade paths.
 

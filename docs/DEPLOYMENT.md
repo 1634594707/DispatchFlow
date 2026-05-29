@@ -52,14 +52,14 @@ docker compose up -d mysql redis rabbitmq
 
 ### 2. Database initialization
 
-On **first** MySQL container start, scripts in `back/sql/init/` run automatically in **filename order** (`V01` … `V11`). Use zero-padded prefixes so `V10` does not run before `V01`.
+On **first** MySQL container start, `back/sql/init/00-run-migrations.sh` applies `back/sql/migrations/V01` … `V11` in order.
 
 For an **existing** database, apply missing migrations manually (example V06 / V07):
 
 ```bash
-docker cp back/sql/init/V06__exception_severity.sql fsd-mysql:/tmp/V06.sql
+docker cp back/sql/migrations/V06__exception_severity.sql fsd-mysql:/tmp/V06.sql
 docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V06.sql"
-docker cp back/sql/init/V07__parking_slot_and_charging_pile.sql fsd-mysql:/tmp/V07.sql
+docker cp back/sql/migrations/V07__parking_slot_and_charging_pile.sql fsd-mysql:/tmp/V07.sql
 docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V07.sql"
 ```
 

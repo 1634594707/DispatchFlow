@@ -7,7 +7,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 Write-Host "Applying charset fix (V5) if MySQL container is running..." -ForegroundColor Cyan
-docker cp "$PSScriptRoot\sql\init\V05__fix_charset_data.sql" fsd-mysql:/tmp/V05.sql 2>$null
+docker cp "$PSScriptRoot\sql\migrations\V05__fix_charset_data.sql" fsd-mysql:/tmp/V05.sql 2>$null
 if ($LASTEXITCODE -eq 0) {
     docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V05.sql" 2>$null
 }
