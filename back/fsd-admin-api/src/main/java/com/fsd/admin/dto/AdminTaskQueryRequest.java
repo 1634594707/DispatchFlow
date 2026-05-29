@@ -15,6 +15,9 @@ public class AdminTaskQueryRequest {
 
     private Boolean manualFlag;
 
+    /** 仅返回存在 OPEN 异常的任务 */
+    private Boolean withOpenExceptionOnly;
+
     private Integer pageNo = 1;
 
     private Integer pageSize = 20;

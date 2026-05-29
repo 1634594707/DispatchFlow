@@ -53,3 +53,10 @@ export const exceptionStatusMap: Record<ExceptionStatus, StatusConfig> = {
   [ExceptionStatus.OPEN]: { label: '待处理', color: 'error' },
   [ExceptionStatus.RESOLVED]: { label: '已处理', color: 'success' },
 }
+
+export const DISPATCH_FAIL_REASON: Record<string, string> = {
+  NO_VEHICLE: '无可用车辆',
+  LOW_SOC: '电量不足',
+  UNREACHABLE: '取货点不可达',
+  CONFLICT: '占车/占桩冲突',
+}

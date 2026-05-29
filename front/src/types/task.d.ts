@@ -6,8 +6,18 @@ export interface TaskQueryRequest {
   vehicleId?: number
   status?: TaskStatus
   manualFlag?: boolean
+  withOpenExceptionOnly?: boolean
   pageNo: number
   pageSize: number
+}
+
+export interface OpenExceptionBrief {
+  exceptionId: number
+  exceptionType: string
+  exceptionMsg: string
+  severity: string
+  exceptionStatus: string
+  occurTime: string
 }
 
 export interface TaskAdminListItem {
@@ -20,6 +30,9 @@ export interface TaskAdminListItem {
   failReasonMsg: string | null
   createdAt: string
   updatedAt: string
+  openExceptionCount?: number
+  primaryOpenException?: OpenExceptionBrief | null
+  openExceptions?: OpenExceptionBrief[]
 }
 
 export interface TaskDetailResponse {
@@ -39,6 +52,8 @@ export interface TaskDetailResponse {
   remark: string | null
   createdAt: string
   updatedAt: string
+  openExceptionCount?: number
+  openExceptions?: OpenExceptionBrief[]
 }
 
 export interface DispatchForm {

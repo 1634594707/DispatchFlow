@@ -33,7 +33,7 @@ Windows: `.\run-dev.ps1`
 
 ## Database
 
-Initialization scripts: `sql/init/V1__init_schema.sql` through `V6__exception_severity.sql`.
+Initialization scripts: `sql/init/V1__init_schema.sql` through `V8__charging_session.sql`.
 
 Fresh Docker MySQL containers apply all scripts automatically. See [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) for upgrade paths.
 

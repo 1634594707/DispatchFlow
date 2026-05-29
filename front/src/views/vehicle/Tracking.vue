@@ -18,9 +18,9 @@
         <header class="panel-header">
           <div class="header-row">
             <div class="header-title-wrap">
-              <span class="live-badge" :class="{ live: backendOnline }">
+              <span class="live-badge" :class="{ live: backendOnline, stream: streamConnected }">
                 <span class="live-pulse"></span>
-                {{ backendOnline ? 'LIVE' : 'OFFLINE' }}
+                {{ streamConnected ? 'STREAM' : backendOnline ? 'LIVE' : 'OFFLINE' }}
               </span>
               <h1 class="header-title">园区车辆监控</h1>
             </div>
@@ -31,7 +31,12 @@
               </button>
             </div>
           </div>
-          <p class="header-sub">{{ activeParkName }} · {{ currentTime }}</p>
+          <p class="header-sub">
+            {{ activeParkName }} · {{ currentTime }}
+            <span v-if="streamConnected && lastStreamLatencyMs != null" class="stream-latency">
+              · 推送延迟 {{ formatStreamLatency(lastStreamLatencyMs) }}
+            </span>
+          </p>
         </header>
 
         <div class="panel-toolbar">
@@ -102,6 +107,9 @@
                   <div class="vehicle-id-block">
                     <strong>{{ vehicle.vehicleCode }}</strong>
                     <span class="vehicle-name">{{ vehicle.vehicleName }}</span>
+                    <span class="link-mode-pill" :class="vehicle.linkMode === 'REAL' ? 'link-real' : 'link-sim'">
+                      {{ vehicle.linkMode === 'REAL' ? 'REAL' : 'SIM' }}
+                    </span>
                   </div>
                   <span class="status-dot" :class="vehicle.onlineStatus === 'ONLINE' ? 'dot-online' : 'dot-offline'"></span>
                 </div>
@@ -253,6 +261,9 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { getParkLayout, getParkOrders, getParkVehicles, listParks } from '@/api/park'
+import { getFleetTelemetryStreamUrl } from '@/api/dispatch'
+import { createSSEClient } from '@/utils/sseClient'
+import type { SSEClient } from '@/types/stream'
 import type {
   ParkLayout,
   ParkOrderSnapshot,
@@ -280,6 +291,11 @@ const selectedParkId = ref<number | undefined>()
 const loadingParks = ref(false)
 const apiError = ref('')
 const backendOnline = ref(false)
+const streamConnected = ref(false)
+const lastStreamAt = ref<string | null>(null)
+const lastStreamLatencyMs = ref<number | null>(null)
+let sseClient: SSEClient | null = null
+let fallbackPollTimer: ReturnType<typeof setInterval> | null = null
 
 const parkOptions = computed(() =>
   parks.value.map(park => ({
@@ -305,6 +321,8 @@ let currentMarkerScale = 1
 
 const extraFilterOptions = [
   { label: '全部', value: 'all' },
+  { label: '仿真车', value: 'SIM' },
+  { label: '真实车', value: 'REAL' },
   { label: '低电量', value: 'LOW_BATTERY' },
   { label: '离线', value: 'OFFLINE' },
 ]
@@ -345,6 +363,10 @@ const filteredVehicles = computed(() => {
       return vehicles.value.filter(vehicle => vehicle.charging)
     case 'LOW_BATTERY':
       return vehicles.value.filter(vehicle => vehicle.lowBattery)
+    case 'SIM':
+      return vehicles.value.filter(vehicle => (vehicle.linkMode || 'SIM') === 'SIM')
+    case 'REAL':
+      return vehicles.value.filter(vehicle => vehicle.linkMode === 'REAL')
     default:
       return vehicles.value
   }
@@ -710,6 +732,79 @@ async function fetchVehicles() {
   drawOrderChains()
 }
 
+function formatStreamLatency(ms: number) {
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+function applyStreamPayload(data: { ts?: string; vehicles?: ParkVehicleSnapshot[]; parkId?: number }) {
+  if (data.parkId != null && selectedParkId.value != null && data.parkId !== selectedParkId.value) {
+    return
+  }
+  if (data.ts) {
+    lastStreamAt.value = data.ts
+    const parsed = Date.parse(data.ts)
+    if (!Number.isNaN(parsed)) {
+      lastStreamLatencyMs.value = Math.max(0, Date.now() - parsed)
+    }
+  }
+  if (data.vehicles && Array.isArray(data.vehicles)) {
+    vehicles.value = data.vehicles
+    updateVehicleMarkers()
+    drawOrderChains()
+    streamConnected.value = true
+    backendOnline.value = true
+    apiError.value = ''
+  }
+}
+
+function initSSEStream() {
+  if (sseClient) {
+    sseClient.stop()
+  }
+
+  const streamUrl = getFleetTelemetryStreamUrl(selectedParkId.value)
+
+  sseClient = createSSEClient({
+    url: streamUrl,
+    eventName: 'telemetry',
+    onMessage: applyStreamPayload,
+    onOpen: () => {
+      streamConnected.value = true
+      backendOnline.value = true
+      apiError.value = ''
+      stopFallbackPoll()
+    },
+    onError: () => {
+      streamConnected.value = false
+    },
+    onClose: () => {
+      streamConnected.value = false
+      startFallbackPoll()
+    },
+    maxRetries: 10,
+    baseDelay: 1000,
+    maxDelay: 30000,
+  })
+
+  sseClient.start()
+}
+
+function startFallbackPoll() {
+  if (fallbackPollTimer) return
+  fallbackPollTimer = setInterval(() => {
+    fetchVehicles().then(() => { backendOnline.value = true }).catch(() => { backendOnline.value = false })
+    fetchOrders().catch(() => undefined)
+  }, 3000)
+}
+
+function stopFallbackPoll() {
+  if (fallbackPollTimer) {
+    clearInterval(fallbackPollTimer)
+    fallbackPollTimer = null
+  }
+}
+
 async function fetchOrders() {
   const response = await getParkOrders()
   parkOrders.value = response.data || []
@@ -733,6 +828,7 @@ async function handleParkChange() {
   try {
     await fetchLayout()
     await Promise.all([fetchVehicles(), fetchOrders()])
+    initSSEStream()
   } catch {
     apiError.value = '切换园区失败，请确认后端服务正常'
   }
@@ -757,19 +853,27 @@ watch(filteredVehicles, () => {
   updateVehicleMarkers()
 })
 
+watch(selectedParkId, (parkId) => {
+  if (parkId != null) {
+    initSSEStream()
+  }
+})
+
 onMounted(async () => {
   initMap()
   await bootstrapData()
-  pollTimer = setInterval(() => {
-    fetchVehicles().then(() => { backendOnline.value = true }).catch(() => { backendOnline.value = false })
-    fetchOrders().catch(() => undefined)
-  }, 3000)
+  initSSEStream()
   clockTimer = setInterval(() => {
     currentTime.value = dayjs().format('HH:mm:ss')
   }, 1000)
 })
 
 onUnmounted(() => {
+  if (sseClient) {
+    sseClient.stop()
+    sseClient = null
+  }
+  stopFallbackPoll()
   if (pollTimer) clearInterval(pollTimer)
   if (clockTimer) clearInterval(clockTimer)
   map?.off('zoom zoomend viewreset resize', applyMarkerScale)
@@ -1120,6 +1224,11 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  .stream-latency {
+    color: #3ecf8e;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 .live-badge {
@@ -1140,6 +1249,12 @@ onUnmounted(() => {
   border-color: rgba(61, 220, 151, 0.3);
   background: rgba(61, 220, 151, 0.08);
   color: #3ddc97;
+}
+
+.live-badge.stream {
+  border-color: rgba(0, 180, 216, 0.4);
+  background: rgba(0, 180, 216, 0.12);
+  color: #00b4d8;
 }
 
 .live-pulse {
@@ -1541,6 +1656,26 @@ onUnmounted(() => {
 
 .dot-online { background: #00d68f; }
 .dot-offline { background: #ff4d6d; }
+
+.link-mode-pill {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.link-sim {
+  background: rgba(0, 180, 216, 0.14);
+  color: #5fd4ff;
+}
+
+.link-real {
+  background: rgba(255, 176, 32, 0.16);
+  color: #ffc857;
+}
 
 .stage-pill {
   padding: 2px 8px;

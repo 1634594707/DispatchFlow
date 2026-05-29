@@ -31,6 +31,11 @@ public class OrderStateServiceImpl implements OrderStateService {
     @Transactional
     public void markDispatched(Long orderId, Long dispatchTaskId) {
         OrderEntity orderEntity = getOrder(orderId);
+        OrderStatus current = OrderStatus.valueOf(orderEntity.getStatus());
+        if (current == OrderStatus.DISPATCHED
+                && dispatchTaskId.equals(orderEntity.getDispatchTaskId())) {
+            return;
+        }
         assertStatus(orderEntity, Set.of(OrderStatus.WAITING_DISPATCH), "ORDER_STATUS_INVALID");
         orderEntity.setStatus(OrderStatus.DISPATCHED.name());
         orderEntity.setDispatchTaskId(dispatchTaskId);
@@ -39,8 +44,25 @@ public class OrderStateServiceImpl implements OrderStateService {
 
     @Override
     @Transactional
+    public void revertToWaitingDispatch(Long orderId) {
+        OrderEntity orderEntity = getOrder(orderId);
+        OrderStatus current = OrderStatus.valueOf(orderEntity.getStatus());
+        if (current == OrderStatus.WAITING_DISPATCH) {
+            return;
+        }
+        assertStatus(orderEntity, Set.of(OrderStatus.DISPATCHED), "ORDER_STATUS_INVALID");
+        orderEntity.setStatus(OrderStatus.WAITING_DISPATCH.name());
+        orderMapper.updateById(orderEntity);
+    }
+
+    @Override
+    @Transactional
     public void markInProgress(Long orderId) {
         OrderEntity orderEntity = getOrder(orderId);
+        OrderStatus current = OrderStatus.valueOf(orderEntity.getStatus());
+        if (current == OrderStatus.IN_PROGRESS || current == OrderStatus.COMPLETED) {
+            return;
+        }
         assertStatus(orderEntity, Set.of(OrderStatus.DISPATCHED), "ORDER_STATUS_INVALID");
         orderEntity.setStatus(OrderStatus.IN_PROGRESS.name());
         orderMapper.updateById(orderEntity);
@@ -50,6 +72,10 @@ public class OrderStateServiceImpl implements OrderStateService {
     @Transactional
     public void markCompleted(Long orderId) {
         OrderEntity orderEntity = getOrder(orderId);
+        OrderStatus current = OrderStatus.valueOf(orderEntity.getStatus());
+        if (current == OrderStatus.COMPLETED) {
+            return;
+        }
         assertStatus(orderEntity, Set.of(OrderStatus.IN_PROGRESS), "ORDER_STATUS_INVALID");
         orderEntity.setStatus(OrderStatus.COMPLETED.name());
         orderMapper.updateById(orderEntity);

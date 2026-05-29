@@ -20,6 +20,8 @@ public class VehicleEntity {
 
     private String vehicleType;
 
+    private String linkMode;
+
     private String onlineStatus;
 
     private String dispatchStatus;

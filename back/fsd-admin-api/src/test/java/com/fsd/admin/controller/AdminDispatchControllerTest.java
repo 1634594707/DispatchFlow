@@ -14,9 +14,11 @@ import com.fsd.admin.service.AdminQueryFacadeService;
 import com.fsd.admin.vo.AdminDashboardSummaryResponse;
 import com.fsd.common.model.PageResponse;
 import com.fsd.common.model.ApiResponse;
-import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
+import com.fsd.dispatch.vo.DispatchExceptionListItemResponse;
+import com.fsd.dispatch.vo.DispatchInterventionQueueResponse;
 import com.fsd.dispatch.dto.ParkOrderCreateRequest;
 import com.fsd.dispatch.service.DispatchExceptionService;
+import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
 import com.fsd.dispatch.service.ParkPilotCommandService;
 import com.fsd.dispatch.service.ParkPilotService;
@@ -50,6 +52,8 @@ class AdminDispatchControllerTest {
     private OrderQueryService orderQueryService;
     @Mock
     private DispatchAdminQueryService dispatchAdminQueryService;
+    @Mock
+    private DispatchTaskService dispatchTaskService;
     @Mock
     private DispatchExceptionService dispatchExceptionService;
     @Mock
@@ -117,14 +121,30 @@ class AdminDispatchControllerTest {
 
     @Test
     void shouldReturnExceptions() {
-        DispatchExceptionRecordEntity exception = new DispatchExceptionRecordEntity();
-        exception.setId(7L);
-        when(dispatchAdminQueryService.listExceptions()).thenReturn(List.of(exception));
+        when(dispatchAdminQueryService.listExceptions()).thenReturn(List.of(
+                DispatchExceptionListItemResponse.builder().id(7L).taskId(3L).taskNo("TSK-3").build()
+        ));
 
-        ApiResponse<List<DispatchExceptionRecordEntity>> response = adminDispatchController.listExceptions();
+        ApiResponse<List<DispatchExceptionListItemResponse>> response = adminDispatchController.listExceptions();
 
         assertEquals(1, response.getData().size());
         assertEquals(7L, response.getData().getFirst().getId());
+        assertEquals("TSK-3", response.getData().getFirst().getTaskNo());
+    }
+
+    @Test
+    void shouldReturnInterventionQueue() {
+        when(dispatchAdminQueryService.getInterventionQueue()).thenReturn(
+                DispatchInterventionQueueResponse.builder()
+                        .manualPendingCount(1)
+                        .openExceptionCount(1)
+                        .build()
+        );
+
+        ApiResponse<DispatchInterventionQueueResponse> response = adminDispatchController.getInterventionQueue();
+
+        assertEquals(1, response.getData().getManualPendingCount());
+        assertEquals(1, response.getData().getOpenExceptionCount());
     }
 
     @Test
@@ -164,10 +184,10 @@ class AdminDispatchControllerTest {
     @Test
     void shouldReturnPagedExceptions() {
         when(adminQueryFacadeService.queryExceptions(any(AdminExceptionQueryRequest.class))).thenReturn(
-                PageResponse.<DispatchExceptionRecordEntity>builder().total(1).pageNo(1).pageSize(20)
-                        .records(List.of(new DispatchExceptionRecordEntity())).build()
+                PageResponse.<DispatchExceptionListItemResponse>builder().total(1).pageNo(1).pageSize(20)
+                        .records(List.of(DispatchExceptionListItemResponse.builder().id(1L).build())).build()
         );
-        ApiResponse<PageResponse<DispatchExceptionRecordEntity>> response =
+        ApiResponse<PageResponse<DispatchExceptionListItemResponse>> response =
                 adminDispatchController.queryExceptions(new AdminExceptionQueryRequest());
         assertEquals(1, response.getData().getTotal());
     }

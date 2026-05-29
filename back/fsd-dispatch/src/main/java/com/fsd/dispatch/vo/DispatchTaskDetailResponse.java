@@ -1,6 +1,7 @@
 package com.fsd.dispatch.vo;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.Builder;
 import lombok.Data;
 
@@ -35,4 +36,8 @@ public class DispatchTaskDetailResponse {
     private Integer retryCount;
 
     private String remark;
+
+    private Integer openExceptionCount;
+
+    private List<DispatchOpenExceptionBrief> openExceptions;
 }

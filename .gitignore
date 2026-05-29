@@ -13,7 +13,8 @@ README.original.md
 docs/*
 !docs/ARCHITECTURE.md
 !docs/DEPLOYMENT.md
-!docs/ROADMAP.md
+!docs/README.md
+!docs/ROADMAP-V2.md
 docs/private/
 
 # Frontend

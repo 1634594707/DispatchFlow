@@ -170,6 +170,56 @@ body {
   }
 }
 
+.ant-input-affix-wrapper,
+.ant-input-password {
+  background: var(--fsd-bg-elevated) !important;
+  border: 1px solid var(--fsd-border) !important;
+  border-radius: var(--fsd-radius) !important;
+
+  &:hover,
+  &-focused,
+  &:focus-within {
+    border-color: var(--fsd-accent) !important;
+    box-shadow: 0 0 0 2px var(--fsd-accent-glow) !important;
+  }
+
+  .ant-input {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--fsd-text-primary) !important;
+
+    &::placeholder {
+      color: var(--fsd-text-tertiary) !important;
+    }
+  }
+
+  .ant-input-suffix,
+  .ant-input-prefix {
+    color: var(--fsd-text-tertiary) !important;
+  }
+
+  .anticon {
+    color: var(--fsd-text-tertiary) !important;
+
+    &:hover {
+      color: var(--fsd-text-secondary) !important;
+    }
+  }
+}
+
+.ant-input,
+.ant-input-affix-wrapper .ant-input {
+  &:-webkit-autofill,
+  &:-webkit-autofill:hover,
+  &:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--fsd-text-primary) !important;
+    caret-color: var(--fsd-text-primary);
+    transition: background-color 99999s ease-out 0s;
+    box-shadow: 0 0 0 1000px var(--fsd-bg-elevated) inset !important;
+  }
+}
+
 .ant-select-dropdown,
 .park-select-dropdown {
   background: var(--fsd-bg-elevated) !important;

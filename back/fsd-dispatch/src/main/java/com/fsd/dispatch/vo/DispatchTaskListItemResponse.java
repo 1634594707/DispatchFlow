@@ -1,6 +1,7 @@
 package com.fsd.dispatch.vo;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.Builder;
 import lombok.Data;
 
@@ -25,4 +26,10 @@ public class DispatchTaskListItemResponse {
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
+
+    private Integer openExceptionCount;
+
+    private DispatchOpenExceptionBrief primaryOpenException;
+
+    private List<DispatchOpenExceptionBrief> openExceptions;
 }

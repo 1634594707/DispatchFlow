@@ -9,7 +9,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @MapperScan(basePackages = {
         "com.fsd.order.mapper",
         "com.fsd.dispatch.mapper",
-        "com.fsd.vehicle.mapper"
+        "com.fsd.vehicle.mapper",
+        "com.fsd.admin.mapper"
 })
 @EnableScheduling
 public class FsdCoreApplication {

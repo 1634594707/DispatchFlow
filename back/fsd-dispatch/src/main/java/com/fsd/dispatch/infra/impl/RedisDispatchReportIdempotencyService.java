@@ -20,8 +20,17 @@ public class RedisDispatchReportIdempotencyService implements DispatchReportIdem
 
     @Override
     public boolean markIfFirstReport(VehicleReportRequest request) {
-        String key = KEY_PREFIX + request.getVehicleCode() + ":" + request.getReportType() + ":" + request.getReportTime();
+        String key = buildKey(request);
         Boolean result = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", IDEMPOTENCY_TTL);
         return Boolean.TRUE.equals(result);
+    }
+
+    @Override
+    public void releaseReport(VehicleReportRequest request) {
+        stringRedisTemplate.delete(buildKey(request));
+    }
+
+    private String buildKey(VehicleReportRequest request) {
+        return KEY_PREFIX + request.getVehicleCode() + ":" + request.getReportType() + ":" + request.getReportTime();
     }
 }

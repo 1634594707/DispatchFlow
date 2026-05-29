@@ -1,4 +1,4 @@
-import type { ExceptionType, ExceptionStatus } from '@/constants/enums'
+import type { ExceptionType, ExceptionStatus, TaskStatus } from '@/constants/enums'
 
 export interface ExceptionQueryRequest {
   exceptionType?: ExceptionType
@@ -6,6 +6,8 @@ export interface ExceptionQueryRequest {
   taskNo?: string
   orderId?: number
   vehicleId?: number
+  taskStatus?: TaskStatus
+  onlyManualPendingTask?: boolean
   pageNo: number
   pageSize: number
 }
@@ -13,6 +15,10 @@ export interface ExceptionQueryRequest {
 export interface ExceptionAdminListItem {
   id: number
   taskId: number
+  taskNo?: string | null
+  taskStatus?: TaskStatus | null
+  taskFailReasonCode?: string | null
+  taskFailReasonMsg?: string | null
   orderId: number
   vehicleId: number | null
   exceptionType: ExceptionType

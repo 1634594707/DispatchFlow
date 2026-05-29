@@ -39,5 +39,7 @@ public class ParkVehicleSnapshotResponse {
 
     private Boolean lowBattery;
 
+    private String linkMode;
+
     private List<ParkPointResponse> trajectory;
 }

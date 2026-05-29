@@ -3,12 +3,15 @@
     <div class="dashboard-header animate-fade-in-up">
       <div>
         <h2 class="dashboard-title">调度看板</h2>
-        <span class="dashboard-subtitle">实时监控调度运行状态</span>
+        <span class="dashboard-subtitle">运营 KPI 总览 · 派车与异常处置请前往工作台</span>
       </div>
       <div class="dashboard-actions">
         <span v-if="store.lastUpdated" class="last-updated">
           <ClockCircleOutlined /> {{ store.lastUpdated }}
         </span>
+        <a-button type="primary" @click="router.push('/workbench')">
+          <ControlOutlined /> 进入工作台
+        </a-button>
         <a-button :loading="store.loading" @click="handleRefresh">
           <ReloadOutlined /> 刷新
         </a-button>
@@ -37,61 +40,45 @@
     </div>
 
     <div class="dashboard-bottom">
-      <div class="recent-exceptions animate-fade-in-up stagger-3">
+      <div class="overview-panel animate-fade-in-up stagger-3">
         <div class="panel-header">
           <h3 class="panel-title">
-            <AlertOutlined /> 最近异常任务
+            <LineChartOutlined /> 运营趋势
           </h3>
-          <a-button type="link" size="small" @click="router.push('/exceptions')">
-            查看全部 <RightOutlined />
-          </a-button>
+          <a-tag color="default">Phase 6</a-tag>
         </div>
-        <div class="exception-list">
-          <template v-if="recentExceptions.length > 0">
-            <div
-              v-for="ex in recentExceptions"
-              :key="ex.id"
-              class="exception-item"
-              @click="router.push(`/tasks/${ex.taskId}`)"
-            >
-              <div class="exception-type">
-                <ExclamationCircleOutlined class="exception-icon" />
-                {{ getExceptionLabel(ex.exceptionType) }}
-              </div>
-              <div class="exception-task">任务#{{ ex.taskId }}</div>
-              <div class="exception-time">{{ formatRelativeTime(ex.occurTime) }}</div>
-              <a-button size="small" type="primary" ghost @click.stop="router.push(`/exceptions`)">
-                处理
-              </a-button>
-            </div>
-          </template>
-          <a-empty v-else :image="simpleImage" description="暂无未处理异常 🎉" />
+        <div class="trend-placeholder">
+          <BarChartOutlined class="trend-icon" />
+          <p class="trend-title">趋势报表即将上线</p>
+          <p class="trend-desc">
+            订单完成率、任务时长、车辆利用率等运营指标将在此展示。
+            当前请使用下方入口进入各业务模块。
+          </p>
         </div>
       </div>
 
-      <div class="quick-actions animate-fade-in-up stagger-4">
+      <div class="nav-panel animate-fade-in-up stagger-4">
         <div class="panel-header">
-          <h3 class="panel-title"><ThunderboltOutlined /> 快捷操作</h3>
+          <h3 class="panel-title"><CompassOutlined /> 业务入口</h3>
         </div>
-        <div class="action-list">
-          <div class="action-item" @click="router.push('/orders')">
-            <div class="action-icon" style="background: rgba(0, 180, 216, 0.1);">
-              <PlusOutlined style="color: #00B4D8;" />
+        <div class="nav-list">
+          <button
+            v-for="item in navItems"
+            :key="item.key"
+            type="button"
+            class="nav-item"
+            :class="{ 'nav-item--primary': item.primary }"
+            @click="router.push(item.link)"
+          >
+            <div class="nav-icon" :style="{ background: item.iconBg }">
+              <component :is="item.icon" :style="{ color: item.iconColor, fontSize: '18px' }" />
             </div>
-            <span>创建订单</span>
-          </div>
-          <div class="action-item" @click="router.push('/tasks?status=PENDING')">
-            <div class="action-icon" style="background: rgba(255, 176, 32, 0.1);">
-              <SendOutlined style="color: #FFB020;" />
+            <div class="nav-text">
+              <span class="nav-label">{{ item.label }}</span>
+              <span class="nav-desc">{{ item.desc }}</span>
             </div>
-            <span>待派单任务</span>
-          </div>
-          <div class="action-item" @click="router.push('/exceptions?status=OPEN')">
-            <div class="action-icon" style="background: rgba(255, 61, 113, 0.1);">
-              <WarningOutlined style="color: #FF3D71;" />
-            </div>
-            <span>全部异常</span>
-          </div>
+            <RightOutlined class="nav-arrow" />
+          </button>
         </div>
       </div>
     </div>
@@ -99,41 +86,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue'
+import { computed, onMounted, onUnmounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { Empty } from 'ant-design-vue'
 import {
   ClockCircleOutlined,
   ReloadOutlined,
   RightOutlined,
   AlertOutlined,
-  ExclamationCircleOutlined,
-  ThunderboltOutlined,
-  PlusOutlined,
-  SendOutlined,
-  WarningOutlined,
   FileTextOutlined,
   CarOutlined,
   ToolOutlined,
-  DashboardOutlined,
+  ControlOutlined,
+  HeatMapOutlined,
+  LineChartOutlined,
+  BarChartOutlined,
+  CompassOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
-import { getExceptionList } from '@/api/exception'
-import { exceptionTypeMap } from '@/constants/statusMap'
 import { DASHBOARD_POLL_INTERVAL } from '@/config'
-import type { ExceptionAdminListItem } from '@/types/exception'
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
-import 'dayjs/locale/zh-cn'
-
-dayjs.extend(relativeTime)
-dayjs.locale('zh-cn')
 
 const router = useRouter()
 const store = useDashboardStore()
-const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE
-
-const recentExceptions = ref<ExceptionAdminListItem[]>([])
 
 const statCards = computed(() => {
   const s = store.summary
@@ -146,7 +120,7 @@ const statCards = computed(() => {
       iconBg: 'rgba(0, 180, 216, 0.1)',
       iconColor: '#00B4D8',
       valueColor: '#00B4D8',
-      actionText: '查看详情',
+      actionText: '订单列表',
       link: '/orders?status=WAITING_DISPATCH',
       alert: false,
     },
@@ -158,7 +132,7 @@ const statCards = computed(() => {
       iconBg: 'rgba(255, 176, 32, 0.1)',
       iconColor: '#FFB020',
       valueColor: '#FFB020',
-      actionText: '查看详情',
+      actionText: '任务列表',
       link: '/tasks?status=EXECUTING',
       alert: false,
     },
@@ -170,7 +144,7 @@ const statCards = computed(() => {
       iconBg: 'rgba(0, 230, 118, 0.1)',
       iconColor: '#00E676',
       valueColor: '#00E676',
-      actionText: '查看详情',
+      actionText: '车辆列表',
       link: '/vehicles?onlineStatus=ONLINE',
       alert: false,
     },
@@ -182,49 +156,69 @@ const statCards = computed(() => {
       iconBg: 'rgba(255, 61, 113, 0.1)',
       iconColor: '#FF3D71',
       valueColor: '#FF3D71',
-      actionText: '立即处理',
-      link: '/exceptions?status=OPEN',
+      actionText: '前往工作台',
+      link: '/workbench',
       alert: (s?.failedCount ?? 0) > 0,
     },
   ]
 })
 
-function getExceptionLabel(type: string) {
-  return exceptionTypeMap[type as keyof typeof exceptionTypeMap]?.label || type
-}
+const navItems = [
+  {
+    key: 'workbench',
+    label: '调度工作台',
+    desc: '任务池 · 派车 · 异常处置',
+    link: '/workbench',
+    icon: markRaw(ControlOutlined),
+    iconBg: 'rgba(0, 180, 216, 0.12)',
+    iconColor: '#00B4D8',
+    primary: true,
+  },
+  {
+    key: 'tracking',
+    label: '车辆监控大屏',
+    desc: '实时地图 · 车队态势',
+    link: '/vehicle-tracking',
+    icon: markRaw(HeatMapOutlined),
+    iconBg: 'rgba(0, 230, 118, 0.1)',
+    iconColor: '#00E676',
+    primary: false,
+  },
+  {
+    key: 'orders',
+    label: '订单管理',
+    desc: '创建与查询运输订单',
+    link: '/orders',
+    icon: markRaw(FileTextOutlined),
+    iconBg: 'rgba(0, 180, 216, 0.08)',
+    iconColor: '#00B4D8',
+    primary: false,
+  },
+  {
+    key: 'exceptions',
+    label: '异常记录',
+    desc: '历史异常查询与归档',
+    link: '/exceptions',
+    icon: markRaw(UnorderedListOutlined),
+    iconBg: 'rgba(255, 61, 113, 0.08)',
+    iconColor: '#FF3D71',
+    primary: false,
+  },
+]
 
-function formatRelativeTime(time: string) {
-  return dayjs(time).fromNow()
-}
-
-function handleCardClick(card: any) {
+function handleCardClick(card: { link?: string }) {
   if (card.link) router.push(card.link)
 }
 
 function handleRefresh() {
   store.fetchSummary()
-  fetchRecentExceptions()
-}
-
-async function fetchRecentExceptions() {
-  try {
-    const res = await getExceptionList()
-    const list = Array.isArray(res.data) ? res.data : (res.data as any)?.records || []
-    recentExceptions.value = list.slice(0, 5)
-  } catch {
-    // silent
-  }
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
   store.fetchSummary()
-  fetchRecentExceptions()
-  pollTimer = setInterval(() => {
-    store.fetchSummary()
-    fetchRecentExceptions()
-  }, DASHBOARD_POLL_INTERVAL)
+  pollTimer = setInterval(() => store.fetchSummary(), DASHBOARD_POLL_INTERVAL)
 })
 
 onUnmounted(() => {
@@ -279,6 +273,10 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .stat-card {
@@ -351,12 +349,16 @@ onUnmounted(() => {
 
 .dashboard-bottom {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1.4fr 1fr;
   gap: 16px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 }
 
-.recent-exceptions,
-.quick-actions {
+.overview-panel,
+.nav-panel {
   background: var(--fsd-bg-base);
   border: 1px solid var(--fsd-border);
   border-radius: var(--fsd-radius-lg);
@@ -380,81 +382,100 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-.exception-list {
+.trend-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 24px;
+  border: 1px dashed var(--fsd-border);
+  border-radius: var(--fsd-radius);
+  text-align: center;
+}
+
+.trend-icon {
+  font-size: 40px;
+  color: var(--fsd-text-tertiary);
+  margin-bottom: 12px;
+}
+
+.trend-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fsd-text-secondary);
+  margin: 0 0 8px;
+}
+
+.trend-desc {
+  font-size: 13px;
+  color: var(--fsd-text-tertiary);
+  line-height: 1.6;
+  max-width: 360px;
+  margin: 0;
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius);
+  background: rgba(22, 27, 34, 0.4);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s, background 0.2s;
+
+  &:hover {
+    border-color: rgba(0, 180, 216, 0.35);
+    background: rgba(0, 180, 216, 0.06);
+  }
+
+  &--primary {
+    border-color: rgba(0, 180, 216, 0.25);
+    background: rgba(0, 180, 216, 0.08);
+  }
+}
+
+.nav-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-text {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.exception-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-radius: var(--fsd-radius);
-  cursor: pointer;
-  transition: background 0.2s;
-
-  &:hover {
-    background: var(--fsd-bg-hover);
-  }
-}
-
-.exception-type {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--fsd-text-primary);
-  flex: 1;
-}
-
-.exception-icon {
-  color: var(--fsd-error);
-}
-
-.exception-task {
-  font-size: 12px;
-  color: var(--fsd-text-tertiary);
-  font-family: 'JetBrains Mono', monospace;
-  margin: 0 16px;
-}
-
-.exception-time {
-  font-size: 12px;
-  color: var(--fsd-text-tertiary);
-  margin-right: 12px;
-}
-
-.action-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.action-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: var(--fsd-radius);
-  cursor: pointer;
+.nav-label {
   font-size: 14px;
+  font-weight: 600;
   color: var(--fsd-text-primary);
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--fsd-bg-hover);
-  }
 }
 
-.action-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
+.nav-desc {
+  font-size: 12px;
+  color: var(--fsd-text-tertiary);
+}
+
+.nav-arrow {
+  color: var(--fsd-text-tertiary);
+  font-size: 12px;
 }
 </style>

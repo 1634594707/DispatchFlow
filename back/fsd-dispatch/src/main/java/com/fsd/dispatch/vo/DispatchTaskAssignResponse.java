@@ -17,4 +17,12 @@ public class DispatchTaskAssignResponse {
     private String message;
 
     private LocalDateTime assignTime;
+
+    private String failReasonCode;
+
+    private String selectedVehicleCode;
+
+    private Double assignScore;
+
+    private String assignExplanation;
 }

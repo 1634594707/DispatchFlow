@@ -5,4 +5,6 @@ import com.fsd.vehicle.dto.VehicleReportRequest;
 public interface DispatchReportIdempotencyService {
 
     boolean markIfFirstReport(VehicleReportRequest request);
+
+    void releaseReport(VehicleReportRequest request);
 }

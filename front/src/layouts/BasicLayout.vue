@@ -36,6 +36,18 @@
         mode="inline"
         @click="handleMenuClick"
       >
+        <a-menu-item key="workbench">
+          <template #icon>
+            <a-badge
+              :count="workbenchBadgeCount"
+              :offset="[6, 0]"
+              :overflow-count="99"
+            >
+              <ControlOutlined />
+            </a-badge>
+          </template>
+          <span>调度工作台</span>
+        </a-menu-item>
         <a-menu-item key="dashboard">
           <template #icon><DashboardOutlined /></template>
           <span>调度看板</span>
@@ -58,11 +70,15 @@
         </a-menu-item>
         <a-menu-item key="exceptions">
           <template #icon>
-            <a-badge :count="exceptionStore.openCount" :offset="[6, 0]" :overflow-count="99">
+            <a-badge :count="workbenchStore.openExceptionCount" :offset="[6, 0]" :overflow-count="99">
               <AlertOutlined />
             </a-badge>
           </template>
           <span>异常任务</span>
+        </a-menu-item>
+        <a-menu-item v-if="authStore.isAdmin" key="system-users">
+          <template #icon><TeamOutlined /></template>
+          <span>用户管理</span>
         </a-menu-item>
       </a-menu>
     </a-layout-sider>
@@ -80,7 +96,7 @@
           </a-button>
           <a-breadcrumb class="header-breadcrumb">
             <a-breadcrumb-item>
-              <router-link to="/dashboard">首页</router-link>
+              <router-link to="/workbench">首页</router-link>
             </a-breadcrumb-item>
             <a-breadcrumb-item v-for="(item, index) in breadcrumbItems" :key="index">
               <router-link v-if="index < breadcrumbItems.length - 1 && item.path" :to="item.path">
@@ -116,7 +132,7 @@
                       :key="item.id"
                       type="button"
                       class="notification-item"
-                      @click="goException(item.id)"
+                      @click="goException"
                     >
                       <span class="notification-type">{{ item.exceptionType }}</span>
                       <span class="notification-msg">{{ item.exceptionMsg || '调度异常' }}</span>
@@ -143,10 +159,10 @@
               <a-avatar :size="32" style="background: var(--fsd-accent);">
                 <template #icon><UserOutlined /></template>
               </a-avatar>
-              <span class="user-name">管理员</span>
+              <span class="user-name">{{ authStore.displayName }}</span>
             </div>
             <template #overlay>
-              <a-menu>
+              <a-menu @click="handleUserMenu">
                 <a-menu-item key="profile"><UserOutlined /> 个人设置</a-menu-item>
                 <a-menu-divider />
                 <a-menu-item key="logout"><LogoutOutlined /> 退出登录</a-menu-item>
@@ -174,14 +190,12 @@ import { Empty } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
-import { queryExceptions } from '@/api/exception'
-import { ExceptionStatus } from '@/constants/enums'
 import type { ExceptionAdminListItem } from '@/types/exception'
-import type { PageResponse } from '@/types/api'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 import {
+  ControlOutlined,
   DashboardOutlined,
   FileTextOutlined,
   CarOutlined,
@@ -194,31 +208,41 @@ import {
   ReloadOutlined,
   UserOutlined,
   LogoutOutlined,
+  TeamOutlined,
 } from '@ant-design/icons-vue'
-import { useExceptionStore } from '@/stores/exception'
+import { useWorkbenchStore } from '@/stores/workbench'
+import { useAuthStore } from '@/stores/auth'
+import { ADMIN_AUTH_ENABLED } from '@/config'
 import { DASHBOARD_POLL_INTERVAL } from '@/config'
 
 const router = useRouter()
 const route = useRoute()
-const exceptionStore = useExceptionStore()
+const workbenchStore = useWorkbenchStore()
+const authStore = useAuthStore()
 
 const collapsed = ref(false)
 const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE
 const notificationLoading = ref(false)
 const notificationItems = ref<ExceptionAdminListItem[]>([])
 
-const notificationCount = computed(() => exceptionStore.openCount)
+const notificationCount = computed(() => workbenchStore.openExceptionCount)
+
+const workbenchBadgeCount = computed(
+  () => workbenchStore.pendingCount + workbenchStore.manualPendingCount + workbenchStore.openExceptionCount
+)
 
 const menuKeyMap: Record<string, string> = {
+  '/workbench': 'workbench',
   '/dashboard': 'dashboard',
   '/orders': 'orders',
   '/tasks': 'tasks',
   '/vehicle-tracking': 'vehicle-tracking',
   '/vehicles': 'vehicles',
   '/exceptions': 'exceptions',
+  '/system/users': 'system-users',
 }
 
-const selectedKeys = ref<string[]>(['dashboard'])
+const selectedKeys = ref<string[]>(['workbench'])
 
 const breadcrumbItems = computed(() => {
   const meta = route.meta
@@ -226,11 +250,14 @@ const breadcrumbItems = computed(() => {
   if (!crumbs) return []
 
   const pathMap: Record<string, string> = {
+    '调度工作台': '/workbench',
+    '调度看板': '/dashboard',
     '订单管理': '/orders',
     '调度任务': '/tasks',
     '车辆管理': '/vehicles',
     '车辆监控大屏': '/vehicle-tracking',
     '异常任务': '/exceptions',
+    '用户管理': '/system/users',
   }
 
   return crumbs.map((label, i) => {
@@ -255,13 +282,8 @@ async function handleNotificationOpen(open: boolean) {
   if (!open) return
   notificationLoading.value = true
   try {
-    const res = await queryExceptions({
-      pageNo: 1,
-      pageSize: 8,
-      exceptionStatus: ExceptionStatus.OPEN,
-    })
-    const page = res.data as unknown as PageResponse<ExceptionAdminListItem>
-    notificationItems.value = page.records || []
+    await workbenchStore.fetchQueue()
+    notificationItems.value = workbenchStore.openExceptions.slice(0, 8)
   } catch {
     notificationItems.value = []
   } finally {
@@ -273,21 +295,36 @@ function formatNotificationTime(value: string) {
   return dayjs(value).fromNow()
 }
 
-function goException(exceptionId: number) {
-  router.push('/exceptions')
+function goException() {
+  router.push('/workbench')
 }
 
 function handleMenuClick({ key }: { key: string }) {
   const pathMap: Record<string, string> = {
+    workbench: '/workbench',
     dashboard: '/dashboard',
     orders: '/orders',
     tasks: '/tasks',
     vehicles: '/vehicles',
     'vehicle-tracking': '/vehicle-tracking',
     exceptions: '/exceptions',
+    'system-users': '/system/users',
   }
   if (pathMap[key]) {
     router.push(pathMap[key])
+  }
+}
+
+async function handleUserMenu({ key }: { key: string }) {
+  if (key === 'profile') {
+    router.push('/profile')
+    return
+  }
+  if (key === 'logout') {
+    await authStore.logout()
+    if (ADMIN_AUTH_ENABLED) {
+      router.replace('/login')
+    }
   }
 }
 
@@ -304,11 +341,13 @@ watch(
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
+async function refreshBadgeCounts() {
+  await workbenchStore.fetchQueue()
+}
+
 onMounted(() => {
-  exceptionStore.fetchOpenCount()
-  pollTimer = setInterval(() => {
-    exceptionStore.fetchOpenCount()
-  }, DASHBOARD_POLL_INTERVAL)
+  refreshBadgeCounts()
+  pollTimer = setInterval(refreshBadgeCounts, DASHBOARD_POLL_INTERVAL)
 })
 
 onUnmounted(() => {

@@ -282,6 +282,8 @@ fsd:
       busy-drain-interval-ticks: ${FSD_PARK_SIMULATION_BUSY_DRAIN_INTERVAL_TICKS:4}
       idle-drain-probability: ${FSD_PARK_SIMULATION_IDLE_DRAIN_PROBABILITY:0.06}
   fleet:
+    telemetry:
+      scheduler-enabled: ${FSD_FLEET_TELEMETRY_SCHEDULER_ENABLED:true}
     energy:
       low-soc-threshold: ${FSD_FLEET_ENERGY_LOW_SOC_THRESHOLD:25}
       min-assignable-soc: ${FSD_FLEET_ENERGY_MIN_ASSIGNABLE_SOC:30}
@@ -293,6 +295,19 @@ fsd:
       plugged-standby-no-drain: ${FSD_FLEET_ENERGY_PLUGGED_STANDBY_NO_DRAIN:true}
       idle-charge-when-no-demand: ${FSD_FLEET_ENERGY_IDLE_CHARGE_WHEN_NO_DEMAND:true}
   dispatch:
+    scoring:
+      weight-distance: ${FSD_DISPATCH_SCORING_WEIGHT_DISTANCE:1.0}
+      weight-soc-margin: ${FSD_DISPATCH_SCORING_WEIGHT_SOC_MARGIN:0.15}
+      weight-plugged-standby-bonus: ${FSD_DISPATCH_SCORING_WEIGHT_PLUGGED_STANDBY_BONUS:80.0}
     outbox:
       retry-delay-ms: ${FSD_DISPATCH_OUTBOX_RETRY_DELAY_MS:30000}
       retry-enabled: ${FSD_DISPATCH_OUTBOX_RETRY_ENABLED:true}
+  security:
+    admin:
+      enabled: ${FSD_ADMIN_AUTH_ENABLED:false}
+      tokens:
+        viewer-demo: VIEWER
+        operator-demo: OPERATOR
+        admin-demo: ADMIN
+    vehicle-gateway:
+      enabled: ${FSD_VEHICLE_GATEWAY_AUTH_ENABLED:true}

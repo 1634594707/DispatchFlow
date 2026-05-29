@@ -4,6 +4,8 @@ import { message } from 'ant-design-vue'
 import { API_BASE, REQUEST_TIMEOUT } from '@/config'
 import type { ApiResponse } from '@/types/api'
 
+const TOKEN_KEY = 'fsd_admin_token'
+
 const instance: AxiosInstance = axios.create({
   baseURL: API_BASE,
   timeout: REQUEST_TIMEOUT,
@@ -15,6 +17,10 @@ const instance: AxiosInstance = axios.create({
 
 instance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (token) {
+      config.headers['X-Admin-Token'] = token
+    }
     return config
   },
   (error) => {
@@ -29,6 +35,13 @@ instance.interceptors.response.use(
       return data as any
     }
     const errMsg = friendlyApiMessage(data.code, data.message)
+    if (data.code === 'ADMIN_AUTH_REQUIRED' || data.code === 'ADMIN_AUTH_FAILED') {
+      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem('fsd_admin_user')
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login'
+      }
+    }
     message.error(errMsg)
     return Promise.reject(new Error(errMsg))
   },
@@ -68,6 +81,8 @@ instance.interceptors.response.use(
 
 function friendlyApiMessage(code?: string, raw?: string): string {
   if (!raw) return '请求失败'
+  if (code === 'ADMIN_AUTH_REQUIRED') return '请先登录'
+  if (code === 'ADMIN_AUTH_FAILED') return '登录已失效，请重新登录'
   if (raw.includes('No static resource') || code === 'NOT_FOUND') {
     return '后端接口未找到，请在 back/fsd-bootstrap 目录执行 mvn spring-boot:run 并重启后端'
   }

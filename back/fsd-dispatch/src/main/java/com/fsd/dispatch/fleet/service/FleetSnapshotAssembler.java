@@ -1,5 +1,6 @@
 package com.fsd.dispatch.fleet.service;
 
+import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.model.FleetTrajectoryPoint;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
@@ -38,6 +39,7 @@ public class FleetSnapshotAssembler {
                 .targetType(effectiveRuntime.getTargetType())
                 .charging(fleetChargePolicy.isActivelyCharging(effectiveRuntime.getRuntimeStage()))
                 .lowBattery(fleetChargePolicy.isLowSoc(vehicle.getBatteryLevel()))
+                .linkMode(resolveLinkMode(vehicle))
                 .trajectory(toParkPoints(effectiveRuntime.getTrajectory()))
                 .build();
     }
@@ -71,5 +73,11 @@ public class FleetSnapshotAssembler {
 
     private static <T> T firstNonNull(T primary, T fallback) {
         return primary != null ? primary : fallback;
+    }
+
+    private static String resolveLinkMode(com.fsd.vehicle.entity.VehicleEntity vehicle) {
+        return vehicle.getLinkMode() == null || vehicle.getLinkMode().isBlank()
+                ? VehicleLinkMode.SIM.name()
+                : vehicle.getLinkMode();
     }
 }

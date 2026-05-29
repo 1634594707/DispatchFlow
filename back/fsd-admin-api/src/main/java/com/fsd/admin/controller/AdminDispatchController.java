@@ -3,17 +3,25 @@ package com.fsd.admin.controller;
 import com.fsd.admin.dto.AdminExceptionQueryRequest;
 import com.fsd.admin.dto.AdminOrderQueryRequest;
 import com.fsd.admin.dto.AdminTaskQueryRequest;
+import com.fsd.admin.dto.AdminTaskManualAssignRequest;
 import com.fsd.admin.dto.AdminVehicleQueryRequest;
+import com.fsd.admin.auth.AdminAuthContext;
+import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.dto.AdminDispatchExceptionResolveRequest;
 import com.fsd.admin.service.AdminDashboardService;
 import com.fsd.admin.service.AdminQueryFacadeService;
 import com.fsd.admin.vo.AdminDashboardSummaryResponse;
 import com.fsd.common.model.PageResponse;
 import com.fsd.common.model.ApiResponse;
-import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
+import com.fsd.dispatch.vo.DispatchExceptionListItemResponse;
+import com.fsd.dispatch.vo.DispatchInterventionQueueResponse;
+import com.fsd.dispatch.vo.DispatchWorkbenchResponse;
 import com.fsd.dispatch.dto.ParkOrderCreateRequest;
-import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
+import com.fsd.dispatch.service.DispatchExceptionService;
+import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
+import com.fsd.dispatch.service.DispatchTaskService;
+import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
 import com.fsd.dispatch.service.ParkPilotCommandService;
 import com.fsd.dispatch.service.ParkPilotService;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
@@ -31,6 +39,7 @@ import com.fsd.order.vo.OrderDetailResponse;
 import com.fsd.vehicle.service.VehicleAdminQueryService;
 import com.fsd.vehicle.vo.VehicleAdminDetailResponse;
 import com.fsd.vehicle.vo.VehicleAdminListItemResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +57,7 @@ public class AdminDispatchController {
     private final OrderAdminQueryService orderAdminQueryService;
     private final OrderQueryService orderQueryService;
     private final DispatchAdminQueryService dispatchAdminQueryService;
+    private final DispatchTaskService dispatchTaskService;
     private final DispatchExceptionService dispatchExceptionService;
     private final AdminDashboardService adminDashboardService;
     private final AdminQueryFacadeService adminQueryFacadeService;
@@ -58,6 +68,7 @@ public class AdminDispatchController {
     public AdminDispatchController(OrderAdminQueryService orderAdminQueryService,
                                    OrderQueryService orderQueryService,
                                    DispatchAdminQueryService dispatchAdminQueryService,
+                                   DispatchTaskService dispatchTaskService,
                                    DispatchExceptionService dispatchExceptionService,
                                    AdminDashboardService adminDashboardService,
                                    AdminQueryFacadeService adminQueryFacadeService,
@@ -67,6 +78,7 @@ public class AdminDispatchController {
         this.orderAdminQueryService = orderAdminQueryService;
         this.orderQueryService = orderQueryService;
         this.dispatchAdminQueryService = dispatchAdminQueryService;
+        this.dispatchTaskService = dispatchTaskService;
         this.dispatchExceptionService = dispatchExceptionService;
         this.adminDashboardService = adminDashboardService;
         this.adminQueryFacadeService = adminQueryFacadeService;
@@ -105,14 +117,44 @@ public class AdminDispatchController {
         return ApiResponse.success(dispatchAdminQueryService.getTaskDetail(taskId));
     }
 
+    @PostMapping("/tasks/{taskId}/auto-assign")
+    public ApiResponse<DispatchTaskAssignResponse> autoAssignTask(@PathVariable Long taskId) {
+        return ApiResponse.success(dispatchTaskService.autoAssignTask(taskId));
+    }
+
+    @PostMapping("/tasks/{taskId}/manual-assign")
+    public ApiResponse<DispatchTaskAssignResponse> manualAssignTask(@PathVariable Long taskId,
+                                                                    @Valid @RequestBody AdminTaskManualAssignRequest request,
+                                                                    HttpServletRequest httpRequest) {
+        DispatchTaskManualAssignRequest assignRequest = new DispatchTaskManualAssignRequest();
+        assignRequest.setVehicleId(request.getVehicleId());
+        OperatorIdentity operator = resolveOperator(httpRequest);
+        assignRequest.setOperatorId(operator.id());
+        assignRequest.setOperatorName(operator.name());
+        assignRequest.setRemark(request.getRemark());
+        return ApiResponse.success(dispatchTaskService.manualAssignTask(taskId, assignRequest));
+    }
+
     @GetMapping("/exceptions")
-    public ApiResponse<List<DispatchExceptionRecordEntity>> listExceptions() {
+    public ApiResponse<List<DispatchExceptionListItemResponse>> listExceptions() {
         return ApiResponse.success(dispatchAdminQueryService.listExceptions());
     }
 
     @PostMapping("/exceptions/query")
-    public ApiResponse<PageResponse<DispatchExceptionRecordEntity>> queryExceptions(@RequestBody AdminExceptionQueryRequest request) {
+    public ApiResponse<PageResponse<DispatchExceptionListItemResponse>> queryExceptions(
+            @RequestBody AdminExceptionQueryRequest request) {
         return ApiResponse.success(adminQueryFacadeService.queryExceptions(request));
+    }
+
+    @GetMapping("/dispatch/intervention-queue")
+    public ApiResponse<DispatchInterventionQueueResponse> getInterventionQueue() {
+        return ApiResponse.success(dispatchAdminQueryService.getInterventionQueue());
+    }
+
+    @GetMapping("/dispatch/workbench")
+    public ApiResponse<DispatchWorkbenchResponse> getDispatchWorkbench(
+            @RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(dispatchAdminQueryService.getWorkbench(parkId));
     }
 
     @PostMapping("/exceptions/{exceptionId}/resolve")
@@ -176,5 +218,17 @@ public class AdminDispatchController {
     @PostMapping("/park/orders")
     public ApiResponse<ParkOrderCreateResponse> createParkOrder(@Valid @RequestBody ParkOrderCreateRequest request) {
         return ApiResponse.success(parkPilotCommandService.createParkOrder(request));
+    }
+
+    private OperatorIdentity resolveOperator(HttpServletRequest request) {
+        AdminAuthContext context = AdminAuthSupport.fromRequest(request);
+        if (context == null || context.getUsername() == null) {
+            return new OperatorIdentity("system", "系统");
+        }
+        String name = context.getDisplayName() != null ? context.getDisplayName() : context.getUsername();
+        return new OperatorIdentity(context.getUsername(), name);
+    }
+
+    private record OperatorIdentity(String id, String name) {
     }
 }

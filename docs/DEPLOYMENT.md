@@ -52,13 +52,19 @@ docker compose up -d mysql redis rabbitmq
 
 ### 2. Database initialization
 
-On **first** MySQL container start, scripts in `back/sql/init/` run automatically (V1–V6).
+On **first** MySQL container start, scripts in `back/sql/init/` run automatically (V1–V9).
 
-For an **existing** database created before V6, apply manually:
+For an **existing** database, apply missing migrations manually (example V6 / V7):
 
 ```bash
 docker cp back/sql/init/V6__exception_severity.sql fsd-mysql:/tmp/V6.sql
 docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V6.sql"
+docker cp back/sql/init/V7__parking_slot_and_charging_pile.sql fsd-mysql:/tmp/V7.sql
+docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V7.sql"
+docker cp back/sql/init/V8__charging_session.sql fsd-mysql:/tmp/V8.sql
+docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V8.sql"
+docker cp back/sql/init/V9__road_network.sql fsd-mysql:/tmp/V9.sql
+docker exec fsd-mysql sh -c "mysql -uroot -proot --default-character-set=utf8mb4 fsd_core < /tmp/V9.sql"
 ```
 
 Always use `--default-character-set=utf8mb4` when importing SQL with Chinese content.

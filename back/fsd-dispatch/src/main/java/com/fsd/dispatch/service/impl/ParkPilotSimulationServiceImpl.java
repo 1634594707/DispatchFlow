@@ -3,6 +3,7 @@ package com.fsd.dispatch.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.enums.VehicleDispatchStatus;
+import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.common.enums.VehicleOnlineStatus;
 import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.config.ParkPilotProperties;
@@ -14,6 +15,7 @@ import com.fsd.dispatch.fleet.simulation.SimulationFleetAdapter;
 import com.fsd.dispatch.fleet.simulation.SimulationMotionState;
 import com.fsd.dispatch.fleet.simulation.SimulationMotionStore;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
+import com.fsd.dispatch.service.ParkingFacilityService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.common.exception.BusinessException;
@@ -60,6 +62,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private final VehicleReportService vehicleReportService;
     private final ParkRoutePlannerService parkRoutePlannerService;
     private final ParkStationService parkStationService;
+    private final ParkingFacilityService parkingFacilityService;
     private final SimulationMotionStore simulationMotionStore;
     private final SimulationFleetAdapter simulationFleetAdapter;
     private final FleetSnapshotAssembler fleetSnapshotAssembler;
@@ -75,6 +78,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                                           VehicleReportService vehicleReportService,
                                           ParkRoutePlannerService parkRoutePlannerService,
                                           ParkStationService parkStationService,
+                                          ParkingFacilityService parkingFacilityService,
                                           SimulationMotionStore simulationMotionStore,
                                           SimulationFleetAdapter simulationFleetAdapter,
                                           FleetSnapshotAssembler fleetSnapshotAssembler,
@@ -88,6 +92,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         this.vehicleReportService = vehicleReportService;
         this.parkRoutePlannerService = parkRoutePlannerService;
         this.parkStationService = parkStationService;
+        this.parkingFacilityService = parkingFacilityService;
         this.simulationMotionStore = simulationMotionStore;
         this.simulationFleetAdapter = simulationFleetAdapter;
         this.fleetSnapshotAssembler = fleetSnapshotAssembler;
@@ -108,6 +113,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             vehicle.setVehicleCode(PILOT_VEHICLE_PREFIX + String.format("%02d", i + 1));
             vehicle.setVehicleName("Pilot Vehicle " + (i + 1));
             vehicle.setVehicleType("AGV");
+            vehicle.setLinkMode(VehicleLinkMode.SIM.name());
             vehicle.setOnlineStatus(VehicleOnlineStatus.ONLINE.name());
             vehicle.setDispatchStatus(VehicleDispatchStatus.IDLE.name());
             vehicle.setCurrentLongitude(parkingSpot.getX());
@@ -141,10 +147,10 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     @Scheduled(initialDelay = 1000, fixedDelayString = "${fsd.park.simulation.tick-interval-ms:1000}")
     @Transactional
     public void tick() {
-        initializeVehiclesIfNeeded();
         if (!parkPilotProperties.isEnabled() || !parkPilotProperties.getSimulation().isEnabled()) {
             return;
         }
+        initializeVehiclesIfNeeded();
         dispatchDemandActive = hasDispatchDemand();
         for (VehicleEntity vehicle : listPilotVehicles()) {
             tickVehicle(vehicle);
@@ -154,10 +160,11 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private void tickVehicle(VehicleEntity vehicle) {
         SimulationMotionState state = simulationMotionStore.getOrCreate(vehicle.getId(),
                 () -> createIdleState(vehicle, extractVehicleIndex(vehicle)));
-        if (VehicleDispatchStatus.BUSY.name().equals(vehicle.getDispatchStatus())
-                && vehicle.getCurrentTaskId() != null
-                && vehicle.getCurrentOrderId() != null) {
-            syncBusyState(vehicle, state);
+        if (hasActiveAssignment(vehicle)) {
+            if (!VehicleDispatchStatus.BUSY.name().equals(vehicle.getDispatchStatus())) {
+                vehicle.setDispatchStatus(VehicleDispatchStatus.BUSY.name());
+            }
+            syncBusyStateIfNeeded(vehicle, state);
             processBusyVehicle(vehicle, state);
             publishTelemetry(vehicle, state);
             return;
@@ -180,6 +187,13 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void processIdleVehicle(VehicleEntity vehicle, SimulationMotionState state) {
+        if (hasActiveAssignment(vehicle)) {
+            vehicle.setDispatchStatus(VehicleDispatchStatus.BUSY.name());
+            syncBusyStateIfNeeded(vehicle, state);
+            processBusyVehicle(vehicle, state);
+            return;
+        }
+        clearStaleAssignmentRefs(vehicle);
         maybeGoOffline(state);
         vehicle.setOnlineStatus(state.offlineUntil == null ? VehicleOnlineStatus.ONLINE.name() : VehicleOnlineStatus.OFFLINE.name());
         if (state.offlineUntil == null) {
@@ -237,30 +251,65 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         recordPoint(state, vehicle);
     }
 
-    private void syncBusyState(VehicleEntity vehicle, SimulationMotionState state) {
-        if (!Objects.equals(state.taskId, vehicle.getCurrentTaskId()) || !Objects.equals(state.orderId, vehicle.getCurrentOrderId())) {
-            OrderEntity order = orderStateService.getOrder(vehicle.getCurrentOrderId());
-            ParkStationResponse pickup = getStation(order.getPickupPointId());
-            ParkStationResponse dropoff = getStation(order.getDropoffPointId());
-            state.stage = "TO_PICKUP";
-            state.taskId = vehicle.getCurrentTaskId();
-            state.orderId = vehicle.getCurrentOrderId();
-            state.targetX = pickup.getX();
-            state.targetY = pickup.getY();
-            state.targetCode = pickup.getStationCode();
-            state.targetType = "PICKUP";
-            state.nextTargetX = dropoff.getX();
-            state.nextTargetY = dropoff.getY();
-            state.nextTargetCode = dropoff.getStationCode();
-            state.nextTargetType = "DROPOFF";
-            state.route = parkRoutePlannerService.buildRoute(vehicle.getCurrentLongitude(), vehicle.getCurrentLatitude(),
-                    pickup.getX(), pickup.getY());
-            state.routeIndex = 1;
-            state.holdUntil = null;
-            state.offlineUntil = null;
-            state.busyMoveTicks = 0;
-            state.pluggedIn = false;
+    private boolean hasActiveAssignment(VehicleEntity vehicle) {
+        return vehicle.getCurrentTaskId() != null && vehicle.getCurrentOrderId() != null;
+    }
+
+    private void clearStaleAssignmentRefs(VehicleEntity vehicle) {
+        if (vehicle.getCurrentTaskId() != null || vehicle.getCurrentOrderId() != null) {
+            vehicle.setCurrentTaskId(null);
+            vehicle.setCurrentOrderId(null);
         }
+    }
+
+    private void syncBusyStateIfNeeded(VehicleEntity vehicle, SimulationMotionState state) {
+        if (needsBusyResync(vehicle, state)) {
+            syncBusyState(vehicle, state);
+        }
+    }
+
+    private boolean needsBusyResync(VehicleEntity vehicle, SimulationMotionState state) {
+        if (!Objects.equals(state.taskId, vehicle.getCurrentTaskId())
+                || !Objects.equals(state.orderId, vehicle.getCurrentOrderId())) {
+            return true;
+        }
+        return isIdleLikeMotionStage(state.stage);
+    }
+
+    private boolean isIdleLikeMotionStage(String stage) {
+        return stage == null
+                || "STANDBY".equals(stage)
+                || "OFFLINE".equals(stage)
+                || "CHARGING".equals(stage)
+                || "TO_CHARGING".equals(stage)
+                || "WAIT_CHARGING".equals(stage)
+                || "RETURNING_TO_STANDBY".equals(stage);
+    }
+
+    private void syncBusyState(VehicleEntity vehicle, SimulationMotionState state) {
+        OrderEntity order = orderStateService.getOrder(vehicle.getCurrentOrderId());
+        ParkStationResponse pickup = getStation(order.getPickupPointId());
+        ParkStationResponse dropoff = getStation(order.getDropoffPointId());
+        state.stage = "TO_PICKUP";
+        state.taskId = vehicle.getCurrentTaskId();
+        state.orderId = vehicle.getCurrentOrderId();
+        state.targetX = pickup.getX();
+        state.targetY = pickup.getY();
+        state.targetCode = pickup.getStationCode();
+        state.targetType = "PICKUP";
+        state.nextTargetX = dropoff.getX();
+        state.nextTargetY = dropoff.getY();
+        state.nextTargetCode = dropoff.getStationCode();
+        state.nextTargetType = "DROPOFF";
+        state.route = parkRoutePlannerService.buildRoute(defaultParkId(),
+                vehicle.getCurrentLongitude(), vehicle.getCurrentLatitude(),
+                pickup.getX(), pickup.getY());
+        state.routeIndex = 1;
+        state.holdUntil = null;
+        state.offlineUntil = null;
+        state.busyMoveTicks = 0;
+        state.pluggedIn = false;
+        parkingFacilityService.releaseByVehicle(vehicle.getId());
     }
 
     private void rotateDropoffTarget(SimulationMotionState state) {
@@ -268,24 +317,25 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.targetY = state.nextTargetY;
         state.targetCode = state.nextTargetCode;
         state.targetType = state.nextTargetType;
-        state.route = parkRoutePlannerService.buildRoute(state.lastX, state.lastY, state.targetX, state.targetY);
+        state.route = parkRoutePlannerService.buildRoute(defaultParkId(),
+                state.lastX, state.lastY, state.targetX, state.targetY);
         state.routeIndex = 1;
     }
 
     private void routeAfterDelivery(VehicleEntity vehicle, SimulationMotionState state) {
         if (isLowBattery(vehicle)) {
-            routeToCharging(state);
+            routeToCharging(vehicle, state);
             return;
         }
         if (shouldPreferCharging()) {
             if (isFullyCharged(vehicle)) {
                 enterPluggedInStandby(vehicle, state);
             } else {
-                routeToCharging(state);
+                routeToCharging(vehicle, state);
             }
             return;
         }
-        routeToStandby(state);
+        routeToStandby(vehicle, state);
     }
 
     private boolean shouldPreferCharging() {
@@ -318,6 +368,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private void processIdleStage(VehicleEntity vehicle, SimulationMotionState state) {
         redirectIdleVehicleIfNeeded(vehicle, state);
         switch (state.stage) {
+            case "WAIT_CHARGING" -> routeToCharging(vehicle, state);
             case "TO_CHARGING" -> {
                 moveVehicleAlongRoute(vehicle, state);
                 if (state.routeIndex >= state.route.size()) {
@@ -325,6 +376,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                     state.route = List.of();
                     state.routeIndex = 0;
                     state.holdUntil = null;
+                    bindCharging(vehicle, state);
                 }
             }
             case "CHARGING" -> {
@@ -335,7 +387,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             }
             case "RETURNING_TO_STANDBY" -> {
                 if (shouldPreferCharging() && !isFullyCharged(vehicle)) {
-                    routeToCharging(state);
+                    routeToCharging(vehicle, state);
                     break;
                 }
                 moveVehicleAlongRoute(vehicle, state);
@@ -353,7 +405,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                     break;
                 }
                 if (needsCharging(vehicle, state)) {
-                    routeToCharging(state);
+                    routeToCharging(vehicle, state);
                     break;
                 }
                 ensureStandbyLocation(state);
@@ -364,9 +416,9 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             }
             default -> {
                 if (shouldPreferCharging()) {
-                    routeToCharging(state);
+                    routeToCharging(vehicle, state);
                 } else {
-                    routeToStandby(state);
+                    routeToStandby(vehicle, state);
                 }
                 processIdleStage(vehicle, state);
             }
@@ -381,7 +433,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             return;
         }
         if (needsCharging(vehicle, state)) {
-            routeToCharging(state);
+            routeToCharging(vehicle, state);
         }
     }
 
@@ -411,6 +463,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.targetY = state.chargingPoint.getY();
         vehicle.setCurrentLongitude(state.chargingPoint.getX());
         vehicle.setCurrentLatitude(state.chargingPoint.getY());
+        bindPluggedStandby(vehicle, state);
     }
 
     private void holdPluggedInStandby(VehicleEntity vehicle, SimulationMotionState state) {
@@ -573,9 +626,9 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         return getStandbySpot(index);
     }
 
-    private void routeToStandby(SimulationMotionState state) {
+    private void routeToStandby(VehicleEntity vehicle, SimulationMotionState state) {
         if (shouldPreferCharging() && !state.pluggedIn) {
-            routeToCharging(state);
+            routeToCharging(vehicle, state);
             return;
         }
         ensureStandbyLocation(state);
@@ -587,14 +640,24 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         }
     }
 
-    private void routeToCharging(SimulationMotionState state) {
+    private void routeToCharging(VehicleEntity vehicle, SimulationMotionState state) {
         ensureStandbyLocation(state);
         state.busyMoveTicks = 0;
         state.pluggedIn = false;
+        parkingFacilityService.releaseByVehicle(vehicle.getId());
+        Long parkId = defaultParkId();
+        String preferred = state.chargingPoint != null ? state.chargingPoint.getCode() : null;
+        var reserved = parkingFacilityService.reserveChargingSlot(parkId, vehicle.getId(), preferred);
+        if (reserved.isEmpty()) {
+            state.stage = "WAIT_CHARGING";
+            return;
+        }
+        state.chargingPoint = reserved.get();
         state.stage = "TO_CHARGING";
         routeToTarget(state, state.chargingPoint, "CHARGING");
         if (state.routeIndex >= state.route.size()) {
             state.stage = "CHARGING";
+            bindCharging(vehicle, state);
         }
     }
 
@@ -617,8 +680,29 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             state.routeIndex = 0;
             return;
         }
-        state.route = parkRoutePlannerService.buildRoute(state.lastX, state.lastY, point.getX(), point.getY());
+        state.route = parkRoutePlannerService.buildRoute(defaultParkId(),
+                state.lastX, state.lastY, point.getX(), point.getY());
         state.routeIndex = state.route.size() > 1 ? 1 : state.route.size();
+    }
+
+    private Long defaultParkId() {
+        return parkStationService.requireDefaultPark().getId();
+    }
+
+    private void bindCharging(VehicleEntity vehicle, SimulationMotionState state) {
+        ensureStandbyLocation(state);
+        if (state.chargingPoint == null || state.chargingPoint.getCode() == null) {
+            return;
+        }
+        parkingFacilityService.markCharging(defaultParkId(), vehicle.getId(), state.chargingPoint.getCode());
+    }
+
+    private void bindPluggedStandby(VehicleEntity vehicle, SimulationMotionState state) {
+        ensureStandbyLocation(state);
+        if (state.chargingPoint == null || state.chargingPoint.getCode() == null) {
+            return;
+        }
+        parkingFacilityService.occupyPluggedStandby(defaultParkId(), vehicle.getId(), state.chargingPoint.getCode());
     }
 
     private int extractVehicleIndex(VehicleEntity vehicle) {
@@ -638,7 +722,13 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                         .eq(VehicleEntity::getDeleted, 0))
                 .stream()
                 .filter(vehicle -> vehicle.getVehicleCode() != null && vehicle.getVehicleCode().startsWith(PILOT_VEHICLE_PREFIX))
+                .filter(this::isSimulationVehicle)
                 .sorted(Comparator.comparing(VehicleEntity::getVehicleCode))
                 .toList();
+    }
+
+    private boolean isSimulationVehicle(VehicleEntity vehicle) {
+        String linkMode = vehicle.getLinkMode();
+        return linkMode == null || linkMode.isBlank() || VehicleLinkMode.SIM.name().equals(linkMode);
     }
 }

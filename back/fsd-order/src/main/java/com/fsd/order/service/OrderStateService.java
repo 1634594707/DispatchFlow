@@ -8,6 +8,8 @@ public interface OrderStateService {
 
     void markDispatched(Long orderId, Long dispatchTaskId);
 
+    void revertToWaitingDispatch(Long orderId);
+
     void markInProgress(Long orderId);
 
     void markCompleted(Long orderId);

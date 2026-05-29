@@ -5,9 +5,10 @@ import com.fsd.admin.dto.AdminOrderQueryRequest;
 import com.fsd.admin.dto.AdminTaskQueryRequest;
 import com.fsd.admin.dto.AdminVehicleQueryRequest;
 import com.fsd.admin.service.AdminQueryFacadeService;
+import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.model.PageResponse;
-import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
+import com.fsd.dispatch.vo.DispatchExceptionListItemResponse;
 import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
 import com.fsd.order.service.OrderAdminQueryService;
 import com.fsd.order.vo.OrderAdminListItemResponse;
@@ -49,8 +50,8 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
     }
 
     @Override
-    public PageResponse<DispatchExceptionRecordEntity> queryExceptions(AdminExceptionQueryRequest request) {
-        List<DispatchExceptionRecordEntity> filtered = dispatchAdminQueryService.listExceptions().stream()
+    public PageResponse<DispatchExceptionListItemResponse> queryExceptions(AdminExceptionQueryRequest request) {
+        List<DispatchExceptionListItemResponse> filtered = dispatchAdminQueryService.listExceptions().stream()
                 .filter(matchException(request))
                 .toList();
         return paginate(filtered, request.getPageNo(), request.getPageSize());
@@ -75,20 +76,47 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
         return task -> contains(task.getTaskNo(), request.getTaskNo())
                 && equalsLong(task.getOrderId(), request.getOrderId())
                 && equalsLong(task.getVehicleId(), request.getVehicleId())
-                && equalsValue(task.getStatus(), request.getStatus());
+                && equalsValue(task.getStatus(), request.getStatus())
+                && matchesManualFlag(task, request.getManualFlag())
+                && matchesOpenExceptionOnly(task, request.getWithOpenExceptionOnly());
     }
 
-    private Predicate<DispatchExceptionRecordEntity> matchException(AdminExceptionQueryRequest request) {
+    private Predicate<DispatchExceptionListItemResponse> matchException(AdminExceptionQueryRequest request) {
         return exception -> equalsValue(exception.getExceptionType(), request.getExceptionType())
                 && equalsValue(exception.getExceptionStatus(), request.getExceptionStatus())
+                && contains(exception.getTaskNo(), request.getTaskNo())
+                && equalsValue(exception.getTaskStatus(), request.getTaskStatus())
                 && equalsLong(exception.getOrderId(), request.getOrderId())
-                && equalsLong(exception.getVehicleId(), request.getVehicleId());
+                && equalsLong(exception.getVehicleId(), request.getVehicleId())
+                && matchesOnlyManualPendingTask(exception, request.getOnlyManualPendingTask());
     }
 
     private Predicate<VehicleAdminListItemResponse> matchVehicle(AdminVehicleQueryRequest request) {
         return vehicle -> contains(vehicle.getVehicleCode(), request.getVehicleCode())
                 && equalsValue(vehicle.getOnlineStatus(), request.getOnlineStatus())
                 && equalsValue(vehicle.getDispatchStatus(), request.getDispatchStatus());
+    }
+
+    private boolean matchesManualFlag(DispatchTaskListItemResponse task, Boolean manualFlag) {
+        if (manualFlag == null) {
+            return true;
+        }
+        boolean isManualPending = DispatchTaskStatus.MANUAL_PENDING.name().equals(task.getStatus());
+        return manualFlag ? isManualPending : !isManualPending;
+    }
+
+    private boolean matchesOpenExceptionOnly(DispatchTaskListItemResponse task, Boolean withOpenExceptionOnly) {
+        if (withOpenExceptionOnly == null || !withOpenExceptionOnly) {
+            return true;
+        }
+        return task.getOpenExceptionCount() != null && task.getOpenExceptionCount() > 0;
+    }
+
+    private boolean matchesOnlyManualPendingTask(DispatchExceptionListItemResponse exception, Boolean onlyManualPendingTask) {
+        if (onlyManualPendingTask == null || !onlyManualPendingTask) {
+            return true;
+        }
+        return DispatchTaskStatus.MANUAL_PENDING.name().equals(exception.getTaskStatus());
     }
 
     private <T> PageResponse<T> paginate(List<T> records, int pageNo, int pageSize) {

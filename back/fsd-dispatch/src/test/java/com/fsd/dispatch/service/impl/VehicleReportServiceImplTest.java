@@ -131,6 +131,19 @@ class VehicleReportServiceImplTest {
         assertEquals("Duplicate report ignored", response.getMessage());
     }
 
+    @Test
+    void handleFailedReportShouldReleaseIdempotencyKey() {
+        VehicleReportRequest request = buildRequest("START_EXECUTE", 3004L, 1004L, "V-004");
+
+        when(reportIdempotencyService.markIfFirstReport(request)).thenReturn(true);
+        when(vehicleService.updateSnapshot(request)).thenThrow(new RuntimeException("db down"));
+
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> vehicleReportService.handleReport(request));
+
+        verify(reportIdempotencyService).releaseReport(request);
+    }
+
     private VehicleReportRequest buildRequest(String reportType, Long taskId, Long orderId, String vehicleCode) {
         VehicleReportRequest request = new VehicleReportRequest();
         request.setVehicleCode(vehicleCode);

@@ -114,8 +114,8 @@ DispatchFlow/
 │   ├── fsd-vehicle            车辆占用与回报
 │   ├── fsd-admin-api          管理端 API
 │   ├── fsd-bootstrap          启动模块
-│   └── sql/init/              数据库初始化脚本 (V1–V6)
-├── docs/                  架构、部署、路线图
+│   └── sql/init/              数据库初始化脚本 (V1–V8)
+├── docs/                  文档（验收入口 acceptance/README.md）
 ├── docker-compose.yml     一键启动基础设施与后端
 ├── .github/workflows/     CI 流水线
 ├── CHANGELOG.md
@@ -129,9 +129,11 @@ DispatchFlow/
 
 | 文档 | 内容 |
 |------|------|
+| **[docs/acceptance/README.md](docs/acceptance/README.md)** | **验收总方案**（环境、顺序、勾选表） |
+| [docs/README.md](docs/README.md) | 文档索引 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 模块划分、领域边界、Fleet 模型、事件流 |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker / 本地部署、迁移、故障排查 |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | 版本规划与功能路线图 |
+| [docs/releases/phase2.md](docs/releases/phase2.md) | Phase 2 合入说明 |
 | [back/README.md](back/README.md) | 后端模块与测试说明 |
 | [front/README.md](front/README.md) | 前端页面与开发说明 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
@@ -200,7 +202,7 @@ CI 在每次 push / PR 时自动运行后端测试与前端构建。
 | v0.4 | 真实车端接入、操作日志、权限审计 |
 | v1.0 | 认证授权、Flyway 迁移、生产级部署 |
 
-详见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+详见 [docs/acceptance/README.md](docs/acceptance/README.md)（验收）与 [docs/releases/phase2.md](docs/releases/phase2.md)（Phase 2 能力说明）。Phase 3+ 路线图待重新设计。
 
 ---
 

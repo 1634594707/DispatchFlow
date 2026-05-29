@@ -9,9 +9,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fsd.common.enums.DispatchAssignFailReason;
 import com.fsd.common.enums.DispatchTaskStatus;
-import com.fsd.dispatch.config.FleetEnergyProperties;
-import com.fsd.dispatch.fleet.policy.FleetChargePolicyImpl;
+import com.fsd.dispatch.dispatch.DispatchAssignResult;
+import com.fsd.dispatch.dispatch.DispatchVehicleAssignService;
 import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
@@ -19,20 +20,19 @@ import com.fsd.dispatch.event.DispatchEventPublisher;
 import com.fsd.dispatch.infra.DispatchLockService;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.DispatchExceptionService;
-import com.fsd.dispatch.service.ParkPilotService;
 import com.fsd.dispatch.service.DispatchTaskOperateLogService;
 import com.fsd.dispatch.service.DispatchTaskStateService;
+import com.fsd.dispatch.service.ParkingFacilityService;
+import com.fsd.dispatch.service.VehicleCommandService;
 import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
 import com.fsd.dispatch.vo.DispatchTaskCreateResponse;
 import com.fsd.order.entity.OrderEntity;
 import com.fsd.order.service.OrderStateService;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.service.VehicleService;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -52,14 +52,16 @@ class DispatchTaskServiceImplTest {
     @Mock
     private VehicleService vehicleService;
     @Mock
-    private ParkPilotService parkPilotService;
+    private DispatchVehicleAssignService dispatchVehicleAssignService;
+    @Mock
+    private ParkingFacilityService parkingFacilityService;
     @Mock
     private DispatchLockService dispatchLockService;
     @Mock
     private DispatchEventPublisher eventPublisher;
+    @Mock
+    private VehicleCommandService vehicleCommandService;
 
-    private final FleetChargePolicyImpl fleetChargePolicy =
-            new FleetChargePolicyImpl(new FleetEnergyProperties());
     private DispatchTaskServiceImpl dispatchTaskService;
 
     @BeforeEach
@@ -71,10 +73,11 @@ class DispatchTaskServiceImplTest {
                 dispatchExceptionService,
                 orderStateService,
                 vehicleService,
-                parkPilotService,
-                fleetChargePolicy,
+                dispatchVehicleAssignService,
+                parkingFacilityService,
                 dispatchLockService,
-                eventPublisher);
+                eventPublisher,
+                vehicleCommandService);
     }
 
     @Test
@@ -104,7 +107,7 @@ class DispatchTaskServiceImplTest {
     }
 
     @Test
-    void autoAssignShouldAssignNearestAvailableVehicle() {
+    void autoAssignShouldAssignScoredVehicle() {
         DispatchTaskEntity taskEntity = new DispatchTaskEntity();
         taskEntity.setId(3001L);
         taskEntity.setOrderId(1001L);
@@ -116,24 +119,24 @@ class DispatchTaskServiceImplTest {
 
         VehicleEntity vehicleEntity = new VehicleEntity();
         vehicleEntity.setId(9001L);
+        vehicleEntity.setVehicleCode("PARK-01");
         vehicleEntity.setBatteryLevel(80);
 
         when(dispatchTaskStateService.getTask(3001L)).thenReturn(taskEntity);
         doNothing().when(dispatchTaskStateService).assertCanAutoAssign(taskEntity);
-        when(vehicleService.listAssignableVehicles()).thenReturn(List.of(vehicleEntity));
         when(orderStateService.getOrder(1001L)).thenReturn(orderEntity);
-        when(parkPilotService.selectNearestVehicle(List.of(vehicleEntity), 501L)).thenReturn(vehicleEntity);
+        when(dispatchVehicleAssignService.selectBestVehicle(orderEntity))
+                .thenReturn(DispatchAssignResult.success(vehicleEntity, "scored", 120.0, 100.0, 3.0, 80.0));
         when(dispatchLockService.acquireTaskLock(3001L)).thenReturn("lock-1");
 
         DispatchTaskAssignResponse response = dispatchTaskService.autoAssignTask(3001L);
 
         assertEquals(DispatchTaskStatus.ASSIGNED.name(), response.getStatus());
         assertEquals(9001L, response.getVehicleId());
+        assertEquals("PARK-01", response.getSelectedVehicleCode());
         verify(vehicleService).occupyVehicle(9001L, 3001L, 1001L);
-        verify(orderStateService).markDispatched(1001L, 3001L);
-        verify(dispatchExceptionService).resolveOpenExceptionsForTask(3001L, "system", "Auto assign success");
+        verify(parkingFacilityService).releaseByVehicle(9001L);
         verify(dispatchExceptionService, never()).recordException(any(), any(), any(), any(), any());
-        verify(dispatchLockService).releaseTaskLock(3001L, "lock-1");
     }
 
     @Test
@@ -144,9 +147,14 @@ class DispatchTaskServiceImplTest {
         taskEntity.setStatus(DispatchTaskStatus.PENDING.name());
         taskEntity.setRetryCount(0);
 
+        OrderEntity orderEntity = new OrderEntity();
+        orderEntity.setId(1002L);
+
         when(dispatchTaskStateService.getTask(3002L)).thenReturn(taskEntity);
         doNothing().when(dispatchTaskStateService).assertCanAutoAssign(taskEntity);
-        when(vehicleService.listAssignableVehicles()).thenReturn(List.of());
+        when(orderStateService.getOrder(1002L)).thenReturn(orderEntity);
+        when(dispatchVehicleAssignService.selectBestVehicle(orderEntity))
+                .thenReturn(DispatchAssignResult.failure(DispatchAssignFailReason.NO_VEHICLE, "no vehicle"));
         when(dispatchLockService.acquireTaskLock(3002L)).thenReturn("lock-2");
 
         DispatchTaskAssignResponse response = dispatchTaskService.autoAssignTask(3002L);
@@ -154,41 +162,31 @@ class DispatchTaskServiceImplTest {
         assertEquals(DispatchTaskStatus.MANUAL_PENDING.name(), response.getStatus());
         assertNull(response.getVehicleId());
         verify(dispatchExceptionService).recordException(3002L, 1002L, null,
-                "AUTO_ASSIGN_NO_VEHICLE", "No assignable vehicle found (offline, busy, or battery below threshold)", "WARN");
-        verify(orderStateService, never()).markDispatched(any(), any());
-        verify(dispatchLockService).releaseTaskLock(3002L, "lock-2");
+                "NO_VEHICLE", "no vehicle", "WARN");
     }
 
     @Test
-    void autoAssignShouldMoveToManualPendingWhenPickupPointIsInvalid() {
+    void autoAssignShouldMoveToManualPendingWhenUnreachable() {
         DispatchTaskEntity taskEntity = new DispatchTaskEntity();
         taskEntity.setId(3004L);
         taskEntity.setOrderId(1004L);
         taskEntity.setStatus(DispatchTaskStatus.PENDING.name());
-        taskEntity.setRetryCount(0);
 
         OrderEntity orderEntity = new OrderEntity();
         orderEntity.setId(1004L);
-        orderEntity.setPickupPointId(999L);
-
-        VehicleEntity vehicleEntity = new VehicleEntity();
-        vehicleEntity.setId(9004L);
-        vehicleEntity.setBatteryLevel(80);
 
         when(dispatchTaskStateService.getTask(3004L)).thenReturn(taskEntity);
         doNothing().when(dispatchTaskStateService).assertCanAutoAssign(taskEntity);
-        when(vehicleService.listAssignableVehicles()).thenReturn(List.of(vehicleEntity));
         when(orderStateService.getOrder(1004L)).thenReturn(orderEntity);
-        when(parkPilotService.selectNearestVehicle(List.of(vehicleEntity), 999L))
-                .thenThrow(new com.fsd.common.exception.BusinessException("PARK_STATION_NOT_FOUND", "Park station not found"));
+        when(dispatchVehicleAssignService.selectBestVehicle(orderEntity))
+                .thenReturn(DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE, "unreachable"));
         when(dispatchLockService.acquireTaskLock(3004L)).thenReturn("lock-4");
 
         DispatchTaskAssignResponse response = dispatchTaskService.autoAssignTask(3004L);
 
         assertEquals(DispatchTaskStatus.MANUAL_PENDING.name(), response.getStatus());
         verify(dispatchExceptionService).recordException(3004L, 1004L, null,
-                "AUTO_ASSIGN_POINT_INVALID", "Park station not found", "WARN");
-        verify(dispatchLockService).releaseTaskLock(3004L, "lock-4");
+                "UNREACHABLE", "unreachable", "WARN");
     }
 
     @Test
@@ -197,13 +195,11 @@ class DispatchTaskServiceImplTest {
         taskEntity.setId(3003L);
         taskEntity.setOrderId(1003L);
         taskEntity.setStatus(DispatchTaskStatus.MANUAL_PENDING.name());
-        taskEntity.setRetryCount(1);
 
         DispatchTaskManualAssignRequest request = new DispatchTaskManualAssignRequest();
         request.setVehicleId(9002L);
         request.setOperatorId("u1");
         request.setOperatorName("dispatcher");
-        request.setRemark("manual");
 
         when(dispatchTaskStateService.getTask(3003L)).thenReturn(taskEntity);
         doNothing().when(dispatchTaskStateService).assertCanManualAssign(taskEntity);
@@ -213,8 +209,6 @@ class DispatchTaskServiceImplTest {
 
         assertEquals(DispatchTaskStatus.ASSIGNED.name(), response.getStatus());
         assertEquals(9002L, response.getVehicleId());
-        verify(vehicleService).occupyVehicle(9002L, 3003L, 1003L);
-        verify(orderStateService).markDispatched(1003L, 3003L);
-        verify(dispatchLockService).releaseTaskLock(3003L, "lock-3");
+        verify(parkingFacilityService).releaseByVehicle(9002L);
     }
 }

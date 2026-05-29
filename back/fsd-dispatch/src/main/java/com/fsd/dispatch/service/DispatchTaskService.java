@@ -21,5 +21,7 @@ public interface DispatchTaskService {
 
     List<DispatchTaskListItemResponse> listManualPendingTasks();
 
+    List<DispatchTaskListItemResponse> listPendingTasks();
+
     DispatchSummaryResponse getSummary();
 }

@@ -1,6 +1,9 @@
 package com.fsd.dispatch.service.impl;
 
-import com.fsd.common.exception.BusinessException;
+import com.fsd.common.enums.VehicleLinkMode;
+import com.fsd.dispatch.fleet.model.FleetRuntime;
+import com.fsd.dispatch.fleet.service.FleetRuntimeService;
+import com.fsd.dispatch.fleet.service.FleetSnapshotAssembler;
 import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.entity.ParkEntity;
@@ -15,11 +18,12 @@ import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkRoadNodeResponse;
 import com.fsd.dispatch.vo.ParkRoadSegmentResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
+import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
-import com.fsd.order.entity.OrderEntity;
 import com.fsd.order.mapper.OrderMapper;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
+import com.fsd.order.entity.OrderEntity;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,6 +46,8 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     private final ParkRoutePlannerService parkRoutePlannerService;
     private final OrderMapper orderMapper;
     private final DispatchTaskMapper dispatchTaskMapper;
+    private final FleetRuntimeService fleetRuntimeService;
+    private final FleetSnapshotAssembler fleetSnapshotAssembler;
 
     public ParkPilotServiceImpl(ParkPilotProperties parkPilotProperties,
                                 ParkStationService parkStationService,
@@ -49,7 +55,9 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                                 VehicleMapper vehicleMapper,
                                 ParkRoutePlannerService parkRoutePlannerService,
                                 OrderMapper orderMapper,
-                                DispatchTaskMapper dispatchTaskMapper) {
+                                DispatchTaskMapper dispatchTaskMapper,
+                                FleetRuntimeService fleetRuntimeService,
+                                FleetSnapshotAssembler fleetSnapshotAssembler) {
         this.parkPilotProperties = parkPilotProperties;
         this.parkStationService = parkStationService;
         this.parkPilotSimulationService = parkPilotSimulationService;
@@ -57,6 +65,8 @@ public class ParkPilotServiceImpl implements ParkPilotService {
         this.parkRoutePlannerService = parkRoutePlannerService;
         this.orderMapper = orderMapper;
         this.dispatchTaskMapper = dispatchTaskMapper;
+        this.fleetRuntimeService = fleetRuntimeService;
+        this.fleetSnapshotAssembler = fleetSnapshotAssembler;
     }
 
     @Override
@@ -141,9 +151,36 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     public List<ParkVehicleSnapshotResponse> listVehicleSnapshots() {
         parkPilotSimulationService.initializeVehiclesIfNeeded();
         List<VehicleEntity> vehicles = vehicleMapper.selectList(null).stream()
-                .filter(vehicle -> vehicle.getVehicleCode() != null && vehicle.getVehicleCode().startsWith("PARK-"))
+                .filter(vehicle -> vehicle.getDeleted() == null || vehicle.getDeleted() == 0)
+                .filter(vehicle -> isMonitorVehicle(vehicle.getVehicleCode()))
                 .toList();
-        return parkPilotSimulationService.buildSnapshots(vehicles);
+        List<VehicleEntity> simVehicles = vehicles.stream().filter(this::isSimulationVehicle).toList();
+        List<VehicleEntity> realVehicles = vehicles.stream().filter(this::isRealVehicle).toList();
+
+        List<ParkVehicleSnapshotResponse> snapshots = new ArrayList<>();
+        if (!simVehicles.isEmpty()) {
+            snapshots.addAll(parkPilotSimulationService.buildSnapshots(simVehicles));
+        }
+        for (VehicleEntity realVehicle : realVehicles) {
+            FleetRuntime runtime = fleetRuntimeService.get(realVehicle.getId()).orElse(null);
+            snapshots.add(fleetSnapshotAssembler.assemble(realVehicle, runtime));
+        }
+        return snapshots.stream()
+                .sorted(Comparator.comparing(ParkVehicleSnapshotResponse::getVehicleCode))
+                .toList();
+    }
+
+    private boolean isMonitorVehicle(String vehicleCode) {
+        return vehicleCode != null && (vehicleCode.startsWith("PARK-") || vehicleCode.startsWith("REAL-"));
+    }
+
+    private boolean isSimulationVehicle(VehicleEntity vehicle) {
+        String linkMode = vehicle.getLinkMode();
+        return linkMode == null || linkMode.isBlank() || VehicleLinkMode.SIM.name().equals(linkMode);
+    }
+
+    private boolean isRealVehicle(VehicleEntity vehicle) {
+        return VehicleLinkMode.REAL.name().equals(vehicle.getLinkMode());
     }
 
     @Override
@@ -178,7 +215,11 @@ public class ParkPilotServiceImpl implements ParkPilotService {
             return Double.MAX_VALUE;
         }
         try {
-            return calculatePathLength(parkRoutePlannerService.buildRoute(currentX, currentY, station.getX(), station.getY()));
+            Long parkId = station.getParkId() != null
+                    ? station.getParkId()
+                    : parkStationService.requireDefaultPark().getId();
+            return calculatePathLength(parkRoutePlannerService.buildRoute(
+                    parkId, currentX, currentY, station.getX(), station.getY()));
         } catch (BusinessException ex) {
             double dx = currentX.doubleValue() - station.getX().doubleValue();
             double dy = currentY.doubleValue() - station.getY().doubleValue();

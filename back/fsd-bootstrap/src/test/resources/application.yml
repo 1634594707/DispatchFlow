@@ -12,8 +12,13 @@ spring:
       - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
 
 fsd:
+  fleet:
+    telemetry:
+      scheduler-enabled: false
   park:
     enabled: true
+    simulation:
+      enabled: false
     stations:
       - id: 101
         code: A1

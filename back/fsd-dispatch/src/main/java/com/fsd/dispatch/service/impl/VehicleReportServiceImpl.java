@@ -62,6 +62,15 @@ public class VehicleReportServiceImpl implements VehicleReportService {
                     .build();
         }
 
+        try {
+            return processReport(request);
+        } catch (RuntimeException ex) {
+            reportIdempotencyService.releaseReport(request);
+            throw ex;
+        }
+    }
+
+    private VehicleReportResponse processReport(VehicleReportRequest request) {
         VehicleEntity vehicleEntity = vehicleService.updateSnapshot(request);
 
         String taskStatus = null;
