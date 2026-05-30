@@ -1,0 +1,74 @@
+name: Release Packages
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+
+      - name: Build backend JAR
+        working-directory: back
+        run: mvn -q -pl fsd-bootstrap -am clean package -DskipTests
+
+      - name: Build frontend
+        working-directory: front
+        run: |
+          npm ci
+          npm run build
+
+      - name: Assemble release bundle
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          OUT="dist/release/${VERSION}"
+          mkdir -p "${OUT}/backend" "${OUT}/frontend" "${OUT}/sql/migrations" "${OUT}/deploy"
+          cp back/fsd-bootstrap/target/fsd-bootstrap-0.1.0-SNAPSHOT.jar "${OUT}/backend/fsd-core-server.jar"
+          cp -r front/dist/. "${OUT}/frontend/"
+          cp back/sql/migrations/*.sql "${OUT}/sql/migrations/"
+          cp back/docker-compose.yml "${OUT}/deploy/docker-compose.yml"
+          cp back/Dockerfile .env.example "${OUT}/deploy/"
+          cp docs/DEPLOYMENT.md "${OUT}/"
+          cp "docs/releases/${VERSION}.md" "${OUT}/RELEASE_NOTES.md" 2>/dev/null || true
+          cat > "${OUT}/PACKAGE_README.txt" <<EOF
+          DispatchFlow ${VERSION}
+          - backend/fsd-core-server.jar
+          - frontend/ (static)
+          - sql/migrations/
+          - deploy/
+          See DEPLOYMENT.md
+          EOF
+          cd dist/release
+          zip -r "DispatchFlow-${VERSION}-bundle.zip" "${VERSION}"
+          zip -j "DispatchFlow-${VERSION}-backend.jar.zip" "${VERSION}/backend/fsd-core-server.jar"
+          (cd "${VERSION}/frontend" && zip -r "../../DispatchFlow-${VERSION}-frontend-dist.zip" .)
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          gh release upload "${VERSION}" \
+            "dist/release/DispatchFlow-${VERSION}-bundle.zip" \
+            "dist/release/DispatchFlow-${VERSION}-backend.jar.zip" \
+            "dist/release/DispatchFlow-${VERSION}-frontend-dist.zip" \
+            --clobber

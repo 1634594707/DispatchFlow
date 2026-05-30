@@ -15,7 +15,11 @@ docs/*
 !docs/DEPLOYMENT.md
 !docs/README.md
 !docs/ROADMAP-V2.md
+!docs/releases/
 docs/private/
+
+# Release build output
+dist/
 
 # Frontend
 front/node_modules/

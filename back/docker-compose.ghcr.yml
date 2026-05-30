@@ -1,0 +1,10 @@
+# Use published GitHub Container image (no local build).
+#   docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d
+#
+# Set image tag, e.g. v2.0.0:
+#   FSD_IMAGE=ghcr.io/1634594707/dispatchflow:v2.0.0 docker compose -f docker-compose.yml -f docker-compose.ghcr.yml up -d
+
+services:
+  fsd-core-server:
+    image: ${FSD_IMAGE:-ghcr.io/1634594707/dispatchflow:v2.0.0}
+    build: !reset null
