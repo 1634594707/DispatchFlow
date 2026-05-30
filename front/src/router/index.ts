@@ -161,6 +161,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '交通态势', breadcrumb: ['基础设施', '交通态势'], requiresAdmin: true },
       },
       {
+        path: 'digital-twin',
+        name: 'DigitalTwin',
+        component: () => import('@/views/digital-twin/Index.vue'),
+        meta: { title: '数字孪生', breadcrumb: ['数字孪生'] },
+      },
+      {
+        path: 'system/health',
+        name: 'SystemHealth',
+        component: () => import('@/views/system/SystemHealth.vue'),
+        meta: { title: '系统健康', breadcrumb: ['系统管理', '系统健康'], requiresAdmin: true },
+      },
+      {
         path: 'profile',
         name: 'Profile',
         component: () => import('@/views/system/Profile.vue'),

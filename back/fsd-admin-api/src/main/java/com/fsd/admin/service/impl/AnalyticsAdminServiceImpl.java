@@ -2,6 +2,7 @@ package com.fsd.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.admin.service.AnalyticsAdminService;
+import com.fsd.admin.service.AdminParkScopeService;
 import com.fsd.admin.vo.AdminAnalyticsChargingHistoryItem;
 import com.fsd.admin.vo.AdminAnalyticsChargingOverviewResponse;
 import com.fsd.admin.vo.AdminAnalyticsChargingSessionItem;
@@ -28,6 +29,7 @@ import com.fsd.order.entity.OrderEntity;
 import com.fsd.order.mapper.OrderMapper;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
+import com.fsd.vehicle.vo.VehicleAdminListItemResponse;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -55,6 +57,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     private final VehicleMapper vehicleMapper;
     private final FleetRuntimeService fleetRuntimeService;
     private final ParkMapper parkMapper;
+    private final AdminParkScopeService adminParkScopeService;
 
     public AnalyticsAdminServiceImpl(OrderMapper orderMapper,
                                      DispatchTaskMapper dispatchTaskMapper,
@@ -63,7 +66,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                                      ChargingPileMapper chargingPileMapper,
                                      VehicleMapper vehicleMapper,
                                      FleetRuntimeService fleetRuntimeService,
-                                     ParkMapper parkMapper) {
+                                     ParkMapper parkMapper,
+                                     AdminParkScopeService adminParkScopeService) {
         this.orderMapper = orderMapper;
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.exceptionRecordMapper = exceptionRecordMapper;
@@ -72,14 +76,15 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         this.vehicleMapper = vehicleMapper;
         this.fleetRuntimeService = fleetRuntimeService;
         this.parkMapper = parkMapper;
+        this.adminParkScopeService = adminParkScopeService;
     }
 
     @Override
-    public AdminAnalyticsEfficiencyResponse getEfficiency(String period) {
+    public AdminAnalyticsEfficiencyResponse getEfficiency(String period, Long parkId) {
         String normalized = normalizePeriod(period);
         LocalDateTime start = rangeStart(normalized);
-        List<OrderEntity> orders = loadOrdersSince(start);
-        List<DispatchTaskEntity> tasks = loadTasksSince(start);
+        List<OrderEntity> orders = filterOrdersByPark(loadOrdersSince(start), parkId);
+        List<DispatchTaskEntity> tasks = filterTasksByPark(loadTasksSince(start), parkId);
 
         List<AdminAnalyticsTrendPoint> trend = buildOrderTrend(orders, normalized, start);
         double avgDuration = tasks.stream()
@@ -90,9 +95,12 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 .orElse(0D);
 
         long busyTasks = tasks.stream().filter(task -> "EXECUTING".equals(task.getStatus())).count();
-        long onlineVehicles = vehicleMapper.selectCount(new LambdaQueryWrapper<VehicleEntity>()
-                .eq(VehicleEntity::getDeleted, 0)
-                .eq(VehicleEntity::getOnlineStatus, "ONLINE"));
+        long onlineVehicles = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
+                        .eq(VehicleEntity::getDeleted, 0)
+                        .eq(VehicleEntity::getOnlineStatus, "ONLINE"))
+                .stream()
+                .filter(vehicle -> matchesVehicleEntityPark(vehicle, parkId))
+                .count();
         double utilization = onlineVehicles <= 0 ? 0D : (double) busyTasks / onlineVehicles;
 
         List<AdminAnalyticsHourlyPoint> peakHours = buildPeakHours(orders, tasks);
@@ -107,13 +115,16 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     }
 
     @Override
-    public AdminAnalyticsExceptionResponse getExceptionAnalysis(String period) {
+    public AdminAnalyticsExceptionResponse getExceptionAnalysis(String period, Long parkId) {
         String normalized = normalizePeriod(period);
         LocalDateTime start = rangeStart(normalized);
         List<DispatchExceptionRecordEntity> exceptions = exceptionRecordMapper.selectList(
-                new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
-                        .ge(DispatchExceptionRecordEntity::getOccurTime, start)
-                        .orderByAsc(DispatchExceptionRecordEntity::getOccurTime));
+                        new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
+                                .ge(DispatchExceptionRecordEntity::getOccurTime, start)
+                                .orderByAsc(DispatchExceptionRecordEntity::getOccurTime))
+                .stream()
+                .filter(item -> adminParkScopeService.matchesOrder(item.getOrderId(), parkId))
+                .toList();
 
         long total = exceptions.size();
         List<AdminAnalyticsTypeCount> typeDistribution = exceptions.stream()
@@ -147,7 +158,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     }
 
     @Override
-    public AdminAnalyticsDailySummaryResponse getDailySummary(LocalDate date) {
+    public AdminAnalyticsDailySummaryResponse getDailySummary(LocalDate date, Long parkId) {
         LocalDate target = date == null ? LocalDate.now() : date;
         LocalDateTime dayStart = target.atStartOfDay();
         LocalDateTime dayEnd = target.plusDays(1).atStartOfDay();
@@ -155,16 +166,18 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         LocalDateTime weekStart = target.minusDays(7).atStartOfDay();
         LocalDateTime weekEnd = target.minusDays(6).atStartOfDay();
 
-        List<OrderEntity> todayOrders = loadOrdersBetween(dayStart, dayEnd);
-        List<OrderEntity> yesterdayOrders = loadOrdersBetween(prevStart, dayStart);
-        List<OrderEntity> weekAgoOrders = loadOrdersBetween(weekStart, weekEnd);
+        List<OrderEntity> todayOrders = filterOrdersByPark(loadOrdersBetween(dayStart, dayEnd), parkId);
+        List<OrderEntity> yesterdayOrders = filterOrdersByPark(loadOrdersBetween(prevStart, dayStart), parkId);
+        List<OrderEntity> weekAgoOrders = filterOrdersByPark(loadOrdersBetween(weekStart, weekEnd), parkId);
 
         long orderTotal = todayOrders.size();
         long orderCompleted = todayOrders.stream().filter(o -> "COMPLETED".equals(o.getStatus())).count();
-        List<DispatchTaskEntity> todayTasks = loadTasksBetween(dayStart, dayEnd);
+        List<DispatchTaskEntity> todayTasks = filterTasksByPark(loadTasksBetween(dayStart, dayEnd), parkId);
         long taskSuccess = todayTasks.stream().filter(t -> "SUCCESS".equals(t.getStatus())).count();
 
-        List<DispatchExceptionRecordEntity> todayExceptions = loadExceptionsBetween(dayStart, dayEnd);
+        List<DispatchExceptionRecordEntity> todayExceptions = loadExceptionsBetween(dayStart, dayEnd).stream()
+                .filter(item -> adminParkScopeService.matchesOrder(item.getOrderId(), parkId))
+                .toList();
         long openCount = todayExceptions.stream().filter(e -> "OPEN".equals(e.getExceptionStatus())).count();
         long resolvedCount = todayExceptions.stream().filter(e -> !"OPEN".equals(e.getExceptionStatus())).count();
 
@@ -534,6 +547,37 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 .map(OrderEntity::getParkId)
                 .findFirst()
                 .orElse(null);
+    }
+
+    private List<OrderEntity> filterOrdersByPark(List<OrderEntity> orders, Long parkId) {
+        if (parkId == null) {
+            return orders;
+        }
+        return orders.stream()
+                .filter(order -> parkId.equals(order.getParkId()))
+                .toList();
+    }
+
+    private List<DispatchTaskEntity> filterTasksByPark(List<DispatchTaskEntity> tasks, Long parkId) {
+        if (parkId == null) {
+            return tasks;
+        }
+        return tasks.stream()
+                .filter(task -> adminParkScopeService.matchesOrder(task.getOrderId(), parkId))
+                .toList();
+    }
+
+    private boolean matchesVehicleEntityPark(VehicleEntity vehicle, Long parkId) {
+        if (parkId == null) {
+            return true;
+        }
+        return adminParkScopeService.matchesVehicle(
+                VehicleAdminListItemResponse.builder()
+                        .vehicleId(vehicle.getId())
+                        .currentOrderId(vehicle.getCurrentOrderId())
+                        .currentTaskId(vehicle.getCurrentTaskId())
+                        .build(),
+                parkId);
     }
 
     private double round1(double value) {

@@ -16,6 +16,7 @@ import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
+import com.fsd.dispatch.service.TrafficZoneControlService;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.order.entity.OrderEntity;
@@ -43,6 +44,8 @@ class DispatchVehicleAssignServiceImplTest {
     private FleetRuntimeService fleetRuntimeService;
     @Mock
     private DispatchStrategyRuntimeService strategyRuntimeService;
+    @Mock
+    private TrafficZoneControlService trafficZoneControlService;
 
     private DispatchVehicleAssignServiceImpl assignService;
 
@@ -52,12 +55,14 @@ class DispatchVehicleAssignServiceImplTest {
         DispatchScoringProperties scoring = new DispatchScoringProperties();
         lenient().when(strategyRuntimeService.energyForAssign(any())).thenReturn(energy);
         lenient().when(strategyRuntimeService.scoringForAssign(any())).thenReturn(scoring);
+        lenient().when(trafficZoneControlService.isPointInPausedZone(any(), any(), any())).thenReturn(false);
         assignService = new DispatchVehicleAssignServiceImpl(
                 vehicleService,
                 parkStationService,
                 parkRoutePlannerService,
                 strategyRuntimeService,
-                fleetRuntimeService);
+                fleetRuntimeService,
+                trafficZoneControlService);
     }
 
     @Test

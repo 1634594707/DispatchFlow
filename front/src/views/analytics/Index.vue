@@ -81,7 +81,7 @@
           </ul>
         </section>
 
-        <section class="panel">
+        <section v-if="parkScope.selectedParkId == null" class="panel">
           <h3>跨园区对比</h3>
           <a-table
             v-if="parkCompare.length > 0"
@@ -113,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageContainer from '@/components/common/PageContainer.vue'
 import TrendBarChart from '@/components/analytics/TrendBarChart.vue'
@@ -131,10 +131,12 @@ import type {
   AnalyticsParkCompareItem,
 } from '@/types/analytics'
 import { useAuthStore } from '@/stores/auth'
+import { useParkScopeStore } from '@/stores/parkScope'
 import { ADMIN_AUTH_ENABLED } from '@/config'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const parkScope = useParkScopeStore()
 const period = ref<'day' | 'week' | 'month'>('week')
 const loading = ref(false)
 const efficiency = ref<AnalyticsEfficiency | null>(null)
@@ -169,29 +171,46 @@ function rateClass(value?: number) {
 async function loadAll() {
   loading.value = true
   try {
-    const [effRes, excRes, summaryRes, parkRes] = await Promise.all([
-      getAnalyticsEfficiency(period.value),
-      getAnalyticsExceptions(period.value),
-      getAnalyticsDailySummary(),
-      getAnalyticsParkComparison(period.value),
-    ])
-    efficiency.value = effRes.data
-    exceptionAnalysis.value = excRes.data
-    dailySummary.value = summaryRes.data
-    parkCompare.value = parkRes.data
+    const parkId = parkScope.selectedParkId
+    const requests = [
+      getAnalyticsEfficiency(period.value, parkId),
+      getAnalyticsExceptions(period.value, parkId),
+      getAnalyticsDailySummary(undefined, parkId),
+    ] as const
+    if (parkId == null) {
+      const [effRes, excRes, summaryRes, parkRes] = await Promise.all([
+        ...requests,
+        getAnalyticsParkComparison(period.value),
+      ])
+      efficiency.value = effRes.data
+      exceptionAnalysis.value = excRes.data
+      dailySummary.value = summaryRes.data
+      parkCompare.value = parkRes.data
+    } else {
+      const [effRes, excRes, summaryRes] = await Promise.all(requests)
+      efficiency.value = effRes.data
+      exceptionAnalysis.value = excRes.data
+      dailySummary.value = summaryRes.data
+      parkCompare.value = []
+    }
   } finally {
     loading.value = false
   }
 }
 
 function handleExport({ key }: { key: string }) {
-  const url = getAnalyticsExportUrl(key, period.value)
+  const url = getAnalyticsExportUrl(key, period.value, parkScope.selectedParkId)
   const tokenQuery =
     ADMIN_AUTH_ENABLED && authStore.token ? `${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(authStore.token)}` : ''
   window.open(`${url}${tokenQuery}`, '_blank')
 }
 
 onMounted(loadAll)
+
+watch(
+  () => parkScope.scopeVersion,
+  () => loadAll(),
+)
 </script>
 
 <style scoped lang="less">

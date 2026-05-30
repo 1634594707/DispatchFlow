@@ -33,6 +33,7 @@
           </div>
           <p class="header-sub">
             {{ activeParkName }} · {{ currentTime }}
+            <span class="mode-placeholder">· 模式：生产（高峰模式 Phase 14）</span>
             <span v-if="streamConnected && lastStreamLatencyMs != null" class="stream-latency">
               · 推送延迟 {{ formatStreamLatency(lastStreamLatencyMs) }}
             </span>
@@ -40,19 +41,10 @@
         </header>
 
         <div class="panel-toolbar">
-          <label class="toolbar-field">
+          <div class="toolbar-field toolbar-field-readonly">
             <span class="toolbar-label">园区</span>
-            <a-select
-              v-model:value="selectedParkId"
-              class="park-select"
-              popup-class-name="park-select-dropdown"
-              size="small"
-              :loading="loadingParks"
-              :options="parkOptions"
-              placeholder="选择园区"
-              @change="handleParkChange"
-            />
-          </label>
+            <span class="park-scope-label">{{ activeParkName }}</span>
+          </div>
         </div>
 
         <div class="stat-strip">
@@ -260,8 +252,9 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import StatusBadge from '@/components/common/StatusBadge.vue'
-import { getParkLayout, getParkOrders, getParkVehicles, listParks } from '@/api/park'
+import { getParkLayout, getParkOrders, getParkVehicles } from '@/api/park'
 import { getFleetTelemetryStreamUrl } from '@/api/dispatch'
+import { useParkScopeStore } from '@/stores/parkScope'
 import { createSSEClient } from '@/utils/sseClient'
 import type { SSEClient } from '@/types/stream'
 import type {
@@ -269,12 +262,13 @@ import type {
   ParkOrderSnapshot,
   ParkPoint,
   ParkStation,
-  ParkSummary,
   ParkVehicleSnapshot,
 } from '@/types/park'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
+
+const parkScope = useParkScopeStore()
 
 const mapContainer = ref<HTMLElement>()
 const panelCollapsed = ref(false)
@@ -286,9 +280,6 @@ const currentTime = ref(dayjs().format('HH:mm:ss'))
 const vehicles = ref<ParkVehicleSnapshot[]>([])
 const parkOrders = ref<ParkOrderSnapshot[]>([])
 const parkLayout = ref<ParkLayout | null>(null)
-const parks = ref<ParkSummary[]>([])
-const selectedParkId = ref<number | undefined>()
-const loadingParks = ref(false)
 const apiError = ref('')
 const backendOnline = ref(false)
 const streamConnected = ref(false)
@@ -297,15 +288,13 @@ const lastStreamLatencyMs = ref<number | null>(null)
 let sseClient: SSEClient | null = null
 let fallbackPollTimer: ReturnType<typeof setInterval> | null = null
 
-const parkOptions = computed(() =>
-  parks.value.map(park => ({
-    value: park.parkId,
-    label: park.parkName,
-  })),
-)
+const effectiveParkId = computed(() => parkScope.resolveLayoutParkId())
 
 const activeParkName = computed(() => {
-  const park = parks.value.find(item => item.parkId === selectedParkId.value)
+  if (parkScope.selectedParkId != null) {
+    return parkScope.selectedParkName
+  }
+  const park = parkScope.parks.find((item) => item.parkId === effectiveParkId.value)
   return park?.parkName || parkLayout.value?.parkName || '默认园区'
 })
 
@@ -702,23 +691,10 @@ function focusVehicle(vehicle: ParkVehicleSnapshot) {
   map?.flyTo(toLatLng(vehicle.x, vehicle.y), 2, { duration: 0.8 })
 }
 
-async function fetchParks() {
-  loadingParks.value = true
-  try {
-    const response = await listParks()
-    parks.value = response.data || []
-    if (!selectedParkId.value) {
-      const defaultPark = parks.value.find(p => p.defaultPark) || parks.value[0]
-      selectedParkId.value = defaultPark?.parkId
-    }
-  } finally {
-    loadingParks.value = false
-  }
-}
-
 async function fetchLayout() {
-  if (!selectedParkId.value) return
-  const response = await getParkLayout(selectedParkId.value)
+  const parkId = effectiveParkId.value
+  if (!parkId) return
+  const response = await getParkLayout(parkId)
   parkLayout.value = response.data
   loadParkImage()
   drawStations()
@@ -738,7 +714,8 @@ function formatStreamLatency(ms: number) {
 }
 
 function applyStreamPayload(data: { ts?: string; vehicles?: ParkVehicleSnapshot[]; parkId?: number }) {
-  if (data.parkId != null && selectedParkId.value != null && data.parkId !== selectedParkId.value) {
+  const layoutParkId = effectiveParkId.value
+  if (data.parkId != null && layoutParkId != null && data.parkId !== layoutParkId) {
     return
   }
   if (data.ts) {
@@ -763,7 +740,7 @@ function initSSEStream() {
     sseClient.stop()
   }
 
-  const streamUrl = getFleetTelemetryStreamUrl(selectedParkId.value)
+  const streamUrl = getFleetTelemetryStreamUrl(effectiveParkId.value)
 
   sseClient = createSSEClient({
     url: streamUrl,
@@ -814,7 +791,10 @@ async function fetchOrders() {
 async function bootstrapData() {
   apiError.value = ''
   try {
-    await fetchParks()
+    if (parkScope.parks.length === 0) {
+      await parkScope.loadParks()
+    }
+    parkScope.ensureValidSelection()
     await fetchLayout()
     await Promise.all([fetchVehicles(), fetchOrders()])
     backendOnline.value = true
@@ -853,11 +833,12 @@ watch(filteredVehicles, () => {
   updateVehicleMarkers()
 })
 
-watch(selectedParkId, (parkId) => {
-  if (parkId != null) {
-    initSSEStream()
-  }
-})
+watch(
+  () => parkScope.scopeVersion,
+  async () => {
+    await handleParkChange()
+  },
+)
 
 onMounted(async () => {
   initMap()

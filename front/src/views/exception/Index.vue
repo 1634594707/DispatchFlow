@@ -84,7 +84,7 @@
         <template v-else-if="column.dataIndex === 'action'">
           <div class="action-cell">
             <a-button
-              v-if="record.exceptionStatus === 'OPEN'"
+              v-if="authStore.canWrite && record.exceptionStatus === 'OPEN'"
               type="link"
               size="small"
               @click="openResolveDrawer(record)"
@@ -176,13 +176,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useExceptionStore } from '@/stores/exception'
+import { useParkScopeStore } from '@/stores/parkScope'
+import { useAuthStore } from '@/stores/auth'
 import { exceptionTypeMap, exceptionStatusMap } from '@/constants/statusMap'
 import type { ExceptionStatus, ExceptionType } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
@@ -192,6 +194,8 @@ import type { ExceptionAdminListItem } from '@/types/exception'
 const router = useRouter()
 const route = useRoute()
 const store = useExceptionStore()
+const parkScope = useParkScopeStore()
+const authStore = useAuthStore()
 
 const queryForm = reactive({
   exceptionType: undefined as string | undefined,
@@ -236,6 +240,7 @@ function fetchData() {
   store.fetchList({
     ...queryForm,
     exceptionType: queryForm.exceptionType as ExceptionType | undefined,
+    parkId: parkScope.selectedParkId,
     pageNo: pageNo.value,
     pageSize: pageSize.value,
   })
@@ -314,6 +319,14 @@ onMounted(() => {
   }
   fetchData()
 })
+
+watch(
+  () => parkScope.scopeVersion,
+  () => {
+    pageNo.value = 1
+    fetchData()
+  },
+)
 </script>
 
 <style scoped lang="less">

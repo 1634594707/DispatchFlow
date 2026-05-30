@@ -15,6 +15,8 @@ public class AdminExceptionQueryRequest {
 
     private Long vehicleId;
 
+    private Long parkId;
+
     /** 按关联任务状态过滤，如 MANUAL_PENDING */
     private String taskStatus;
 

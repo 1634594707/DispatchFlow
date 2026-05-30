@@ -10,11 +10,11 @@ import java.util.List;
 
 public interface AnalyticsAdminService {
 
-    AdminAnalyticsEfficiencyResponse getEfficiency(String period);
+    AdminAnalyticsEfficiencyResponse getEfficiency(String period, Long parkId);
 
-    AdminAnalyticsExceptionResponse getExceptionAnalysis(String period);
+    AdminAnalyticsExceptionResponse getExceptionAnalysis(String period, Long parkId);
 
-    AdminAnalyticsDailySummaryResponse getDailySummary(LocalDate date);
+    AdminAnalyticsDailySummaryResponse getDailySummary(LocalDate date, Long parkId);
 
     AdminAnalyticsChargingOverviewResponse getChargingOverview();
 

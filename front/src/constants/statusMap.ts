@@ -56,7 +56,11 @@ export const exceptionStatusMap: Record<ExceptionStatus, StatusConfig> = {
 
 export const DISPATCH_FAIL_REASON: Record<string, string> = {
   NO_VEHICLE: '无可用车辆',
+  NO_IDLE_VEHICLE: '无在线空闲车辆',
   LOW_SOC: '电量不足',
+  LOW_BATTERY: '电量不足',
   UNREACHABLE: '取货点不可达',
+  ROUTE_BLOCKED: '路网不可达或路段管制',
+  HUB_CAPACITY_FULL: '枢纽容量已满',
   CONFLICT: '占车/占桩冲突',
 }

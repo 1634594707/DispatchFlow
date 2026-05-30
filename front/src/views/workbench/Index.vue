@@ -37,15 +37,39 @@
         </div>
       </div>
       <a-button :loading="store.loading" @click="refreshAll">
-        <ReloadOutlined /> 刷新
+        <ReloadOutlined /> 刷新 <span class="kbd-hint">R</span>
       </a-button>
+      <span class="shortcut-hint">快捷键：R 刷新 · A 自动派车 · M 手动派车 · ↑↓ 切换任务</span>
+      <router-link
+        v-if="trafficSummary"
+        class="congestion-bar"
+        :class="congestionBarClass"
+        to="/infrastructure/traffic"
+      >
+        拥堵 L{{ trafficSummary.maxCongestionLevel }}
+        <span v-if="trafficSummary.highCongestionSegmentCount > 0">
+          · {{ trafficSummary.highCongestionSegmentCount }} 条高拥堵
+        </span>
+        <span v-if="trafficSummary.pausedZoneCount > 0">
+          · {{ trafficSummary.pausedZoneCount }} 个管制区
+        </span>
+      </router-link>
     </header>
+
+    <a-alert
+      v-if="!authStore.canWrite"
+      type="info"
+      show-icon
+      class="viewer-readonly-banner"
+      message="当前为只读账号（VIEWER），无法执行派车、改派或异常处置操作"
+    />
 
     <div class="workbench-grid">
       <!-- 左：任务池 -->
       <section class="panel panel-tasks">
         <div class="panel-head">
           <h2>任务池</h2>
+          <span class="panel-order-hint">拖动排序仅在本浏览器有效</span>
           <div class="filter-tabs">
             <button
               v-for="tab in taskTabs"
@@ -59,7 +83,7 @@
             </button>
           </div>
         </div>
-        <div v-if="selectedTaskIds.length > 0" class="batch-toolbar">
+        <div v-if="authStore.canWrite && selectedTaskIds.length > 0" class="batch-toolbar">
           <span class="batch-hint">已选 {{ selectedTaskIds.length }} 项</span>
           <a-button size="small" type="primary" :loading="batchLoading" @click="handleBatchAuto">
             批量自动派车
@@ -81,7 +105,7 @@
               @drop="onTaskDrop(task.taskId)"
               @click="store.selectTask(task.taskId)"
             >
-              <label class="task-check" @click.stop>
+              <label v-if="authStore.canWrite" class="task-check" @click.stop>
                 <input
                   type="checkbox"
                   :checked="selectedTaskIds.includes(task.taskId)"
@@ -103,7 +127,22 @@
                 </span>
               </div>
               <p v-if="taskFailLabel(task)" class="task-reason">{{ taskFailLabel(task) }}</p>
-              <div class="task-actions" @click.stop>
+              <div v-if="task.failReasonCode" class="task-fail-detail">
+                <ul v-if="taskFailSuggestions(task).length" class="fail-suggestions">
+                  <li v-for="(s, i) in taskFailSuggestions(task)" :key="i">{{ s }}</li>
+                </ul>
+                <div class="fail-links">
+                  <router-link
+                    v-for="link in taskFailLinks(task)"
+                    :key="link.path"
+                    :to="link.path"
+                    class="fail-link"
+                  >
+                    {{ link.label }}
+                  </router-link>
+                </div>
+              </div>
+              <div v-if="authStore.canWrite" class="task-actions" @click.stop>
                 <a-button
                   size="small"
                   type="primary"
@@ -161,7 +200,7 @@
                 任务 {{ item.taskNo || `#${item.taskId}` }}
                 <StatusBadge v-if="item.taskStatus" :status="item.taskStatus" type="task" />
               </div>
-              <div class="exception-actions" @click.stop>
+              <div v-if="authStore.canWrite" class="exception-actions" @click.stop>
                 <a-button
                   size="small"
                   type="primary"
@@ -261,18 +300,31 @@
         :pagination="false"
         row-key="taskId"
         :data-source="batchResult?.results || []"
-        :columns="[
-          { title: '任务', dataIndex: 'taskNo', key: 'taskNo' },
-          { title: '状态', dataIndex: 'status', key: 'status' },
-          { title: '说明', dataIndex: 'message', key: 'message' },
-        ]"
-      />
+        :columns="batchResultColumns"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'success'">
+            <a-tag :color="record.success ? 'success' : 'error'">{{ record.success ? '成功' : '失败' }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'detail'">
+            <div v-if="!record.success" class="batch-fail-detail">
+              <strong>{{ record.reasonMessage || record.message }}</strong>
+              <ul v-if="record.suggestions?.length">
+                <li v-for="(s, i) in record.suggestions" :key="i">{{ s }}</li>
+              </ul>
+            </div>
+            <span v-else>{{ record.message || '-' }}</span>
+          </template>
+        </template>
+      </a-table>
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { useWorkbenchShortcuts } from '@/composables/useWorkbenchShortcuts'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
@@ -281,16 +333,31 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ParkMiniMap from '@/components/workbench/ParkMiniMap.vue'
 import { useWorkbenchStore } from '@/stores/workbench'
+import { useAuthStore } from '@/stores/auth'
+import { useParkScopeStore } from '@/stores/parkScope'
 import { queryVehicles } from '@/api/vehicle'
+import { fetchTrafficSummary } from '@/api/traffic'
 import { batchAutoAssign, batchCancelTasks, batchReassignTasks, bumpTaskPriority } from '@/api/task'
-import { exceptionTypeMap, DISPATCH_FAIL_REASON } from '@/constants/statusMap'
+import { exceptionTypeMap } from '@/constants/statusMap'
+import {
+  explainFromAssignResponse,
+  failActionLinks,
+  failReasonLabel,
+  normalizeFailCode,
+} from '@/constants/dispatchFail'
 import type { BatchTaskResult } from '@/types/operateLog'
+import type { TrafficSummary } from '@/types/traffic'
 import { DispatchStatus, TaskStatus } from '@/constants/enums'
 import type { TaskAdminListItem } from '@/types/task'
 import type { ExceptionAdminListItem } from '@/types/exception'
 
 const router = useRouter()
+const route = useRoute()
 const store = useWorkbenchStore()
+const authStore = useAuthStore()
+const parkScope = useParkScopeStore()
+const workbenchShortcutsEnabled = computed(() => route.path === '/workbench')
+const trafficSummary = ref<TrafficSummary | null>(null)
 const draggingTaskId = ref<number | null>(null)
 
 const parkLayout = computed(() => store.parkLayout)
@@ -316,6 +383,20 @@ const batchReassignVisible = ref(false)
 const batchReassignVehicleId = ref<number | undefined>()
 const batchResultVisible = ref(false)
 const batchResult = ref<BatchTaskResult | null>(null)
+
+const batchResultColumns = [
+  { title: '任务', dataIndex: 'taskNo', key: 'taskNo', width: 120 },
+  { title: '结果', key: 'success', width: 72 },
+  { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
+  { title: '说明', key: 'detail' },
+]
+
+const congestionBarClass = computed(() => {
+  const level = trafficSummary.value?.maxCongestionLevel ?? 0
+  if (level >= 3) return 'congestion-critical'
+  if (level >= 2) return 'congestion-warn'
+  return 'congestion-ok'
+})
 
 const assignableVehicleOptions = computed(() =>
   assignableVehicles.value.map((v) => ({
@@ -345,10 +426,22 @@ function dispatchLabel(status: string) {
 }
 
 function taskFailLabel(task: TaskAdminListItem) {
-  if (task.failReasonCode && DISPATCH_FAIL_REASON[task.failReasonCode]) {
-    return DISPATCH_FAIL_REASON[task.failReasonCode]
+  return failReasonLabel(task.failReasonCode, task.failReasonMsg)
+}
+
+function taskFailSuggestions(task: TaskAdminListItem) {
+  const code = normalizeFailCode(task.failReasonCode)
+  const defaults: Record<string, string[]> = {
+    NO_IDLE_VEHICLE: ['检查在线空闲车辆', '尝试手动派车'],
+    LOW_BATTERY: ['引导车辆充电', '降低 SOC 阈值或等待'],
+    ROUTE_BLOCKED: ['检查禁用路段与管制区', '确认取货点可达'],
+    HUB_CAPACITY_FULL: ['枢纽容量已满（预留）'],
   }
-  return task.failReasonMsg || ''
+  return defaults[code] || []
+}
+
+function taskFailLinks(task: TaskAdminListItem) {
+  return failActionLinks(task.failReasonCode)
 }
 
 function filterVehicle(input: string, option: { value: number }) {
@@ -399,7 +492,21 @@ async function loadAssignableVehicles() {
 }
 
 async function refreshAll() {
-  await store.fetchQueue()
+  await Promise.all([store.fetchQueue(), loadTrafficSummary()])
+}
+
+async function loadTrafficSummary() {
+  const parkId = parkScope.resolveLayoutParkId()
+  if (!parkId) {
+    trafficSummary.value = null
+    return
+  }
+  try {
+    const res = await fetchTrafficSummary(parkId)
+    trafficSummary.value = res.data
+  } catch {
+    trafficSummary.value = null
+  }
 }
 
 async function handleAutoAssign(task: TaskAdminListItem) {
@@ -416,9 +523,8 @@ async function handleAutoAssign(task: TaskAdminListItem) {
       else if (score != null) msg += `（评分 ${score.toFixed(1)}）`
       message.success(msg, 5)
     } else {
-      const failCode = result.failReasonCode
-      const failMsg = failCode ? DISPATCH_FAIL_REASON[failCode] : null
-      message.error(failMsg || result.message || '自动派车失败，请人工处理', 5)
+      const explained = explainFromAssignResponse(result)
+      message.error(`${explained.reasonMessage}${explained.suggestions.length ? ' · ' + explained.suggestions[0] : ''}`, 6)
     }
   } catch {
     // interceptor handles
@@ -538,9 +644,8 @@ async function handleExceptionReassign(item: ExceptionAdminListItem) {
       if (explanation) msg += `：${explanation}`
       message.success(msg, 5)
     } else {
-      const failCode = result.failReasonCode
-      const failMsg = failCode ? DISPATCH_FAIL_REASON[failCode] : null
-      message.error(failMsg || result.message || '重新派车失败', 5)
+      const explained = explainFromAssignResponse(result)
+      message.error(explained.reasonMessage || '重新派车失败', 5)
     }
   } catch {
     // interceptor handles
@@ -593,8 +698,38 @@ async function handleExceptionResolve(item: ExceptionAdminListItem, action: 'MAR
   }
 }
 
+function moveTaskSelection(delta: number) {
+  const pool = store.taskPool
+  if (pool.length === 0) return
+  const currentIndex = pool.findIndex((t) => t.taskId === store.selectedTaskId)
+  const nextIndex = currentIndex < 0
+    ? (delta > 0 ? 0 : pool.length - 1)
+    : (currentIndex + delta + pool.length) % pool.length
+  store.selectTask(pool[nextIndex].taskId)
+}
+
+useWorkbenchShortcuts(workbenchShortcutsEnabled, {
+  refresh: refreshAll,
+  autoAssignSelected: async () => {
+    const taskId = store.selectedTaskId
+    const task = store.taskPool.find((t) => t.taskId === taskId)
+    if (task) {
+      await handleAutoAssign(task)
+    }
+  },
+  openManualAssign: () => {
+    const task = store.taskPool.find((t) => t.taskId === store.selectedTaskId)
+    if (task) openManualModal(task)
+  },
+  moveSelection: moveTaskSelection,
+})
+
 onMounted(() => {
   refreshAll()
+})
+
+watch(() => parkScope.scopeVersion, () => {
+  loadTrafficSummary()
 })
 </script>
 
@@ -606,6 +741,20 @@ onMounted(() => {
   min-height: calc(100vh - 112px);
 }
 
+.shortcut-hint {
+  font-size: 12px;
+  color: #8c9bab;
+  margin-left: 8px;
+}
+
+.kbd-hint {
+  margin-left: 4px;
+  font-size: 10px;
+  border: 1px solid #d7e0e8;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
 .workbench-header {
   display: flex;
   align-items: center;
@@ -614,6 +763,78 @@ onMounted(() => {
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(0, 119, 182, 0.12) 0%, rgba(13, 17, 23, 0.95) 55%);
   border: 1px solid var(--fsd-border);
+}
+
+.viewer-readonly-banner {
+  margin-bottom: 16px;
+}
+
+.congestion-bar {
+  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--fsd-border);
+  white-space: nowrap;
+
+  &.congestion-ok {
+    color: #00e676;
+    background: rgba(0, 230, 118, 0.08);
+  }
+
+  &.congestion-warn {
+    color: #ffb703;
+    background: rgba(255, 183, 3, 0.1);
+  }
+
+  &.congestion-critical {
+    color: #ff3d71;
+    background: rgba(255, 61, 113, 0.12);
+  }
+}
+
+.panel-order-hint {
+  font-size: 11px;
+  color: var(--fsd-text-tertiary);
+  margin-right: auto;
+}
+
+.task-fail-detail {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 61, 113, 0.06);
+  border: 1px dashed rgba(255, 61, 113, 0.25);
+}
+
+.fail-suggestions {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
+}
+
+.fail-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fail-link {
+  font-size: 12px;
+  color: var(--fsd-accent);
+}
+
+.batch-fail-detail {
+  font-size: 12px;
+
+  ul {
+    margin: 4px 0 0;
+    padding-left: 16px;
+    color: var(--fsd-text-secondary);
+  }
 }
 
 .header-main {

@@ -8,21 +8,25 @@ import type {
   AnalyticsParkCompareItem,
 } from '@/types/analytics'
 
-export function getAnalyticsEfficiency(period: 'day' | 'week' | 'month' = 'week') {
+function parkParams(parkId?: number | null) {
+  return parkId != null && Number.isFinite(parkId) && parkId > 0 ? { parkId } : undefined
+}
+
+export function getAnalyticsEfficiency(period: 'day' | 'week' | 'month' = 'week', parkId?: number | null) {
   return request.get<any, ApiResponse<AnalyticsEfficiency>>('/admin/analytics/efficiency', {
-    params: { period },
+    params: { period, ...parkParams(parkId) },
   })
 }
 
-export function getAnalyticsExceptions(period: 'day' | 'week' | 'month' = 'week') {
+export function getAnalyticsExceptions(period: 'day' | 'week' | 'month' = 'week', parkId?: number | null) {
   return request.get<any, ApiResponse<AnalyticsExceptionAnalysis>>('/admin/analytics/exceptions', {
-    params: { period },
+    params: { period, ...parkParams(parkId) },
   })
 }
 
-export function getAnalyticsDailySummary(date?: string) {
+export function getAnalyticsDailySummary(date?: string, parkId?: number | null) {
   return request.get<any, ApiResponse<AnalyticsDailySummary>>('/admin/analytics/daily-summary', {
-    params: date ? { date } : undefined,
+    params: date ? { date, ...parkParams(parkId) } : parkParams(parkId),
   })
 }
 
@@ -36,7 +40,8 @@ export function getAnalyticsParkComparison(period: 'day' | 'week' | 'month' = 'w
   })
 }
 
-export function getAnalyticsExportUrl(dataset: string, period = 'week') {
+export function getAnalyticsExportUrl(dataset: string, period = 'week', parkId?: number | null) {
   const base = import.meta.env.VITE_API_BASE_URL || ''
-  return `${base}/api/admin/analytics/export/csv?dataset=${encodeURIComponent(dataset)}&period=${encodeURIComponent(period)}`
+  const parkQuery = parkId != null && Number.isFinite(parkId) && parkId > 0 ? `&parkId=${parkId}` : ''
+  return `${base}/api/admin/analytics/export/csv?dataset=${encodeURIComponent(dataset)}&period=${encodeURIComponent(period)}${parkQuery}`
 }

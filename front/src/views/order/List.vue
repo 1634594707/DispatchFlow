@@ -75,7 +75,7 @@
               查看
             </a-button>
             <a-popconfirm
-              v-if="canCancel(record.status)"
+              v-if="authStore.canWrite && canCancel(record.status)"
               title="确认取消该订单？"
               ok-text="确认"
               cancel-text="取消"
@@ -91,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons-vue'
@@ -99,6 +99,7 @@ import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useOrderStore } from '@/stores/order'
 import { useParkScopeStore } from '@/stores/parkScope'
+import { useAuthStore } from '@/stores/auth'
 import { orderStatusMap } from '@/constants/statusMap'
 import { OrderStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
@@ -109,6 +110,7 @@ const router = useRouter()
 const route = useRoute()
 const store = useOrderStore()
 const parkScope = useParkScopeStore()
+const authStore = useAuthStore()
 
 const queryForm = reactive({
   status: undefined as OrderStatus | undefined,
@@ -194,6 +196,14 @@ onMounted(() => {
   }
   fetchData()
 })
+
+watch(
+  () => parkScope.scopeVersion,
+  () => {
+    pageNo.value = 1
+    fetchData()
+  },
+)
 </script>
 
 <style scoped lang="less">

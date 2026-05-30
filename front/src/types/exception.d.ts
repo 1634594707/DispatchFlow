@@ -6,6 +6,7 @@ export interface ExceptionQueryRequest {
   taskNo?: string
   orderId?: number
   vehicleId?: number
+  parkId?: number
   taskStatus?: TaskStatus
   onlyManualPendingTask?: boolean
   pageNo: number

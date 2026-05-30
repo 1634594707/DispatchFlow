@@ -1,8 +1,10 @@
 import axios from 'axios'
 import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import { message } from 'ant-design-vue'
+import { getActivePinia } from 'pinia'
 import { API_BASE, REQUEST_TIMEOUT } from '@/config'
 import type { ApiResponse } from '@/types/api'
+import { useParkScopeStore } from '@/stores/parkScope'
 
 const TOKEN_KEY = 'fsd_admin_token'
 
@@ -35,6 +37,14 @@ instance.interceptors.response.use(
       return data as any
     }
     const errMsg = friendlyApiMessage(data.code, data.message)
+    if (data.code === 'PARK_NOT_FOUND') {
+      localStorage.removeItem('fsd_selected_park_id')
+      const pinia = getActivePinia()
+      if (pinia) {
+        useParkScopeStore(pinia).setParkId(undefined)
+      }
+      return Promise.reject(new Error('PARK_NOT_FOUND'))
+    }
     if (data.code === 'ADMIN_AUTH_REQUIRED' || data.code === 'ADMIN_AUTH_FAILED') {
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem('fsd_admin_user')
@@ -83,6 +93,8 @@ function friendlyApiMessage(code?: string, raw?: string): string {
   if (!raw) return '请求失败'
   if (code === 'ADMIN_AUTH_REQUIRED') return '请先登录'
   if (code === 'ADMIN_AUTH_FAILED') return '登录已失效，请重新登录'
+  if (code === 'ADMIN_FORBIDDEN') return '当前账号无写操作权限，请联系管理员'
+  if (code === 'PARK_NOT_FOUND') return '所选园区无效或已停用，已重置为全部园区'
   if (raw.includes('No static resource') || code === 'NOT_FOUND') {
     return '后端接口未找到，请在 back/fsd-bootstrap 目录执行 mvn spring-boot:run 并重启后端'
   }

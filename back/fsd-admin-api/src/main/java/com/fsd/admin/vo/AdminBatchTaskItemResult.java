@@ -1,5 +1,6 @@
 package com.fsd.admin.vo;
 
+import java.util.List;
 import lombok.Builder;
 import lombok.Data;
 
@@ -18,4 +19,10 @@ public class AdminBatchTaskItemResult {
     private String status;
 
     private Long vehicleId;
+
+    private String reasonCode;
+
+    private String reasonMessage;
+
+    private List<String> suggestions;
 }

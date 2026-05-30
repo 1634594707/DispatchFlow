@@ -4,6 +4,7 @@ import com.fsd.admin.dto.AdminBatchTaskRequest;
 import com.fsd.admin.service.BatchTaskAdminService;
 import com.fsd.admin.vo.AdminBatchTaskItemResult;
 import com.fsd.admin.vo.AdminBatchTaskResultResponse;
+import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
@@ -71,15 +72,22 @@ public class BatchTaskAdminServiceImpl implements BatchTaskAdminService {
             String taskNo = task != null ? task.getTaskNo() : String.valueOf(taskId);
             try {
                 DispatchTaskAssignResponse response = action.run(taskId);
-                results.add(AdminBatchTaskItemResult.builder()
+                boolean ok = isSuccessResponse(response);
+                AdminBatchTaskItemResult item = AdminBatchTaskItemResult.builder()
                         .taskId(taskId)
                         .taskNo(taskNo)
-                        .success(true)
+                        .success(ok)
                         .status(response.getStatus())
                         .vehicleId(response.getVehicleId())
-                        .message(response.getMessage())
-                        .build());
-                success++;
+                        .reasonCode(response.getReasonCode())
+                        .reasonMessage(response.getReasonMessage())
+                        .suggestions(response.getSuggestions())
+                        .message(ok ? response.getMessage() : firstNonBlank(response.getReasonMessage(), response.getMessage()))
+                        .build();
+                results.add(item);
+                if (ok) {
+                    success++;
+                }
             } catch (BusinessException ex) {
                 results.add(AdminBatchTaskItemResult.builder()
                         .taskId(taskId)
@@ -102,6 +110,21 @@ public class BatchTaskAdminServiceImpl implements BatchTaskAdminService {
                 .failureCount(taskIds.size() - success)
                 .results(results)
                 .build();
+    }
+
+    private boolean isSuccessResponse(DispatchTaskAssignResponse response) {
+        if (response == null || response.getStatus() == null) {
+            return false;
+        }
+        return DispatchTaskStatus.ASSIGNED.name().equals(response.getStatus())
+                || DispatchTaskStatus.EXECUTING.name().equals(response.getStatus());
+    }
+
+    private String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        return fallback;
     }
 
     @FunctionalInterface

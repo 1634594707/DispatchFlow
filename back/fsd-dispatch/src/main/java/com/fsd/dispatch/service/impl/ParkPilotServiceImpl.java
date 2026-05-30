@@ -81,6 +81,9 @@ public class ParkPilotServiceImpl implements ParkPilotService {
 
     @Override
     public ParkLayoutResponse getLayout(Long parkId) {
+        if (parkId == null) {
+            return getLayout();
+        }
         ParkEntity park = parkStationService.requirePark(parkId);
         return ParkLayoutResponse.builder()
                 .enabled(parkPilotProperties.isEnabled())

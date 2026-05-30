@@ -4,6 +4,7 @@ import com.fsd.admin.dto.AdminExceptionQueryRequest;
 import com.fsd.admin.dto.AdminOrderQueryRequest;
 import com.fsd.admin.dto.AdminTaskQueryRequest;
 import com.fsd.admin.dto.AdminVehicleQueryRequest;
+import com.fsd.admin.service.AdminParkScopeService;
 import com.fsd.admin.service.AdminQueryFacadeService;
 import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.model.PageResponse;
@@ -24,13 +25,16 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
     private final OrderAdminQueryService orderAdminQueryService;
     private final DispatchAdminQueryService dispatchAdminQueryService;
     private final VehicleAdminQueryService vehicleAdminQueryService;
+    private final AdminParkScopeService adminParkScopeService;
 
     public AdminQueryFacadeServiceImpl(OrderAdminQueryService orderAdminQueryService,
                                        DispatchAdminQueryService dispatchAdminQueryService,
-                                       VehicleAdminQueryService vehicleAdminQueryService) {
+                                       VehicleAdminQueryService vehicleAdminQueryService,
+                                       AdminParkScopeService adminParkScopeService) {
         this.orderAdminQueryService = orderAdminQueryService;
         this.dispatchAdminQueryService = dispatchAdminQueryService;
         this.vehicleAdminQueryService = vehicleAdminQueryService;
+        this.adminParkScopeService = adminParkScopeService;
     }
 
     @Override
@@ -78,6 +82,7 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
                 && equalsLong(task.getOrderId(), request.getOrderId())
                 && equalsLong(task.getVehicleId(), request.getVehicleId())
                 && equalsValue(task.getStatus(), request.getStatus())
+                && adminParkScopeService.matchesOrder(task.getOrderId(), request.getParkId())
                 && matchesManualFlag(task, request.getManualFlag())
                 && matchesOpenExceptionOnly(task, request.getWithOpenExceptionOnly());
     }
@@ -89,13 +94,15 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
                 && equalsValue(exception.getTaskStatus(), request.getTaskStatus())
                 && equalsLong(exception.getOrderId(), request.getOrderId())
                 && equalsLong(exception.getVehicleId(), request.getVehicleId())
+                && adminParkScopeService.matchesOrder(exception.getOrderId(), request.getParkId())
                 && matchesOnlyManualPendingTask(exception, request.getOnlyManualPendingTask());
     }
 
     private Predicate<VehicleAdminListItemResponse> matchVehicle(AdminVehicleQueryRequest request) {
         return vehicle -> contains(vehicle.getVehicleCode(), request.getVehicleCode())
                 && equalsValue(vehicle.getOnlineStatus(), request.getOnlineStatus())
-                && equalsValue(vehicle.getDispatchStatus(), request.getDispatchStatus());
+                && equalsValue(vehicle.getDispatchStatus(), request.getDispatchStatus())
+                && adminParkScopeService.matchesVehicle(vehicle, request.getParkId());
     }
 
     private boolean matchesManualFlag(DispatchTaskListItemResponse task, Boolean manualFlag) {

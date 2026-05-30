@@ -107,6 +107,14 @@
           <template #icon><ApiOutlined /></template>
           <span>外部集成</span>
         </a-menu-item>
+        <a-menu-item key="digital-twin">
+          <template #icon><DeploymentUnitOutlined /></template>
+          <span>数字孪生</span>
+        </a-menu-item>
+        <a-menu-item v-if="authStore.isAdmin" key="system-health">
+          <template #icon><HeartOutlined /></template>
+          <span>系统健康</span>
+        </a-menu-item>
       </a-menu>
     </a-layout-sider>
 
@@ -143,8 +151,18 @@
             :loading="parkScope.loading"
             @change="onParkScopeChange"
           />
+          <a-tooltip title="命令面板 (Ctrl+K)">
+            <a-button type="text" class="header-icon-btn" @click="commandPalette.open()">
+              <SearchOutlined />
+            </a-button>
+          </a-tooltip>
+          <a-tooltip title="调度快捷指令">
+            <a-button type="text" class="header-icon-btn" @click="assistantOpen = true">
+              <RobotOutlined />
+            </a-button>
+          </a-tooltip>
           <a-tooltip title="刷新数据">
-            <a-button type="text" class="header-icon-btn">
+            <a-button type="text" class="header-icon-btn" @click="refreshScopedData">
               <ReloadOutlined />
             </a-button>
           </a-tooltip>
@@ -232,6 +250,20 @@
         </router-view>
       </a-layout-content>
     </a-layout>
+
+    <CommandPalette
+      :visible="commandPalette.visible.value"
+      :keyword="commandPalette.keyword.value"
+      :loading="commandPalette.loading.value"
+      :active-index="commandPalette.activeIndex.value"
+      :items="paletteItems"
+      @close="commandPalette.close()"
+      @update:keyword="commandPalette.keyword.value = $event"
+      @update:active-index="commandPalette.activeIndex.value = $event"
+      @search="commandPalette.runSearch()"
+      @run="onPaletteRun"
+    />
+    <DispatchAssistantDrawer v-model:open="assistantOpen" />
   </a-layout>
 </template>
 
@@ -265,7 +297,14 @@ import {
   LineChartOutlined,
   AuditOutlined,
   ApiOutlined,
+  SearchOutlined,
+  RobotOutlined,
+  DeploymentUnitOutlined,
+  HeartOutlined,
 } from '@ant-design/icons-vue'
+import CommandPalette from '@/components/command/CommandPalette.vue'
+import DispatchAssistantDrawer from '@/components/assistant/DispatchAssistantDrawer.vue'
+import { useCommandPalette, type CommandPaletteItem } from '@/composables/useCommandPalette'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -282,6 +321,9 @@ const parkScope = useParkScopeStore()
 const authStore = useAuthStore()
 const realtimeStore = useRealtimeStore()
 const alertStore = useAlertStore()
+const commandPalette = useCommandPalette()
+const assistantOpen = ref(false)
+const paletteItems = computed(() => commandPalette.buildItems())
 
 const collapsed = ref(false)
 const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE
@@ -315,6 +357,8 @@ const menuKeyMap: Record<string, string> = {
   '/infrastructure/charging-piles': 'infra-charging-piles',
   '/infrastructure/road-network': 'infra-road-network',
   '/infrastructure/traffic': 'infra-traffic',
+  '/digital-twin': 'digital-twin',
+  '/system/health': 'system-health',
 }
 
 const selectedKeys = ref<string[]>(['workbench'])
@@ -355,6 +399,8 @@ const breadcrumbItems = computed(() => {
     '交通态势': '/infrastructure/traffic',
     '调度策略': '/system/dispatch-strategy',
     '外部集成': '/system/integration',
+    '数字孪生': '/digital-twin',
+    '系统健康': '/system/health',
   }
 
   return crumbs.map((label, i) => {
@@ -419,10 +465,22 @@ function handleMenuClick({ key }: { key: string }) {
     'infra-traffic': '/infrastructure/traffic',
     'system-dispatch-strategy': '/system/dispatch-strategy',
     'system-integration': '/system/integration',
+    'digital-twin': '/digital-twin',
+    'system-health': '/system/health',
   }
   if (pathMap[key]) {
     router.push(pathMap[key])
   }
+}
+
+async function onPaletteRun(item: CommandPaletteItem) {
+  await item.action()
+  commandPalette.close()
+}
+
+async function refreshScopedData() {
+  await workbenchStore.fetchQueue()
+  await dashboardStore.fetchSummary()
 }
 
 async function handleUserMenu({ key }: { key: string }) {

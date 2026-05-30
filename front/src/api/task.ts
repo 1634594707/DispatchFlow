@@ -9,6 +9,9 @@ export interface TaskAssignResponse {
   message?: string
   assignExplanation?: string | null
   failReasonCode?: string | null
+  reasonCode?: string | null
+  reasonMessage?: string | null
+  suggestions?: string[] | null
   selectedVehicleCode?: string | null
   assignScore?: number | null
 }

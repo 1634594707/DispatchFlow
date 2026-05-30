@@ -119,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ReloadOutlined, SearchOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
@@ -127,6 +127,7 @@ import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useVehicleStore } from '@/stores/vehicle'
 import { useAuthStore } from '@/stores/auth'
+import { useParkScopeStore } from '@/stores/parkScope'
 import { createVehicle, updateVehicle } from '@/api/vehicle'
 import { onlineStatusMap, dispatchStatusMap } from '@/constants/statusMap'
 import type { OnlineStatus, DispatchStatus } from '@/constants/enums'
@@ -143,6 +144,7 @@ const router = useRouter()
 const route = useRoute()
 const store = useVehicleStore()
 const authStore = useAuthStore()
+const parkScope = useParkScopeStore()
 
 const modalOpen = ref(false)
 const saving = ref(false)
@@ -210,6 +212,7 @@ function rowClassName(record: VehicleAdminListItem) {
 function fetchData() {
   store.fetchList({
     ...queryForm,
+    parkId: parkScope.selectedParkId,
     pageNo: pageNo.value,
     pageSize: pageSize.value,
   })
@@ -287,6 +290,14 @@ onMounted(() => {
   }
   fetchData()
 })
+
+watch(
+  () => parkScope.scopeVersion,
+  () => {
+    pageNo.value = 1
+    fetchData()
+  },
+)
 </script>
 
 <style scoped lang="less">

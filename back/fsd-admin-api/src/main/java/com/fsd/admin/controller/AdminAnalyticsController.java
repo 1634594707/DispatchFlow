@@ -32,20 +32,23 @@ public class AdminAnalyticsController {
 
     @GetMapping("/efficiency")
     public ApiResponse<AdminAnalyticsEfficiencyResponse> efficiency(
-            @RequestParam(defaultValue = "week") String period) {
-        return ApiResponse.success(analyticsAdminService.getEfficiency(period));
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(analyticsAdminService.getEfficiency(period, parkId));
     }
 
     @GetMapping("/exceptions")
     public ApiResponse<AdminAnalyticsExceptionResponse> exceptions(
-            @RequestParam(defaultValue = "week") String period) {
-        return ApiResponse.success(analyticsAdminService.getExceptionAnalysis(period));
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(analyticsAdminService.getExceptionAnalysis(period, parkId));
     }
 
     @GetMapping("/daily-summary")
     public ApiResponse<AdminAnalyticsDailySummaryResponse> dailySummary(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ApiResponse.success(analyticsAdminService.getDailySummary(date));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(analyticsAdminService.getDailySummary(date, parkId));
     }
 
     @GetMapping("/charging")

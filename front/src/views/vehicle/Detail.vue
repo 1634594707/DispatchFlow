@@ -103,7 +103,7 @@
             </a-table>
           </a-tab-pane>
 
-          <a-tab-pane v-if="authStore.isAdmin" key="health" tab="健康度">
+          <a-tab-pane v-if="authStore.isOperator" key="health" tab="健康度">
             <div v-if="health" class="health-panel">
               <a-progress
                 type="circle"
@@ -327,7 +327,7 @@ async function loadExtras(vehicleId: number) {
     fetchVehicleOperateLogs(vehicleId),
     authStore.isAdmin ? fetchVehicleCredentials(vehicleId) : Promise.resolve({ data: [] }),
     authStore.isAdmin ? fetchVehicleMaintenance(vehicleId) : Promise.resolve({ data: [] }),
-    authStore.isAdmin ? fetchVehicleHealth(vehicleId) : Promise.resolve({ data: null }),
+    authStore.isOperator ? fetchVehicleHealth(vehicleId) : Promise.resolve({ data: null }),
   ])
   operateLogs.value = logsRes.status === 'fulfilled' ? logsRes.value.data : []
   credentials.value = credRes.status === 'fulfilled' ? credRes.value.data : []

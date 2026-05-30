@@ -20,4 +20,6 @@ public class AdminTrafficSegmentResponse {
     private Integer congestionLevel;
 
     private int nearbyVehicleCount;
+
+    private int affectedTaskCount;
 }

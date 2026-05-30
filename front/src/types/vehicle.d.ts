@@ -4,6 +4,7 @@ export interface VehicleQueryRequest {
   vehicleCode?: string
   onlineStatus?: OnlineStatus
   dispatchStatus?: DispatchStatus
+  parkId?: number
   pageNo: number
   pageSize: number
 }

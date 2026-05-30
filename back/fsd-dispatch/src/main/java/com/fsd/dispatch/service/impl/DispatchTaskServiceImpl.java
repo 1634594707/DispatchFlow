@@ -14,6 +14,8 @@ import com.fsd.common.exception.BusinessException;
 
 import com.fsd.dispatch.dispatch.DispatchAssignResult;
 
+import com.fsd.dispatch.dispatch.DispatchFailExplainSupport;
+
 import com.fsd.dispatch.dispatch.DispatchVehicleAssignService;
 
 import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
@@ -738,6 +740,8 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
     private DispatchTaskAssignResponse buildAssignFailureResponse(DispatchTaskEntity taskEntity, String failCode) {
 
+        var explained = DispatchFailExplainSupport.explain(failCode, taskEntity.getFailReasonMsg());
+
         return DispatchTaskAssignResponse.builder()
 
                 .taskId(taskEntity.getId())
@@ -746,7 +750,13 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
                 .failReasonCode(failCode)
 
-                .message(taskEntity.getFailReasonMsg())
+                .reasonCode(explained.reasonCode())
+
+                .reasonMessage(explained.reasonMessage())
+
+                .suggestions(explained.suggestions())
+
+                .message(explained.reasonMessage())
 
                 .build();
 

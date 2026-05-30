@@ -37,6 +37,9 @@ export interface BatchTaskItemResult {
   message?: string
   status?: string
   vehicleId?: number
+  reasonCode?: string
+  reasonMessage?: string
+  suggestions?: string[]
 }
 
 export interface BatchTaskResult {

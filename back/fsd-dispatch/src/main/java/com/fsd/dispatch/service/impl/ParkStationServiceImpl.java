@@ -46,11 +46,21 @@ public class ParkStationServiceImpl implements ParkStationService {
         if (defaultCode != null && !defaultCode.isBlank()) {
             park = parkMapper.selectOne(new LambdaQueryWrapper<ParkEntity>()
                     .eq(ParkEntity::getParkCode, defaultCode)
+                    .eq(ParkEntity::getStatus, ParkStatus.ACTIVE.name())
                     .eq(ParkEntity::getDeleted, 0)
                     .last("LIMIT 1"));
             if (park != null) {
                 return park;
             }
+        }
+        park = parkMapper.selectOne(new LambdaQueryWrapper<ParkEntity>()
+                .eq(ParkEntity::getStatus, ParkStatus.ACTIVE.name())
+                .eq(ParkEntity::getDeleted, 0)
+                .orderByDesc(ParkEntity::getDefaultFlag)
+                .orderByAsc(ParkEntity::getId)
+                .last("LIMIT 1"));
+        if (park != null) {
+            return park;
         }
         throw new BusinessException("PARK_NOT_FOUND", "Default park not configured");
     }

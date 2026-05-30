@@ -89,7 +89,7 @@
               查看
             </a-button>
             <a-button
-              v-if="canDispatch(record.status)"
+              v-if="authStore.canWrite && canDispatch(record.status)"
               type="link"
               size="small"
               @click="openDispatchModal(record)"
@@ -97,7 +97,7 @@
               派单
             </a-button>
             <a-button
-              v-if="canReassign(record.status)"
+              v-if="authStore.canWrite && canReassign(record.status)"
               type="link"
               size="small"
               @click="openReassignModal(record)"
@@ -105,7 +105,7 @@
               改派
             </a-button>
             <a-popconfirm
-              v-if="canCancel(record.status)"
+              v-if="authStore.canWrite && canCancel(record.status)"
               title="确认取消该任务？"
               ok-text="确认"
               cancel-text="取消"
@@ -189,6 +189,7 @@ import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useTaskStore } from '@/stores/task'
 import { useParkScopeStore } from '@/stores/parkScope'
+import { useAuthStore } from '@/stores/auth'
 import { taskStatusMap } from '@/constants/statusMap'
 import { TaskStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
@@ -199,6 +200,7 @@ const router = useRouter()
 const route = useRoute()
 const store = useTaskStore()
 const parkScope = useParkScopeStore()
+const authStore = useAuthStore()
 
 const queryForm = reactive({
   status: undefined as TaskStatus | undefined,
@@ -356,6 +358,14 @@ onMounted(() => {
   }
   fetchData()
 })
+
+watch(
+  () => parkScope.scopeVersion,
+  () => {
+    pageNo.value = 1
+    fetchData()
+  },
+)
 </script>
 
 <style scoped lang="less">

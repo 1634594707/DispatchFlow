@@ -11,6 +11,8 @@ public class AdminVehicleQueryRequest {
 
     private String dispatchStatus;
 
+    private Long parkId;
+
     private Integer pageNo = 1;
 
     private Integer pageSize = 20;

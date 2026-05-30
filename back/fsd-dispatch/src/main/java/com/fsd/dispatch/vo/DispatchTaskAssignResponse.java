@@ -20,6 +20,12 @@ public class DispatchTaskAssignResponse {
 
     private String failReasonCode;
 
+    private String reasonCode;
+
+    private String reasonMessage;
+
+    private java.util.List<String> suggestions;
+
     private String selectedVehicleCode;
 
     private Double assignScore;

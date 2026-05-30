@@ -1,14 +1,15 @@
 # DispatchFlow 文档索引
 
-> 更新：2026-05-27 · 验收入口见 **[acceptance/README.md](./acceptance/README.md)**
+> 更新：2026-05-30 · 验收入口见 **[acceptance/README.md](./acceptance/README.md)**
 
 ## 常用（先看这些）
 
 | 文档 | 说明 |
 |------|------|
 | **[acceptance/README.md](./acceptance/README.md)** | **验收总方案**（环境、顺序、勾选表） |
-| [DEPLOYMENT.md](./DEPLOYMENT.md) | Docker / 本地启动、SQL 迁移 V1–V9 |
+| [DEPLOYMENT.md](./DEPLOYMENT.md) | Docker / 本地启动、SQL 迁移 V01–V14 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 模块划分、Fleet 模型、事件流 |
+| [ROADMAP-V2.md](./ROADMAP-V2.md) | **产品路线图**（Phase 11 M1 已完成，Phase 12–14 待办） |
 | [releases/phase2.md](./releases/phase2.md) | Phase 2 合入说明与文件清单 |
 
 ## 验收细则
@@ -42,4 +43,4 @@ archive/
   misc/                      其他一次性笔记
 ```
 
-**Phase 3+ 路线图**：待重新设计后补充。
+**Phase 3+ 路线图**：见 [ROADMAP-V2.md](./ROADMAP-V2.md)。

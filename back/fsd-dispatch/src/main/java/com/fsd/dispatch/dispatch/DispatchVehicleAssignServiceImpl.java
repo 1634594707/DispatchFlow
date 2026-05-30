@@ -8,6 +8,7 @@ import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
+import com.fsd.dispatch.service.TrafficZoneControlService;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.order.entity.OrderEntity;
@@ -28,17 +29,20 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
     private final ParkRoutePlannerService parkRoutePlannerService;
     private final DispatchStrategyRuntimeService strategyRuntimeService;
     private final FleetRuntimeService fleetRuntimeService;
+    private final TrafficZoneControlService trafficZoneControlService;
 
     public DispatchVehicleAssignServiceImpl(VehicleService vehicleService,
                                             ParkStationService parkStationService,
                                             ParkRoutePlannerService parkRoutePlannerService,
                                             DispatchStrategyRuntimeService strategyRuntimeService,
-                                            FleetRuntimeService fleetRuntimeService) {
+                                            FleetRuntimeService fleetRuntimeService,
+                                            TrafficZoneControlService trafficZoneControlService) {
         this.vehicleService = vehicleService;
         this.parkStationService = parkStationService;
         this.parkRoutePlannerService = parkRoutePlannerService;
         this.strategyRuntimeService = strategyRuntimeService;
         this.fleetRuntimeService = fleetRuntimeService;
+        this.trafficZoneControlService = trafficZoneControlService;
     }
 
     @Override
@@ -48,6 +52,11 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         DispatchScoringProperties scoring = strategyRuntimeService.scoringForAssign(parkId);
         ParkStationResponse pickup = parkStationService.requireStation(order.getPickupPointId());
         parkStationService.assertStationInPark(order.getPickupPointId(), parkId);
+
+        if (trafficZoneControlService.isPointInPausedZone(parkId, pickup.getX(), pickup.getY())) {
+            return DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
+                    "Pickup station is inside a traffic pause zone; dispatch suspended for this area");
+        }
 
         List<VehicleEntity> idleOnline = vehicleService.listAssignableVehicles();
         if (idleOnline.isEmpty()) {
