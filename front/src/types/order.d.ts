@@ -5,6 +5,7 @@ export interface OrderQueryRequest {
   externalOrderNo?: string
   status?: OrderStatus
   priority?: string
+  parkId?: number
   pageNo: number
   pageSize: number
 }

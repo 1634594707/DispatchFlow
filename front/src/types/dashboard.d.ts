@@ -7,4 +7,5 @@ export interface DashboardSummary {
   onlineVehicleCount: number
   idleVehicleCount: number
   busyVehicleCount: number
+  openExceptionCount?: number
 }

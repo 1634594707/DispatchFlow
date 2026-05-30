@@ -1,9 +1,14 @@
 <template>
   <PageContainer title="车辆管理" subtitle="监控所有车辆状态">
     <template #actions>
-      <a-button @click="handleRefresh">
-        <ReloadOutlined /> 刷新
-      </a-button>
+      <a-space>
+        <a-button v-if="authStore.isAdmin" type="primary" @click="openCreate">
+          <PlusOutlined /> 新建车辆
+        </a-button>
+        <a-button @click="handleRefresh">
+          <ReloadOutlined /> 刷新
+        </a-button>
+      </a-space>
     </template>
 
     <div class="search-bar">
@@ -89,22 +94,40 @@
           </a-tooltip>
         </template>
         <template v-else-if="column.dataIndex === 'action'">
-          <a-button type="link" size="small" @click="router.push(`/vehicles/${record.vehicleId}`)">
-            查看详情
-          </a-button>
+          <a-space>
+            <a-button type="link" size="small" @click="router.push(`/vehicles/${record.vehicleId}`)">
+              查看详情
+            </a-button>
+            <a-button v-if="authStore.isAdmin" type="link" size="small" @click="openEdit(record)">编辑</a-button>
+          </a-space>
         </template>
       </template>
     </a-table>
+
+    <a-modal v-model:open="modalOpen" :title="editing ? '编辑车辆' : '新建车辆'" :confirm-loading="saving" @ok="handleSave">
+      <a-form layout="vertical">
+        <a-form-item label="车辆编码" required><a-input v-model:value="form.vehicleCode" /></a-form-item>
+        <a-form-item label="车辆名称" required><a-input v-model:value="form.vehicleName" /></a-form-item>
+        <a-form-item label="车辆类型"><a-input v-model:value="form.vehicleType" placeholder="如 AGV" /></a-form-item>
+        <a-form-item label="连接模式">
+          <a-select v-model:value="form.linkMode" :options="linkModeOptions" />
+        </a-form-item>
+        <a-form-item label="备注"><a-textarea v-model:value="form.remark" :rows="2" /></a-form-item>
+      </a-form>
+    </a-modal>
   </PageContainer>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, SearchOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useVehicleStore } from '@/stores/vehicle'
+import { useAuthStore } from '@/stores/auth'
+import { createVehicle, updateVehicle } from '@/api/vehicle'
 import { onlineStatusMap, dispatchStatusMap } from '@/constants/statusMap'
 import type { OnlineStatus, DispatchStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
@@ -119,6 +142,23 @@ dayjs.locale('zh-cn')
 const router = useRouter()
 const route = useRoute()
 const store = useVehicleStore()
+const authStore = useAuthStore()
+
+const modalOpen = ref(false)
+const saving = ref(false)
+const editing = ref<VehicleAdminListItem | null>(null)
+const form = reactive({
+  vehicleCode: '',
+  vehicleName: '',
+  vehicleType: 'AGV',
+  linkMode: 'SIM',
+  remark: '',
+})
+
+const linkModeOptions = [
+  { label: '仿真 SIM', value: 'SIM' },
+  { label: '真实 REAL', value: 'REAL' },
+]
 
 const queryForm = reactive({
   onlineStatus: undefined as OnlineStatus | undefined,
@@ -196,6 +236,48 @@ function handleTableChange(pag: any) {
   pageNo.value = pag.current
   pageSize.value = pag.pageSize
   fetchData()
+}
+
+function openCreate() {
+  editing.value = null
+  form.vehicleCode = ''
+  form.vehicleName = ''
+  form.vehicleType = 'AGV'
+  form.linkMode = 'SIM'
+  form.remark = ''
+  modalOpen.value = true
+}
+
+function openEdit(record: VehicleAdminListItem) {
+  editing.value = record
+  form.vehicleCode = record.vehicleCode
+  form.vehicleName = record.vehicleName
+  form.vehicleType = 'AGV'
+  form.linkMode = 'SIM'
+  form.remark = ''
+  modalOpen.value = true
+}
+
+async function handleSave() {
+  if (!form.vehicleCode || !form.vehicleName) {
+    message.warning('请填写完整信息')
+    return
+  }
+  saving.value = true
+  try {
+    const payload = { ...form }
+    if (editing.value) {
+      await updateVehicle(editing.value.vehicleId, payload)
+      message.success('车辆已更新')
+    } else {
+      await createVehicle(payload)
+      message.success('车辆已创建')
+    }
+    modalOpen.value = false
+    fetchData()
+  } finally {
+    saving.value = false
+  }
 }
 
 onMounted(() => {

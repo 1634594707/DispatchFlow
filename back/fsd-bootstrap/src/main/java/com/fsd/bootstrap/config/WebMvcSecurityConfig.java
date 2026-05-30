@@ -9,15 +9,20 @@ public class WebMvcSecurityConfig implements WebMvcConfigurer {
 
     private final AdminAuthInterceptor adminAuthInterceptor;
     private final VehicleGatewayAuthInterceptor vehicleGatewayAuthInterceptor;
+    private final OpenApiAuthInterceptor openApiAuthInterceptor;
 
     public WebMvcSecurityConfig(AdminAuthInterceptor adminAuthInterceptor,
-                                VehicleGatewayAuthInterceptor vehicleGatewayAuthInterceptor) {
+                                VehicleGatewayAuthInterceptor vehicleGatewayAuthInterceptor,
+                                OpenApiAuthInterceptor openApiAuthInterceptor) {
         this.adminAuthInterceptor = adminAuthInterceptor;
         this.vehicleGatewayAuthInterceptor = vehicleGatewayAuthInterceptor;
+        this.openApiAuthInterceptor = openApiAuthInterceptor;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(openApiAuthInterceptor)
+                .addPathPatterns("/api/open/**");
         registry.addInterceptor(vehicleGatewayAuthInterceptor)
                 .addPathPatterns("/api/vehicle-gateway/**");
         registry.addInterceptor(adminAuthInterceptor)

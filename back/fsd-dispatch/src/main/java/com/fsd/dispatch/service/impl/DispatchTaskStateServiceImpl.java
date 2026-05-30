@@ -59,6 +59,18 @@ public class DispatchTaskStateServiceImpl implements DispatchTaskStateService {
                 "DISPATCH_TASK_STATUS_INVALID");
     }
 
+    @Override
+    public void assertCanCancel(DispatchTaskEntity taskEntity) {
+        assertStatus(taskEntity,
+                Set.of(DispatchTaskStatus.PENDING, DispatchTaskStatus.MANUAL_PENDING, DispatchTaskStatus.ASSIGNED),
+                "DISPATCH_TASK_STATUS_INVALID");
+    }
+
+    @Override
+    public void assertCanReassign(DispatchTaskEntity taskEntity) {
+        assertStatus(taskEntity, Set.of(DispatchTaskStatus.ASSIGNED), "DISPATCH_TASK_STATUS_INVALID");
+    }
+
     private void assertStatus(DispatchTaskEntity taskEntity, Set<DispatchTaskStatus> allowed, String errorCode) {
         DispatchTaskStatus current = DispatchTaskStatus.valueOf(taskEntity.getStatus());
         if (!allowed.contains(current)) {

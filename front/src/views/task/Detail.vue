@@ -75,31 +75,38 @@
 
           <a-card title="操作" size="small">
             <div class="detail-actions">
-              <a-button
-                v-if="canDispatch"
-                type="primary"
-                @click="openDispatch"
-              >
-                派单
+              <a-button v-if="canAutoAssign" type="primary" :loading="actionLoading" @click="handleAutoAssign">
+                自动派车
               </a-button>
-              <a-button
-                v-if="canReassign"
-                type="primary"
-                ghost
-                @click="openReassign"
-              >
+              <a-button v-if="canManualAssign" type="primary" ghost @click="openManualModal">
+                手动派车
+              </a-button>
+              <a-button v-if="canReassign" type="primary" ghost @click="openReassignModal">
                 改派
               </a-button>
-              <a-popconfirm
-                v-if="canCancel"
-                title="确认取消该任务？"
-                @confirm="handleCancel"
-              >
-                <a-button danger>取消任务</a-button>
+              <a-popconfirm v-if="canCancel" title="确认取消该任务？" @confirm="handleCancel">
+                <a-button danger :loading="actionLoading">取消任务</a-button>
               </a-popconfirm>
             </div>
           </a-card>
         </div>
+
+        <a-card title="操作日志时间线" size="small" style="margin-bottom: 16px;">
+          <a-timeline v-if="operateLogs.length > 0">
+            <a-timeline-item v-for="log in operateLogs" :key="log.id" :color="logColor(log.operateType)">
+              <p>{{ operateTypeLabel(log.operateType) }}</p>
+              <p v-if="log.beforeStatus || log.afterStatus" class="mono text-secondary">
+                {{ log.beforeStatus || '-' }} → {{ log.afterStatus || '-' }}
+              </p>
+              <p class="text-secondary">
+                {{ log.operatorName || log.operatorType }}
+                <span v-if="log.operateRemark"> · {{ log.operateRemark }}</span>
+              </p>
+              <span class="mono text-secondary">{{ formatTime(log.createdAt) }}</span>
+            </a-timeline-item>
+          </a-timeline>
+          <a-empty v-else description="暂无操作日志" />
+        </a-card>
 
         <a-card title="任务状态时间线" size="small">
           <a-timeline>
@@ -123,78 +130,208 @@
         </a-card>
       </template>
     </a-spin>
+
+    <a-modal
+      v-model:open="assignModalOpen"
+      :title="assignMode === 'reassign' ? '改派车辆' : '手动派车'"
+      ok-text="确认"
+      :confirm-loading="actionLoading"
+      @ok="submitAssign"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="选择车辆" required>
+          <a-select
+            v-model:value="assignForm.vehicleId"
+            placeholder="在线且空闲的车辆"
+            show-search
+            :loading="vehiclesLoading"
+            :options="vehicleOptions"
+          />
+        </a-form-item>
+        <a-form-item label="备注">
+          <a-input v-model:value="assignForm.remark" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </PageContainer>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useTaskStore } from '@/stores/task'
-import { getVehicleDetail } from '@/api/vehicle'
-import { TaskStatus } from '@/constants/enums'
+import { getVehicleDetail, queryVehicles } from '@/api/vehicle'
+import { autoAssignTask, manualAssignTask, cancelTask, reassignTask } from '@/api/task'
+import { fetchTaskOperateLogs } from '@/api/operateLog'
+import { TaskStatus, DispatchStatus } from '@/constants/enums'
 import dayjs from 'dayjs'
 import type { VehicleDetailResponse } from '@/types/vehicle'
+import type { OperateLogItem } from '@/types/operateLog'
 
 const router = useRouter()
 const route = useRoute()
 const store = useTaskStore()
 
 const vehicleDetail = ref<VehicleDetailResponse | null>(null)
+const operateLogs = ref<OperateLogItem[]>([])
+const actionLoading = ref(false)
+const vehiclesLoading = ref(false)
+const assignModalOpen = ref(false)
+const assignMode = ref<'manual' | 'reassign'>('manual')
+const assignForm = reactive({ vehicleId: undefined as number | undefined, remark: '' })
+const vehicleOptions = ref<{ label: string; value: number }[]>([])
 
-const canDispatch = computed(() => {
+const canAutoAssign = computed(() => {
+  const s = store.detail?.status
+  return s === TaskStatus.PENDING
+})
+
+const canManualAssign = computed(() => {
   const s = store.detail?.status
   return s === TaskStatus.PENDING || s === TaskStatus.MANUAL_PENDING
 })
 
 const canReassign = computed(() => store.detail?.status === TaskStatus.ASSIGNED)
-const canCancel = computed(() => store.detail?.status !== TaskStatus.EXECUTING)
+const canCancel = computed(() => {
+  const s = store.detail?.status
+  return s === TaskStatus.PENDING || s === TaskStatus.MANUAL_PENDING || s === TaskStatus.ASSIGNED
+})
 
 const finishColor = computed(() =>
   store.detail?.status === TaskStatus.SUCCESS ? 'green' : 'red'
 )
 
-function formatTime(t: string | null) {
+function formatTime(t: string | null | undefined) {
   return t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'
+}
+
+function operateTypeLabel(type: string) {
+  const map: Record<string, string> = {
+    CREATE_TASK: '创建任务', AUTO_ASSIGN: '自动派车', MANUAL_ASSIGN: '手动派车',
+    REASSIGN: '改派', CANCEL_TASK: '取消任务', EXCEPTION_RESOLVE: '异常处置',
+  }
+  return map[type] || type
+}
+
+function logColor(type: string) {
+  if (type.includes('FAIL') || type === 'CANCEL_TASK') return 'red'
+  if (type.includes('ASSIGN') || type === 'REASSIGN') return 'blue'
+  return 'gray'
 }
 
 async function loadVehicle(vehicleId: number) {
   try {
-    const res = await getVehicleDetail(vehicleId)
-    vehicleDetail.value = res.data
+    vehicleDetail.value = (await getVehicleDetail(vehicleId)).data
   } catch {
-    // silent
+    vehicleDetail.value = null
   }
 }
 
-function openDispatch() {
-  message.info('派单功能开发中')
+async function loadOperateLogs(taskId: number) {
+  try {
+    operateLogs.value = (await fetchTaskOperateLogs(taskId)).data
+  } catch {
+    operateLogs.value = []
+  }
 }
 
-function openReassign() {
-  message.info('改派功能开发中')
-}
-
-function handleCancel() {
-  message.success('任务已取消')
-  fetchData()
-}
-
-function fetchData() {
-  const id = Number(route.params.taskId)
-  if (id) {
-    store.fetchDetail(id).then(() => {
-      if (store.detail?.vehicleId) {
-        loadVehicle(store.detail.vehicleId)
-      }
+async function loadAssignableVehicles() {
+  vehiclesLoading.value = true
+  try {
+    const res = await queryVehicles({
+      onlineStatus: 'ONLINE' as any,
+      dispatchStatus: DispatchStatus.IDLE,
+      pageNo: 1,
+      pageSize: 100,
     })
+    vehicleOptions.value = (res.data.records || []).map((v) => ({
+      label: `${v.vehicleCode} · ${v.batteryLevel}%`,
+      value: v.vehicleId,
+    }))
+  } finally {
+    vehiclesLoading.value = false
+  }
+}
+
+async function handleAutoAssign() {
+  const taskId = Number(route.params.taskId)
+  actionLoading.value = true
+  try {
+    await autoAssignTask(taskId)
+    message.success('自动派车已提交')
+    await fetchData()
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+function openManualModal() {
+  assignMode.value = 'manual'
+  assignForm.vehicleId = undefined
+  assignForm.remark = ''
+  loadAssignableVehicles()
+  assignModalOpen.value = true
+}
+
+function openReassignModal() {
+  assignMode.value = 'reassign'
+  assignForm.vehicleId = undefined
+  assignForm.remark = ''
+  loadAssignableVehicles()
+  assignModalOpen.value = true
+}
+
+async function submitAssign() {
+  if (!assignForm.vehicleId) {
+    message.warning('请选择车辆')
+    return
+  }
+  const taskId = Number(route.params.taskId)
+  actionLoading.value = true
+  try {
+    const payload = { vehicleId: assignForm.vehicleId, remark: assignForm.remark }
+    if (assignMode.value === 'reassign') {
+      await reassignTask(taskId, payload)
+      message.success('改派成功')
+    } else {
+      await manualAssignTask(taskId, payload)
+      message.success('手动派车成功')
+    }
+    assignModalOpen.value = false
+    await fetchData()
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function handleCancel() {
+  const taskId = Number(route.params.taskId)
+  actionLoading.value = true
+  try {
+    await cancelTask(taskId)
+    message.success('任务已取消')
+    await fetchData()
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function fetchData() {
+  const id = Number(route.params.taskId)
+  if (!id) return
+  await store.fetchDetail(id)
+  await loadOperateLogs(id)
+  if (store.detail?.vehicleId) {
+    await loadVehicle(store.detail.vehicleId)
+  } else {
+    vehicleDetail.value = null
   }
 }
 
 onMounted(fetchData)
-
 watch(() => route.params.taskId, fetchData)
 </script>
 
@@ -213,6 +350,7 @@ watch(() => route.params.taskId, fetchData)
 .detail-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .link {

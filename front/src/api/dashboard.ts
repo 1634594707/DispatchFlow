@@ -3,8 +3,10 @@ import type { ApiResponse } from '@/types/api'
 import type { DashboardSummary } from '@/types/dashboard'
 import type { ExceptionAdminListItem } from '@/types/exception'
 
-export function getDashboardSummary() {
-  return request.get<any, ApiResponse<DashboardSummary>>('/admin/dashboard/summary')
+export function getDashboardSummary(parkId?: number) {
+  return request.get<any, ApiResponse<DashboardSummary>>('/admin/dashboard/summary', {
+    params: parkId != null ? { parkId } : undefined,
+  })
 }
 
 export function getRecentExceptions(params: { pageNo: number; pageSize: number }) {

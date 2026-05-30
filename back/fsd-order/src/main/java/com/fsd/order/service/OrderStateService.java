@@ -15,4 +15,6 @@ public interface OrderStateService {
     void markCompleted(Long orderId);
 
     void markFailed(Long orderId, String failReason);
+
+    void markCancelled(Long orderId);
 }

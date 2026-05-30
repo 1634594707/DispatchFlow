@@ -8,6 +8,8 @@ import com.fsd.common.enums.DispatchAssignFailReason;
 
 import com.fsd.common.enums.DispatchTaskStatus;
 
+import com.fsd.common.enums.VehicleDispatchStatus;
+
 import com.fsd.common.exception.BusinessException;
 
 import com.fsd.dispatch.dispatch.DispatchAssignResult;
@@ -425,6 +427,136 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
                     .assignTime(taskEntity.getAssignTime())
 
                     .message("Manual assign success")
+
+                    .build();
+
+        } finally {
+
+            dispatchLockService.releaseTaskLock(taskId, lockToken);
+
+        }
+
+    }
+
+
+
+    @Override
+
+    @Transactional
+
+    public DispatchTaskAssignResponse cancelTask(Long taskId, String operatorId, String operatorName, String remark) {
+
+        String lockToken = dispatchLockService.acquireTaskLock(taskId);
+
+        try {
+
+            DispatchTaskEntity taskEntity = dispatchTaskStateService.getTask(taskId);
+
+            dispatchTaskStateService.assertCanCancel(taskEntity);
+
+            String beforeStatus = taskEntity.getStatus();
+
+            if (taskEntity.getVehicleId() != null) {
+
+                vehicleService.releaseVehicle(taskEntity.getVehicleId(), VehicleDispatchStatus.IDLE.name());
+
+                parkingFacilityService.releaseByVehicle(taskEntity.getVehicleId());
+
+            }
+
+            taskEntity.setStatus(DispatchTaskStatus.CANCELLED.name());
+
+            taskEntity.setFinishTime(LocalDateTime.now());
+
+            dispatchTaskMapper.updateById(taskEntity);
+
+            orderStateService.markCancelled(taskEntity.getOrderId());
+
+            operateLogService.record(taskEntity.getId(), "CANCEL_TASK", beforeStatus,
+
+                    DispatchTaskStatus.CANCELLED.name(), "DISPATCHER", operatorId, operatorName, remark);
+
+            eventPublisher.publish(DispatchEventType.TASK_CANCELLED, String.valueOf(taskEntity.getId()), buildTaskPayload(taskEntity));
+
+            return DispatchTaskAssignResponse.builder()
+
+                    .taskId(taskEntity.getId())
+
+                    .status(taskEntity.getStatus())
+
+                    .message("Task cancelled")
+
+                    .build();
+
+        } finally {
+
+            dispatchLockService.releaseTaskLock(taskId, lockToken);
+
+        }
+
+    }
+
+
+
+    @Override
+
+    @Transactional
+
+    public DispatchTaskAssignResponse reassignTask(Long taskId, DispatchTaskManualAssignRequest request) {
+
+        String lockToken = dispatchLockService.acquireTaskLock(taskId);
+
+        try {
+
+            DispatchTaskEntity taskEntity = dispatchTaskStateService.getTask(taskId);
+
+            dispatchTaskStateService.assertCanReassign(taskEntity);
+
+            Long previousVehicleId = taskEntity.getVehicleId();
+
+            if (previousVehicleId != null) {
+
+                vehicleService.releaseVehicle(previousVehicleId, VehicleDispatchStatus.IDLE.name());
+
+                parkingFacilityService.releaseByVehicle(previousVehicleId);
+
+            }
+
+            vehicleService.occupyVehicle(request.getVehicleId(), taskEntity.getId(), taskEntity.getOrderId());
+
+            parkingFacilityService.releaseByVehicle(request.getVehicleId());
+
+            String beforeStatus = taskEntity.getStatus();
+
+            taskEntity.setVehicleId(request.getVehicleId());
+
+            taskEntity.setAssignTime(LocalDateTime.now());
+
+            taskEntity.setManualFlag(1);
+
+            dispatchTaskMapper.updateById(taskEntity);
+
+            operateLogService.record(taskEntity.getId(), "REASSIGN", beforeStatus, taskEntity.getStatus(),
+
+                    "DISPATCHER", request.getOperatorId(), request.getOperatorName(), request.getRemark());
+
+            OrderEntity orderEntity = orderStateService.getOrder(taskEntity.getOrderId());
+
+            vehicleCommandService.issueDispatchCommandIfNeeded(
+
+                    vehicleService.getById(request.getVehicleId()), taskEntity, orderEntity);
+
+            return DispatchTaskAssignResponse.builder()
+
+                    .taskId(taskEntity.getId())
+
+                    .status(taskEntity.getStatus())
+
+                    .vehicleId(taskEntity.getVehicleId())
+
+                    .assignTime(taskEntity.getAssignTime())
+
+                    .message("Reassign success")
 
                     .build();
 

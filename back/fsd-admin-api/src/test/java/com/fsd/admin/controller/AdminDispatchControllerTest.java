@@ -96,13 +96,13 @@ class AdminDispatchControllerTest {
 
     @Test
     void shouldReturnDashboardSummary() {
-        when(adminDashboardService.getSummary()).thenReturn(AdminDashboardSummaryResponse.builder()
+        when(adminDashboardService.getSummary(null)).thenReturn(AdminDashboardSummaryResponse.builder()
                 .pendingCount(1)
                 .manualPendingCount(2)
                 .onlineVehicleCount(3)
                 .build());
 
-        ApiResponse<AdminDashboardSummaryResponse> response = adminDispatchController.getDashboardSummary();
+        ApiResponse<AdminDashboardSummaryResponse> response = adminDispatchController.getDashboardSummary(null);
 
         assertEquals(2, response.getData().getManualPendingCount());
         assertEquals(3, response.getData().getOnlineVehicleCount());

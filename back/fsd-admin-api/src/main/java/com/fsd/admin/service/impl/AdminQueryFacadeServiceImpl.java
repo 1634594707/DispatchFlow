@@ -69,7 +69,8 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
         return order -> contains(order.getOrderNo(), request.getOrderNo())
                 && contains(order.getExternalOrderNo(), request.getExternalOrderNo())
                 && equalsValue(order.getStatus(), request.getStatus())
-                && equalsValue(order.getPriority(), request.getPriority());
+                && equalsValue(order.getPriority(), request.getPriority())
+                && equalsLong(order.getParkId(), request.getParkId());
     }
 
     private Predicate<DispatchTaskListItemResponse> matchTask(AdminTaskQueryRequest request) {

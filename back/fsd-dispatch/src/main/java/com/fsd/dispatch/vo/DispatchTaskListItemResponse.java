@@ -27,6 +27,10 @@ public class DispatchTaskListItemResponse {
 
     private LocalDateTime updatedAt;
 
+    private String orderPriority;
+
+    private Long waitMinutes;
+
     private Integer openExceptionCount;
 
     private DispatchOpenExceptionBrief primaryOpenException;

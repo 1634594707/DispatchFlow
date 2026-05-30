@@ -1,0 +1,58 @@
+package com.fsd.admin.service.impl;
+
+import com.fsd.admin.service.AdminDispatchStreamService;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+@Service
+public class AdminDispatchStreamServiceImpl implements AdminDispatchStreamService {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminDispatchStreamServiceImpl.class);
+    private static final Long DEFAULT_TIMEOUT = 0L;
+
+    private final CopyOnWriteArrayList<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+
+    @Override
+    public SseEmitter createStream() {
+        SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT);
+        emitters.add(emitter);
+
+        emitter.onCompletion(() -> removeEmitter(emitter));
+        emitter.onTimeout(() -> removeEmitter(emitter));
+        emitter.onError(e -> removeEmitter(emitter));
+
+        return emitter;
+    }
+
+    @Override
+    public void broadcast(String eventName, Object payload) {
+        if (emitters.isEmpty()) {
+            return;
+        }
+        List<SseEmitter> deadEmitters = new ArrayList<>();
+        for (SseEmitter emitter : emitters) {
+            try {
+                emitter.send(SseEmitter.event().name(eventName).data(payload));
+            } catch (IOException e) {
+                log.debug("Failed to send dispatch SSE event {}: {}", eventName, e.getMessage());
+                deadEmitters.add(emitter);
+            }
+        }
+        emitters.removeAll(deadEmitters);
+    }
+
+    @Override
+    public boolean hasClients() {
+        return !emitters.isEmpty();
+    }
+
+    private void removeEmitter(SseEmitter emitter) {
+        emitters.remove(emitter);
+    }
+}

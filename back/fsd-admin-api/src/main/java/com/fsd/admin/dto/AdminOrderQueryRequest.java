@@ -13,6 +13,8 @@ public class AdminOrderQueryRequest {
 
     private String priority;
 
+    private Long parkId;
+
     private Integer pageNo = 1;
 
     private Integer pageSize = 20;

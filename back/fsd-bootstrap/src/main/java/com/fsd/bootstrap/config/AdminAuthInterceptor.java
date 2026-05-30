@@ -34,6 +34,9 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
         }
 
         String token = request.getHeader("X-Admin-Token");
+        if (token == null || token.isBlank()) {
+            token = request.getParameter("token");
+        }
         boolean authEnabled = securityProperties.getAdmin().isEnabled();
 
         // Auth disabled: still bind user from token when present (supports frontend login + /auth/me)

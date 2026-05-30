@@ -24,6 +24,8 @@ class DispatchExceptionServiceImplTest {
     private DispatchExceptionRecordMapper exceptionRecordMapper;
     @Mock
     private DispatchEventPublisher eventPublisher;
+    @Mock
+    private com.fsd.dispatch.service.DispatchTaskOperateLogService operateLogService;
 
     @InjectMocks
     private DispatchExceptionServiceImpl dispatchExceptionService;
@@ -42,6 +44,7 @@ class DispatchExceptionServiceImplTest {
     void resolveExceptionShouldMarkResolved() {
         DispatchExceptionRecordEntity entity = new DispatchExceptionRecordEntity();
         entity.setId(1L);
+        entity.setTaskId(100L);
         entity.setExceptionStatus("OPEN");
         when(exceptionRecordMapper.selectById(1L)).thenReturn(entity);
 

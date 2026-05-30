@@ -3,13 +3,18 @@ package com.fsd.admin.controller;
 import com.fsd.admin.dto.AdminExceptionQueryRequest;
 import com.fsd.admin.dto.AdminOrderQueryRequest;
 import com.fsd.admin.dto.AdminTaskQueryRequest;
+import com.fsd.admin.dto.AdminBatchTaskRequest;
+import com.fsd.admin.dto.AdminTaskCancelRequest;
 import com.fsd.admin.dto.AdminTaskManualAssignRequest;
 import com.fsd.admin.dto.AdminVehicleQueryRequest;
+import com.fsd.admin.service.BatchTaskAdminService;
+import com.fsd.admin.service.TaskPriorityAdminService;
 import com.fsd.admin.auth.AdminAuthContext;
 import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.dto.AdminDispatchExceptionResolveRequest;
 import com.fsd.admin.service.AdminDashboardService;
 import com.fsd.admin.service.AdminQueryFacadeService;
+import com.fsd.admin.vo.AdminBatchTaskResultResponse;
 import com.fsd.admin.vo.AdminDashboardSummaryResponse;
 import com.fsd.common.model.PageResponse;
 import com.fsd.common.model.ApiResponse;
@@ -64,6 +69,8 @@ public class AdminDispatchController {
     private final VehicleAdminQueryService vehicleAdminQueryService;
     private final ParkPilotService parkPilotService;
     private final ParkPilotCommandService parkPilotCommandService;
+    private final BatchTaskAdminService batchTaskAdminService;
+    private final TaskPriorityAdminService taskPriorityAdminService;
 
     public AdminDispatchController(OrderAdminQueryService orderAdminQueryService,
                                    OrderQueryService orderQueryService,
@@ -74,7 +81,9 @@ public class AdminDispatchController {
                                    AdminQueryFacadeService adminQueryFacadeService,
                                    VehicleAdminQueryService vehicleAdminQueryService,
                                    ParkPilotService parkPilotService,
-                                   ParkPilotCommandService parkPilotCommandService) {
+                                   ParkPilotCommandService parkPilotCommandService,
+                                   BatchTaskAdminService batchTaskAdminService,
+                                   TaskPriorityAdminService taskPriorityAdminService) {
         this.orderAdminQueryService = orderAdminQueryService;
         this.orderQueryService = orderQueryService;
         this.dispatchAdminQueryService = dispatchAdminQueryService;
@@ -85,6 +94,8 @@ public class AdminDispatchController {
         this.vehicleAdminQueryService = vehicleAdminQueryService;
         this.parkPilotService = parkPilotService;
         this.parkPilotCommandService = parkPilotCommandService;
+        this.batchTaskAdminService = batchTaskAdminService;
+        this.taskPriorityAdminService = taskPriorityAdminService;
     }
 
     @GetMapping("/orders")
@@ -135,6 +146,55 @@ public class AdminDispatchController {
         return ApiResponse.success(dispatchTaskService.manualAssignTask(taskId, assignRequest));
     }
 
+    @PostMapping("/tasks/{taskId}/cancel")
+    public ApiResponse<DispatchTaskAssignResponse> cancelTask(@PathVariable Long taskId,
+                                                                @RequestBody(required = false) AdminTaskCancelRequest body,
+                                                                HttpServletRequest httpRequest) {
+        OperatorIdentity operator = resolveOperator(httpRequest);
+        String remark = body != null ? body.getRemark() : null;
+        return ApiResponse.success(dispatchTaskService.cancelTask(taskId, operator.id(), operator.name(), remark));
+    }
+
+    @PostMapping("/tasks/{taskId}/reassign")
+    public ApiResponse<DispatchTaskAssignResponse> reassignTask(@PathVariable Long taskId,
+                                                                @Valid @RequestBody AdminTaskManualAssignRequest request,
+                                                                HttpServletRequest httpRequest) {
+        DispatchTaskManualAssignRequest assignRequest = new DispatchTaskManualAssignRequest();
+        assignRequest.setVehicleId(request.getVehicleId());
+        OperatorIdentity operator = resolveOperator(httpRequest);
+        assignRequest.setOperatorId(operator.id());
+        assignRequest.setOperatorName(operator.name());
+        assignRequest.setRemark(request.getRemark());
+        return ApiResponse.success(dispatchTaskService.reassignTask(taskId, assignRequest));
+    }
+
+    @PostMapping("/tasks/{taskId}/bump-priority")
+    public ApiResponse<Void> bumpTaskPriority(@PathVariable Long taskId) {
+        taskPriorityAdminService.bumpTaskPriority(taskId);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/tasks/batch/auto-assign")
+    public ApiResponse<AdminBatchTaskResultResponse> batchAutoAssign(@Valid @RequestBody AdminBatchTaskRequest request,
+                                                                     HttpServletRequest httpRequest) {
+        OperatorIdentity operator = resolveOperator(httpRequest);
+        return ApiResponse.success(batchTaskAdminService.batchAutoAssign(request, operator.id(), operator.name()));
+    }
+
+    @PostMapping("/tasks/batch/cancel")
+    public ApiResponse<AdminBatchTaskResultResponse> batchCancel(@Valid @RequestBody AdminBatchTaskRequest request,
+                                                                 HttpServletRequest httpRequest) {
+        OperatorIdentity operator = resolveOperator(httpRequest);
+        return ApiResponse.success(batchTaskAdminService.batchCancel(request, operator.id(), operator.name()));
+    }
+
+    @PostMapping("/tasks/batch/reassign")
+    public ApiResponse<AdminBatchTaskResultResponse> batchReassign(@Valid @RequestBody AdminBatchTaskRequest request,
+                                                                   HttpServletRequest httpRequest) {
+        OperatorIdentity operator = resolveOperator(httpRequest);
+        return ApiResponse.success(batchTaskAdminService.batchReassign(request, operator.id(), operator.name()));
+    }
+
     @GetMapping("/exceptions")
     public ApiResponse<List<DispatchExceptionListItemResponse>> listExceptions() {
         return ApiResponse.success(dispatchAdminQueryService.listExceptions());
@@ -180,8 +240,9 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/dashboard/summary")
-    public ApiResponse<AdminDashboardSummaryResponse> getDashboardSummary() {
-        return ApiResponse.success(adminDashboardService.getSummary());
+    public ApiResponse<AdminDashboardSummaryResponse> getDashboardSummary(
+            @RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(adminDashboardService.getSummary(parkId));
     }
 
     @GetMapping("/parks")

@@ -45,16 +45,15 @@
           <h3 class="panel-title">
             <LineChartOutlined /> 运营趋势
           </h3>
-          <a-tag color="default">Phase 6</a-tag>
+          <a-button type="link" size="small" @click="router.push('/analytics')">查看完整报表</a-button>
         </div>
-        <div class="trend-placeholder">
-          <BarChartOutlined class="trend-icon" />
-          <p class="trend-title">趋势报表即将上线</p>
-          <p class="trend-desc">
-            订单完成率、任务时长、车辆利用率等运营指标将在此展示。
-            当前请使用下方入口进入各业务模块。
-          </p>
-        </div>
+        <a-spin :spinning="trendLoading">
+          <TrendBarChart v-if="trendPoints.length > 0" :points="trendPoints" />
+          <div v-else class="trend-placeholder">
+            <BarChartOutlined class="trend-icon" />
+            <p class="trend-title">暂无趋势数据</p>
+          </div>
+        </a-spin>
       </div>
 
       <div class="nav-panel animate-fade-in-up stagger-4">
@@ -86,8 +85,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, markRaw } from 'vue'
+import { computed, onMounted, markRaw, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import TrendBarChart from '@/components/analytics/TrendBarChart.vue'
+import { getAnalyticsEfficiency } from '@/api/analytics'
+import type { AnalyticsTrendPoint } from '@/types/analytics'
 import {
   ClockCircleOutlined,
   ReloadOutlined,
@@ -104,10 +106,23 @@ import {
   UnorderedListOutlined,
 } from '@ant-design/icons-vue'
 import { useDashboardStore } from '@/stores/dashboard'
-import { DASHBOARD_POLL_INTERVAL } from '@/config'
 
 const router = useRouter()
 const store = useDashboardStore()
+const trendLoading = ref(false)
+const trendPoints = ref<AnalyticsTrendPoint[]>([])
+
+async function loadTrend() {
+  trendLoading.value = true
+  try {
+    const res = await getAnalyticsEfficiency('week')
+    trendPoints.value = res.data.orderCompletionTrend || []
+  } catch {
+    trendPoints.value = []
+  } finally {
+    trendLoading.value = false
+  }
+}
 
 const statCards = computed(() => {
   const s = store.summary
@@ -151,14 +166,14 @@ const statCards = computed(() => {
     {
       key: 'exceptions',
       label: '未处理异常',
-      value: s?.failedCount ?? '-',
+      value: s?.openExceptionCount ?? s?.failedCount ?? '-',
       icon: markRaw(AlertOutlined),
       iconBg: 'rgba(255, 61, 113, 0.1)',
       iconColor: '#FF3D71',
       valueColor: '#FF3D71',
       actionText: '前往工作台',
       link: '/workbench',
-      alert: (s?.failedCount ?? 0) > 0,
+      alert: (s?.openExceptionCount ?? s?.failedCount ?? 0) > 0,
     },
   ]
 })
@@ -212,17 +227,12 @@ function handleCardClick(card: { link?: string }) {
 
 function handleRefresh() {
   store.fetchSummary()
+  loadTrend()
 }
-
-let pollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
   store.fetchSummary()
-  pollTimer = setInterval(() => store.fetchSummary(), DASHBOARD_POLL_INTERVAL)
-})
-
-onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
+  loadTrend()
 })
 </script>
 

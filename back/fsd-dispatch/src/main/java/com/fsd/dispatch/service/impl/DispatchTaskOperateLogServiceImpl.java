@@ -1,9 +1,13 @@
 package com.fsd.dispatch.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.dispatch.entity.DispatchTaskOperateLogEntity;
 import com.fsd.dispatch.mapper.DispatchTaskOperateLogMapper;
 import com.fsd.dispatch.service.DispatchTaskOperateLogService;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,5 +35,22 @@ public class DispatchTaskOperateLogServiceImpl implements DispatchTaskOperateLog
         entity.setOperateRemark(remark);
         entity.setCreatedAt(LocalDateTime.now());
         operateLogMapper.insert(entity);
+    }
+
+    @Override
+    public List<DispatchTaskOperateLogEntity> listByTaskId(Long taskId) {
+        return operateLogMapper.selectList(new LambdaQueryWrapper<DispatchTaskOperateLogEntity>()
+                .eq(DispatchTaskOperateLogEntity::getTaskId, taskId)
+                .orderByAsc(DispatchTaskOperateLogEntity::getCreatedAt));
+    }
+
+    @Override
+    public List<DispatchTaskOperateLogEntity> listByTaskIds(Collection<Long> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return operateLogMapper.selectList(new LambdaQueryWrapper<DispatchTaskOperateLogEntity>()
+                .in(DispatchTaskOperateLogEntity::getTaskId, taskIds)
+                .orderByDesc(DispatchTaskOperateLogEntity::getCreatedAt));
     }
 }

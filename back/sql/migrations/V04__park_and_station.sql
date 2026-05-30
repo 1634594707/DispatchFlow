@@ -49,9 +49,7 @@ CREATE TABLE IF NOT EXISTS `t_station` (
   KEY `idx_park_id_type` (`park_id`, `station_type`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='园区站点表';
 
-ALTER TABLE `t_order`
-  ADD COLUMN `park_id` BIGINT DEFAULT NULL COMMENT '所属园区ID' AFTER `biz_type`,
-  ADD KEY `idx_park_id` (`park_id`);
+-- park_id + idx_park_id already created in V01__init_schema.sql
 
 -- Default park (matches legacy application.yml layout)
 INSERT INTO `t_park` (

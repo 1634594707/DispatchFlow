@@ -4,6 +4,7 @@ export interface TaskQueryRequest {
   taskNo?: string
   orderId?: number
   vehicleId?: number
+  parkId?: number
   status?: TaskStatus
   manualFlag?: boolean
   withOpenExceptionOnly?: boolean
@@ -33,6 +34,8 @@ export interface TaskAdminListItem {
   openExceptionCount?: number
   primaryOpenException?: OpenExceptionBrief | null
   openExceptions?: OpenExceptionBrief[]
+  orderPriority?: string
+  waitMinutes?: number
 }
 
 export interface TaskDetailResponse {

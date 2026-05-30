@@ -127,10 +127,8 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
             if (Objects.equals(current.code(), endNode)) {
                 break;
             }
-            ParkRoadGraph.NodeView currentNode = graph.node(current.code());
             for (String next : graph.neighbors(current.code())) {
-                ParkRoadGraph.NodeView nextNode = graph.node(next);
-                double candidate = current.distance() + currentNode.distanceTo(nextNode);
+                double candidate = current.distance() + graph.edgeCost(current.code(), next);
                 if (candidate < distances.getOrDefault(next, Double.MAX_VALUE)) {
                     distances.put(next, candidate);
                     previous.put(next, current.code());

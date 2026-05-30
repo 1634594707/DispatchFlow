@@ -16,6 +16,10 @@ final class IntegrationTestSchema {
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_charging_session");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_charging_pile");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_parking_slot");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_external_api_key");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_webhook_subscription");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_strategy_change_log");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_strategy_profile");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_road_segment");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_road_node");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_exception_record");
@@ -300,10 +304,76 @@ final class IntegrationTestSchema {
                     from_node_code VARCHAR(64) NOT NULL,
                     to_node_code VARCHAR(64) NOT NULL,
                     status VARCHAR(32) NOT NULL,
+                    speed_limit_kmh INT DEFAULT 15,
+                    congestion_level INT NOT NULL DEFAULT 0,
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     version INT DEFAULT 0,
+                    deleted TINYINT DEFAULT 0
+                )
+                """);
+
+        jdbcTemplate.execute("""
+                CREATE TABLE t_dispatch_strategy_profile (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    profile_name VARCHAR(64) NOT NULL,
+                    profile_type VARCHAR(32) NOT NULL DEFAULT 'PRODUCTION',
+                    active_flag TINYINT NOT NULL DEFAULT 0,
+                    gray_percent INT NOT NULL DEFAULT 0,
+                    park_id BIGINT,
+                    weight_distance DECIMAL(10,4) NOT NULL DEFAULT 1.0,
+                    weight_soc_margin DECIMAL(10,4) NOT NULL DEFAULT 0.15,
+                    weight_plugged_standby_bonus DECIMAL(10,4) NOT NULL DEFAULT 80.0,
+                    min_assignable_soc INT NOT NULL DEFAULT 30,
+                    full_soc INT NOT NULL DEFAULT 100,
+                    remark VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    version INT DEFAULT 0,
+                    deleted TINYINT DEFAULT 0
+                )
+                """);
+
+        jdbcTemplate.execute("""
+                CREATE TABLE t_dispatch_strategy_change_log (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    profile_id BIGINT NOT NULL,
+                    profile_name VARCHAR(64) NOT NULL,
+                    change_type VARCHAR(32) NOT NULL,
+                    operator_name VARCHAR(64),
+                    change_summary VARCHAR(512),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
+
+        jdbcTemplate.execute("""
+                CREATE TABLE t_webhook_subscription (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(128) NOT NULL,
+                    callback_url VARCHAR(512) NOT NULL,
+                    secret_token VARCHAR(128),
+                    event_types VARCHAR(512) NOT NULL,
+                    enabled TINYINT NOT NULL DEFAULT 1,
+                    failure_count INT NOT NULL DEFAULT 0,
+                    last_delivery_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    deleted TINYINT DEFAULT 0
+                )
+                """);
+
+        jdbcTemplate.execute("""
+                CREATE TABLE t_external_api_key (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    key_name VARCHAR(128) NOT NULL,
+                    api_key VARCHAR(64) NOT NULL,
+                    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+                    rate_limit_per_minute INT NOT NULL DEFAULT 120,
+                    total_calls BIGINT NOT NULL DEFAULT 0,
+                    last_used_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     deleted TINYINT DEFAULT 0
                 )
                 """);

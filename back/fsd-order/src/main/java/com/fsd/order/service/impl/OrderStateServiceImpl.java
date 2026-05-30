@@ -97,6 +97,21 @@ public class OrderStateServiceImpl implements OrderStateService {
         orderMapper.updateById(orderEntity);
     }
 
+    @Override
+    @Transactional
+    public void markCancelled(Long orderId) {
+        OrderEntity orderEntity = getOrder(orderId);
+        OrderStatus current = OrderStatus.valueOf(orderEntity.getStatus());
+        if (current == OrderStatus.CANCELLED) {
+            return;
+        }
+        assertStatus(orderEntity,
+                Set.of(OrderStatus.WAITING_DISPATCH, OrderStatus.DISPATCHED, OrderStatus.IN_PROGRESS),
+                "ORDER_STATUS_INVALID");
+        orderEntity.setStatus(OrderStatus.CANCELLED.name());
+        orderMapper.updateById(orderEntity);
+    }
+
     private void assertStatus(OrderEntity orderEntity, Set<OrderStatus> allowed, String errorCode) {
         OrderStatus current = OrderStatus.valueOf(orderEntity.getStatus());
         if (!allowed.contains(current)) {

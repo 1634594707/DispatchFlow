@@ -5,14 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 import com.fsd.common.enums.DispatchAssignFailReason;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.config.DispatchScoringProperties;
 import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
-import com.fsd.dispatch.fleet.policy.FleetChargePolicyImpl;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
+import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.dispatch.vo.ParkPointResponse;
@@ -40,18 +41,22 @@ class DispatchVehicleAssignServiceImplTest {
     private ParkRoutePlannerService parkRoutePlannerService;
     @Mock
     private FleetRuntimeService fleetRuntimeService;
+    @Mock
+    private DispatchStrategyRuntimeService strategyRuntimeService;
 
     private DispatchVehicleAssignServiceImpl assignService;
 
     @BeforeEach
     void setUp() {
+        FleetEnergyProperties energy = new FleetEnergyProperties();
+        DispatchScoringProperties scoring = new DispatchScoringProperties();
+        lenient().when(strategyRuntimeService.energyForAssign(any())).thenReturn(energy);
+        lenient().when(strategyRuntimeService.scoringForAssign(any())).thenReturn(scoring);
         assignService = new DispatchVehicleAssignServiceImpl(
                 vehicleService,
                 parkStationService,
                 parkRoutePlannerService,
-                new FleetChargePolicyImpl(new FleetEnergyProperties()),
-                new FleetEnergyProperties(),
-                new DispatchScoringProperties(),
+                strategyRuntimeService,
                 fleetRuntimeService);
     }
 

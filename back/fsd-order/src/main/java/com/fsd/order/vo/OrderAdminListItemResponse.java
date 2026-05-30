@@ -20,6 +20,8 @@ public class OrderAdminListItemResponse {
 
     private Long dispatchTaskId;
 
+    private Long parkId;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

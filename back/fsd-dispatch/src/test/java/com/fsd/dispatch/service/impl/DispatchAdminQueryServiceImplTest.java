@@ -38,6 +38,8 @@ class DispatchAdminQueryServiceImplTest {
     private com.fsd.dispatch.fleet.service.FleetRuntimeService fleetRuntimeService;
     @Mock
     private com.fsd.dispatch.fleet.policy.FleetChargePolicy fleetChargePolicy;
+    @Mock
+    private com.fsd.order.mapper.OrderMapper orderMapper;
 
     @InjectMocks
     private DispatchAdminQueryServiceImpl dispatchAdminQueryService;
@@ -98,6 +100,7 @@ class DispatchAdminQueryServiceImplTest {
         when(dispatchTaskService.listManualPendingTasks()).thenReturn(List.of(manualPending));
         when(dispatchTaskService.listPendingTasks()).thenReturn(List.of());
         when(dispatchExceptionService.listOpenExceptions()).thenReturn(List.of(openException));
+        when(orderMapper.selectList(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
         when(dispatchTaskMapper.selectOne(org.mockito.ArgumentMatchers.any())).thenReturn(
                 buildTask(20L, "TSK-20", DispatchTaskStatus.MANUAL_PENDING.name())
         );

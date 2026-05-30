@@ -21,6 +21,10 @@ public class RoadSegmentEntity {
 
     private String status;
 
+    private Integer speedLimitKmh;
+
+    private Integer congestionLevel;
+
     private String remark;
 
     private LocalDateTime createdAt;

@@ -18,6 +18,8 @@ public class AdminTaskQueryRequest {
     /** 仅返回存在 OPEN 异常的任务 */
     private Boolean withOpenExceptionOnly;
 
+    private Long parkId;
+
     private Integer pageNo = 1;
 
     private Integer pageSize = 20;

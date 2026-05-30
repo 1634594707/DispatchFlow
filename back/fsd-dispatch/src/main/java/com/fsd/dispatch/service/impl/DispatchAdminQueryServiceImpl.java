@@ -20,6 +20,10 @@ import com.fsd.dispatch.vo.DispatchOpenExceptionBrief;
 import com.fsd.dispatch.vo.DispatchSummaryResponse;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
 import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
+import com.fsd.order.entity.OrderEntity;
+import com.fsd.order.mapper.OrderMapper;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -40,6 +44,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
     private final ParkPilotService parkPilotService;
     private final FleetRuntimeService fleetRuntimeService;
     private final FleetChargePolicy fleetChargePolicy;
+    private final OrderMapper orderMapper;
 
     public DispatchAdminQueryServiceImpl(DispatchTaskMapper dispatchTaskMapper,
                                          DispatchExceptionRecordMapper exceptionRecordMapper,
@@ -47,7 +52,8 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
                                          DispatchExceptionService dispatchExceptionService,
                                          ParkPilotService parkPilotService,
                                          FleetRuntimeService fleetRuntimeService,
-                                         FleetChargePolicy fleetChargePolicy) {
+                                         FleetChargePolicy fleetChargePolicy,
+                                         OrderMapper orderMapper) {
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.exceptionRecordMapper = exceptionRecordMapper;
         this.dispatchTaskService = dispatchTaskService;
@@ -55,6 +61,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
         this.parkPilotService = parkPilotService;
         this.fleetRuntimeService = fleetRuntimeService;
         this.fleetChargePolicy = fleetChargePolicy;
+        this.orderMapper = orderMapper;
     }
 
     @Override
@@ -101,12 +108,9 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
         List<DispatchTaskListItemResponse> manualPendingTasks = dispatchTaskService.listManualPendingTasks();
         Map<Long, List<DispatchOpenExceptionBrief>> openByTaskId = groupOpenExceptionsByTaskId();
 
-        List<DispatchTaskListItemResponse> enrichedPending = pendingTasks.stream()
-                .map(task -> enrichTaskListItem(task, openByTaskId.getOrDefault(task.getTaskId(), List.of())))
-                .toList();
-        List<DispatchTaskListItemResponse> enrichedManualPending = manualPendingTasks.stream()
-                .map(task -> enrichTaskListItem(task, openByTaskId.getOrDefault(task.getTaskId(), List.of())))
-                .toList();
+        List<DispatchTaskListItemResponse> enrichedPending = sortTasksByPriority(enrichedWithPriority(pendingTasks, openByTaskId));
+        List<DispatchTaskListItemResponse> enrichedManualPending = sortTasksByPriority(
+                enrichedWithPriority(manualPendingTasks, openByTaskId));
 
         List<DispatchExceptionListItemResponse> openExceptions = dispatchExceptionService.listOpenExceptions().stream()
                 .map(exception -> toExceptionListItem(exception, loadTask(exception.getTaskId())))
@@ -231,6 +235,54 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .build();
+    }
+
+    private List<DispatchTaskListItemResponse> enrichedWithPriority(
+            List<DispatchTaskListItemResponse> tasks,
+            Map<Long, List<DispatchOpenExceptionBrief>> openByTaskId) {
+        if (tasks.isEmpty()) {
+            return List.of();
+        }
+        List<Long> orderIds = tasks.stream().map(DispatchTaskListItemResponse::getOrderId).distinct().toList();
+        Map<Long, OrderEntity> orderById = orderMapper.selectList(new LambdaQueryWrapper<OrderEntity>()
+                        .in(OrderEntity::getId, orderIds)
+                        .eq(OrderEntity::getDeleted, 0))
+                .stream()
+                .collect(Collectors.toMap(OrderEntity::getId, Function.identity(), (left, right) -> left));
+        LocalDateTime now = LocalDateTime.now();
+        return tasks.stream()
+                .map(task -> {
+                    DispatchTaskListItemResponse enriched = enrichTaskListItem(
+                            task, openByTaskId.getOrDefault(task.getTaskId(), List.of()));
+                    OrderEntity order = orderById.get(task.getOrderId());
+                    enriched.setOrderPriority(order == null ? "P2" : order.getPriority());
+                    LocalDateTime baseTime = task.getCreatedAt() != null ? task.getCreatedAt() : now;
+                    enriched.setWaitMinutes(Math.max(0, Duration.between(baseTime, now).toMinutes()));
+                    return enriched;
+                })
+                .toList();
+    }
+
+    private List<DispatchTaskListItemResponse> sortTasksByPriority(List<DispatchTaskListItemResponse> tasks) {
+        return tasks.stream()
+                .sorted(Comparator
+                        .comparingInt((DispatchTaskListItemResponse task) -> priorityWeight(task.getOrderPriority()))
+                        .thenComparing(task -> task.getWaitMinutes() == null ? 0L : task.getWaitMinutes(), Comparator.reverseOrder())
+                        .thenComparing(DispatchTaskListItemResponse::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+    }
+
+    private int priorityWeight(String priority) {
+        if (priority == null) {
+            return 9;
+        }
+        return switch (priority.toUpperCase()) {
+            case "P0" -> 0;
+            case "P1" -> 1;
+            case "P2" -> 2;
+            case "P3" -> 3;
+            default -> 9;
+        };
     }
 
     private DispatchTaskListItemResponse enrichTaskListItem(DispatchTaskListItemResponse task,

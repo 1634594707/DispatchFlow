@@ -17,10 +17,14 @@ public final class ParkRoadGraph {
 
     private final Map<String, NodeView> nodes;
     private final Map<String, List<String>> adjacency;
+    private final Map<String, Double> edgeCostMultiplier;
 
-    private ParkRoadGraph(Map<String, NodeView> nodes, Map<String, List<String>> adjacency) {
+    private ParkRoadGraph(Map<String, NodeView> nodes,
+                          Map<String, List<String>> adjacency,
+                          Map<String, Double> edgeCostMultiplier) {
         this.nodes = nodes;
         this.adjacency = adjacency;
+        this.edgeCostMultiplier = edgeCostMultiplier;
     }
 
     public boolean isEmpty() {
@@ -43,6 +47,16 @@ public final class ParkRoadGraph {
         return adjacency.getOrDefault(code, List.of());
     }
 
+    public double edgeCost(String from, String to) {
+        NodeView fromNode = node(from);
+        NodeView toNode = node(to);
+        if (fromNode == null || toNode == null) {
+            return Double.MAX_VALUE;
+        }
+        double base = fromNode.distanceTo(toNode);
+        return base * edgeCostMultiplier.getOrDefault(directedKey(from, to), 1.0);
+    }
+
     public static ParkRoadGraph fromDatabase(List<RoadNodeEntity> dbNodes, List<RoadSegmentEntity> dbSegments) {
         Map<String, NodeView> nodes = new HashMap<>();
         for (RoadNodeEntity entity : dbNodes) {
@@ -58,14 +72,18 @@ public final class ParkRoadGraph {
         for (String code : nodes.keySet()) {
             adjacency.put(code, new ArrayList<>());
         }
+        Map<String, Double> edgeCostMultiplier = new HashMap<>();
         for (RoadSegmentEntity segment : dbSegments) {
             if (segment == null || !"ACTIVE".equalsIgnoreCase(segment.getStatus())) {
                 continue;
             }
             link(adjacency, segment.getFromNodeCode(), segment.getToNodeCode());
             link(adjacency, segment.getToNodeCode(), segment.getFromNodeCode());
+            double multiplier = trafficMultiplier(segment);
+            putMultiplier(edgeCostMultiplier, segment.getFromNodeCode(), segment.getToNodeCode(), multiplier);
+            putMultiplier(edgeCostMultiplier, segment.getToNodeCode(), segment.getFromNodeCode(), multiplier);
         }
-        return new ParkRoadGraph(nodes, adjacency);
+        return new ParkRoadGraph(nodes, adjacency, edgeCostMultiplier);
     }
 
     public static ParkRoadGraph fromYaml(ParkPilotProperties properties) {
@@ -81,7 +99,31 @@ public final class ParkRoadGraph {
             link(adjacency, segment.getFrom(), segment.getTo());
             link(adjacency, segment.getTo(), segment.getFrom());
         }
-        return new ParkRoadGraph(nodes, adjacency);
+        return new ParkRoadGraph(nodes, adjacency, Map.of());
+    }
+
+    private static double trafficMultiplier(RoadSegmentEntity segment) {
+        double multiplier = 1.0;
+        int congestion = segment.getCongestionLevel() == null ? 0 : segment.getCongestionLevel();
+        if (congestion > 0) {
+            multiplier += congestion * 0.35;
+        }
+        Integer speedLimit = segment.getSpeedLimitKmh();
+        if (speedLimit != null && speedLimit < 10) {
+            multiplier += 0.5;
+        }
+        return multiplier;
+    }
+
+    private static void putMultiplier(Map<String, Double> multipliers, String from, String to, double value) {
+        if (from == null || to == null) {
+            return;
+        }
+        multipliers.put(directedKey(from, to), value);
+    }
+
+    private static String directedKey(String from, String to) {
+        return from + ">" + to;
     }
 
     private static void link(Map<String, List<String>> adjacency, String from, String to) {

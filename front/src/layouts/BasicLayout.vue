@@ -32,6 +32,7 @@
 
       <a-menu
         v-model:selectedKeys="selectedKeys"
+        v-model:openKeys="openKeys"
         theme="dark"
         mode="inline"
         @click="handleMenuClick"
@@ -51,6 +52,10 @@
         <a-menu-item key="dashboard">
           <template #icon><DashboardOutlined /></template>
           <span>调度看板</span>
+        </a-menu-item>
+        <a-menu-item key="analytics">
+          <template #icon><LineChartOutlined /></template>
+          <span>运营分析</span>
         </a-menu-item>
         <a-menu-item key="orders">
           <template #icon><FileTextOutlined /></template>
@@ -76,9 +81,31 @@
           </template>
           <span>异常任务</span>
         </a-menu-item>
+        <a-sub-menu v-if="authStore.isAdmin" key="infrastructure">
+          <template #icon><ApartmentOutlined /></template>
+          <template #title>基础设施</template>
+          <a-menu-item key="infra-parks">园区管理</a-menu-item>
+          <a-menu-item key="infra-stations">站点管理</a-menu-item>
+          <a-menu-item key="infra-parking-slots">停车位管理</a-menu-item>
+          <a-menu-item key="infra-charging-piles">充电桩管理</a-menu-item>
+          <a-menu-item key="infra-road-network">路网管理</a-menu-item>
+          <a-menu-item key="infra-traffic">交通态势</a-menu-item>
+        </a-sub-menu>
         <a-menu-item v-if="authStore.isAdmin" key="system-users">
           <template #icon><TeamOutlined /></template>
           <span>用户管理</span>
+        </a-menu-item>
+        <a-menu-item v-if="authStore.isAdmin" key="system-operate-logs">
+          <template #icon><AuditOutlined /></template>
+          <span>操作日志</span>
+        </a-menu-item>
+        <a-menu-item v-if="authStore.isAdmin" key="system-dispatch-strategy">
+          <template #icon><ControlOutlined /></template>
+          <span>调度策略</span>
+        </a-menu-item>
+        <a-menu-item v-if="authStore.isAdmin" key="system-integration">
+          <template #icon><ApiOutlined /></template>
+          <span>外部集成</span>
         </a-menu-item>
       </a-menu>
     </a-layout-sider>
@@ -107,16 +134,29 @@
           </a-breadcrumb>
         </div>
         <div class="header-right">
+          <a-select
+            v-model:value="parkScope.selectedParkId"
+            :options="parkScope.parkOptions"
+            placeholder="全部园区"
+            allow-clear
+            style="width: 168px; margin-right: 8px;"
+            :loading="parkScope.loading"
+            @change="onParkScopeChange"
+          />
           <a-tooltip title="刷新数据">
             <a-button type="text" class="header-icon-btn">
               <ReloadOutlined />
             </a-button>
+          </a-tooltip>
+          <a-tooltip :title="realtimeStore.connected ? '实时连接正常' : '实时连接断开'">
+            <span class="stream-indicator" :class="{ online: realtimeStore.connected }" />
           </a-tooltip>
           <a-popover trigger="click" placement="bottomRight" @openChange="handleNotificationOpen">
             <template #content>
               <div class="notification-panel">
                 <div class="notification-header">
                   <span>待处理异常</span>
+                  <a class="notification-link" @click="router.push('/system/alert-settings')">告警设置</a>
                   <a
                     v-if="notificationCount > 0"
                     class="notification-link"
@@ -124,6 +164,18 @@
                   >
                     查看全部
                   </a>
+                </div>
+                <div v-if="alertStore.history.length > 0" class="alert-history-block">
+                  <div class="alert-history-title">最近告警</div>
+                  <div
+                    v-for="item in alertStore.history.slice(0, 5)"
+                    :key="item.id"
+                    class="alert-history-item"
+                    :class="{ unread: !item.read }"
+                  >
+                    <span class="alert-history-sev">{{ item.severity }}</span>
+                    <span>{{ item.message }}</span>
+                  </div>
                 </div>
                 <a-spin :spinning="notificationLoading">
                   <div v-if="notificationItems.length > 0" class="notification-list">
@@ -209,16 +261,27 @@ import {
   UserOutlined,
   LogoutOutlined,
   TeamOutlined,
+  ApartmentOutlined,
+  LineChartOutlined,
+  AuditOutlined,
+  ApiOutlined,
 } from '@ant-design/icons-vue'
 import { useWorkbenchStore } from '@/stores/workbench'
+import { useParkScopeStore } from '@/stores/parkScope'
+import { useDashboardStore } from '@/stores/dashboard'
 import { useAuthStore } from '@/stores/auth'
+import { useRealtimeStore } from '@/stores/realtime'
+import { useAlertStore } from '@/stores/alert'
 import { ADMIN_AUTH_ENABLED } from '@/config'
-import { DASHBOARD_POLL_INTERVAL } from '@/config'
 
 const router = useRouter()
 const route = useRoute()
 const workbenchStore = useWorkbenchStore()
+const dashboardStore = useDashboardStore()
+const parkScope = useParkScopeStore()
 const authStore = useAuthStore()
+const realtimeStore = useRealtimeStore()
+const alertStore = useAlertStore()
 
 const collapsed = ref(false)
 const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE
@@ -240,9 +303,31 @@ const menuKeyMap: Record<string, string> = {
   '/vehicles': 'vehicles',
   '/exceptions': 'exceptions',
   '/system/users': 'system-users',
+  '/system/operate-logs': 'system-operate-logs',
+  '/system/alert-settings': 'system-alert-settings',
+  '/system/dispatch-strategy': 'system-dispatch-strategy',
+  '/system/integration': 'system-integration',
+  '/analytics': 'analytics',
+  '/analytics/charging': 'analytics-charging',
+  '/infrastructure/parks': 'infra-parks',
+  '/infrastructure/stations': 'infra-stations',
+  '/infrastructure/parking-slots': 'infra-parking-slots',
+  '/infrastructure/charging-piles': 'infra-charging-piles',
+  '/infrastructure/road-network': 'infra-road-network',
+  '/infrastructure/traffic': 'infra-traffic',
 }
 
 const selectedKeys = ref<string[]>(['workbench'])
+const openKeys = ref<string[]>([])
+
+const infraMenuKeys = new Set([
+  'infra-parks',
+  'infra-stations',
+  'infra-parking-slots',
+  'infra-charging-piles',
+  'infra-road-network',
+  'infra-traffic',
+])
 
 const breadcrumbItems = computed(() => {
   const meta = route.meta
@@ -258,6 +343,18 @@ const breadcrumbItems = computed(() => {
     '车辆监控大屏': '/vehicle-tracking',
     '异常任务': '/exceptions',
     '用户管理': '/system/users',
+    '操作日志': '/system/operate-logs',
+    '告警设置': '/system/alert-settings',
+    '运营分析': '/analytics',
+    '充电报表': '/analytics/charging',
+    '园区管理': '/infrastructure/parks',
+    '站点管理': '/infrastructure/stations',
+    '停车位管理': '/infrastructure/parking-slots',
+    '充电桩管理': '/infrastructure/charging-piles',
+    '路网管理': '/infrastructure/road-network',
+    '交通态势': '/infrastructure/traffic',
+    '调度策略': '/system/dispatch-strategy',
+    '外部集成': '/system/integration',
   }
 
   return crumbs.map((label, i) => {
@@ -284,6 +381,7 @@ async function handleNotificationOpen(open: boolean) {
   try {
     await workbenchStore.fetchQueue()
     notificationItems.value = workbenchStore.openExceptions.slice(0, 8)
+    alertStore.markAllRead()
   } catch {
     notificationItems.value = []
   } finally {
@@ -303,12 +401,24 @@ function handleMenuClick({ key }: { key: string }) {
   const pathMap: Record<string, string> = {
     workbench: '/workbench',
     dashboard: '/dashboard',
+    analytics: '/analytics',
     orders: '/orders',
     tasks: '/tasks',
     vehicles: '/vehicles',
     'vehicle-tracking': '/vehicle-tracking',
     exceptions: '/exceptions',
     'system-users': '/system/users',
+    'system-operate-logs': '/system/operate-logs',
+    'system-alert-settings': '/system/alert-settings',
+    'analytics-charging': '/analytics/charging',
+    'infra-parks': '/infrastructure/parks',
+    'infra-stations': '/infrastructure/stations',
+    'infra-parking-slots': '/infrastructure/parking-slots',
+    'infra-charging-piles': '/infrastructure/charging-piles',
+    'infra-road-network': '/infrastructure/road-network',
+    'infra-traffic': '/infrastructure/traffic',
+    'system-dispatch-strategy': '/system/dispatch-strategy',
+    'system-integration': '/system/integration',
   }
   if (pathMap[key]) {
     router.push(pathMap[key])
@@ -328,30 +438,42 @@ async function handleUserMenu({ key }: { key: string }) {
   }
 }
 
+async function refreshBadgeCounts() {
+  await workbenchStore.fetchQueue()
+}
+
+async function onParkScopeChange() {
+  parkScope.setParkId(parkScope.selectedParkId)
+  await Promise.all([
+    workbenchStore.fetchQueue({ silent: true }),
+    dashboardStore.fetchSummary({ silent: true }),
+  ])
+}
+
 watch(
   () => route.path,
   (path) => {
-    const key = Object.keys(menuKeyMap).find((k) => path.startsWith(k))
+    const key = Object.keys(menuKeyMap)
+      .sort((a, b) => b.length - a.length)
+      .find((k) => path.startsWith(k))
     if (key) {
       selectedKeys.value = [menuKeyMap[key]]
+      if (infraMenuKeys.has(menuKeyMap[key])) {
+        openKeys.value = ['infrastructure']
+      }
     }
   },
   { immediate: true }
 )
 
-let pollTimer: ReturnType<typeof setInterval> | null = null
-
-async function refreshBadgeCounts() {
-  await workbenchStore.fetchQueue()
-}
-
 onMounted(() => {
+  parkScope.loadParks()
   refreshBadgeCounts()
-  pollTimer = setInterval(refreshBadgeCounts, DASHBOARD_POLL_INTERVAL)
+  realtimeStore.start()
 })
 
 onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
+  realtimeStore.stop()
 })
 </script>
 
@@ -574,6 +696,51 @@ onUnmounted(() => {
   margin-top: 6px;
   font-size: 11px;
   color: var(--fsd-text-tertiary);
+}
+
+.stream-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fsd-text-tertiary);
+  display: inline-block;
+  margin-right: 8px;
+
+  &.online {
+    background: #00e676;
+    box-shadow: 0 0 8px rgba(0, 230, 118, 0.6);
+  }
+}
+
+.alert-history-block {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--fsd-border);
+}
+
+.alert-history-title {
+  font-size: 12px;
+  color: var(--fsd-text-tertiary);
+  margin-bottom: 8px;
+}
+
+.alert-history-item {
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
+  padding: 6px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+
+  &.unread {
+    color: var(--fsd-text-primary);
+  }
+}
+
+.alert-history-sev {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--fsd-warning);
 }
 
 .fade-enter-active,

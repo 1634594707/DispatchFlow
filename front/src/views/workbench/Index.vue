@@ -59,21 +59,45 @@
             </button>
           </div>
         </div>
+        <div v-if="selectedTaskIds.length > 0" class="batch-toolbar">
+          <span class="batch-hint">已选 {{ selectedTaskIds.length }} 项</span>
+          <a-button size="small" type="primary" :loading="batchLoading" @click="handleBatchAuto">
+            批量自动派车
+          </a-button>
+          <a-button size="small" :loading="batchLoading" @click="openBatchReassign">批量改派</a-button>
+          <a-button size="small" danger :loading="batchLoading" @click="handleBatchCancel">批量取消</a-button>
+          <a-button size="small" type="link" @click="clearSelection">清空</a-button>
+        </div>
         <a-spin :spinning="store.loading">
           <div class="task-list">
             <article
               v-for="task in store.taskPool"
               :key="task.taskId"
               class="task-card"
-              :class="{ selected: store.selectedTaskId === task.taskId }"
+              :class="{ selected: store.selectedTaskId === task.taskId, checked: selectedTaskIds.includes(task.taskId) }"
+              draggable="true"
+              @dragstart="onTaskDragStart(task.taskId)"
+              @dragover.prevent
+              @drop="onTaskDrop(task.taskId)"
               @click="store.selectTask(task.taskId)"
             >
+              <label class="task-check" @click.stop>
+                <input
+                  type="checkbox"
+                  :checked="selectedTaskIds.includes(task.taskId)"
+                  @change="toggleTaskSelection(task.taskId)"
+                />
+              </label>
               <div class="task-card-head">
                 <span class="task-no">{{ task.taskNo }}</span>
+                <span v-if="task.orderPriority" class="priority-badge" :class="`priority-${task.orderPriority}`">
+                  {{ task.orderPriority }}
+                </span>
                 <StatusBadge :status="task.status" type="task" />
               </div>
               <div class="task-meta">
                 <span>订单 #{{ task.orderId }}</span>
+                <span v-if="task.waitMinutes != null" class="wait-badge">等待 {{ task.waitMinutes }} 分</span>
                 <span v-if="task.openExceptionCount" class="exc-badge">
                   {{ task.openExceptionCount }} 异常
                 </span>
@@ -89,6 +113,7 @@
                   自动派车
                 </a-button>
                 <a-button size="small" @click="openManualModal(task)">手动派车</a-button>
+                <a-button size="small" @click="handleBumpPriority(task)">紧急插队</a-button>
                 <a-button type="link" size="small" @click="router.push(`/tasks/${task.taskId}`)">
                   详情
                 </a-button>
@@ -201,11 +226,53 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-modal
+      v-model:open="batchReassignVisible"
+      title="批量改派"
+      ok-text="确认改派"
+      :confirm-loading="batchLoading"
+      @ok="submitBatchReassign"
+    >
+      <p class="batch-modal-hint">将对 {{ selectedTaskIds.length }} 个任务改派到同一车辆</p>
+      <a-form layout="vertical">
+        <a-form-item label="选择车辆" required>
+          <a-select
+            v-model:value="batchReassignVehicleId"
+            placeholder="在线且空闲的车辆"
+            :loading="vehiclesLoading"
+            :options="assignableVehicleOptions"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:open="batchResultVisible"
+      title="批量操作结果"
+      :footer="null"
+      width="560px"
+    >
+      <p class="batch-result-summary">
+        成功 {{ batchResult?.successCount ?? 0 }} / 失败 {{ batchResult?.failureCount ?? 0 }}（共 {{ batchResult?.total ?? 0 }}）
+      </p>
+      <a-table
+        size="small"
+        :pagination="false"
+        row-key="taskId"
+        :data-source="batchResult?.results || []"
+        :columns="[
+          { title: '任务', dataIndex: 'taskNo', key: 'taskNo' },
+          { title: '状态', dataIndex: 'status', key: 'status' },
+          { title: '说明', dataIndex: 'message', key: 'message' },
+        ]"
+      />
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
@@ -215,14 +282,16 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import ParkMiniMap from '@/components/workbench/ParkMiniMap.vue'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { queryVehicles } from '@/api/vehicle'
+import { batchAutoAssign, batchCancelTasks, batchReassignTasks, bumpTaskPriority } from '@/api/task'
 import { exceptionTypeMap, DISPATCH_FAIL_REASON } from '@/constants/statusMap'
+import type { BatchTaskResult } from '@/types/operateLog'
 import { DispatchStatus, TaskStatus } from '@/constants/enums'
-import { DASHBOARD_POLL_INTERVAL } from '@/config'
 import type { TaskAdminListItem } from '@/types/task'
 import type { ExceptionAdminListItem } from '@/types/exception'
 
 const router = useRouter()
 const store = useWorkbenchStore()
+const draggingTaskId = ref<number | null>(null)
 
 const parkLayout = computed(() => store.parkLayout)
 const parkVehicles = computed(() => store.parkVehicles)
@@ -241,6 +310,19 @@ const manualLoading = ref(false)
 const vehiclesLoading = ref(false)
 const manualTask = ref<TaskAdminListItem | null>(null)
 const manualForm = reactive({ vehicleId: undefined as number | undefined, remark: '' })
+const selectedTaskIds = ref<number[]>([])
+const batchLoading = ref(false)
+const batchReassignVisible = ref(false)
+const batchReassignVehicleId = ref<number | undefined>()
+const batchResultVisible = ref(false)
+const batchResult = ref<BatchTaskResult | null>(null)
+
+const assignableVehicleOptions = computed(() =>
+  assignableVehicles.value.map((v) => ({
+    label: `${v.vehicleCode} · ${v.batteryLevel}%`,
+    value: v.vehicleId,
+  }))
+)
 
 const taskTabs = computed(() => [
   { key: 'ALL' as const, label: '全部', count: store.interventionTotal },
@@ -345,6 +427,71 @@ async function handleAutoAssign(task: TaskAdminListItem) {
   }
 }
 
+function clearSelection() {
+  selectedTaskIds.value = []
+}
+
+function toggleTaskSelection(taskId: number) {
+  const idx = selectedTaskIds.value.indexOf(taskId)
+  if (idx >= 0) {
+    selectedTaskIds.value.splice(idx, 1)
+  } else {
+    selectedTaskIds.value.push(taskId)
+  }
+}
+
+async function handleBatchAuto() {
+  if (selectedTaskIds.value.length === 0) return
+  batchLoading.value = true
+  try {
+    const res = await batchAutoAssign([...selectedTaskIds.value])
+    batchResult.value = res.data
+    batchResultVisible.value = true
+    clearSelection()
+    await refreshAll()
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+async function handleBatchCancel() {
+  if (selectedTaskIds.value.length === 0) return
+  batchLoading.value = true
+  try {
+    const res = await batchCancelTasks([...selectedTaskIds.value])
+    batchResult.value = res.data
+    batchResultVisible.value = true
+    clearSelection()
+    await refreshAll()
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+function openBatchReassign() {
+  batchReassignVehicleId.value = undefined
+  loadAssignableVehicles()
+  batchReassignVisible.value = true
+}
+
+async function submitBatchReassign() {
+  if (!batchReassignVehicleId.value || selectedTaskIds.value.length === 0) {
+    message.warning('请选择车辆')
+    return
+  }
+  batchLoading.value = true
+  try {
+    const res = await batchReassignTasks([...selectedTaskIds.value], batchReassignVehicleId.value)
+    batchResult.value = res.data
+    batchResultVisible.value = true
+    batchReassignVisible.value = false
+    clearSelection()
+    await refreshAll()
+  } finally {
+    batchLoading.value = false
+  }
+}
+
 function openManualModal(task: TaskAdminListItem) {
   manualTask.value = task
   manualForm.vehicleId = undefined
@@ -402,6 +549,33 @@ async function handleExceptionReassign(item: ExceptionAdminListItem) {
   }
 }
 
+async function handleBumpPriority(task: TaskAdminListItem) {
+  actionLoading.value = `bump-${task.taskId}`
+  try {
+    await bumpTaskPriority(task.taskId)
+    message.success(`已将 ${task.taskNo} 提升至 P0 优先级`)
+    await refreshAll()
+  } finally {
+    actionLoading.value = null
+  }
+}
+
+function onTaskDragStart(taskId: number) {
+  draggingTaskId.value = taskId
+}
+
+function onTaskDrop(targetTaskId: number) {
+  if (draggingTaskId.value == null || draggingTaskId.value === targetTaskId) return
+  const ids = store.taskPool.map((t) => t.taskId)
+  const from = ids.indexOf(draggingTaskId.value)
+  const to = ids.indexOf(targetTaskId)
+  if (from < 0 || to < 0) return
+  ids.splice(from, 1)
+  ids.splice(to, 0, draggingTaskId.value)
+  store.reorderTasks(ids)
+  draggingTaskId.value = null
+}
+
 async function handleExceptionResolve(item: ExceptionAdminListItem, action: 'MARK_FAILED' | 'CLOSE') {
   actionLoading.value = `${action === 'MARK_FAILED' ? 'fail' : 'close'}-${item.id}`
   try {
@@ -419,15 +593,8 @@ async function handleExceptionResolve(item: ExceptionAdminListItem, action: 'MAR
   }
 }
 
-let pollTimer: ReturnType<typeof setInterval> | null = null
-
 onMounted(() => {
   refreshAll()
-  pollTimer = setInterval(refreshAll, DASHBOARD_POLL_INTERVAL)
-})
-
-onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
 })
 </script>
 
@@ -608,7 +775,26 @@ onUnmounted(() => {
   max-height: calc(100vh - 260px);
 }
 
-.task-card,
+.task-card {
+  position: relative;
+  padding: 12px 12px 12px 36px;
+  border-radius: 10px;
+  border: 1px solid var(--fsd-border);
+  background: rgba(13, 17, 23, 0.5);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+
+  &:hover {
+    border-color: rgba(0, 180, 216, 0.25);
+  }
+
+  &.selected,
+  &.checked {
+    border-color: rgba(0, 180, 216, 0.5);
+    box-shadow: 0 0 0 1px rgba(0, 180, 216, 0.15);
+  }
+}
+
 .exception-card {
   padding: 12px;
   border-radius: 10px;
@@ -627,6 +813,31 @@ onUnmounted(() => {
   }
 }
 
+.task-check {
+  position: absolute;
+  left: 10px;
+  top: 14px;
+}
+
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 10px;
+  flex-wrap: wrap;
+}
+
+.batch-hint {
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
+}
+
+.batch-modal-hint,
+.batch-result-summary {
+  margin-bottom: 12px;
+  color: var(--fsd-text-secondary);
+}
+
 .task-card-head,
 .exception-card-head {
   display: flex;
@@ -640,6 +851,24 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--fsd-text-primary);
   font-weight: 600;
+}
+
+.priority-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.priority-P0 { background: rgba(255, 61, 113, 0.2); color: #ff3d71; }
+.priority-P1 { background: rgba(255, 176, 32, 0.2); color: #ffb020; }
+.priority-P2 { background: rgba(0, 180, 216, 0.15); color: #00b4d8; }
+.priority-P3 { background: rgba(160, 160, 160, 0.15); color: #a0a0a0; }
+
+.wait-badge {
+  font-size: 11px;
+  color: var(--fsd-warning);
 }
 
 .task-meta {

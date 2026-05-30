@@ -22,4 +22,6 @@ public class AdminDashboardSummaryResponse {
     private long idleVehicleCount;
 
     private long busyVehicleCount;
+
+    private long openExceptionCount;
 }

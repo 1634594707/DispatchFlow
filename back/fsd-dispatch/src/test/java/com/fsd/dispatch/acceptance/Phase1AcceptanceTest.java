@@ -186,13 +186,16 @@ class Phase1AcceptanceTest {
         private DispatchExceptionRecordMapper exceptionRecordMapper;
         @Mock
         private DispatchEventPublisher eventPublisher;
+        @Mock
+        private com.fsd.dispatch.service.DispatchTaskOperateLogService operateLogService;
 
         @Test
         void duplicateOpenExceptionShouldNotBeInserted() {
             when(exceptionRecordMapper.selectCount(any())).thenReturn(0L, 1L);
             when(exceptionRecordMapper.insert(any(DispatchExceptionRecordEntity.class))).thenReturn(1);
 
-            DispatchExceptionService service = new DispatchExceptionServiceImpl(exceptionRecordMapper, eventPublisher);
+            DispatchExceptionService service = new DispatchExceptionServiceImpl(
+                    exceptionRecordMapper, eventPublisher, operateLogService);
             service.recordException(10L, 20L, null, "AUTO_ASSIGN_NO_VEHICLE", "first");
             service.recordException(10L, 20L, null, "AUTO_ASSIGN_NO_VEHICLE", "second");
 

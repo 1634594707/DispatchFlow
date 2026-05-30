@@ -37,3 +37,27 @@ export function autoAssignTask(taskId: number) {
 export function manualAssignTask(taskId: number, data: TaskManualAssignRequest) {
   return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/manual-assign`, data)
 }
+
+export function cancelTask(taskId: number, remark?: string) {
+  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/cancel`, { remark })
+}
+
+export function reassignTask(taskId: number, data: TaskManualAssignRequest) {
+  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/reassign`, data)
+}
+
+export function batchAutoAssign(taskIds: number[]) {
+  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/auto-assign', { taskIds })
+}
+
+export function batchCancelTasks(taskIds: number[], remark?: string) {
+  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/cancel', { taskIds, remark })
+}
+
+export function batchReassignTasks(taskIds: number[], vehicleId: number, remark?: string) {
+  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/reassign', { taskIds, vehicleId, remark })
+}
+
+export function bumpTaskPriority(taskId: number) {
+  return request.post<any, ApiResponse<null>>(`/admin/tasks/${taskId}/bump-priority`)
+}

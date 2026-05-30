@@ -4,8 +4,8 @@ import com.fsd.common.enums.DispatchAssignFailReason;
 import com.fsd.dispatch.config.DispatchScoringProperties;
 import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
-import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
+import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.dispatch.vo.ParkPointResponse;
@@ -26,30 +26,26 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
     private final VehicleService vehicleService;
     private final ParkStationService parkStationService;
     private final ParkRoutePlannerService parkRoutePlannerService;
-    private final FleetChargePolicy fleetChargePolicy;
-    private final FleetEnergyProperties fleetEnergyProperties;
-    private final DispatchScoringProperties dispatchScoringProperties;
+    private final DispatchStrategyRuntimeService strategyRuntimeService;
     private final FleetRuntimeService fleetRuntimeService;
 
     public DispatchVehicleAssignServiceImpl(VehicleService vehicleService,
                                             ParkStationService parkStationService,
                                             ParkRoutePlannerService parkRoutePlannerService,
-                                            FleetChargePolicy fleetChargePolicy,
-                                            FleetEnergyProperties fleetEnergyProperties,
-                                            DispatchScoringProperties dispatchScoringProperties,
+                                            DispatchStrategyRuntimeService strategyRuntimeService,
                                             FleetRuntimeService fleetRuntimeService) {
         this.vehicleService = vehicleService;
         this.parkStationService = parkStationService;
         this.parkRoutePlannerService = parkRoutePlannerService;
-        this.fleetChargePolicy = fleetChargePolicy;
-        this.fleetEnergyProperties = fleetEnergyProperties;
-        this.dispatchScoringProperties = dispatchScoringProperties;
+        this.strategyRuntimeService = strategyRuntimeService;
         this.fleetRuntimeService = fleetRuntimeService;
     }
 
     @Override
     public DispatchAssignResult selectBestVehicle(OrderEntity order) {
         Long parkId = resolveParkId(order);
+        FleetEnergyProperties energy = strategyRuntimeService.energyForAssign(parkId);
+        DispatchScoringProperties scoring = strategyRuntimeService.scoringForAssign(parkId);
         ParkStationResponse pickup = parkStationService.requireStation(order.getPickupPointId());
         parkStationService.assertStationInPark(order.getPickupPointId(), parkId);
 
@@ -60,7 +56,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         }
 
         List<VehicleEntity> socEligible = idleOnline.stream()
-                .filter(fleetChargePolicy::isAssignable)
+                .filter(vehicle -> normalizeSoc(vehicle.getBatteryLevel()) >= energy.getMinAssignableSoc())
                 .toList();
         if (socEligible.isEmpty()) {
             return DispatchAssignResult.failure(DispatchAssignFailReason.LOW_SOC,
@@ -73,7 +69,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
             if (Double.isInfinite(distance)) {
                 continue;
             }
-            reachable.add(scoreCandidate(vehicle, distance));
+            reachable.add(scoreCandidate(vehicle, distance, energy, scoring));
         }
         if (reachable.isEmpty()) {
             return DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
@@ -116,20 +112,26 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         return pathLength(route);
     }
 
-    private ScoredCandidate scoreCandidate(VehicleEntity vehicle, double distance) {
-        int soc = vehicle.getBatteryLevel() == null ? fleetEnergyProperties.getFullSoc() : vehicle.getBatteryLevel();
-        double distanceScore = distance * dispatchScoringProperties.getWeightDistance();
-        double socScore = (fleetEnergyProperties.getFullSoc() - soc) * dispatchScoringProperties.getWeightSocMargin();
+    private ScoredCandidate scoreCandidate(VehicleEntity vehicle, double distance,
+                                           FleetEnergyProperties energy,
+                                           DispatchScoringProperties scoring) {
+        int soc = vehicle.getBatteryLevel() == null ? energy.getFullSoc() : vehicle.getBatteryLevel();
+        double distanceScore = distance * scoring.getWeightDistance();
+        double socScore = (energy.getFullSoc() - soc) * scoring.getWeightSocMargin();
         double pluggedBonus = 0D;
         Optional<FleetRuntime> runtime = fleetRuntimeService.get(vehicle.getId());
         if (runtime.isPresent()
                 && Boolean.TRUE.equals(runtime.get().getPluggedIn())
                 && "STANDBY".equals(runtime.get().getRuntimeStage())
-                && fleetChargePolicy.isFullyCharged(soc)) {
-            pluggedBonus = dispatchScoringProperties.getWeightPluggedStandbyBonus();
+                && soc >= energy.getFullSoc()) {
+            pluggedBonus = scoring.getWeightPluggedStandbyBonus();
         }
         double total = distanceScore + socScore - pluggedBonus;
         return new ScoredCandidate(vehicle, distanceScore, socScore, pluggedBonus, total);
+    }
+
+    private int normalizeSoc(Integer batteryLevel) {
+        return batteryLevel == null ? 100 : batteryLevel;
     }
 
     private double pathLength(List<ParkPointResponse> route) {

@@ -15,4 +15,8 @@ public interface DispatchTaskStateService {
     void assertCanStartExecute(DispatchTaskEntity taskEntity);
 
     void assertCanFinish(DispatchTaskEntity taskEntity);
+
+    void assertCanCancel(DispatchTaskEntity taskEntity);
+
+    void assertCanReassign(DispatchTaskEntity taskEntity);
 }

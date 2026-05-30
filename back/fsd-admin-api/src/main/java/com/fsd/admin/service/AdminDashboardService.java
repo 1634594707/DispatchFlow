@@ -4,5 +4,5 @@ import com.fsd.admin.vo.AdminDashboardSummaryResponse;
 
 public interface AdminDashboardService {
 
-    AdminDashboardSummaryResponse getSummary();
+    AdminDashboardSummaryResponse getSummary(Long parkId);
 }

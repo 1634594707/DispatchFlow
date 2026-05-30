@@ -13,6 +13,8 @@ public class DispatchMessagingConfig {
 
     public static final String DISPATCH_EXCHANGE = "fsd.dispatch.exchange";
     public static final String DISPATCH_AUDIT_QUEUE = "fsd.dispatch.audit.queue";
+    public static final String DISPATCH_STREAM_QUEUE = "fsd.dispatch.stream.queue";
+    public static final String DISPATCH_WEBHOOK_QUEUE = "fsd.dispatch.webhook.queue";
 
     @Bean
     public TopicExchange dispatchExchange() {
@@ -25,8 +27,28 @@ public class DispatchMessagingConfig {
     }
 
     @Bean
+    public Queue dispatchStreamQueue() {
+        return new Queue(DISPATCH_STREAM_QUEUE, true);
+    }
+
+    @Bean
+    public Queue dispatchWebhookQueue() {
+        return new Queue(DISPATCH_WEBHOOK_QUEUE, true);
+    }
+
+    @Bean
     public Binding dispatchAuditBinding(Queue dispatchAuditQueue, TopicExchange dispatchExchange) {
         return BindingBuilder.bind(dispatchAuditQueue).to(dispatchExchange).with("dispatch.#");
+    }
+
+    @Bean
+    public Binding dispatchStreamBinding(Queue dispatchStreamQueue, TopicExchange dispatchExchange) {
+        return BindingBuilder.bind(dispatchStreamQueue).to(dispatchExchange).with("dispatch.#");
+    }
+
+    @Bean
+    public Binding dispatchWebhookBinding(Queue dispatchWebhookQueue, TopicExchange dispatchExchange) {
+        return BindingBuilder.bind(dispatchWebhookQueue).to(dispatchExchange).with("dispatch.#");
     }
 
     @Bean

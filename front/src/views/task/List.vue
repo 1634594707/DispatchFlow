@@ -188,6 +188,7 @@ import { ReloadOutlined, SearchOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useTaskStore } from '@/stores/task'
+import { useParkScopeStore } from '@/stores/parkScope'
 import { taskStatusMap } from '@/constants/statusMap'
 import { TaskStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
@@ -197,6 +198,7 @@ import type { TaskAdminListItem } from '@/types/task'
 const router = useRouter()
 const route = useRoute()
 const store = useTaskStore()
+const parkScope = useParkScopeStore()
 
 const queryForm = reactive({
   status: undefined as TaskStatus | undefined,
@@ -251,6 +253,7 @@ function filterOption(input: string, option: any) {
 function fetchData() {
   store.fetchList({
     ...queryForm,
+    parkId: parkScope.selectedParkId,
     pageNo: pageNo.value,
     pageSize: pageSize.value,
   })

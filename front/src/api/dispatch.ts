@@ -43,3 +43,9 @@ export function getFleetTelemetryStreamUrl(parkId?: number): string {
   const query = parkId != null ? `?parkId=${parkId}` : ''
   return base ? `${base}${path}${query}` : `${path}${query}`
 }
+
+export function getDispatchStreamUrl(): string {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  const path = '/api/admin/dispatch/stream'
+  return base ? `${base}${path}` : path
+}

@@ -9,6 +9,7 @@ import com.fsd.dispatch.event.DispatchEventPublisher;
 import com.fsd.dispatch.event.DispatchEventType;
 import com.fsd.dispatch.mapper.DispatchExceptionRecordMapper;
 import com.fsd.dispatch.service.DispatchExceptionService;
+import com.fsd.dispatch.service.DispatchTaskOperateLogService;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,11 +26,14 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
 
     private final DispatchExceptionRecordMapper exceptionRecordMapper;
     private final DispatchEventPublisher eventPublisher;
+    private final DispatchTaskOperateLogService operateLogService;
 
     public DispatchExceptionServiceImpl(DispatchExceptionRecordMapper exceptionRecordMapper,
-                                        DispatchEventPublisher eventPublisher) {
+                                        DispatchEventPublisher eventPublisher,
+                                        DispatchTaskOperateLogService operateLogService) {
         this.exceptionRecordMapper = exceptionRecordMapper;
         this.eventPublisher = eventPublisher;
+        this.operateLogService = operateLogService;
     }
 
     @Override
@@ -109,6 +113,10 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         entity.setResolveAction(action);
         entity.setResolveRemark(action + ": " + (remark == null ? "" : remark));
         exceptionRecordMapper.updateById(entity);
+        if (entity.getTaskId() != null) {
+            operateLogService.record(entity.getTaskId(), "EXCEPTION_RESOLVE", action, "RESOLVED",
+                    "DISPATCHER", resolverId, resolverId, remark);
+        }
         eventPublisher.publish(DispatchEventType.EXCEPTION_RESOLVED, String.valueOf(entity.getId()), buildPayload(entity));
     }
 

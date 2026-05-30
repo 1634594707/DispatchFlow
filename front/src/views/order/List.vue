@@ -98,6 +98,7 @@ import { ReloadOutlined, SearchOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useOrderStore } from '@/stores/order'
+import { useParkScopeStore } from '@/stores/parkScope'
 import { orderStatusMap } from '@/constants/statusMap'
 import { OrderStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
@@ -107,6 +108,7 @@ import type { OrderAdminListItem } from '@/types/order'
 const router = useRouter()
 const route = useRoute()
 const store = useOrderStore()
+const parkScope = useParkScopeStore()
 
 const queryForm = reactive({
   status: undefined as OrderStatus | undefined,
@@ -152,6 +154,7 @@ function formatTime(t: string) {
 function fetchData() {
   store.fetchList({
     ...queryForm,
+    parkId: parkScope.selectedParkId,
     pageNo: pageNo.value,
     pageSize: pageSize.value,
   })

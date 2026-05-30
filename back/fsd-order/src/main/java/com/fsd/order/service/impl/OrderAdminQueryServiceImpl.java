@@ -30,6 +30,7 @@ public class OrderAdminQueryServiceImpl implements OrderAdminQueryService {
                         .status(order.getStatus())
                         .priority(order.getPriority())
                         .dispatchTaskId(order.getDispatchTaskId())
+                        .parkId(order.getParkId())
                         .createdAt(order.getCreatedAt())
                         .updatedAt(order.getUpdatedAt())
                         .build())
