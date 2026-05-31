@@ -38,7 +38,9 @@ public class FleetAutomationScheduler {
     public void evaluateRealFleetRules() {
         List<VehicleEntity> vehicles = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
                 .eq(VehicleEntity::getDeleted, 0)
-                .eq(VehicleEntity::getLinkMode, VehicleLinkMode.REAL.name()));
+                .in(VehicleEntity::getLinkMode,
+                        VehicleLinkMode.REAL.name(),
+                        VehicleLinkMode.VDA5050.name()));
         for (VehicleEntity vehicle : vehicles) {
             if (vehicle.getCurrentTaskId() != null) {
                 continue;

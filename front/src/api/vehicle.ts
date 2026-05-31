@@ -19,6 +19,9 @@ export interface VehicleUpsertPayload {
   vehicleName: string
   vehicleType?: string
   linkMode?: string
+  vdaManufacturer?: string
+  vdaSerialNumber?: string
+  vdaInterfaceName?: string
   remark?: string
 }
 

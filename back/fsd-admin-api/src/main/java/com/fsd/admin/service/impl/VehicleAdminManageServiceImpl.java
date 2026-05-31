@@ -162,7 +162,35 @@ public class VehicleAdminManageServiceImpl implements VehicleAdminManageService 
         } else if (vehicle.getLinkMode() == null) {
             vehicle.setLinkMode(VehicleLinkMode.SIM.name());
         }
+        applyVda5050Fields(vehicle, request);
         vehicle.setRemark(request.getRemark());
+    }
+
+    private void applyVda5050Fields(VehicleEntity vehicle, AdminVehicleUpsertRequest request) {
+        if (!VehicleLinkMode.VDA5050.name().equals(vehicle.getLinkMode())) {
+            vehicle.setVdaManufacturer(null);
+            vehicle.setVdaSerialNumber(null);
+            vehicle.setVdaInterfaceName(null);
+            return;
+        }
+        String manufacturer = trimToNull(request.getVdaManufacturer());
+        String serialNumber = trimToNull(request.getVdaSerialNumber());
+        if (manufacturer == null || serialNumber == null) {
+            throw new BusinessException("VDA5050_IDENTITY_REQUIRED",
+                    "VDA5050 车辆须填写 manufacturer 与 serialNumber");
+        }
+        vehicle.setVdaManufacturer(manufacturer);
+        vehicle.setVdaSerialNumber(serialNumber);
+        String iface = trimToNull(request.getVdaInterfaceName());
+        vehicle.setVdaInterfaceName(iface != null ? iface : "uagv/v2");
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private void ensureUniqueCode(String vehicleCode, Long exceptId) {

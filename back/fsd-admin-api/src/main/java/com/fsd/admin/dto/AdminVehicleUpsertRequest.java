@@ -19,6 +19,15 @@ public class AdminVehicleUpsertRequest {
 
     private String linkMode;
 
+    @Size(max = 64)
+    private String vdaManufacturer;
+
+    @Size(max = 64)
+    private String vdaSerialNumber;
+
+    @Size(max = 32)
+    private String vdaInterfaceName;
+
     @Size(max = 255)
     private String remark;
 }

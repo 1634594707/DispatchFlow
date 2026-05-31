@@ -22,6 +22,12 @@ public class VehicleEntity {
 
     private String linkMode;
 
+    private String vdaManufacturer;
+
+    private String vdaSerialNumber;
+
+    private String vdaInterfaceName;
+
     private String onlineStatus;
 
     private String dispatchStatus;

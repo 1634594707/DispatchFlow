@@ -70,7 +70,7 @@ export interface ParkVehicleSnapshot {
   targetType: string | null
   charging: boolean
   lowBattery: boolean
-  linkMode: 'SIM' | 'REAL'
+  linkMode: 'SIM' | 'REAL' | 'VDA5050'
   trajectory: ParkPoint[]
 }
 

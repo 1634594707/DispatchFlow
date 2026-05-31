@@ -112,6 +112,17 @@
         <a-form-item label="连接模式">
           <a-select v-model:value="form.linkMode" :options="linkModeOptions" />
         </a-form-item>
+        <template v-if="form.linkMode === 'VDA5050'">
+          <a-form-item label="Manufacturer" required>
+            <a-input v-model:value="form.vdaManufacturer" placeholder="如 DispatchFlow" />
+          </a-form-item>
+          <a-form-item label="Serial Number" required>
+            <a-input v-model:value="form.vdaSerialNumber" placeholder="如 AGV-001" />
+          </a-form-item>
+          <a-form-item label="Interface">
+            <a-input v-model:value="form.vdaInterfaceName" placeholder="默认 uagv/v2" />
+          </a-form-item>
+        </template>
         <a-form-item label="备注"><a-textarea v-model:value="form.remark" :rows="2" /></a-form-item>
       </a-form>
     </a-modal>
@@ -128,7 +139,7 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useVehicleStore } from '@/stores/vehicle'
 import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
-import { createVehicle, updateVehicle } from '@/api/vehicle'
+import { createVehicle, updateVehicle, getVehicleDetail } from '@/api/vehicle'
 import { onlineStatusMap, dispatchStatusMap } from '@/constants/statusMap'
 import type { OnlineStatus, DispatchStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
@@ -154,12 +165,16 @@ const form = reactive({
   vehicleName: '',
   vehicleType: 'AGV',
   linkMode: 'SIM',
+  vdaManufacturer: '',
+  vdaSerialNumber: '',
+  vdaInterfaceName: 'uagv/v2',
   remark: '',
 })
 
 const linkModeOptions = [
   { label: '仿真 SIM', value: 'SIM' },
-  { label: '真实 REAL', value: 'REAL' },
+  { label: '真实 REAL (HTTP 遥测)', value: 'REAL' },
+  { label: 'VDA5050 MQTT', value: 'VDA5050' },
 ]
 
 const queryForm = reactive({
@@ -241,29 +256,45 @@ function handleTableChange(pag: any) {
   fetchData()
 }
 
-function openCreate() {
-  editing.value = null
+function resetForm() {
   form.vehicleCode = ''
   form.vehicleName = ''
   form.vehicleType = 'AGV'
   form.linkMode = 'SIM'
+  form.vdaManufacturer = ''
+  form.vdaSerialNumber = ''
+  form.vdaInterfaceName = 'uagv/v2'
   form.remark = ''
+}
+
+function openCreate() {
+  editing.value = null
+  resetForm()
   modalOpen.value = true
 }
 
-function openEdit(record: VehicleAdminListItem) {
+async function openEdit(record: VehicleAdminListItem) {
   editing.value = record
-  form.vehicleCode = record.vehicleCode
-  form.vehicleName = record.vehicleName
-  form.vehicleType = 'AGV'
-  form.linkMode = 'SIM'
-  form.remark = ''
+  resetForm()
+  const detail = (await getVehicleDetail(record.vehicleId)).data
+  form.vehicleCode = detail.vehicleCode
+  form.vehicleName = detail.vehicleName
+  form.vehicleType = detail.vehicleType || 'AGV'
+  form.linkMode = detail.linkMode || 'SIM'
+  form.vdaManufacturer = detail.vdaManufacturer || ''
+  form.vdaSerialNumber = detail.vdaSerialNumber || ''
+  form.vdaInterfaceName = detail.vdaInterfaceName || 'uagv/v2'
+  form.remark = detail.remark || ''
   modalOpen.value = true
 }
 
 async function handleSave() {
   if (!form.vehicleCode || !form.vehicleName) {
     message.warning('请填写完整信息')
+    return
+  }
+  if (form.linkMode === 'VDA5050' && (!form.vdaManufacturer || !form.vdaSerialNumber)) {
+    message.warning('VDA5050 车辆须填写 manufacturer 与 serialNumber')
     return
   }
   saving.value = true

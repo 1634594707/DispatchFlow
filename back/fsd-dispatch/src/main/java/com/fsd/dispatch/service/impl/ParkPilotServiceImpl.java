@@ -174,16 +174,16 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     }
 
     private boolean isMonitorVehicle(String vehicleCode) {
-        return vehicleCode != null && (vehicleCode.startsWith("PARK-") || vehicleCode.startsWith("REAL-"));
+        return vehicleCode != null
+                && (vehicleCode.startsWith("PARK-") || vehicleCode.startsWith("REAL-") || vehicleCode.startsWith("VDA5050-"));
     }
 
     private boolean isSimulationVehicle(VehicleEntity vehicle) {
-        String linkMode = vehicle.getLinkMode();
-        return linkMode == null || linkMode.isBlank() || VehicleLinkMode.SIM.name().equals(linkMode);
+        return VehicleLinkMode.isSimulated(vehicle.getLinkMode());
     }
 
     private boolean isRealVehicle(VehicleEntity vehicle) {
-        return VehicleLinkMode.REAL.name().equals(vehicle.getLinkMode());
+        return VehicleLinkMode.issuesExternalCommands(vehicle.getLinkMode());
     }
 
     @Override

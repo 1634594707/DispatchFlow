@@ -21,6 +21,20 @@
               <a-descriptions-item label="车辆类型">
                 <a-tag>{{ store.detail.vehicleType }}</a-tag>
               </a-descriptions-item>
+              <a-descriptions-item label="连接模式">
+                <a-tag :color="linkModeColor(store.detail.linkMode)">{{ store.detail.linkMode || 'SIM' }}</a-tag>
+              </a-descriptions-item>
+              <template v-if="store.detail.linkMode === 'VDA5050'">
+                <a-descriptions-item label="Manufacturer">
+                  <span class="mono">{{ store.detail.vdaManufacturer || '-' }}</span>
+                </a-descriptions-item>
+                <a-descriptions-item label="Serial Number">
+                  <span class="mono">{{ store.detail.vdaSerialNumber || '-' }}</span>
+                </a-descriptions-item>
+                <a-descriptions-item label="MQTT Topic 前缀" :span="2">
+                  <span class="mono">{{ vdaTopicPrefix(store.detail) }}</span>
+                </a-descriptions-item>
+              </template>
               <a-descriptions-item label="备注">
                 {{ store.detail.remark || '-' }}
               </a-descriptions-item>
@@ -150,8 +164,19 @@
         <a-form-item label="车辆名称" required><a-input v-model:value="form.vehicleName" /></a-form-item>
         <a-form-item label="车辆类型"><a-input v-model:value="form.vehicleType" /></a-form-item>
         <a-form-item label="连接模式">
-          <a-select v-model:value="form.linkMode" :options="[{ label: '仿真 SIM', value: 'SIM' }, { label: '真实 REAL', value: 'REAL' }]" />
+          <a-select v-model:value="form.linkMode" :options="linkModeOptions" />
         </a-form-item>
+        <template v-if="form.linkMode === 'VDA5050'">
+          <a-form-item label="Manufacturer" required>
+            <a-input v-model:value="form.vdaManufacturer" placeholder="如 DispatchFlow" />
+          </a-form-item>
+          <a-form-item label="Serial Number" required>
+            <a-input v-model:value="form.vdaSerialNumber" placeholder="如 AGV-001" />
+          </a-form-item>
+          <a-form-item label="Interface">
+            <a-input v-model:value="form.vdaInterfaceName" placeholder="默认 uagv/v2" />
+          </a-form-item>
+        </template>
         <a-form-item label="备注"><a-textarea v-model:value="form.remark" :rows="2" /></a-form-item>
       </a-form>
     </a-modal>
@@ -219,8 +244,17 @@ const form = reactive({
   vehicleName: '',
   vehicleType: 'GENERAL',
   linkMode: 'SIM',
+  vdaManufacturer: '',
+  vdaSerialNumber: '',
+  vdaInterfaceName: 'uagv/v2',
   remark: '',
 })
+
+const linkModeOptions = [
+  { label: '仿真 SIM', value: 'SIM' },
+  { label: '真实 REAL (HTTP 遥测)', value: 'REAL' },
+  { label: 'VDA5050 MQTT', value: 'VDA5050' },
+]
 
 const maintForm = reactive({
   maintenanceType: 'ROUTINE',
@@ -246,6 +280,19 @@ const maintenanceTypeOptions = [
   { label: '故障维修', value: 'REPAIR' },
   { label: '巡检', value: 'INSPECTION' },
 ]
+
+function linkModeColor(mode?: string) {
+  if (mode === 'REAL') return 'blue'
+  if (mode === 'VDA5050') return 'purple'
+  return 'default'
+}
+
+function vdaTopicPrefix(detail: { vdaInterfaceName?: string | null; vdaManufacturer?: string | null; vdaSerialNumber?: string | null }) {
+  const iface = detail.vdaInterfaceName || 'uagv/v2'
+  const mfg = detail.vdaManufacturer || '?'
+  const serial = detail.vdaSerialNumber || '?'
+  return `${iface}/${mfg}/${serial}`
+}
 
 function formatTime(t: string) {
   return dayjs(t).format('YYYY-MM-DD HH:mm:ss')
@@ -348,13 +395,20 @@ function openEdit() {
   form.vehicleCode = store.detail.vehicleCode
   form.vehicleName = store.detail.vehicleName
   form.vehicleType = store.detail.vehicleType
-  form.linkMode = 'SIM'
+  form.linkMode = store.detail.linkMode || 'SIM'
+  form.vdaManufacturer = store.detail.vdaManufacturer || ''
+  form.vdaSerialNumber = store.detail.vdaSerialNumber || ''
+  form.vdaInterfaceName = store.detail.vdaInterfaceName || 'uagv/v2'
   form.remark = store.detail.remark || ''
   editModalOpen.value = true
 }
 
 async function handleSave() {
   const vehicleId = Number(route.params.vehicleId)
+  if (form.linkMode === 'VDA5050' && (!form.vdaManufacturer || !form.vdaSerialNumber)) {
+    message.warning('VDA5050 车辆须填写 manufacturer 与 serialNumber')
+    return
+  }
   saving.value = true
   try {
     await updateVehicle(vehicleId, { ...form })

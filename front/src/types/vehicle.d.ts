@@ -28,6 +28,10 @@ export interface VehicleDetailResponse {
   vehicleCode: string
   vehicleName: string
   vehicleType: string
+  linkMode?: 'SIM' | 'REAL' | 'VDA5050'
+  vdaManufacturer?: string | null
+  vdaSerialNumber?: string | null
+  vdaInterfaceName?: string | null
   onlineStatus: OnlineStatus
   dispatchStatus: DispatchStatus
   currentTaskId: number | null

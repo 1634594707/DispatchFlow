@@ -8,6 +8,7 @@
 |------|------|
 | **[acceptance/README.md](./acceptance/README.md)** | **验收总方案**（环境、顺序、勾选表） |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Docker / 本地启动、SQL 迁移 V01–V18 |
+| **[UPDATE-OPERATIONS.md](./UPDATE-OPERATIONS.md)** | **云服务器 Docker 环境更新操作手册** |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 模块划分、Fleet 模型、事件流 |
 | [ROADMAP-V2.md](./ROADMAP-V2.md) | **产品路线图**（Phase 14 已完成，Phase 15 进行中） |
 | [phase15/VDA5050-EVALUATION.md](./phase15/VDA5050-EVALUATION.md) | VDA5050 MQTT 适配评估 |

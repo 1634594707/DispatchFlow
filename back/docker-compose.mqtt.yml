@@ -1,0 +1,25 @@
+# Mosquitto broker for VDA5050 local integration testing.
+# Usage (from back/):
+#   docker compose -f docker-compose.yml -f docker-compose.mqtt.yml up -d
+#
+# Enable backend MQTT client:
+#   FSD_VDA5050_MQTT_ENABLED=true
+#   FSD_VDA5050_MQTT_BROKER=tcp://mosquitto:1883   # inside compose network
+#   FSD_VDA5050_MQTT_BROKER=tcp://127.0.0.1:1883   # host + sim script
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: fsd-mosquitto
+    ports:
+      - "${MQTT_HOST_PORT:-1883}:1883"
+    volumes:
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  fsd-core-server:
+    environment:
+      FSD_VDA5050_MQTT_ENABLED: "${FSD_VDA5050_MQTT_ENABLED:-true}"
+      FSD_VDA5050_MQTT_BROKER: "tcp://mosquitto:1883"
+    depends_on:
+      - mosquitto

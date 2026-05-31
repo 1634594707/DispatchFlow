@@ -17,6 +17,7 @@ import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchTaskOperateLogService;
 import com.fsd.dispatch.service.DispatchTaskStateService;
 import com.fsd.dispatch.service.ParkStationService;
+import com.fsd.dispatch.fleet.vda5050.Vda5050DispatchPublisher;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.order.entity.OrderEntity;
 import com.fsd.order.service.OrderStateService;
@@ -48,11 +49,13 @@ class VehicleCommandServiceImplTest {
     private ParkStationService parkStationService;
     @Mock
     private OrderStateService orderStateService;
+    private Vda5050DispatchPublisher vda5050OrderPublisher;
 
     private VehicleCommandServiceImpl vehicleCommandService;
 
     @BeforeEach
     void setUp() {
+        vda5050OrderPublisher = (vehicle, command, task, pickup, dropoff) -> { };
         vehicleCommandService = new VehicleCommandServiceImpl(
                 vehicleCommandMapper,
                 dispatchTaskMapper,
@@ -62,7 +65,8 @@ class VehicleCommandServiceImplTest {
                 vehicleService,
                 parkStationService,
                 orderStateService,
-                new ObjectMapper());
+                new ObjectMapper(),
+                vda5050OrderPublisher);
     }
 
     @Test

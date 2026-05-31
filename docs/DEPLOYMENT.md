@@ -116,6 +116,8 @@ DispatchFlow ships without built-in authentication. Before exposing to a network
 - Configure CORS for your frontend origin
 - Replace simulation adapter with real vehicle telematics when available
 
+**云服务器已部署后的版本升级**，请参阅 **[UPDATE-OPERATIONS.md](./UPDATE-OPERATIONS.md)**（备份、SQL 迁移、GHCR 镜像、前端与回滚）。
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |

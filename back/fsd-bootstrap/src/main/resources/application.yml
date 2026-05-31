@@ -332,3 +332,10 @@ fsd:
         admin-demo: ADMIN
     vehicle-gateway:
       enabled: ${FSD_VEHICLE_GATEWAY_AUTH_ENABLED:true}
+  vda5050:
+    mqtt:
+      enabled: ${FSD_VDA5050_MQTT_ENABLED:false}
+      broker-url: ${FSD_VDA5050_MQTT_BROKER:tcp://127.0.0.1:1883}
+      client-id: ${FSD_VDA5050_MQTT_CLIENT_ID:dispatchflow-fms}
+      interface-name: ${FSD_VDA5050_MQTT_INTERFACE:uagv/v2}
+      qos: ${FSD_VDA5050_MQTT_QOS:1}

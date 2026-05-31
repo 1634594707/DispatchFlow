@@ -138,8 +138,8 @@
                   <div class="vehicle-id-block">
                     <strong>{{ vehicle.vehicleCode }}</strong>
                     <span class="vehicle-name">{{ vehicle.vehicleName }}</span>
-                    <span class="link-mode-pill" :class="vehicle.linkMode === 'REAL' ? 'link-real' : 'link-sim'">
-                      {{ vehicle.linkMode === 'REAL' ? 'REAL' : 'SIM' }}
+                    <span class="link-mode-pill" :class="linkModeClass(vehicle.linkMode)">
+                      {{ linkModeLabel(vehicle.linkMode) }}
                     </span>
                   </div>
                   <span class="status-dot" :class="vehicle.onlineStatus === 'ONLINE' ? 'dot-online' : 'dot-offline'"></span>
@@ -398,6 +398,7 @@ const extraFilterOptions = [
   { label: '全部', value: 'all' },
   { label: '仿真车', value: 'SIM' },
   { label: '真实车', value: 'REAL' },
+  { label: 'VDA5050', value: 'VDA5050' },
   { label: '低电量', value: 'LOW_BATTERY' },
   { label: '离线', value: 'OFFLINE' },
 ]
@@ -442,6 +443,8 @@ const filteredVehicles = computed(() => {
       return vehicles.value.filter(vehicle => (vehicle.linkMode || 'SIM') === 'SIM')
     case 'REAL':
       return vehicles.value.filter(vehicle => vehicle.linkMode === 'REAL')
+    case 'VDA5050':
+      return vehicles.value.filter(vehicle => vehicle.linkMode === 'VDA5050')
     default:
       return vehicles.value
   }
@@ -485,6 +488,18 @@ function targetLabel(targetType: string | null) {
 function formatVehicleTarget(vehicle: ParkVehicleSnapshot) {
   if (!vehicle.targetCode) return '--'
   return `${targetLabel(vehicle.targetType)} ${vehicle.targetCode}`
+}
+
+function linkModeLabel(mode?: string) {
+  if (mode === 'REAL') return 'REAL'
+  if (mode === 'VDA5050') return 'VDA5050'
+  return 'SIM'
+}
+
+function linkModeClass(mode?: string) {
+  if (mode === 'REAL') return 'link-real'
+  if (mode === 'VDA5050') return 'link-vda5050'
+  return 'link-sim'
 }
 
 function dispatchLabel(status: string) {
@@ -1742,6 +1757,11 @@ onUnmounted(() => {
 .link-real {
   background: rgba(255, 176, 32, 0.16);
   color: #ffc857;
+}
+
+.link-vda5050 {
+  background: rgba(177, 102, 255, 0.16);
+  color: #c792ff;
 }
 
 .stage-pill {

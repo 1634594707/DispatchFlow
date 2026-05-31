@@ -47,7 +47,7 @@
 | **Phase 12（M2）** | ✅ | 轨迹回放、引擎仿真、配置向导、路网基础 |
 | **Phase 13（M3）** | ✅ | Webhook 日志、PDF、链路 KPI、暂停派单、服务端告警、定时报表 |
 | **Phase 14（M4–M5）** | ✅ | 家纺垂直（线路/枢纽/旺季/规则/换电仿真）、路网拖拽 MVP、2FA、运维视图 |
-| **Phase 15（M6）** | 进行中 | REAL 换电链路 ✅ · VDA5050 评估完成 · MQTT demo / 规模化待办 |
+| **Phase 15（M6）** | 进行中 | REAL 换电 ✅ · VDA5050 MQTT demo ✅ · 规模化待办 |
 
 详细待办见 **[docs/ROADMAP-V2.md](docs/ROADMAP-V2.md)** · VDA5050 评估见 **[docs/phase15/VDA5050-EVALUATION.md](docs/phase15/VDA5050-EVALUATION.md)**。
 
@@ -170,6 +170,7 @@ DispatchFlow/
 | [docs/README.md](docs/README.md) | 文档索引 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 模块划分、领域边界、Fleet 模型、事件流 |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker / 本地部署、迁移、故障排查 |
+| **[docs/UPDATE-OPERATIONS.md](docs/UPDATE-OPERATIONS.md)** | **云服务器 Docker 更新操作手册** |
 | [back/README.md](back/README.md) | 后端模块与测试说明 |
 | [front/README.md](front/README.md) | 前端页面与开发说明 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |

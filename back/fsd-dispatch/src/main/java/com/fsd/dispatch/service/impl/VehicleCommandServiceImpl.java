@@ -12,6 +12,7 @@ import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.entity.VehicleCommandEntity;
+import com.fsd.dispatch.fleet.vda5050.Vda5050DispatchPublisher;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.mapper.VehicleCommandMapper;
 import com.fsd.dispatch.service.DispatchExceptionService;
@@ -43,6 +44,7 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
     private final ParkStationService parkStationService;
     private final OrderStateService orderStateService;
     private final ObjectMapper objectMapper;
+    private final Vda5050DispatchPublisher vda5050OrderPublisher;
 
     public VehicleCommandServiceImpl(VehicleCommandMapper vehicleCommandMapper,
                                      DispatchTaskMapper dispatchTaskMapper,
@@ -52,7 +54,8 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
                                      VehicleService vehicleService,
                                      ParkStationService parkStationService,
                                      OrderStateService orderStateService,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     Vda5050DispatchPublisher vda5050OrderPublisher) {
         this.vehicleCommandMapper = vehicleCommandMapper;
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.dispatchTaskStateService = dispatchTaskStateService;
@@ -62,12 +65,13 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
         this.parkStationService = parkStationService;
         this.orderStateService = orderStateService;
         this.objectMapper = objectMapper;
+        this.vda5050OrderPublisher = vda5050OrderPublisher;
     }
 
     @Override
     @Transactional
     public void issueDispatchCommandIfNeeded(VehicleEntity vehicle, DispatchTaskEntity task, OrderEntity order) {
-        if (!VehicleLinkMode.REAL.name().equals(resolveLinkMode(vehicle))) {
+        if (!VehicleLinkMode.issuesExternalCommands(resolveLinkMode(vehicle))) {
             return;
         }
         ParkStationResponse pickup = parkStationService.requireStation(order.getPickupPointId());
@@ -89,6 +93,10 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
         command.setPayloadJson(writePayload(payload));
         command.setIssuedAt(LocalDateTime.now());
         vehicleCommandMapper.insert(command);
+
+        if (VehicleLinkMode.VDA5050.name().equals(resolveLinkMode(vehicle))) {
+            vda5050OrderPublisher.publishDispatchOrder(vehicle, command, task, pickup, dropoff);
+        }
 
         operateLogService.record(task.getId(), "ISSUE_COMMAND", task.getStatus(), task.getStatus(),
                 "SYSTEM", "gateway", "gateway", "Dispatch command issued to real vehicle");

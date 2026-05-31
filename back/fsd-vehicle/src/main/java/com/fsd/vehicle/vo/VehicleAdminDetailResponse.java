@@ -17,6 +17,14 @@ public class VehicleAdminDetailResponse {
 
     private String vehicleType;
 
+    private String linkMode;
+
+    private String vdaManufacturer;
+
+    private String vdaSerialNumber;
+
+    private String vdaInterfaceName;
+
     private String onlineStatus;
 
     private String dispatchStatus;
