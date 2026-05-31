@@ -140,14 +140,14 @@ class AdminDispatchControllerTest {
 
     @Test
     void shouldReturnInterventionQueue() {
-        when(dispatchAdminQueryService.getInterventionQueue()).thenReturn(
+        when(dispatchAdminQueryService.getInterventionQueue(null)).thenReturn(
                 DispatchInterventionQueueResponse.builder()
                         .manualPendingCount(1)
                         .openExceptionCount(1)
                         .build()
         );
 
-        ApiResponse<DispatchInterventionQueueResponse> response = adminDispatchController.getInterventionQueue();
+        ApiResponse<DispatchInterventionQueueResponse> response = adminDispatchController.getInterventionQueue(null);
 
         assertEquals(1, response.getData().getManualPendingCount());
         assertEquals(1, response.getData().getOpenExceptionCount());
