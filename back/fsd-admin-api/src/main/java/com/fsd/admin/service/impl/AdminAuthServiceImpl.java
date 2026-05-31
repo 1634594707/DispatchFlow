@@ -27,6 +27,8 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminAuthServiceImpl implements AdminAuthService {
 
     private static final int SESSION_TTL_HOURS = 24;
+    private static final int MAX_LOGIN_ATTEMPTS_PER_MINUTE = 10;
 
     private final AdminUserMapper adminUserMapper;
     private final AdminSessionMapper adminSessionMapper;
@@ -43,6 +46,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private final SecretGenerator secretGenerator = new DefaultSecretGenerator();
     private final TimeProvider timeProvider = new SystemTimeProvider();
     private final CodeVerifier codeVerifier = new DefaultCodeVerifier(new DefaultCodeGenerator(HashingAlgorithm.SHA1), timeProvider);
+    private final Map<String, LoginRateWindow> loginRateWindows = new ConcurrentHashMap<>();
 
     public AdminAuthServiceImpl(AdminUserMapper adminUserMapper,
                                 AdminSessionMapper adminSessionMapper,
@@ -55,6 +59,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     @Override
     @Transactional
     public AdminLoginResponse login(AdminLoginRequest request) {
+        checkLoginRateLimit(request.getUsername());
+
         AdminUserEntity user = adminUserMapper.selectOne(new LambdaQueryWrapper<AdminUserEntity>()
                 .eq(AdminUserEntity::getUsername, request.getUsername())
                 .eq(AdminUserEntity::getDeleted, 0));
@@ -225,5 +231,27 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    private void checkLoginRateLimit(String username) {
+        long minute = System.currentTimeMillis() / 60_000L;
+        String key = "login:" + username + ":" + minute;
+        LoginRateWindow window = loginRateWindows.computeIfAbsent(key, ignored -> new LoginRateWindow(minute));
+        if (window.minute != minute) {
+            window = new LoginRateWindow(minute);
+            loginRateWindows.put(key, window);
+        }
+        if (window.count.incrementAndGet() > MAX_LOGIN_ATTEMPTS_PER_MINUTE) {
+            throw new BusinessException("ADMIN_LOGIN_RATE_LIMIT", "登录尝试过于频繁，请稍后再试");
+        }
+    }
+
+    private static class LoginRateWindow {
+        private final long minute;
+        private final AtomicInteger count = new AtomicInteger(0);
+
+        private LoginRateWindow(long minute) {
+            this.minute = minute;
+        }
     }
 }
