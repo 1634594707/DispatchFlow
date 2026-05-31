@@ -1,9 +1,9 @@
-package com.fsd.admin.dto;
+package com.fsd.dispatch.dto;
 
 import lombok.Data;
 
 @Data
-public class AdminTaskQueryRequest {
+public class DispatchTaskQueryRequest {
 
     private String taskNo;
 
@@ -15,12 +15,10 @@ public class AdminTaskQueryRequest {
 
     private Boolean manualFlag;
 
-    /** 仅返回存在 OPEN 异常的任务 */
     private Boolean withOpenExceptionOnly;
 
     private Long parkId;
 
-    /** 工作台任务池：PENDING | MANUAL_PENDING | ALL_POOL */
     private String poolStatus;
 
     private Integer pageNo = 1;

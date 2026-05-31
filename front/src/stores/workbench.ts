@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { getDispatchWorkbench } from '@/api/dispatch'
+import { getDispatchWorkbench, queryTaskPool } from '@/api/dispatch'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { autoAssignTask, manualAssignTask } from '@/api/task'
 import { resolveException } from '@/api/exception'
@@ -16,8 +16,11 @@ export type WorkbenchTaskFilter = 'ALL' | 'PENDING' | 'MANUAL_PENDING'
 export const useWorkbenchStore = defineStore('workbench', () => {
   const parkScope = useParkScopeStore()
   const loading = ref(false)
-  const pendingTasks = ref<TaskAdminListItem[]>([])
-  const manualPendingTasks = ref<TaskAdminListItem[]>([])
+  const poolTasks = ref<TaskAdminListItem[]>([])
+  const poolTotal = ref(0)
+  const poolPageNo = ref(1)
+  const poolPageSize = ref(20)
+  const poolLoading = ref(false)
   const openExceptions = ref<ExceptionAdminListItem[]>([])
   const pendingCount = ref(0)
   const manualPendingCount = ref(0)
@@ -60,15 +63,40 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     })
   }
 
-  const taskPool = computed(() => {
-    let list: TaskAdminListItem[]
-    if (taskFilter.value === 'PENDING') list = pendingTasks.value
-    else if (taskFilter.value === 'MANUAL_PENDING') list = manualPendingTasks.value
-    else list = [...pendingTasks.value, ...manualPendingTasks.value]
-    return applyManualOrder(list)
-  })
+  const taskPool = computed(() => applyManualOrder(poolTasks.value))
+
+  const poolHasMore = computed(() => poolTasks.value.length < poolTotal.value)
 
   const interventionTotal = computed(() => pendingCount.value + manualPendingCount.value)
+
+  function mapPoolFilter(): WorkbenchTaskFilter {
+    return taskFilter.value === 'ALL' ? 'ALL' : taskFilter.value
+  }
+
+  async function fetchTaskPool(options?: { append?: boolean; silent?: boolean }) {
+    if (!options?.silent) {
+      poolLoading.value = true
+    }
+    try {
+      const page = options?.append ? poolPageNo.value + 1 : 1
+      const res = await queryTaskPool({
+        parkId: parkScope.selectedParkId,
+        poolStatus: mapPoolFilter(),
+        pageNo: page,
+        pageSize: poolPageSize.value,
+      })
+      const data = res.data
+      poolPageNo.value = page
+      poolTotal.value = data.total
+      poolTasks.value = options?.append
+        ? [...poolTasks.value, ...data.records]
+        : data.records
+    } catch (e) {
+      console.error('Failed to fetch task pool', e)
+    } finally {
+      poolLoading.value = false
+    }
+  }
 
   async function fetchQueue(options?: { silent?: boolean }) {
     if (!options?.silent) {
@@ -78,11 +106,9 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       const res = await getDispatchWorkbench(parkScope.selectedParkId)
       const data = res.data
       const intervention = data.intervention
-      pendingTasks.value = intervention?.pendingTasks || []
-      manualPendingTasks.value = intervention?.manualPendingTasks || []
       openExceptions.value = intervention?.openExceptions || []
-      pendingCount.value = intervention?.pendingCount ?? pendingTasks.value.length
-      manualPendingCount.value = intervention?.manualPendingCount ?? manualPendingTasks.value.length
+      pendingCount.value = intervention?.pendingCount ?? 0
+      manualPendingCount.value = intervention?.manualPendingCount ?? 0
       openExceptionCount.value = intervention?.openExceptionCount ?? openExceptions.value.length
       assignableVehicleCount.value = data.fleetMetrics?.assignableVehicleCount ?? 0
       pluggedStandbyCount.value = data.fleetMetrics?.pluggedStandbyCount ?? 0
@@ -90,6 +116,8 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       onlineVehicleCount.value = data.fleetMetrics?.onlineVehicleCount ?? 0
       parkLayout.value = data.parkLayout ?? null
       parkVehicles.value = data.vehicles ?? []
+      poolPageNo.value = 1
+      await fetchTaskPool({ silent: true })
     } catch (e) {
       console.error('Failed to fetch intervention queue', e)
     } finally {
@@ -97,6 +125,11 @@ export const useWorkbenchStore = defineStore('workbench', () => {
         loading.value = false
       }
     }
+  }
+
+  async function loadMoreTasks() {
+    if (!poolHasMore.value || poolLoading.value) return
+    await fetchTaskPool({ append: true })
   }
 
   async function dispatchAuto(taskId: number) {
@@ -137,8 +170,12 @@ export const useWorkbenchStore = defineStore('workbench', () => {
 
   return {
     loading,
-    pendingTasks,
-    manualPendingTasks,
+    poolTasks,
+    poolTotal,
+    poolPageNo,
+    poolPageSize,
+    poolLoading,
+    poolHasMore,
     openExceptions,
     pendingCount,
     manualPendingCount,
@@ -155,6 +192,8 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     selectedTaskId,
     selectedExceptionId,
     fetchQueue,
+    fetchTaskPool,
+    loadMoreTasks,
     dispatchAuto,
     dispatchManual,
     resolveOpenException,

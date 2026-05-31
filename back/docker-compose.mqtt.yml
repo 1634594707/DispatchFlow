@@ -1,11 +1,11 @@
-# Mosquitto broker for VDA5050 local integration testing.
+# Mosquitto only — does NOT build/restart fsd-core-server (avoids pulling maven image).
 # Usage (from back/):
-#   docker compose -f docker-compose.yml -f docker-compose.mqtt.yml up -d
+#   docker compose -f docker-compose.mqtt.yml up -d
+#   python scripts/vda5050-sim-agv.py --broker tcp://127.0.0.1:1883
 #
-# Enable backend MQTT client:
-#   FSD_VDA5050_MQTT_ENABLED=true
-#   FSD_VDA5050_MQTT_BROKER=tcp://mosquitto:1883   # inside compose network
-#   FSD_VDA5050_MQTT_BROKER=tcp://127.0.0.1:1883   # host + sim script
+# Full stack + MQTT (when backend image already exists):
+#   FSD_VDA5050_MQTT_ENABLED=true FSD_VDA5050_MQTT_BROKER=tcp://mosquitto:1883 \
+#     docker compose -f docker-compose.yml -f docker-compose.mqtt.yml up -d
 
 services:
   mosquitto:
@@ -16,10 +16,3 @@ services:
     volumes:
       - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     restart: unless-stopped
-
-  fsd-core-server:
-    environment:
-      FSD_VDA5050_MQTT_ENABLED: "${FSD_VDA5050_MQTT_ENABLED:-true}"
-      FSD_VDA5050_MQTT_BROKER: "tcp://mosquitto:1883"
-    depends_on:
-      - mosquitto

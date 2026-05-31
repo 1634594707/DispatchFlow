@@ -1,8 +1,9 @@
 import request from '@/utils/request'
-import type { ApiResponse } from '@/types/api'
+import type { ApiResponse, PageResponse } from '@/types/api'
 import type { ExceptionAdminListItem } from '@/types/exception'
 import type { TaskAdminListItem } from '@/types/task'
 import type { ParkLayout, ParkVehicleSnapshot } from '@/types/park'
+export type TaskPoolFilter = 'ALL' | 'PENDING' | 'MANUAL_PENDING'
 
 export interface InterventionQueueResponse {
   pendingCount: number
@@ -35,6 +36,25 @@ export function getDispatchWorkbench(parkId?: number) {
   return request.get<any, ApiResponse<WorkbenchResponse>>('/admin/dispatch/workbench', {
     params: parkId != null ? { parkId } : undefined,
   })
+}
+
+export function queryTaskPool(params: {
+  parkId?: number
+  poolStatus: TaskPoolFilter
+  pageNo: number
+  pageSize: number
+}) {
+  const poolStatus =
+    params.poolStatus === 'ALL' ? 'ALL_POOL' : params.poolStatus
+  return request.post<any, ApiResponse<PageResponse<TaskAdminListItem>>>(
+    '/admin/dispatch/task-pool/query',
+    {
+      parkId: params.parkId,
+      poolStatus,
+      pageNo: params.pageNo,
+      pageSize: params.pageSize,
+    },
+  )
 }
 
 export function getFleetTelemetryStreamUrl(parkId?: number): string {

@@ -1,5 +1,7 @@
 package com.fsd.dispatch.service;
 
+import com.fsd.common.model.PageResponse;
+import com.fsd.dispatch.dto.DispatchTaskQueryRequest;
 import com.fsd.dispatch.vo.DispatchExceptionListItemResponse;
 import com.fsd.dispatch.vo.DispatchInterventionQueueResponse;
 import com.fsd.dispatch.vo.DispatchWorkbenchResponse;
@@ -12,11 +14,15 @@ public interface DispatchAdminQueryService {
 
     List<DispatchTaskListItemResponse> listTasks();
 
+    PageResponse<DispatchTaskListItemResponse> queryTasks(DispatchTaskQueryRequest request);
+
     DispatchTaskDetailResponse getTaskDetail(Long taskId);
 
     List<DispatchExceptionListItemResponse> listExceptions();
 
     DispatchInterventionQueueResponse getInterventionQueue();
+
+    DispatchInterventionQueueResponse getInterventionQueue(Long parkId);
 
     DispatchSummaryResponse getSummary();
 

@@ -47,10 +47,7 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
 
     @Override
     public PageResponse<DispatchTaskListItemResponse> queryTasks(AdminTaskQueryRequest request) {
-        List<DispatchTaskListItemResponse> filtered = dispatchAdminQueryService.listTasks().stream()
-                .filter(matchTask(request))
-                .toList();
-        return paginate(filtered, request.getPageNo(), request.getPageSize());
+        return dispatchAdminQueryService.queryTasks(com.fsd.admin.support.DispatchTaskQueryMapper.toDispatchRequest(request));
     }
 
     @Override

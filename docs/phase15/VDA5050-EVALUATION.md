@@ -52,9 +52,13 @@
 ## 6. 本地联调步骤
 
 ```bash
-# 1. 启动 Mosquitto + 后端（启用 MQTT）
+# 1a. 仅启动 Mosquitto（不构建后端，适合 Docker Hub 不稳定时）
 cd back
-docker compose -f docker-compose.yml -f docker-compose.mqtt.yml up -d
+docker compose -f docker-compose.mqtt.yml up -d
+
+# 1b. 全栈 + MQTT（需已能拉取 maven 镜像）
+# docker compose -f docker-compose.yml -f docker-compose.mqtt.yml up -d
+# 并设置 FSD_VDA5050_MQTT_ENABLED=true
 
 # 2. 补跑 V19 迁移（已有数据卷时）
 docker cp sql/migrations/V19__vda5050_vehicle_binding.sql fsd-mysql:/tmp/V19.sql

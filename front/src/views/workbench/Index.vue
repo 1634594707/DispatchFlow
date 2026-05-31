@@ -83,7 +83,7 @@
               :key="tab.key"
               class="filter-tab"
               :class="{ active: store.taskFilter === tab.key }"
-              @click="store.taskFilter = tab.key"
+              @click="onTaskTabChange(tab.key)"
             >
               {{ tab.label }}
               <span v-if="tab.count > 0" class="tab-count">{{ tab.count }}</span>
@@ -108,7 +108,7 @@
           <a-button size="small" danger :loading="batchLoading" @click="handleBatchCancel">批量取消</a-button>
           <a-button size="small" type="link" @click="clearSelection">清空</a-button>
         </div>
-        <a-spin :spinning="store.loading">
+        <a-spin :spinning="store.loading || store.poolLoading">
           <div class="task-list">
             <article
               v-for="task in filteredTaskPool"
@@ -175,7 +175,12 @@
                 </a-button>
               </div>
             </article>
-            <EmptyState v-if="!store.loading && filteredTaskPool.length === 0" description="暂无待处理任务" />
+            <EmptyState v-if="!store.loading && !store.poolLoading && filteredTaskPool.length === 0" description="暂无待处理任务" />
+          </div>
+          <div v-if="store.poolHasMore" class="pool-load-more">
+            <a-button block :loading="store.poolLoading" @click="store.loadMoreTasks">
+              加载更多（{{ filteredTaskPool.length }} / {{ store.poolTotal }}）
+            </a-button>
           </div>
         </a-spin>
       </section>
@@ -448,6 +453,11 @@ const taskTabs = computed(() => [
   { key: 'PENDING' as const, label: '待派单', count: store.pendingCount },
   { key: 'MANUAL_PENDING' as const, label: '人工', count: store.manualPendingCount },
 ])
+
+function onTaskTabChange(key: 'ALL' | 'PENDING' | 'MANUAL_PENDING') {
+  store.taskFilter = key
+  void store.fetchTaskPool()
+}
 
 function formatTime(value: string) {
   return dayjs(value).format('MM-DD HH:mm')
@@ -810,6 +820,7 @@ watch(() => parkScope.scopeVersion, () => {
   loadTrafficSummary()
   void loadDispatchPause()
   void loadRouteOptions()
+  void store.fetchQueue()
 })
 </script>
 
@@ -1080,6 +1091,10 @@ watch(() => parkScope.scopeVersion, () => {
   font-size: 10px;
 }
 
+.pool-load-more {
+  margin-top: 12px;
+}
+
 .task-list,
 .exception-list {
   flex: 1;
@@ -1253,7 +1268,11 @@ watch(() => parkScope.scopeVersion, () => {
     grid-template-columns: 1fr;
   }
 
-  .task-list,
+  .pool-load-more {
+  margin-top: 12px;
+}
+
+.task-list,
   .exception-list {
     max-height: 360px;
   }

@@ -211,8 +211,15 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/dispatch/intervention-queue")
-    public ApiResponse<DispatchInterventionQueueResponse> getInterventionQueue() {
-        return ApiResponse.success(dispatchAdminQueryService.getInterventionQueue());
+    public ApiResponse<DispatchInterventionQueueResponse> getInterventionQueue(
+            @RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(dispatchAdminQueryService.getInterventionQueue(parkId));
+    }
+
+    @PostMapping("/dispatch/task-pool/query")
+    public ApiResponse<PageResponse<DispatchTaskListItemResponse>> queryTaskPool(
+            @RequestBody AdminTaskQueryRequest request) {
+        return ApiResponse.success(adminQueryFacadeService.queryTasks(request));
     }
 
     @GetMapping("/dispatch/workbench")

@@ -1,6 +1,10 @@
 package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fsd.common.enums.DispatchTaskStatus;
+import com.fsd.common.model.PageResponse;
+import com.fsd.dispatch.dto.DispatchTaskQueryRequest;
 import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
 import com.fsd.dispatch.entity.DispatchRouteEntity;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
@@ -39,6 +43,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService {
 
+    private static final int INTERVENTION_TASK_PREVIEW_SIZE = 50;
+
     private final DispatchTaskMapper dispatchTaskMapper;
     private final DispatchExceptionRecordMapper exceptionRecordMapper;
     private final DispatchTaskService dispatchTaskService;
@@ -71,13 +77,40 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
 
     @Override
     public List<DispatchTaskListItemResponse> listTasks() {
-        List<DispatchTaskEntity> tasks = dispatchTaskMapper.selectList(new LambdaQueryWrapper<DispatchTaskEntity>()
-                .eq(DispatchTaskEntity::getDeleted, 0)
-                .orderByDesc(DispatchTaskEntity::getCreatedAt));
+        DispatchTaskQueryRequest request = new DispatchTaskQueryRequest();
+        request.setPageNo(1);
+        request.setPageSize(10_000);
+        return queryTasks(request).getRecords();
+    }
+
+    @Override
+    public PageResponse<DispatchTaskListItemResponse> queryTasks(DispatchTaskQueryRequest request) {
+        int pageNo = request.getPageNo() == null || request.getPageNo() < 1 ? 1 : request.getPageNo();
+        int pageSize = request.getPageSize() == null || request.getPageSize() < 1 ? 20 : request.getPageSize();
+        pageSize = Math.min(pageSize, 200);
+
+        Page<DispatchTaskEntity> page = new Page<>(pageNo, pageSize);
+        LambdaQueryWrapper<DispatchTaskEntity> wrapper = buildTaskQueryWrapper(request);
+        wrapper.orderByDesc(DispatchTaskEntity::getUpdatedAt);
+        dispatchTaskMapper.selectPage(page, wrapper);
+
         Map<Long, List<DispatchOpenExceptionBrief>> openByTaskId = groupOpenExceptionsByTaskId();
-        return tasks.stream()
+        List<DispatchTaskListItemResponse> records = page.getRecords().stream()
                 .map(task -> enrichTaskListItem(toTaskListItem(task), openByTaskId.getOrDefault(task.getId(), List.of())))
                 .toList();
+        List<DispatchTaskListItemResponse> enriched = sortTasksByPriority(
+                enrichedWithPriority(records, openByTaskId));
+        if (Boolean.TRUE.equals(request.getWithOpenExceptionOnly())) {
+            enriched = enriched.stream()
+                    .filter(task -> task.getOpenExceptionCount() != null && task.getOpenExceptionCount() > 0)
+                    .toList();
+        }
+        return PageResponse.<DispatchTaskListItemResponse>builder()
+                .total(page.getTotal())
+                .pageNo(pageNo)
+                .pageSize(pageSize)
+                .records(enriched)
+                .build();
     }
 
     @Override
@@ -109,24 +142,28 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
 
     @Override
     public DispatchInterventionQueueResponse getInterventionQueue() {
-        List<DispatchTaskListItemResponse> pendingTasks = dispatchTaskService.listPendingTasks();
-        List<DispatchTaskListItemResponse> manualPendingTasks = dispatchTaskService.listManualPendingTasks();
-        Map<Long, List<DispatchOpenExceptionBrief>> openByTaskId = groupOpenExceptionsByTaskId();
+        return getInterventionQueue(null);
+    }
 
-        List<DispatchTaskListItemResponse> enrichedPending = sortTasksByPriority(enrichedWithPriority(pendingTasks, openByTaskId));
-        List<DispatchTaskListItemResponse> enrichedManualPending = sortTasksByPriority(
-                enrichedWithPriority(manualPendingTasks, openByTaskId));
+    @Override
+    public DispatchInterventionQueueResponse getInterventionQueue(Long parkId) {
+        long pendingCount = countPoolTasks(parkId, DispatchTaskStatus.PENDING.name());
+        long manualPendingCount = countPoolTasks(parkId, DispatchTaskStatus.MANUAL_PENDING.name());
+
+        DispatchTaskQueryRequest pendingPreview = poolPreviewRequest(parkId, DispatchTaskStatus.PENDING.name());
+        DispatchTaskQueryRequest manualPreview = poolPreviewRequest(parkId, DispatchTaskStatus.MANUAL_PENDING.name());
 
         List<DispatchExceptionListItemResponse> openExceptions = dispatchExceptionService.listOpenExceptions().stream()
+                .filter(exception -> matchesParkOrder(exception.getOrderId(), parkId))
                 .map(exception -> toExceptionListItem(exception, loadTask(exception.getTaskId())))
                 .toList();
 
         return DispatchInterventionQueueResponse.builder()
-                .pendingCount(enrichedPending.size())
-                .manualPendingCount(enrichedManualPending.size())
+                .pendingCount((int) pendingCount)
+                .manualPendingCount((int) manualPendingCount)
                 .openExceptionCount(openExceptions.size())
-                .pendingTasks(enrichedPending)
-                .manualPendingTasks(enrichedManualPending)
+                .pendingTasks(queryTasks(pendingPreview).getRecords())
+                .manualPendingTasks(queryTasks(manualPreview).getRecords())
                 .openExceptions(openExceptions)
                 .build();
     }
@@ -138,7 +175,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
 
     @Override
     public DispatchWorkbenchResponse getWorkbench(Long parkId) {
-        DispatchInterventionQueueResponse intervention = getInterventionQueue();
+        DispatchInterventionQueueResponse intervention = getInterventionQueue(parkId);
         List<ParkVehicleSnapshotResponse> vehicles = parkPilotService.listVehicleSnapshots();
         DispatchFleetMetricsResponse fleetMetrics = buildFleetMetrics(vehicles);
         return DispatchWorkbenchResponse.builder()
@@ -147,6 +184,84 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
                 .parkLayout(parkId == null ? parkPilotService.getLayout() : parkPilotService.getLayout(parkId))
                 .vehicles(vehicles)
                 .build();
+    }
+
+    private LambdaQueryWrapper<DispatchTaskEntity> buildTaskQueryWrapper(DispatchTaskQueryRequest request) {
+        LambdaQueryWrapper<DispatchTaskEntity> wrapper = new LambdaQueryWrapper<DispatchTaskEntity>()
+                .eq(DispatchTaskEntity::getDeleted, 0);
+        if (request.getTaskNo() != null && !request.getTaskNo().isBlank()) {
+            wrapper.like(DispatchTaskEntity::getTaskNo, request.getTaskNo().trim());
+        }
+        if (request.getOrderId() != null) {
+            wrapper.eq(DispatchTaskEntity::getOrderId, request.getOrderId());
+        }
+        if (request.getVehicleId() != null) {
+            wrapper.eq(DispatchTaskEntity::getVehicleId, request.getVehicleId());
+        }
+        applyPoolStatusFilter(wrapper, request);
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            wrapper.eq(DispatchTaskEntity::getStatus, request.getStatus().trim());
+        }
+        if (request.getManualFlag() != null) {
+            if (request.getManualFlag()) {
+                wrapper.eq(DispatchTaskEntity::getStatus, DispatchTaskStatus.MANUAL_PENDING.name());
+            } else {
+                wrapper.ne(DispatchTaskEntity::getStatus, DispatchTaskStatus.MANUAL_PENDING.name());
+            }
+        }
+        applyParkFilter(wrapper, request.getParkId());
+        return wrapper;
+    }
+
+    private void applyPoolStatusFilter(LambdaQueryWrapper<DispatchTaskEntity> wrapper, DispatchTaskQueryRequest request) {
+        String poolStatus = request.getPoolStatus();
+        if (poolStatus == null || poolStatus.isBlank()) {
+            return;
+        }
+        switch (poolStatus.toUpperCase()) {
+            case "PENDING" -> wrapper.eq(DispatchTaskEntity::getStatus, DispatchTaskStatus.PENDING.name());
+            case "MANUAL_PENDING" -> wrapper.eq(DispatchTaskEntity::getStatus, DispatchTaskStatus.MANUAL_PENDING.name());
+            case "ALL_POOL" -> wrapper.in(DispatchTaskEntity::getStatus,
+                    DispatchTaskStatus.PENDING.name(),
+                    DispatchTaskStatus.MANUAL_PENDING.name());
+            default -> {
+            }
+        }
+    }
+
+    private void applyParkFilter(LambdaQueryWrapper<DispatchTaskEntity> wrapper, Long parkId) {
+        if (parkId == null) {
+            return;
+        }
+        wrapper.apply("order_id IN (SELECT id FROM t_order WHERE deleted = 0 AND park_id = {0})", parkId);
+    }
+
+    private long countPoolTasks(Long parkId, String status) {
+        LambdaQueryWrapper<DispatchTaskEntity> wrapper = new LambdaQueryWrapper<DispatchTaskEntity>()
+                .eq(DispatchTaskEntity::getDeleted, 0)
+                .eq(DispatchTaskEntity::getStatus, status);
+        applyParkFilter(wrapper, parkId);
+        return dispatchTaskMapper.selectCount(wrapper);
+    }
+
+    private DispatchTaskQueryRequest poolPreviewRequest(Long parkId, String status) {
+        DispatchTaskQueryRequest request = new DispatchTaskQueryRequest();
+        request.setParkId(parkId);
+        request.setPoolStatus(status);
+        request.setPageNo(1);
+        request.setPageSize(INTERVENTION_TASK_PREVIEW_SIZE);
+        return request;
+    }
+
+    private boolean matchesParkOrder(Long orderId, Long parkId) {
+        if (parkId == null) {
+            return true;
+        }
+        if (orderId == null) {
+            return false;
+        }
+        OrderEntity order = orderMapper.selectById(orderId);
+        return order != null && order.getDeleted() != null && order.getDeleted() == 0 && parkId.equals(order.getParkId());
     }
 
     private DispatchFleetMetricsResponse buildFleetMetrics(List<ParkVehicleSnapshotResponse> vehicles) {
