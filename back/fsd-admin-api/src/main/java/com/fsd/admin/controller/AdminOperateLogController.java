@@ -6,6 +6,7 @@ import com.fsd.admin.service.OperateLogAdminService;
 import com.fsd.admin.vo.AdminOperateLogResponse;
 import com.fsd.common.model.ApiResponse;
 import com.fsd.common.model.PageResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/operate-logs")
+@Tag(name = "Operate Logs", description = "Audit trail query and export")
 public class AdminOperateLogController {
 
     private final OperateLogAdminService operateLogAdminService;

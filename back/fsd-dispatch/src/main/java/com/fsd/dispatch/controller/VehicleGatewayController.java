@@ -8,6 +8,7 @@ import com.fsd.dispatch.service.VehicleGatewayService;
 import com.fsd.dispatch.vo.VehicleCommandResponse;
 import com.fsd.vehicle.dto.VehicleReportRequest;
 import com.fsd.vehicle.vo.VehicleReportResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/vehicle-gateway")
+@Tag(name = "Vehicle Gateway", description = "On-vehicle telemetry, reports, and command polling")
 public class VehicleGatewayController {
 
     private final VehicleGatewayService vehicleGatewayService;

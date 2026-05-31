@@ -1,6 +1,7 @@
 package com.fsd.admin.controller;
 
 import com.fsd.admin.service.FleetTelemetryStreamService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,6 +11,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api/admin/fleet")
+@Tag(name = "Fleet Telemetry Stream", description = "SSE stream for live vehicle positions on the tracking map")
 public class FleetTelemetryStreamController {
 
     private final FleetTelemetryStreamService streamService;

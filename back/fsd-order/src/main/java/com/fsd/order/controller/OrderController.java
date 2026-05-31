@@ -6,6 +6,7 @@ import com.fsd.order.service.OrderQueryService;
 import com.fsd.order.service.OrderService;
 import com.fsd.order.vo.OrderCreateResponse;
 import com.fsd.order.vo.OrderDetailResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/orders")
+@Tag(name = "Orders", description = "Order create and query APIs")
 public class OrderController {
 
     private final OrderService orderService;

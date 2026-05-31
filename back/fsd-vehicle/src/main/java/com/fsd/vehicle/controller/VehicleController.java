@@ -6,6 +6,7 @@ import com.fsd.vehicle.service.VehicleReportService;
 import com.fsd.vehicle.service.VehicleService;
 import com.fsd.vehicle.vo.VehicleReportResponse;
 import com.fsd.vehicle.vo.VehicleSummaryResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/vehicles")
+@Tag(name = "Vehicles", description = "Fleet summary and vehicle status reports")
 public class VehicleController {
 
     private final VehicleService vehicleService;

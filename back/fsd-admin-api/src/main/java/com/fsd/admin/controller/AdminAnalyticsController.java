@@ -10,6 +10,7 @@ import com.fsd.admin.vo.AdminAnalyticsExceptionResponse;
 import com.fsd.admin.vo.AdminAnalyticsParkCompareItem;
 import java.util.List;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/analytics")
+@Tag(name = "Analytics", description = "Efficiency, KPI, peak compare, and report export")
 public class AdminAnalyticsController {
 
     private final AnalyticsAdminService analyticsAdminService;

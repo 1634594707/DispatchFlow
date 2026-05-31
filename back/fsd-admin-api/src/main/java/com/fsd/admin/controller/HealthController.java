@@ -1,6 +1,7 @@
 package com.fsd.admin.controller;
 
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDateTime;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/health")
+@Tag(name = "Health", description = "Public liveness probe")
 public class HealthController {
 
     @GetMapping

@@ -5,6 +5,7 @@ import com.fsd.dispatch.service.DispatchAdminQueryService;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
 import com.fsd.order.service.OrderQueryService;
 import com.fsd.order.vo.OrderDetailResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/open/v1")
+@Tag(name = "Open API", description = "External read-only order and task lookup (API key auth)")
 public class OpenIntegrationController {
 
     private final OrderQueryService orderQueryService;

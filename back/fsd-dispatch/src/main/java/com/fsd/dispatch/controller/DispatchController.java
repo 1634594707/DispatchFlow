@@ -12,6 +12,7 @@ import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
 import com.fsd.dispatch.vo.DispatchTaskCreateResponse;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
 import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/dispatch")
+@Tag(name = "Dispatch Core", description = "Task lifecycle and exception APIs for integrations")
 public class DispatchController {
 
     private final DispatchTaskService dispatchTaskService;

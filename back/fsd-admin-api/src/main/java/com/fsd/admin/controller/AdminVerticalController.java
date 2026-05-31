@@ -14,6 +14,7 @@ import com.fsd.admin.vo.AdminHubOverviewResponse;
 import com.fsd.admin.vo.AdminOpsSnapshotResponse;
 import com.fsd.admin.vo.AdminPeakModeResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/vertical")
+@Tag(name = "Vertical", description = "Home-textile routes, peak mode, hub, automation rules, and ops snapshot")
 public class AdminVerticalController {
 
     private final VerticalAdminService verticalAdminService;

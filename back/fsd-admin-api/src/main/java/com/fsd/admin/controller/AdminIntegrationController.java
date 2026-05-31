@@ -7,6 +7,7 @@ import com.fsd.admin.vo.AdminExternalApiKeyResponse;
 import com.fsd.admin.vo.AdminWebhookDeliveryLogResponse;
 import com.fsd.admin.vo.AdminWebhookResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/integration")
+@Tag(name = "Integration", description = "Webhooks, API keys, and delivery logs")
 public class AdminIntegrationController {
 
     private final IntegrationAdminService integrationAdminService;

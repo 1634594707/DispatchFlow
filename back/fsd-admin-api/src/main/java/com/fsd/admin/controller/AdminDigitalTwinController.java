@@ -5,6 +5,7 @@ import com.fsd.admin.service.DigitalTwinAdminService;
 import com.fsd.admin.vo.AdminDigitalTwinSimulateResponse;
 import com.fsd.admin.vo.AdminDigitalTwinSnapshotResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/digital-twin")
+@Tag(name = "Digital Twin", description = "Park snapshot and what-if simulation")
 public class AdminDigitalTwinController {
 
     private final DigitalTwinAdminService digitalTwinAdminService;

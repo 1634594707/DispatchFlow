@@ -17,6 +17,7 @@ import com.fsd.admin.vo.AdminRoadNodeResponse;
 import com.fsd.admin.vo.AdminRoadSegmentResponse;
 import com.fsd.admin.vo.AdminStationResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/infrastructure")
+@Tag(name = "Infrastructure", description = "Parks, stations, road network, parking, charging, and swap cabinets")
 public class AdminInfrastructureController {
 
     private final InfrastructureAdminService infrastructureAdminService;

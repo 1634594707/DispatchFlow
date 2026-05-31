@@ -6,6 +6,7 @@ import com.fsd.admin.dto.AdminUserUpdateRequest;
 import com.fsd.admin.service.AdminUserService;
 import com.fsd.admin.vo.AdminUserResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/users")
+@Tag(name = "User Management", description = "Admin users and RBAC roles")
 public class AdminUserController {
 
     private final AdminUserService adminUserService;

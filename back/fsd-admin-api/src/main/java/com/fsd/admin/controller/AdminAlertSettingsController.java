@@ -6,6 +6,7 @@ import com.fsd.admin.dto.AdminAlertSettingsUpsertRequest;
 import com.fsd.admin.service.AlertSettingsAdminService;
 import com.fsd.admin.vo.AdminAlertSettingsResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/alert-settings")
+@Tag(name = "Alert Settings", description = "Browser notification and exception alert preferences")
 public class AdminAlertSettingsController {
 
     private final AlertSettingsAdminService alertSettingsAdminService;

@@ -14,6 +14,7 @@ import com.fsd.admin.vo.AdminVehicleCredentialResponse;
 import com.fsd.admin.vo.AdminVehicleMaintenanceResponse;
 import com.fsd.common.model.ApiResponse;
 import com.fsd.vehicle.vo.VehicleAdminDetailResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/admin/vehicles/manage")
+@Tag(name = "Vehicle Management", description = "Vehicle CRUD, credentials, maintenance, health, and trajectory")
 public class AdminVehicleManageController {
 
     private final VehicleAdminManageService vehicleAdminManageService;

@@ -3,6 +3,7 @@ package com.fsd.admin.controller;
 import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.vo.AdminDispatchPauseStatusResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.fsd.dispatch.service.DispatchPauseControlService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/dispatch/pause")
+@Tag(name = "Dispatch Pause", description = "Global or per-park dispatch pause control")
 public class AdminDispatchPauseController {
 
     private final DispatchPauseControlService dispatchPauseControlService;

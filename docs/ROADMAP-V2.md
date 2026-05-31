@@ -80,9 +80,8 @@ _已完成（2026-05-31）_：任务池 DB 索引（V20）、服务端分页（`
 ## 五、技术债务
 
 ### 架构
-- [ ] Swagger 注解补全（springdoc 已配置，`OpenApiConfig` + 部分 Controller `@Tag` 已加；其余 Controller 待补）
 
-_已完成（2026-05-31）_：版本号统一（`front/package.json` → 0.2.0）；Flyway 引入（V01–V20 baseline，新迁移走 classpath `db/migration`）。
+_已完成（2026-05-31）_：版本号统一（`front/package.json` → 0.2.0）；Flyway 引入（V01–V20 baseline，新迁移走 classpath `db/migration`）；Swagger 全 Controller `@Tag` + `OpenApiConfig`（`X-Admin-Token` 安全方案）。
 
 ### 性能
 

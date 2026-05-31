@@ -4,6 +4,7 @@ import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.service.ReportScheduleAdminService;
 import com.fsd.admin.vo.AdminReportScheduleResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/report-schedules")
+@Tag(name = "Report Schedules", description = "Scheduled analytics email delivery")
 public class AdminReportScheduleController {
 
     private final ReportScheduleAdminService reportScheduleAdminService;

@@ -5,6 +5,7 @@ import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.service.FieldOpsTicketAdminService;
 import com.fsd.admin.vo.AdminFieldOpsTicketResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/field-ops")
+@Tag(name = "Field Ops", description = "On-site tickets and exception assignment")
 public class AdminFieldOpsController {
 
     private final FieldOpsTicketAdminService fieldOpsTicketAdminService;

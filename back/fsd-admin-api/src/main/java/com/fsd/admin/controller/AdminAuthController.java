@@ -8,6 +8,7 @@ import com.fsd.admin.service.AdminAuthService;
 import com.fsd.admin.vo.AdminLoginResponse;
 import com.fsd.admin.vo.AdminUserResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -29,11 +30,13 @@ public class AdminAuthController {
     }
 
     @PostMapping("/login")
+    @Operation(summary = "Admin login", description = "Returns session token in `X-Admin-Token` response header and body")
     public ApiResponse<AdminLoginResponse> login(@Valid @RequestBody AdminLoginRequest request) {
         return ApiResponse.success(adminAuthService.login(request));
     }
 
     @PostMapping("/logout")
+    @Operation(summary = "Logout current session")
     public ApiResponse<Void> logout(HttpServletRequest request) {
         String token = request.getHeader("X-Admin-Token");
         adminAuthService.logout(token);
@@ -41,6 +44,7 @@ public class AdminAuthController {
     }
 
     @GetMapping("/me")
+    @Operation(summary = "Current admin user profile")
     public ApiResponse<AdminUserResponse> me(HttpServletRequest request) {
         AdminAuthContext context = AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(adminAuthService.getCurrentUser(context.getUserId()));
