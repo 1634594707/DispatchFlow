@@ -6,6 +6,9 @@ spring:
     driver-class-name: org.h2.Driver
   flyway:
     enabled: false
+  mail:
+    host: localhost
+    port: 1025
   task:
     scheduling:
       enabled: false
@@ -38,3 +41,6 @@ fsd:
     outbox:
       retry-delay-ms: 30000
       retry-enabled: false
+  report:
+    mail:
+      enabled: false

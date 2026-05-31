@@ -15,6 +15,7 @@ import com.fsd.dispatch.event.DispatchEventPublisher;
 import com.fsd.dispatch.infra.DispatchLockService;
 import com.fsd.dispatch.infra.DispatchReportIdempotencyService;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
+import com.fsd.dispatch.service.DispatchPauseControlService;
 import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.order.dto.OrderCreateRequest;
 import com.fsd.order.service.OrderService;
@@ -39,7 +40,9 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = {
         "spring.task.scheduling.enabled=false",
         "fsd.park.simulation.enabled=false",
-        "fsd.fleet.telemetry.scheduler-enabled=false"
+        "fsd.fleet.telemetry.scheduler-enabled=false",
+        "fsd.report.mail.enabled=false",
+        "fsd.peak-mode.cron-enabled=false"
 })
 class DispatchConcurrencyIntegrationTest {
 
@@ -58,6 +61,8 @@ class DispatchConcurrencyIntegrationTest {
     private DispatchReportIdempotencyService dispatchReportIdempotencyService;
     @MockBean(name = "rabbitDispatchEventPublisher")
     private DispatchEventPublisher dispatchEventPublisher;
+    @MockBean
+    private DispatchPauseControlService dispatchPauseControlService;
 
     private ExecutorService executorService;
 
@@ -68,6 +73,8 @@ class DispatchConcurrencyIntegrationTest {
         executorService = Executors.newFixedThreadPool(2);
         when(dispatchLockService.acquireTaskLock(anyLong())).thenAnswer(invocation -> "lock-" + invocation.getArgument(0));
         doNothing().when(dispatchLockService).releaseTaskLock(anyLong(), any());
+        when(dispatchPauseControlService.isDispatchPaused(any())).thenReturn(false);
+        when(dispatchPauseControlService.isGlobalDispatchPaused()).thenReturn(false);
     }
 
     @AfterEach
