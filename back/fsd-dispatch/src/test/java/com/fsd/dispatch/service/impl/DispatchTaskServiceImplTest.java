@@ -22,6 +22,7 @@ import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchTaskOperateLogService;
 import com.fsd.dispatch.service.DispatchTaskStateService;
+import com.fsd.dispatch.service.DispatchPauseControlService;
 import com.fsd.dispatch.service.ParkingFacilityService;
 import com.fsd.dispatch.service.VehicleCommandService;
 import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
@@ -61,6 +62,8 @@ class DispatchTaskServiceImplTest {
     private DispatchEventPublisher eventPublisher;
     @Mock
     private VehicleCommandService vehicleCommandService;
+    @Mock
+    private DispatchPauseControlService dispatchPauseControlService;
 
     private DispatchTaskServiceImpl dispatchTaskService;
 
@@ -77,7 +80,8 @@ class DispatchTaskServiceImplTest {
                 parkingFacilityService,
                 dispatchLockService,
                 eventPublisher,
-                vehicleCommandService);
+                vehicleCommandService,
+                dispatchPauseControlService);
     }
 
     @Test

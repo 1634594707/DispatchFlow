@@ -73,6 +73,48 @@ export function updateChargingPile(pileId: number, payload: AdminChargingPileUps
   return request.put<any, ApiResponse<AdminChargingPile>>(`/admin/infrastructure/charging-piles/${pileId}`, payload)
 }
 
+export interface AdminBatterySwapCabinet {
+  id: number
+  parkId: number
+  parkName?: string
+  cabinetCode: string
+  cabinetName: string
+  coordX: number
+  coordY: number
+  slotCount?: number
+  status: string
+  remark?: string
+}
+
+export interface AdminBatterySwapCabinetUpsertPayload {
+  parkId: number
+  cabinetCode: string
+  cabinetName: string
+  coordX: number
+  coordY: number
+  slotCount?: number
+  status?: string
+  remark?: string
+}
+
+export function fetchSwapCabinets(parkId?: number) {
+  return request.get<any, ApiResponse<AdminBatterySwapCabinet[]>>('/admin/infrastructure/swap-cabinets', {
+    params: parkId != null ? { parkId } : undefined,
+  })
+}
+
+export function createSwapCabinet(payload: AdminBatterySwapCabinetUpsertPayload) {
+  return request.post<any, ApiResponse<AdminBatterySwapCabinet>>('/admin/infrastructure/swap-cabinets', payload)
+}
+
+export function updateSwapCabinet(cabinetId: number, payload: AdminBatterySwapCabinetUpsertPayload) {
+  return request.put<any, ApiResponse<AdminBatterySwapCabinet>>(`/admin/infrastructure/swap-cabinets/${cabinetId}`, payload)
+}
+
+export function deleteSwapCabinet(cabinetId: number) {
+  return request.post<any, ApiResponse<void>>(`/admin/infrastructure/swap-cabinets/${cabinetId}/delete`)
+}
+
 export function fetchRoadNodes(parkId?: number) {
   return request.get<any, ApiResponse<AdminRoadNode[]>>('/admin/infrastructure/road-nodes', {
     params: parkId != null ? { parkId } : undefined,

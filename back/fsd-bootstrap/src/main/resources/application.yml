@@ -16,6 +16,17 @@ spring:
     port: ${RABBITMQ_PORT:5673}
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+  mail:
+    host: ${MAIL_HOST:127.0.0.1}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
 
 server:
   port: ${SERVER_PORT:8080}
@@ -38,6 +49,8 @@ springdoc:
     path: /swagger-ui.html
 
 fsd:
+  mobile-order:
+    require-api-key: ${MOBILE_ORDER_REQUIRE_KEY:false}
   park:
     enabled: ${FSD_PARK_ENABLED:true}
     default-park-code: ${FSD_PARK_DEFAULT_CODE:DEFAULT}
@@ -302,6 +315,14 @@ fsd:
     outbox:
       retry-delay-ms: ${FSD_DISPATCH_OUTBOX_RETRY_DELAY_MS:30000}
       retry-enabled: ${FSD_DISPATCH_OUTBOX_RETRY_ENABLED:true}
+  alert:
+    open-timeout-minutes: ${FSD_ALERT_OPEN_TIMEOUT_MINUTES:30}
+    escalation-check-ms: ${FSD_ALERT_ESCALATION_CHECK_MS:60000}
+  report:
+    mail:
+      enabled: ${FSD_REPORT_MAIL_ENABLED:false}
+      from: ${FSD_REPORT_MAIL_FROM:dispatchflow@localhost}
+      check-ms: ${FSD_REPORT_MAIL_CHECK_MS:60000}
   security:
     admin:
       enabled: ${FSD_ADMIN_AUTH_ENABLED:false}

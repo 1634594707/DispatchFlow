@@ -29,7 +29,7 @@
       </ul>
       <div v-if="response.actions?.length" class="assistant-action-list">
         <a-button
-          v-for="(action, i) in response.actions"
+          v-for="(action, i) in visibleActions"
           :key="i"
           size="small"
           @click="runAction(action)"
@@ -44,7 +44,8 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
+import { useAuthStore } from '@/stores/auth'
 import { interpretAssistant } from '@/api/assistant'
 import { batchAutoAssign } from '@/api/task'
 import { useParkScopeStore } from '@/stores/parkScope'
@@ -55,11 +56,18 @@ const open = defineModel<boolean>('open', { default: false })
 const router = useRouter()
 const parkScope = useParkScopeStore()
 const workbenchStore = useWorkbenchStore()
+const authStore = useAuthStore()
 
 const instruction = ref('')
 const loading = ref(false)
 const response = ref<AssistantResponse | null>(null)
 const listening = ref(false)
+
+const visibleActions = computed(() => {
+  const actions = response.value?.actions || []
+  if (authStore.canWrite) return actions
+  return actions.filter((a) => a.actionType === 'NAVIGATE')
+})
 
 const speechSupported = computed(() => {
   if (typeof window === 'undefined') return false
@@ -124,14 +132,24 @@ async function runAction(action: AssistantAction) {
     return
   }
   if (action.actionType === 'BATCH_AUTO_ASSIGN') {
+    if (!authStore.canWrite) {
+      message.warning('当前角色无写操作权限')
+      return
+    }
     const taskIds = workbenchStore.taskPool.map((t) => t.taskId)
     if (taskIds.length === 0) {
       message.info('当前无待处理任务')
       return
     }
-    await batchAutoAssign(taskIds)
-    await workbenchStore.fetchQueue()
-    message.success('已触发批量自动派车')
+    Modal.confirm({
+      title: '确认批量自动派车',
+      content: `将对 ${taskIds.length} 个待处理任务触发自动派车，是否继续？`,
+      async onOk() {
+        await batchAutoAssign(taskIds)
+        await workbenchStore.fetchQueue()
+        message.success('已触发批量自动派车')
+      },
+    })
     return
   }
   if (action.actionType === 'AUTO_ASSIGN_TASK' && action.payload?.taskId) {

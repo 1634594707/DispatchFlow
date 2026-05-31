@@ -20,5 +20,7 @@ public class AdminExternalApiKeyResponse {
 
     private Long totalCalls;
 
+    private Long rateLimitHits;
+
     private LocalDateTime lastUsedAt;
 }

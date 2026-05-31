@@ -16,6 +16,8 @@ public class ParkOrderCreateRequest {
     @NotNull(message = "dropoffStationId is required")
     private Long dropoffStationId;
 
+    private Long routeId;
+
     private String priority;
 
     private String remark;

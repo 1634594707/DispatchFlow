@@ -34,6 +34,8 @@ public class DispatchStrategyProfileEntity {
 
     private Integer fullSoc;
 
+    private String energyRecoveryMode;
+
     private String remark;
 
     private LocalDateTime createdAt;

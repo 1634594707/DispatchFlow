@@ -10,6 +10,7 @@ import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchTaskOperateLogService;
 import com.fsd.dispatch.service.DispatchTaskStateService;
+import com.fsd.dispatch.service.PeakModeService;
 import com.fsd.order.service.OrderStateService;
 import com.fsd.vehicle.dto.VehicleReportRequest;
 import com.fsd.vehicle.entity.VehicleEntity;
@@ -32,6 +33,7 @@ public class VehicleReportServiceImpl implements VehicleReportService {
     private final OrderStateService orderStateService;
     private final DispatchReportIdempotencyService reportIdempotencyService;
     private final DispatchEventPublisher eventPublisher;
+    private final PeakModeService peakModeService;
 
     public VehicleReportServiceImpl(VehicleService vehicleService,
                                     DispatchTaskMapper dispatchTaskMapper,
@@ -40,7 +42,8 @@ public class VehicleReportServiceImpl implements VehicleReportService {
                                     DispatchExceptionService dispatchExceptionService,
                                     OrderStateService orderStateService,
                                     DispatchReportIdempotencyService reportIdempotencyService,
-                                    DispatchEventPublisher eventPublisher) {
+                                    DispatchEventPublisher eventPublisher,
+                                    PeakModeService peakModeService) {
         this.vehicleService = vehicleService;
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.dispatchTaskStateService = dispatchTaskStateService;
@@ -49,6 +52,7 @@ public class VehicleReportServiceImpl implements VehicleReportService {
         this.orderStateService = orderStateService;
         this.reportIdempotencyService = reportIdempotencyService;
         this.eventPublisher = eventPublisher;
+        this.peakModeService = peakModeService;
     }
 
     @Override
@@ -96,6 +100,7 @@ public class VehicleReportServiceImpl implements VehicleReportService {
                     String beforeStatus = taskEntity.getStatus();
                     taskEntity.setStatus(DispatchTaskStatus.SUCCESS.name());
                     taskEntity.setFinishTime(request.getReportTime());
+                    taskEntity.setPeakModeAtFinish(peakModeService.isPeakMode(resolveTaskParkId(taskEntity)) ? "PEAK" : "NORMAL");
                     dispatchTaskMapper.updateById(taskEntity);
                     orderStateService.markCompleted(taskEntity.getOrderId());
                     vehicleService.releaseVehicle(vehicleEntity.getId(), VehicleDispatchStatus.IDLE.name());
@@ -153,5 +158,16 @@ public class VehicleReportServiceImpl implements VehicleReportService {
         payload.put("failReasonCode", taskEntity.getFailReasonCode());
         payload.put("failReasonMsg", taskEntity.getFailReasonMsg());
         return payload;
+    }
+
+    private Long resolveTaskParkId(DispatchTaskEntity taskEntity) {
+        if (taskEntity.getOrderId() == null) {
+            return null;
+        }
+        try {
+            return orderStateService.getOrder(taskEntity.getOrderId()).getParkId();
+        } catch (Exception ex) {
+            return null;
+        }
     }
 }

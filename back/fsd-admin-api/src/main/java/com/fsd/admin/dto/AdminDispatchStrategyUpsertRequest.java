@@ -42,4 +42,6 @@ public class AdminDispatchStrategyUpsertRequest {
     private Integer fullSoc;
 
     private String remark;
+
+    private String energyRecoveryMode;
 }

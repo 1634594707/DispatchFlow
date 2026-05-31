@@ -12,6 +12,7 @@ export const DISPATCH_FAIL_REASON: Record<string, string> = {
   UNREACHABLE: '取货点不可达',
   ROUTE_BLOCKED: '路网不可达或路段管制',
   HUB_CAPACITY_FULL: '枢纽容量已满',
+  ROUTE_OCCUPANCY_FULL: '线路并发已满',
   CONFLICT: '占车/占桩冲突',
 }
 
@@ -28,7 +29,8 @@ export const DISPATCH_FAIL_LINKS: Record<string, { label: string; path: string }
     { label: '路网管理', path: '/infrastructure/road-network' },
     { label: '交通态势', path: '/infrastructure/traffic' },
   ],
-  HUB_CAPACITY_FULL: [{ label: '工作台', path: '/workbench' }],
+  HUB_CAPACITY_FULL: [{ label: '母港分流', path: '/vertical/hub' }],
+  ROUTE_OCCUPANCY_FULL: [{ label: '线路管理', path: '/vertical/routes' }],
   CONFLICT: [{ label: '异常队列', path: '/exceptions?status=OPEN' }],
 }
 

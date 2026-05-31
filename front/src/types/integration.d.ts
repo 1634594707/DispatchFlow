@@ -24,5 +24,6 @@ export interface ExternalApiKey {
   status: string
   rateLimitPerMinute: number
   totalCalls?: number
+  rateLimitHits?: number
   lastUsedAt?: string
 }

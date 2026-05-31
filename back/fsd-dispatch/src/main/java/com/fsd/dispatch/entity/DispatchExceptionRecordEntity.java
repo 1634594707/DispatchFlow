@@ -33,6 +33,8 @@ public class DispatchExceptionRecordEntity {
 
     private LocalDateTime resolvedTime;
 
+    private LocalDateTime escalatedAt;
+
     private String resolverId;
 
     private String resolveRemark;

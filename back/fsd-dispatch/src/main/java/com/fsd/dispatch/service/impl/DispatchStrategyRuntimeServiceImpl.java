@@ -109,6 +109,8 @@ public class DispatchStrategyRuntimeServiceImpl implements DispatchStrategyRunti
         props.setMinAssignableSoc(profile.getMinAssignableSoc() != null
                 ? profile.getMinAssignableSoc() : yamlEnergy.getMinAssignableSoc());
         props.setFullSoc(profile.getFullSoc() != null ? profile.getFullSoc() : yamlEnergy.getFullSoc());
+        props.setEnergyRecoveryMode(profile.getEnergyRecoveryMode() != null && !profile.getEnergyRecoveryMode().isBlank()
+                ? profile.getEnergyRecoveryMode() : yamlEnergy.getEnergyRecoveryMode());
         return props;
     }
 

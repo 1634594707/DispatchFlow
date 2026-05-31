@@ -155,6 +155,16 @@
             />
           </a-form-item>
 
+          <a-form-item v-if="routeOptions.length > 0" label="线路模板（可选）">
+            <a-select
+              v-model:value="form.routeId"
+              allow-clear
+              placeholder="自动匹配或手动选择"
+              size="large"
+              :options="routeOptions"
+            />
+          </a-form-item>
+
           <a-form-item label="取货站点">
             <a-select
               v-model:value="form.pickupStationId"
@@ -307,6 +317,8 @@ import {
   getParkVehicles,
   listParks,
 } from '@/api/park'
+import { fetchRoutes } from '@/api/vertical'
+import type { DispatchRoute } from '@/api/vertical'
 import type {
   ParkLayout,
   ParkOrderCreateRequest,
@@ -322,6 +334,7 @@ const loadingStations = ref(false)
 const parks = ref<ParkSummary[]>([])
 const submitting = ref(false)
 const stations = ref<ParkStation[]>([])
+const routes = ref<DispatchRoute[]>([])
 const vehicles = ref<ParkVehicleSnapshot[]>([])
 const parkOrders = ref<ParkOrderSnapshot[]>([])
 const parkLayout = ref<ParkLayout | null>(null)
@@ -334,6 +347,7 @@ const form = reactive<ParkOrderCreateRequest>({
   externalOrderNo: '',
   pickupStationId: undefined as unknown as number,
   dropoffStationId: undefined as unknown as number,
+  routeId: undefined as number | undefined,
   priority: 'P1',
   remark: '',
 })
@@ -359,6 +373,13 @@ const pickupStationOptions = computed(() =>
       value: station.stationId,
       label: `${station.stationCode} · ${station.stationName}`,
     })),
+)
+
+const routeOptions = computed(() =>
+  routes.value.map(route => ({
+    value: route.id,
+    label: `${route.routeCode} · ${route.routeName}`,
+  })),
 )
 
 const dropoffOptions = computed(() =>
@@ -526,10 +547,23 @@ async function fetchLayout() {
   parkLayout.value = response.data
 }
 
+async function fetchRoutesForPark() {
+  if (!form.parkId) {
+    routes.value = []
+    return
+  }
+  try {
+    routes.value = (await fetchRoutes(form.parkId)).data || []
+  } catch {
+    routes.value = []
+  }
+}
+
 async function handleParkChange() {
   form.pickupStationId = undefined as unknown as number
   form.dropoffStationId = undefined as unknown as number
-  await Promise.all([fetchStations(), fetchLayout()])
+  form.routeId = undefined
+  await Promise.all([fetchStations(), fetchLayout(), fetchRoutesForPark()])
 }
 
 async function fetchOrders() {
@@ -570,6 +604,7 @@ async function submitOrder() {
       externalOrderNo: form.externalOrderNo?.trim() || undefined,
       pickupStationId: form.pickupStationId,
       dropoffStationId: form.dropoffStationId,
+      routeId: form.routeId,
       priority: form.priority || 'P1',
       remark: form.remark?.trim() || undefined,
     })
@@ -586,7 +621,7 @@ async function submitOrder() {
 
 onMounted(async () => {
   await fetchParks()
-  await Promise.all([fetchStations(), fetchLayout(), fetchOrders(), fetchVehicles()])
+  await Promise.all([fetchStations(), fetchLayout(), fetchRoutesForPark(), fetchOrders(), fetchVehicles()])
   pollTimer = setInterval(() => {
     fetchOrders()
     fetchVehicles()

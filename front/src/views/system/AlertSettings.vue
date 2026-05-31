@@ -40,11 +40,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { onMounted, reactive } from 'vue'
 import { message } from 'ant-design-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { useAlertStore } from '@/stores/alert'
 import { playAlertTone, requestBrowserNotifyPermission } from '@/utils/alertSound'
+import * as alertSettingsApi from '@/api/alertSettings'
 
 const alertStore = useAlertStore()
 const levels = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
@@ -55,10 +56,27 @@ async function requestPermission() {
   message[ok ? 'success' : 'warning'](ok ? '通知权限已开启' : '通知权限未授予')
 }
 
-function save() {
+async function save() {
+  const json = JSON.stringify(form)
+  try {
+    await alertSettingsApi.saveAlertSettings(json)
+  } catch {
+    message.warning('服务端保存失败，已写入本地')
+  }
   alertStore.updateRules(JSON.parse(JSON.stringify(form)))
   message.success('告警设置已保存')
 }
+
+onMounted(async () => {
+  try {
+    const res = await alertSettingsApi.fetchAlertSettings()
+    const parsed = JSON.parse(res.data.rulesJson)
+    Object.assign(form, parsed)
+    alertStore.updateRules(parsed)
+  } catch {
+    Object.assign(form, JSON.parse(JSON.stringify(alertStore.rules)))
+  }
+})
 
 function reset() {
   alertStore.resetRules()

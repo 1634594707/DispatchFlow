@@ -15,6 +15,12 @@ public class DispatchTaskListItemResponse {
 
     private Long orderId;
 
+    private Long routeId;
+
+    private String routeCode;
+
+    private String routeName;
+
     private Long vehicleId;
 
     private String status;

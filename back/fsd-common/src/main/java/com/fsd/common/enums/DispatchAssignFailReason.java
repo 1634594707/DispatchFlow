@@ -7,5 +7,7 @@ public enum DispatchAssignFailReason {
     NO_VEHICLE,
     LOW_SOC,
     UNREACHABLE,
+    HUB_CAPACITY_FULL,
+    ROUTE_OCCUPANCY_FULL,
     CONFLICT
 }

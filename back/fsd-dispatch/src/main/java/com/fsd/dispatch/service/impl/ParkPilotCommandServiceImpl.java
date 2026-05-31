@@ -5,7 +5,9 @@ import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
 import com.fsd.dispatch.dto.ParkOrderCreateRequest;
 import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.dispatch.entity.ParkEntity;
+import com.fsd.dispatch.service.DispatchRouteService;
 import com.fsd.dispatch.service.ParkPilotCommandService;
+import com.fsd.dispatch.service.DispatchPauseControlService;
 import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
 import com.fsd.dispatch.vo.DispatchTaskCreateResponse;
@@ -28,13 +30,19 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
     private final OrderService orderService;
     private final DispatchTaskService dispatchTaskService;
     private final ParkStationService parkStationService;
+    private final DispatchPauseControlService dispatchPauseControlService;
+    private final DispatchRouteService dispatchRouteService;
 
     public ParkPilotCommandServiceImpl(OrderService orderService,
                                        DispatchTaskService dispatchTaskService,
-                                       ParkStationService parkStationService) {
+                                       ParkStationService parkStationService,
+                                       DispatchPauseControlService dispatchPauseControlService,
+                                       DispatchRouteService dispatchRouteService) {
         this.orderService = orderService;
         this.dispatchTaskService = dispatchTaskService;
         this.parkStationService = parkStationService;
+        this.dispatchPauseControlService = dispatchPauseControlService;
+        this.dispatchRouteService = dispatchRouteService;
     }
 
     @Override
@@ -43,6 +51,9 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
         ParkEntity park = request.getParkId() == null
                 ? parkStationService.requireDefaultPark()
                 : parkStationService.requirePark(request.getParkId());
+        if (dispatchPauseControlService.isDispatchPaused(park.getId())) {
+            throw new BusinessException("DISPATCH_PAUSED", "当前园区已暂停新派单，暂不接受移动下单");
+        }
         parkStationService.assertStationInPark(request.getPickupStationId(), park.getId());
         parkStationService.assertStationInPark(request.getDropoffStationId(), park.getId());
         parkStationService.assertStationsBelongToSamePark(request.getPickupStationId(), request.getDropoffStationId());
@@ -55,6 +66,14 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
         orderRequest.setSourceType("PARK");
         orderRequest.setBizType("DELIVERY");
         orderRequest.setParkId(park.getId());
+        Long routeId = request.getRouteId();
+        if (routeId == null) {
+            routeId = dispatchRouteService.matchRouteByStations(
+                    park.getId(), request.getPickupStationId(), request.getDropoffStationId())
+                    .map(route -> route.getId())
+                    .orElse(null);
+        }
+        orderRequest.setRouteId(routeId);
         orderRequest.setPickupPointId(request.getPickupStationId());
         orderRequest.setDropoffPointId(request.getDropoffStationId());
         orderRequest.setPriority(request.getPriority() == null || request.getPriority().isBlank() ? "P2" : request.getPriority());

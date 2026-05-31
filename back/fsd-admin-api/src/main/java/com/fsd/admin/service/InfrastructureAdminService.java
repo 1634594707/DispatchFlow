@@ -1,11 +1,13 @@
 package com.fsd.admin.service;
 
+import com.fsd.admin.dto.AdminBatterySwapCabinetUpsertRequest;
 import com.fsd.admin.dto.AdminChargingPileUpsertRequest;
 import com.fsd.admin.dto.AdminParkUpsertRequest;
 import com.fsd.admin.dto.AdminParkingSlotUpsertRequest;
 import com.fsd.admin.dto.AdminRoadNodeUpsertRequest;
 import com.fsd.admin.dto.AdminRoadSegmentUpsertRequest;
 import com.fsd.admin.dto.AdminStationUpsertRequest;
+import com.fsd.admin.vo.AdminBatterySwapCabinetResponse;
 import com.fsd.admin.vo.AdminChargingPileResponse;
 import com.fsd.admin.vo.AdminParkResponse;
 import com.fsd.admin.vo.AdminParkingSlotResponse;
@@ -41,6 +43,14 @@ public interface InfrastructureAdminService {
     AdminChargingPileResponse createChargingPile(AdminChargingPileUpsertRequest request);
 
     AdminChargingPileResponse updateChargingPile(Long pileId, AdminChargingPileUpsertRequest request);
+
+    List<AdminBatterySwapCabinetResponse> listBatterySwapCabinets(Long parkId);
+
+    AdminBatterySwapCabinetResponse createBatterySwapCabinet(AdminBatterySwapCabinetUpsertRequest request);
+
+    AdminBatterySwapCabinetResponse updateBatterySwapCabinet(Long cabinetId, AdminBatterySwapCabinetUpsertRequest request);
+
+    void deleteBatterySwapCabinet(Long cabinetId);
 
     List<AdminRoadNodeResponse> listRoadNodes(Long parkId);
 

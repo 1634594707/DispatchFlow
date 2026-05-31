@@ -1,38 +1,23 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { globalSearch } from '@/api/search'
+import { useAuthStore } from '@/stores/auth'
+import { useWorkbenchStore } from '@/stores/workbench'
+import { buildNavCommandItems } from '@/config/navigation'
 import type { GlobalSearchItem } from '@/types/phase10'
 
 export interface CommandPaletteItem {
   key: string
   label: string
   hint?: string
-  group: '导航' | '搜索' | '操作'
+  group: string
   action: () => void | Promise<void>
-}
-
-const NAV_COMMANDS: Omit<CommandPaletteItem, 'action'>[] = [
-  { key: 'nav-workbench', label: '调度工作台', group: '导航', hint: '/workbench' },
-  { key: 'nav-dashboard', label: '调度看板', group: '导航', hint: '/dashboard' },
-  { key: 'nav-tasks', label: '调度任务', group: '导航', hint: '/tasks' },
-  { key: 'nav-vehicles', label: '车辆管理', group: '导航', hint: '/vehicles' },
-  { key: 'nav-exceptions', label: '异常任务', group: '导航', hint: '/exceptions' },
-  { key: 'nav-digital-twin', label: '数字孪生', group: '导航', hint: '/digital-twin' },
-  { key: 'nav-system-health', label: '系统健康', group: '导航', hint: '/system/health' },
-]
-
-const NAV_PATHS: Record<string, string> = {
-  'nav-workbench': '/workbench',
-  'nav-dashboard': '/dashboard',
-  'nav-tasks': '/tasks',
-  'nav-vehicles': '/vehicles',
-  'nav-exceptions': '/exceptions',
-  'nav-digital-twin': '/digital-twin',
-  'nav-system-health': '/system/health',
 }
 
 export function useCommandPalette() {
   const router = useRouter()
+  const authStore = useAuthStore()
+  const workbenchStore = useWorkbenchStore()
   const visible = ref(false)
   const keyword = ref('')
   const loading = ref(false)
@@ -76,15 +61,54 @@ export function useCommandPalette() {
     }
   }
 
+  function buildOperationCommands(): CommandPaletteItem[] {
+    if (!authStore.canWrite) {
+      return []
+    }
+    const ops: CommandPaletteItem[] = [
+      {
+        key: 'op-refresh-workbench',
+        label: '刷新工作台',
+        group: '操作',
+        hint: '重新加载任务池',
+        action: async () => {
+          await workbenchStore.fetchQueue()
+        },
+      },
+      {
+        key: 'op-open-exceptions',
+        label: '打开异常列表',
+        group: '操作',
+        action: () => { void router.push('/exceptions?status=OPEN') },
+      },
+    ]
+    if (workbenchStore.selectedTaskId) {
+      const taskId = workbenchStore.selectedTaskId
+      ops.push({
+        key: 'op-goto-selected-task',
+        label: `跳转选中任务 #${taskId}`,
+        group: '操作',
+        action: () => { void router.push(`/tasks/${taskId}`) },
+      })
+    }
+    return ops
+  }
+
   function buildItems(): CommandPaletteItem[] {
-    const items: CommandPaletteItem[] = NAV_COMMANDS.map((cmd) => ({
-      ...cmd,
-      action: () => { void router.push(NAV_PATHS[cmd.key]) },
+    const navItems: CommandPaletteItem[] = buildNavCommandItems(authStore.user?.role).map((cmd) => ({
+      key: cmd.key,
+      label: cmd.label,
+      hint: cmd.hint,
+      group: cmd.group,
+      action: () => { void router.push(cmd.path) },
     }))
     const q = keyword.value.trim().toLowerCase()
     const filteredNav = q
-      ? items.filter((item) => item.label.toLowerCase().includes(q) || item.hint?.includes(q))
-      : items
+      ? navItems.filter((item) => item.label.toLowerCase().includes(q) || item.hint?.includes(q))
+      : navItems
+    const opItems = buildOperationCommands().filter((item) =>
+      !q || item.label.toLowerCase().includes(q) || item.hint?.toLowerCase().includes(q),
+    )
     const searchItems: CommandPaletteItem[] = searchResults.value.map((hit) => ({
       key: `search-${hit.type}-${hit.id}`,
       label: hit.title,
@@ -92,7 +116,7 @@ export function useCommandPalette() {
       group: '搜索',
       action: () => { void router.push(hit.routePath) },
     }))
-    return [...filteredNav, ...searchItems]
+    return [...filteredNav, ...opItems, ...searchItems]
   }
 
   function onKeydown(event: KeyboardEvent) {

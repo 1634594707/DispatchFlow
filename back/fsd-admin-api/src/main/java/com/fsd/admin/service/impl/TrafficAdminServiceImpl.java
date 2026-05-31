@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.admin.dto.AdminTrafficPauseZoneRequest;
 import com.fsd.admin.service.TrafficAdminService;
 import com.fsd.admin.vo.AdminTrafficPauseZoneResponse;
+import com.fsd.admin.vo.AdminTrafficSegmentImpactResponse;
 import com.fsd.admin.vo.AdminTrafficSegmentResponse;
 import com.fsd.admin.vo.AdminTrafficSummaryResponse;
 import com.fsd.common.enums.DispatchTaskStatus;
@@ -15,8 +16,11 @@ import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.mapper.RoadNodeMapper;
 import com.fsd.dispatch.mapper.RoadSegmentMapper;
 import com.fsd.dispatch.service.ParkPilotService;
+import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.dispatch.service.TrafficZoneControlService;
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
 import com.fsd.order.entity.OrderEntity;
@@ -39,6 +43,7 @@ public class TrafficAdminServiceImpl implements TrafficAdminService {
     private final DispatchTaskMapper dispatchTaskMapper;
     private final OrderMapper orderMapper;
     private final ParkStationService parkStationService;
+    private final ParkRoutePlannerService parkRoutePlannerService;
 
     public TrafficAdminServiceImpl(RoadSegmentMapper roadSegmentMapper,
                                    RoadNodeMapper roadNodeMapper,
@@ -46,7 +51,8 @@ public class TrafficAdminServiceImpl implements TrafficAdminService {
                                    TrafficZoneControlService trafficZoneControlService,
                                    DispatchTaskMapper dispatchTaskMapper,
                                    OrderMapper orderMapper,
-                                   ParkStationService parkStationService) {
+                                   ParkStationService parkStationService,
+                                   ParkRoutePlannerService parkRoutePlannerService) {
         this.roadSegmentMapper = roadSegmentMapper;
         this.roadNodeMapper = roadNodeMapper;
         this.parkPilotService = parkPilotService;
@@ -54,6 +60,7 @@ public class TrafficAdminServiceImpl implements TrafficAdminService {
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.orderMapper = orderMapper;
         this.parkStationService = parkStationService;
+        this.parkRoutePlannerService = parkRoutePlannerService;
     }
 
     @Override
@@ -113,6 +120,75 @@ public class TrafficAdminServiceImpl implements TrafficAdminService {
         RoadSegmentEntity segment = requireSegment(segmentId);
         Map<String, RoadNodeEntity> nodes = loadNodes(segment.getParkId());
         return countAffectedTasksNearSegment(nodes.get(segment.getFromNodeCode()), nodes.get(segment.getToNodeCode()), segment.getParkId());
+    }
+
+    @Override
+    public AdminTrafficSegmentImpactResponse getSegmentImpact(Long segmentId) {
+        RoadSegmentEntity segment = requireSegment(segmentId);
+        Map<String, RoadNodeEntity> nodes = loadNodes(segment.getParkId());
+        RoadNodeEntity from = nodes.get(segment.getFromNodeCode());
+        RoadNodeEntity to = nodes.get(segment.getToNodeCode());
+        int affected = countAffectedTasksNearSegment(from, to, segment.getParkId());
+        List<String> hints = new ArrayList<>();
+        int unreachable = 0;
+        if (from != null && to != null) {
+            double midX = (from.getCoordX().doubleValue() + to.getCoordX().doubleValue()) / 2D;
+            double midY = (from.getCoordY().doubleValue() + to.getCoordY().doubleValue()) / 2D;
+            List<ParkVehicleSnapshotResponse> vehicles = parkPilotService.listVehicleSnapshots().stream()
+                    .filter(v -> "IDLE".equals(v.getDispatchStatus()) && "ONLINE".equals(v.getOnlineStatus()))
+                    .filter(v -> v.getX() != null && v.getY() != null)
+                    .toList();
+            Set<Long> pickupIds = new java.util.HashSet<>();
+            for (DispatchTaskEntity task : loadActiveTasks()) {
+                OrderEntity order = orderMapper.selectById(task.getOrderId());
+                if (order == null || !segment.getParkId().equals(order.getParkId())) {
+                    continue;
+                }
+                if (isStationNear(order.getPickupPointId(), midX, midY)) {
+                    pickupIds.add(order.getPickupPointId());
+                }
+            }
+            for (Long stationId : pickupIds) {
+                ParkStationResponse station = parkStationService.requireStation(stationId);
+                boolean anyReachable = vehicles.stream().anyMatch(v ->
+                        parkRoutePlannerService.isReachable(
+                                segment.getParkId(),
+                                v.getX(),
+                                v.getY(),
+                                station.getX(),
+                                station.getY()));
+                if (!anyReachable) {
+                    unreachable++;
+                }
+            }
+        }
+        if (affected > 0) {
+            hints.add("预计影响进行中任务 " + affected + " 个");
+        }
+        if (unreachable > 0) {
+            hints.add(unreachable + " 个取货站点当前无可达空闲车，禁用后需人工改派或绕行");
+        } else if (affected > 0) {
+            hints.add("取货站点仍有路网可达路径（基于当前路网状态）");
+        } else {
+            hints.add("暂无任务直接依赖该路段");
+        }
+        return AdminTrafficSegmentImpactResponse.builder()
+                .segmentId(segmentId)
+                .affectedTaskCount(affected)
+                .unreachableStationCount(unreachable)
+                .alternativePathHints(hints)
+                .build();
+    }
+
+    private List<DispatchTaskEntity> loadActiveTasks() {
+        Set<String> activeStatuses = Set.of(
+                DispatchTaskStatus.PENDING.name(),
+                DispatchTaskStatus.MANUAL_PENDING.name(),
+                DispatchTaskStatus.ASSIGNED.name(),
+                DispatchTaskStatus.EXECUTING.name());
+        return dispatchTaskMapper.selectList(new LambdaQueryWrapper<DispatchTaskEntity>()
+                .eq(DispatchTaskEntity::getDeleted, 0)
+                .in(DispatchTaskEntity::getStatus, activeStatuses));
     }
 
     @Override

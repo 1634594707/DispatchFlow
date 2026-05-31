@@ -9,6 +9,7 @@
       <a-space>
         <a-button @click="router.push('/analytics/charging')">充电报表</a-button>
         <a-button :loading="loading" @click="loadAll">刷新</a-button>
+        <a-button @click="exportPdf">导出 PDF</a-button>
         <a-dropdown>
           <a-button>导出 CSV</a-button>
           <template #overlay>
@@ -37,7 +38,48 @@
             :points="exceptionAnalysis.exceptionTrend"
             metric="totalCount"
             color="#FF3D71"
+            clickable
+            @bar-click="drillDownException"
           />
+        </section>
+
+        <section v-if="chainKpi" class="panel metrics-panel">
+          <h3>链路 KPI</h3>
+          <div class="metric-cards">
+            <div class="metric-card">
+              <span class="metric-label">完成均时</span>
+              <span class="metric-value">{{ chainKpi.avgCompletionMinutes }}<small>分</small></span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">等待 P50</span>
+              <span class="metric-value">{{ chainKpi.waitP50Minutes }}<small>分</small></span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">等待 P90</span>
+              <span class="metric-value">{{ chainKpi.waitP90Minutes }}<small>分</small></span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">单车日均任务</span>
+              <span class="metric-value">{{ chainKpi.tasksPerVehiclePerDay }}</span>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="peakCompare" class="panel metrics-panel">
+          <h3>高峰 vs 平日对比</h3>
+          <div class="peak-compare-grid">
+            <div>
+              <h4>平日 NORMAL</h4>
+              <p>完成均时 {{ peakCompare.normalMode.avgCompletionMinutes }} 分</p>
+              <p>单车日均 {{ peakCompare.normalMode.tasksPerVehiclePerDay }}</p>
+            </div>
+            <div>
+              <h4>高峰 PEAK</h4>
+              <p>完成均时 {{ peakCompare.peakMode.avgCompletionMinutes }} 分</p>
+              <p>单车日均 {{ peakCompare.peakMode.tasksPerVehiclePerDay }}</p>
+            </div>
+          </div>
+          <a-button type="link" @click="router.push('/system/report-schedule')">定时邮件报表配置 →</a-button>
         </section>
 
         <section class="panel metrics-panel">
@@ -121,14 +163,20 @@ import {
   getAnalyticsDailySummary,
   getAnalyticsEfficiency,
   getAnalyticsExceptions,
+  getAnalyticsChainKpi,
+  getAnalyticsPeakCompare,
+  type AnalyticsPeakCompare,
   getAnalyticsExportUrl,
+  getAnalyticsPdfUrl,
   getAnalyticsParkComparison,
 } from '@/api/analytics'
+import type { AnalyticsChainKpi } from '@/api/analytics'
 import type {
   AnalyticsDailySummary,
   AnalyticsEfficiency,
   AnalyticsExceptionAnalysis,
   AnalyticsParkCompareItem,
+  AnalyticsTrendPoint,
 } from '@/types/analytics'
 import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
@@ -143,6 +191,8 @@ const efficiency = ref<AnalyticsEfficiency | null>(null)
 const exceptionAnalysis = ref<AnalyticsExceptionAnalysis | null>(null)
 const dailySummary = ref<AnalyticsDailySummary | null>(null)
 const parkCompare = ref<AnalyticsParkCompareItem[]>([])
+const chainKpi = ref<AnalyticsChainKpi | null>(null)
+const peakCompare = ref<AnalyticsPeakCompare | null>(null)
 
 const parkCompareColumns = [
   { title: '园区', dataIndex: 'parkName' },
@@ -176,26 +226,43 @@ async function loadAll() {
       getAnalyticsEfficiency(period.value, parkId),
       getAnalyticsExceptions(period.value, parkId),
       getAnalyticsDailySummary(undefined, parkId),
+      getAnalyticsChainKpi(period.value, parkId),
+      getAnalyticsPeakCompare(period.value, parkId),
     ] as const
     if (parkId == null) {
-      const [effRes, excRes, summaryRes, parkRes] = await Promise.all([
+      const [effRes, excRes, summaryRes, chainRes, peakRes, parkRes] = await Promise.all([
         ...requests,
         getAnalyticsParkComparison(period.value),
       ])
       efficiency.value = effRes.data
       exceptionAnalysis.value = excRes.data
       dailySummary.value = summaryRes.data
+      chainKpi.value = chainRes.data
+      peakCompare.value = peakRes.data
       parkCompare.value = parkRes.data
     } else {
-      const [effRes, excRes, summaryRes] = await Promise.all(requests)
+      const [effRes, excRes, summaryRes, chainRes, peakRes] = await Promise.all(requests)
       efficiency.value = effRes.data
       exceptionAnalysis.value = excRes.data
       dailySummary.value = summaryRes.data
+      chainKpi.value = chainRes.data
+      peakCompare.value = peakRes.data
       parkCompare.value = []
     }
   } finally {
     loading.value = false
   }
+}
+
+function drillDownException(point: AnalyticsTrendPoint) {
+  void router.push({ path: '/exceptions', query: { status: 'OPEN', trendLabel: point.label } })
+}
+
+function exportPdf() {
+  const url = getAnalyticsPdfUrl(dailySummary.value?.date, parkScope.selectedParkId)
+  const tokenQuery =
+    ADMIN_AUTH_ENABLED && authStore.token ? `${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(authStore.token)}` : ''
+  window.open(`${url}${tokenQuery}`, '_blank')
 }
 
 function handleExport({ key }: { key: string }) {

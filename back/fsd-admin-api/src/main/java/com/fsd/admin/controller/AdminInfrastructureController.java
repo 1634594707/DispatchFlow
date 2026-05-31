@@ -1,6 +1,7 @@
 package com.fsd.admin.controller;
 
 import com.fsd.admin.auth.AdminAuthSupport;
+import com.fsd.admin.dto.AdminBatterySwapCabinetUpsertRequest;
 import com.fsd.admin.dto.AdminChargingPileUpsertRequest;
 import com.fsd.admin.dto.AdminParkUpsertRequest;
 import com.fsd.admin.dto.AdminParkingSlotUpsertRequest;
@@ -8,6 +9,7 @@ import com.fsd.admin.dto.AdminRoadNodeUpsertRequest;
 import com.fsd.admin.dto.AdminRoadSegmentUpsertRequest;
 import com.fsd.admin.dto.AdminStationUpsertRequest;
 import com.fsd.admin.service.InfrastructureAdminService;
+import com.fsd.admin.vo.AdminBatterySwapCabinetResponse;
 import com.fsd.admin.vo.AdminChargingPileResponse;
 import com.fsd.admin.vo.AdminParkResponse;
 import com.fsd.admin.vo.AdminParkingSlotResponse;
@@ -129,6 +131,38 @@ public class AdminInfrastructureController {
                                                                      HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         return ApiResponse.success(infrastructureAdminService.updateChargingPile(pileId, body));
+    }
+
+    @GetMapping("/swap-cabinets")
+    public ApiResponse<List<AdminBatterySwapCabinetResponse>> listSwapCabinets(
+            @RequestParam(required = false) Long parkId,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        return ApiResponse.success(infrastructureAdminService.listBatterySwapCabinets(parkId));
+    }
+
+    @PostMapping("/swap-cabinets")
+    public ApiResponse<AdminBatterySwapCabinetResponse> createSwapCabinet(
+            @Valid @RequestBody AdminBatterySwapCabinetUpsertRequest body,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        return ApiResponse.success(infrastructureAdminService.createBatterySwapCabinet(body));
+    }
+
+    @PutMapping("/swap-cabinets/{cabinetId}")
+    public ApiResponse<AdminBatterySwapCabinetResponse> updateSwapCabinet(
+            @PathVariable Long cabinetId,
+            @Valid @RequestBody AdminBatterySwapCabinetUpsertRequest body,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        return ApiResponse.success(infrastructureAdminService.updateBatterySwapCabinet(cabinetId, body));
+    }
+
+    @PostMapping("/swap-cabinets/{cabinetId}/delete")
+    public ApiResponse<Void> deleteSwapCabinet(@PathVariable Long cabinetId, HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        infrastructureAdminService.deleteBatterySwapCabinet(cabinetId);
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/road-nodes")

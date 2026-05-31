@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -128,7 +129,8 @@ class Phase1AcceptanceTest {
                     parkingFacilityService,
                     dispatchLockService,
                     eventPublisher,
-                    vehicleCommandService);
+                    vehicleCommandService,
+                    mock(com.fsd.dispatch.service.DispatchPauseControlService.class));
 
             var task = new com.fsd.dispatch.entity.DispatchTaskEntity();
             task.setId(4001L);

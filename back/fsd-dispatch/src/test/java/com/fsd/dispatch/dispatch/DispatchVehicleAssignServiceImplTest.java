@@ -16,6 +16,11 @@ import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
+import com.fsd.dispatch.service.DispatchAutomationRuleService;
+import com.fsd.dispatch.service.DispatchPauseControlService;
+import com.fsd.dispatch.service.DispatchRouteService;
+import com.fsd.dispatch.service.HubCapacityService;
+import com.fsd.dispatch.service.PeakModeService;
 import com.fsd.dispatch.service.TrafficZoneControlService;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
@@ -46,6 +51,16 @@ class DispatchVehicleAssignServiceImplTest {
     private DispatchStrategyRuntimeService strategyRuntimeService;
     @Mock
     private TrafficZoneControlService trafficZoneControlService;
+    @Mock
+    private DispatchPauseControlService dispatchPauseControlService;
+    @Mock
+    private HubCapacityService hubCapacityService;
+    @Mock
+    private DispatchRouteService dispatchRouteService;
+    @Mock
+    private PeakModeService peakModeService;
+    @Mock
+    private DispatchAutomationRuleService automationRuleService;
 
     private DispatchVehicleAssignServiceImpl assignService;
 
@@ -56,21 +71,35 @@ class DispatchVehicleAssignServiceImplTest {
         lenient().when(strategyRuntimeService.energyForAssign(any())).thenReturn(energy);
         lenient().when(strategyRuntimeService.scoringForAssign(any())).thenReturn(scoring);
         lenient().when(trafficZoneControlService.isPointInPausedZone(any(), any(), any())).thenReturn(false);
+        lenient().when(dispatchPauseControlService.isDispatchPaused(any())).thenReturn(false);
+        lenient().when(hubCapacityService.isHubLikeStation(any())).thenReturn(false);
+        lenient().when(hubCapacityService.isHubCapacityAvailable(any())).thenReturn(true);
+        lenient().when(peakModeService.isPeakMode(any())).thenReturn(false);
+        lenient().when(automationRuleService.resolvePeakDistanceFactor(any(), any(Double.class))).thenReturn(1.0);
+        lenient().when(parkStationService.requireStation(any())).thenAnswer(invocation -> {
+            Long stationId = invocation.getArgument(0);
+            return station(stationId, 1L);
+        });
         assignService = new DispatchVehicleAssignServiceImpl(
                 vehicleService,
                 parkStationService,
                 parkRoutePlannerService,
                 strategyRuntimeService,
                 fleetRuntimeService,
-                trafficZoneControlService);
+                trafficZoneControlService,
+                dispatchPauseControlService,
+                hubCapacityService,
+                dispatchRouteService,
+                peakModeService,
+                automationRuleService);
     }
 
     @Test
     void shouldFailWhenNoIdleVehicle() {
         OrderEntity order = new OrderEntity();
         order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
         order.setParkId(1L);
-        when(parkStationService.requireStation(101L)).thenReturn(station(101L, 1L));
         when(vehicleService.listAssignableVehicles()).thenReturn(List.of());
 
         DispatchAssignResult result = assignService.selectBestVehicle(order);
@@ -83,11 +112,11 @@ class DispatchVehicleAssignServiceImplTest {
     void shouldFailWhenLowSoc() {
         OrderEntity order = new OrderEntity();
         order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
         order.setParkId(1L);
         VehicleEntity low = new VehicleEntity();
         low.setId(1L);
         low.setBatteryLevel(10);
-        when(parkStationService.requireStation(101L)).thenReturn(station(101L, 1L));
         when(vehicleService.listAssignableVehicles()).thenReturn(List.of(low));
 
         DispatchAssignResult result = assignService.selectBestVehicle(order);
@@ -100,9 +129,9 @@ class DispatchVehicleAssignServiceImplTest {
     void shouldFailWhenPickupUnreachable() {
         OrderEntity order = new OrderEntity();
         order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
         order.setParkId(1L);
         VehicleEntity vehicle = vehicle(1L, "PARK-01", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(700));
-        when(parkStationService.requireStation(101L)).thenReturn(station(101L, 1L));
         when(vehicleService.listAssignableVehicles()).thenReturn(List.of(vehicle));
         when(parkRoutePlannerService.isReachable(any(), any(), any(), any(), any())).thenReturn(false);
 
@@ -116,12 +145,12 @@ class DispatchVehicleAssignServiceImplTest {
     void shouldPreferPluggedStandbyVehicle() {
         OrderEntity order = new OrderEntity();
         order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
         order.setParkId(1L);
 
         VehicleEntity far = vehicle(1L, "PARK-01", 100, BigDecimal.valueOf(10), BigDecimal.valueOf(10));
         VehicleEntity near = vehicle(2L, "PARK-02", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(100));
 
-        when(parkStationService.requireStation(101L)).thenReturn(station(101L, 1L));
         when(vehicleService.listAssignableVehicles()).thenReturn(List.of(far, near));
         when(parkRoutePlannerService.isReachable(any(), any(), any(), any(), any())).thenReturn(true);
         when(parkRoutePlannerService.buildRoute(any(), any(), any(), any(), any()))

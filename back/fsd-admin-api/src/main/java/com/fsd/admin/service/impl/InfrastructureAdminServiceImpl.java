@@ -1,6 +1,7 @@
 package com.fsd.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fsd.admin.dto.AdminBatterySwapCabinetUpsertRequest;
 import com.fsd.admin.dto.AdminChargingPileUpsertRequest;
 import com.fsd.admin.dto.AdminParkUpsertRequest;
 import com.fsd.admin.dto.AdminParkingSlotUpsertRequest;
@@ -8,6 +9,7 @@ import com.fsd.admin.dto.AdminRoadNodeUpsertRequest;
 import com.fsd.admin.dto.AdminRoadSegmentUpsertRequest;
 import com.fsd.admin.dto.AdminStationUpsertRequest;
 import com.fsd.admin.service.InfrastructureAdminService;
+import com.fsd.admin.vo.AdminBatterySwapCabinetResponse;
 import com.fsd.admin.vo.AdminChargingPileResponse;
 import com.fsd.admin.vo.AdminParkResponse;
 import com.fsd.admin.vo.AdminParkingSlotResponse;
@@ -19,12 +21,14 @@ import com.fsd.common.enums.ParkingSlotStatus;
 import com.fsd.common.enums.ParkingSlotType;
 import com.fsd.common.enums.StationType;
 import com.fsd.common.exception.BusinessException;
+import com.fsd.dispatch.entity.BatterySwapCabinetEntity;
 import com.fsd.dispatch.entity.ChargingPileEntity;
 import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.entity.ParkingSlotEntity;
 import com.fsd.dispatch.entity.RoadNodeEntity;
 import com.fsd.dispatch.entity.RoadSegmentEntity;
 import com.fsd.dispatch.entity.StationEntity;
+import com.fsd.dispatch.mapper.BatterySwapCabinetMapper;
 import com.fsd.dispatch.mapper.ChargingPileMapper;
 import com.fsd.dispatch.mapper.ParkMapper;
 import com.fsd.dispatch.mapper.ParkingSlotMapper;
@@ -49,6 +53,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
     private final StationMapper stationMapper;
     private final ParkingSlotMapper parkingSlotMapper;
     private final ChargingPileMapper chargingPileMapper;
+    private final BatterySwapCabinetMapper batterySwapCabinetMapper;
     private final RoadNodeMapper roadNodeMapper;
     private final RoadSegmentMapper roadSegmentMapper;
 
@@ -56,12 +61,14 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
                                           StationMapper stationMapper,
                                           ParkingSlotMapper parkingSlotMapper,
                                           ChargingPileMapper chargingPileMapper,
+                                          BatterySwapCabinetMapper batterySwapCabinetMapper,
                                           RoadNodeMapper roadNodeMapper,
                                           RoadSegmentMapper roadSegmentMapper) {
         this.parkMapper = parkMapper;
         this.stationMapper = stationMapper;
         this.parkingSlotMapper = parkingSlotMapper;
         this.chargingPileMapper = chargingPileMapper;
+        this.batterySwapCabinetMapper = batterySwapCabinetMapper;
         this.roadNodeMapper = roadNodeMapper;
         this.roadSegmentMapper = roadSegmentMapper;
     }
@@ -274,6 +281,56 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
     }
 
     @Override
+    public List<AdminBatterySwapCabinetResponse> listBatterySwapCabinets(Long parkId) {
+        Map<Long, ParkEntity> parks = parkNameMap();
+        LambdaQueryWrapper<BatterySwapCabinetEntity> wrapper = new LambdaQueryWrapper<BatterySwapCabinetEntity>()
+                .eq(BatterySwapCabinetEntity::getDeleted, 0)
+                .orderByAsc(BatterySwapCabinetEntity::getCabinetCode);
+        if (parkId != null) {
+            wrapper.eq(BatterySwapCabinetEntity::getParkId, parkId);
+        }
+        return batterySwapCabinetMapper.selectList(wrapper).stream()
+                .map(cabinet -> toBatterySwapCabinetResponse(cabinet, parks.get(cabinet.getParkId())))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public AdminBatterySwapCabinetResponse createBatterySwapCabinet(AdminBatterySwapCabinetUpsertRequest request) {
+        ParkEntity park = requirePark(request.getParkId());
+        ensureUniqueCabinetCode(request.getParkId(), request.getCabinetCode(), null);
+        BatterySwapCabinetEntity cabinet = new BatterySwapCabinetEntity();
+        applyBatterySwapCabinetFields(cabinet, request);
+        cabinet.setStatus(resolveCabinetStatus(request.getStatus(), "ACTIVE"));
+        cabinet.setDeleted(0);
+        batterySwapCabinetMapper.insert(cabinet);
+        return toBatterySwapCabinetResponse(cabinet, park);
+    }
+
+    @Override
+    @Transactional
+    public AdminBatterySwapCabinetResponse updateBatterySwapCabinet(Long cabinetId,
+                                                                    AdminBatterySwapCabinetUpsertRequest request) {
+        BatterySwapCabinetEntity cabinet = requireBatterySwapCabinet(cabinetId);
+        ParkEntity park = requirePark(request.getParkId());
+        ensureUniqueCabinetCode(request.getParkId(), request.getCabinetCode(), cabinetId);
+        applyBatterySwapCabinetFields(cabinet, request);
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            cabinet.setStatus(resolveCabinetStatus(request.getStatus(), cabinet.getStatus()));
+        }
+        batterySwapCabinetMapper.updateById(cabinet);
+        return toBatterySwapCabinetResponse(cabinet, park);
+    }
+
+    @Override
+    @Transactional
+    public void deleteBatterySwapCabinet(Long cabinetId) {
+        BatterySwapCabinetEntity cabinet = requireBatterySwapCabinet(cabinetId);
+        cabinet.setDeleted(1);
+        batterySwapCabinetMapper.updateById(cabinet);
+    }
+
+    @Override
     public List<AdminRoadNodeResponse> listRoadNodes(Long parkId) {
         Map<Long, ParkEntity> parks = parkNameMap();
         LambdaQueryWrapper<RoadNodeEntity> wrapper = new LambdaQueryWrapper<RoadNodeEntity>()
@@ -409,6 +466,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         station.setCoordY(request.getCoordY());
         station.setArea(request.getArea());
         station.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);
+        station.setCapacityLimit(request.getCapacityLimit());
         station.setRemark(request.getRemark());
     }
 
@@ -682,6 +740,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
                 .area(station.getArea())
                 .status(station.getStatus())
                 .sortOrder(station.getSortOrder())
+                .capacityLimit(station.getCapacityLimit())
                 .remark(station.getRemark())
                 .createdAt(station.getCreatedAt())
                 .updatedAt(station.getUpdatedAt())
@@ -756,6 +815,60 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
                 .remark(segment.getRemark())
                 .createdAt(segment.getCreatedAt())
                 .updatedAt(segment.getUpdatedAt())
+                .build();
+    }
+
+    private void applyBatterySwapCabinetFields(BatterySwapCabinetEntity cabinet,
+                                               AdminBatterySwapCabinetUpsertRequest request) {
+        cabinet.setParkId(request.getParkId());
+        cabinet.setCabinetCode(request.getCabinetCode().trim());
+        cabinet.setCabinetName(request.getCabinetName().trim());
+        cabinet.setCoordX(request.getCoordX());
+        cabinet.setCoordY(request.getCoordY());
+        cabinet.setSlotCount(request.getSlotCount() != null ? request.getSlotCount() : 4);
+        cabinet.setRemark(request.getRemark());
+    }
+
+    private void ensureUniqueCabinetCode(Long parkId, String cabinetCode, Long exceptId) {
+        BatterySwapCabinetEntity existing = batterySwapCabinetMapper.selectOne(new LambdaQueryWrapper<BatterySwapCabinetEntity>()
+                .eq(BatterySwapCabinetEntity::getParkId, parkId)
+                .eq(BatterySwapCabinetEntity::getCabinetCode, cabinetCode.trim())
+                .eq(BatterySwapCabinetEntity::getDeleted, 0));
+        if (existing != null && (exceptId == null || !exceptId.equals(existing.getId()))) {
+            throw new BusinessException("SWAP_CABINET_CODE_EXISTS", "换电柜编码已存在");
+        }
+    }
+
+    private BatterySwapCabinetEntity requireBatterySwapCabinet(Long cabinetId) {
+        BatterySwapCabinetEntity cabinet = batterySwapCabinetMapper.selectById(cabinetId);
+        if (cabinet == null || cabinet.getDeleted() != null && cabinet.getDeleted() != 0) {
+            throw new BusinessException("SWAP_CABINET_NOT_FOUND", "换电柜不存在");
+        }
+        return cabinet;
+    }
+
+    private String resolveCabinetStatus(String status, String fallback) {
+        if (status == null || status.isBlank()) {
+            return fallback;
+        }
+        return status.trim().toUpperCase();
+    }
+
+    private AdminBatterySwapCabinetResponse toBatterySwapCabinetResponse(BatterySwapCabinetEntity cabinet,
+                                                                         ParkEntity park) {
+        return AdminBatterySwapCabinetResponse.builder()
+                .id(cabinet.getId())
+                .parkId(cabinet.getParkId())
+                .parkName(park != null ? park.getParkName() : null)
+                .cabinetCode(cabinet.getCabinetCode())
+                .cabinetName(cabinet.getCabinetName())
+                .coordX(cabinet.getCoordX())
+                .coordY(cabinet.getCoordY())
+                .slotCount(cabinet.getSlotCount())
+                .status(cabinet.getStatus())
+                .remark(cabinet.getRemark())
+                .createdAt(cabinet.getCreatedAt())
+                .updatedAt(cabinet.getUpdatedAt())
                 .build();
     }
 }

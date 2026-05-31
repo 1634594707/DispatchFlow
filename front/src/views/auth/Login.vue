@@ -60,6 +60,15 @@
           </a-input-password>
         </a-form-item>
 
+        <a-form-item
+          v-if="needsTotp"
+          label="验证码"
+          name="totpCode"
+          :rules="[{ required: true, message: '请输入 6 位验证码' }]"
+        >
+          <a-input v-model:value="form.totpCode" size="large" maxlength="6" placeholder="Authenticator 验证码" />
+        </a-form-item>
+
         <a-button
           type="primary"
           html-type="submit"
@@ -80,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
@@ -93,11 +102,19 @@ const authStore = useAuthStore()
 const form = reactive({
   username: '',
   password: '',
+  totpCode: '',
 })
+
+const needsTotp = ref(false)
 
 async function handleLogin() {
   try {
-    await authStore.login(form.username, form.password)
+    const result = await authStore.login(form.username, form.password, needsTotp.value ? form.totpCode : undefined)
+    if (result.data.requiresTotp && !result.data.token) {
+      needsTotp.value = true
+      message.info('请输入 Authenticator 验证码')
+      return
+    }
     message.success('登录成功')
     const redirect = (route.query.redirect as string) || '/workbench'
     router.replace(redirect)

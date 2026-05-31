@@ -31,6 +31,8 @@ public class AdminDispatchStrategyResponse {
 
     private Integer fullSoc;
 
+    private String energyRecoveryMode;
+
     private String remark;
 
     private LocalDateTime updatedAt;

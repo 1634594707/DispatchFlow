@@ -31,6 +31,7 @@ public class OrderServiceImpl implements OrderService {
         orderEntity.setSourceType(request.getSourceType());
         orderEntity.setBizType(request.getBizType());
         orderEntity.setParkId(request.getParkId());
+        orderEntity.setRouteId(request.getRouteId());
         orderEntity.setPickupPointId(request.getPickupPointId());
         orderEntity.setDropoffPointId(request.getDropoffPointId());
         orderEntity.setPriority(request.getPriority());

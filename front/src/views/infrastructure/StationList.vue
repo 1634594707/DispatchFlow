@@ -97,6 +97,13 @@
             </a-form-item>
           </a-col>
         </a-row>
+        <a-row :gutter="16">
+          <a-col :span="8">
+            <a-form-item label="容量上限">
+              <a-input-number v-model:value="form.capacityLimit" :min="1" placeholder="枢纽/缓冲" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
         <a-form-item label="状态">
           <a-select v-model:value="form.status" :options="statusOptions" />
         </a-form-item>
@@ -148,6 +155,7 @@ const form = reactive({
   area: '',
   status: 'ACTIVE',
   sortOrder: 0,
+  capacityLimit: undefined as number | undefined,
   remark: '',
 })
 
@@ -165,6 +173,9 @@ const typeOptions = [
   { label: '取货站', value: 'PICKUP' },
   { label: '送货站', value: 'DROPOFF' },
   { label: '通用站', value: 'GENERAL' },
+  { label: '枢纽', value: 'HUB' },
+  { label: '缓冲', value: 'BUFFER' },
+  { label: '母港', value: 'MOTHERSHIP' },
 ]
 
 const statusOptions = [

@@ -23,6 +23,8 @@ public class OrderEntity {
 
     private Long parkId;
 
+    private Long routeId;
+
     private Long pickupPointId;
 
     private Long dropoffPointId;

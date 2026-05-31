@@ -31,6 +31,8 @@ public class AdminStationResponse {
 
     private Integer sortOrder;
 
+    private Integer capacityLimit;
+
     private String remark;
 
     private LocalDateTime createdAt;

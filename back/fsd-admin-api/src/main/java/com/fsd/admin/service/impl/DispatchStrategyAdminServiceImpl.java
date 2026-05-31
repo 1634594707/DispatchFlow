@@ -113,6 +113,7 @@ public class DispatchStrategyAdminServiceImpl implements DispatchStrategyAdminSe
         entity.setWeightPluggedStandbyBonus(request.getWeightPluggedStandbyBonus());
         entity.setMinAssignableSoc(request.getMinAssignableSoc());
         entity.setFullSoc(request.getFullSoc());
+        entity.setEnergyRecoveryMode(request.getEnergyRecoveryMode() == null ? "CHARGE" : request.getEnergyRecoveryMode());
         entity.setRemark(request.getRemark());
     }
 
@@ -147,6 +148,7 @@ public class DispatchStrategyAdminServiceImpl implements DispatchStrategyAdminSe
                 .weightPluggedStandbyBonus(entity.getWeightPluggedStandbyBonus())
                 .minAssignableSoc(entity.getMinAssignableSoc())
                 .fullSoc(entity.getFullSoc())
+                .energyRecoveryMode(entity.getEnergyRecoveryMode())
                 .remark(entity.getRemark())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

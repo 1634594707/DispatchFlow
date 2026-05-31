@@ -33,12 +33,13 @@ export interface AdminStation {
   parkName?: string
   stationCode: string
   stationName: string
-  stationType: 'PICKUP' | 'DROPOFF' | 'GENERAL'
+  stationType: 'PICKUP' | 'DROPOFF' | 'GENERAL' | 'HUB' | 'BUFFER' | 'MOTHERSHIP'
   coordX: number
   coordY: number
   area?: string
   status: 'ACTIVE' | 'INACTIVE'
   sortOrder?: number
+  capacityLimit?: number
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -54,6 +55,7 @@ export interface AdminStationUpsertPayload {
   area?: string
   status?: string
   sortOrder?: number
+  capacityLimit?: number
   remark?: string
 }
 

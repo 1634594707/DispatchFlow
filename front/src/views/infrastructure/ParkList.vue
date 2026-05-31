@@ -1,10 +1,12 @@
 <template>
   <PageContainer title="园区管理" subtitle="管理园区基础信息与地图配置">
     <template #actions>
+      <a-button @click="wizardOpen = true">配置向导</a-button>
       <a-button type="primary" @click="openCreate">
         <PlusOutlined /> 新建园区
       </a-button>
     </template>
+    <ParkSetupWizard v-model:open="wizardOpen" />
 
     <a-table
       :columns="columns"
@@ -113,9 +115,11 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import ParkSetupWizard from '@/views/infrastructure/ParkSetupWizard.vue'
 import * as infraApi from '@/api/infrastructure'
 import type { AdminPark } from '@/types/infrastructure'
 
+const wizardOpen = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const parks = ref<AdminPark[]>([])

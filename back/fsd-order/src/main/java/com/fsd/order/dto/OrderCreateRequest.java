@@ -27,5 +27,7 @@ public class OrderCreateRequest {
     @NotBlank(message = "priority is required")
     private String priority;
 
+    private Long routeId;
+
     private String remark;
 }

@@ -45,6 +45,8 @@ class VehicleReportServiceImplTest {
     private DispatchReportIdempotencyService reportIdempotencyService;
     @Mock
     private DispatchEventPublisher eventPublisher;
+    @Mock
+    private com.fsd.dispatch.service.PeakModeService peakModeService;
 
     @InjectMocks
     private VehicleReportServiceImpl vehicleReportService;

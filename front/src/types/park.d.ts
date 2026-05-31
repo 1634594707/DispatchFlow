@@ -95,6 +95,7 @@ export interface ParkOrderSnapshot {
 
 export interface ParkOrderCreateRequest {
   parkId?: number
+  routeId?: number
   externalOrderNo?: string
   pickupStationId: number
   dropoffStationId: number

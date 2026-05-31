@@ -27,6 +27,7 @@ import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
 import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
+import com.fsd.dispatch.service.MobileOrderAuthService;
 import com.fsd.dispatch.service.ParkPilotCommandService;
 import com.fsd.dispatch.service.ParkPilotService;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
@@ -71,6 +72,7 @@ public class AdminDispatchController {
     private final ParkPilotCommandService parkPilotCommandService;
     private final BatchTaskAdminService batchTaskAdminService;
     private final TaskPriorityAdminService taskPriorityAdminService;
+    private final MobileOrderAuthService mobileOrderAuthService;
 
     public AdminDispatchController(OrderAdminQueryService orderAdminQueryService,
                                    OrderQueryService orderQueryService,
@@ -83,7 +85,8 @@ public class AdminDispatchController {
                                    ParkPilotService parkPilotService,
                                    ParkPilotCommandService parkPilotCommandService,
                                    BatchTaskAdminService batchTaskAdminService,
-                                   TaskPriorityAdminService taskPriorityAdminService) {
+                                   TaskPriorityAdminService taskPriorityAdminService,
+                                   MobileOrderAuthService mobileOrderAuthService) {
         this.orderAdminQueryService = orderAdminQueryService;
         this.orderQueryService = orderQueryService;
         this.dispatchAdminQueryService = dispatchAdminQueryService;
@@ -96,6 +99,7 @@ public class AdminDispatchController {
         this.parkPilotCommandService = parkPilotCommandService;
         this.batchTaskAdminService = batchTaskAdminService;
         this.taskPriorityAdminService = taskPriorityAdminService;
+        this.mobileOrderAuthService = mobileOrderAuthService;
     }
 
     @GetMapping("/orders")
@@ -277,7 +281,13 @@ public class AdminDispatchController {
     }
 
     @PostMapping("/park/orders")
-    public ApiResponse<ParkOrderCreateResponse> createParkOrder(@Valid @RequestBody ParkOrderCreateRequest request) {
+    public ApiResponse<ParkOrderCreateResponse> createParkOrder(@Valid @RequestBody ParkOrderCreateRequest request,
+                                                                  jakarta.servlet.http.HttpServletRequest httpRequest) {
+        String mobileKey = httpRequest.getHeader("X-Mobile-Api-Key");
+        if (mobileKey == null || mobileKey.isBlank()) {
+            mobileKey = httpRequest.getParameter("mobileApiKey");
+        }
+        mobileOrderAuthService.validateMobileOrderKey(mobileKey);
         return ApiResponse.success(parkPilotCommandService.createParkOrder(request));
     }
 

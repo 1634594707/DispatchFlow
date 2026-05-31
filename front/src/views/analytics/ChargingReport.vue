@@ -16,6 +16,18 @@
           <strong>{{ overview?.occupiedPileCount ?? 0 }}/{{ overview?.totalPileCount ?? 0 }}</strong>
         </div>
         <div class="card">
+          <span>换电中</span>
+          <strong>{{ overview?.activeSwapSessionCount ?? 0 }}</strong>
+        </div>
+        <div class="card">
+          <span>充电总时长(分)</span>
+          <strong>{{ overview?.totalChargeDurationMinutes ?? 0 }}</strong>
+        </div>
+        <div class="card">
+          <span>换电总时长(分)</span>
+          <strong>{{ overview?.totalSwapDurationMinutes ?? 0 }}</strong>
+        </div>
+        <div class="card">
           <span>平均充电速度</span>
           <strong>{{ overview?.avgChargeSpeedPerHour ?? 0 }}%/h</strong>
         </div>

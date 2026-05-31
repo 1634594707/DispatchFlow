@@ -36,6 +36,13 @@
           <span class="metric-label">在线车辆</span>
         </div>
       </div>
+      <a-switch
+        v-if="authStore.isAdmin"
+        v-model:checked="dispatchPaused"
+        checked-children="暂停派单"
+        un-checked-children="正常派单"
+        @change="onDispatchPauseChange"
+      />
       <a-button :loading="store.loading" @click="refreshAll">
         <ReloadOutlined /> 刷新 <span class="kbd-hint">R</span>
       </a-button>
@@ -82,6 +89,15 @@
               <span v-if="tab.count > 0" class="tab-count">{{ tab.count }}</span>
             </button>
           </div>
+          <a-select
+            v-model:value="routeFilter"
+            allow-clear
+            placeholder="按线路筛选"
+            :options="routeOptions"
+            style="width: 168px; margin-left: 8px"
+            size="small"
+          />
+          <router-link to="/vertical/hub" class="hub-link">母港分流</router-link>
         </div>
         <div v-if="authStore.canWrite && selectedTaskIds.length > 0" class="batch-toolbar">
           <span class="batch-hint">已选 {{ selectedTaskIds.length }} 项</span>
@@ -95,7 +111,7 @@
         <a-spin :spinning="store.loading">
           <div class="task-list">
             <article
-              v-for="task in store.taskPool"
+              v-for="task in filteredTaskPool"
               :key="task.taskId"
               class="task-card"
               :class="{ selected: store.selectedTaskId === task.taskId, checked: selectedTaskIds.includes(task.taskId) }"
@@ -117,6 +133,7 @@
                 <span v-if="task.orderPriority" class="priority-badge" :class="`priority-${task.orderPriority}`">
                   {{ task.orderPriority }}
                 </span>
+                <span v-if="task.routeCode" class="route-badge">{{ task.routeCode }}</span>
                 <StatusBadge :status="task.status" type="task" />
               </div>
               <div class="task-meta">
@@ -158,7 +175,7 @@
                 </a-button>
               </div>
             </article>
-            <EmptyState v-if="!store.loading && store.taskPool.length === 0" description="暂无待处理任务" />
+            <EmptyState v-if="!store.loading && filteredTaskPool.length === 0" description="暂无待处理任务" />
           </div>
         </a-spin>
       </section>
@@ -208,6 +225,14 @@
                   @click="handleExceptionReassign(item)"
                 >
                   重新派车
+                </a-button>
+                <a-button
+                  v-if="authStore.isAdmin"
+                  size="small"
+                  :loading="actionLoading === `field-${item.id}`"
+                  @click="handleAssignFieldOps(item)"
+                >
+                  指派现场
                 </a-button>
                 <a-button
                   size="small"
@@ -337,7 +362,12 @@ import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { queryVehicles } from '@/api/vehicle'
 import { fetchTrafficSummary } from '@/api/traffic'
+import { fetchDispatchPauseStatus, setDispatchPause } from '@/api/dispatchPause'
 import { batchAutoAssign, batchCancelTasks, batchReassignTasks, bumpTaskPriority } from '@/api/task'
+import { fetchRoutes } from '@/api/vertical'
+import { assignFieldOps } from '@/api/fieldOps'
+import { fetchUsers } from '@/api/auth'
+import type { DispatchRoute } from '@/api/vertical'
 import { exceptionTypeMap } from '@/constants/statusMap'
 import {
   explainFromAssignResponse,
@@ -358,6 +388,7 @@ const authStore = useAuthStore()
 const parkScope = useParkScopeStore()
 const workbenchShortcutsEnabled = computed(() => route.path === '/workbench')
 const trafficSummary = ref<TrafficSummary | null>(null)
+const dispatchPaused = ref(false)
 const draggingTaskId = ref<number | null>(null)
 
 const parkLayout = computed(() => store.parkLayout)
@@ -383,6 +414,13 @@ const batchReassignVisible = ref(false)
 const batchReassignVehicleId = ref<number | undefined>()
 const batchResultVisible = ref(false)
 const batchResult = ref<BatchTaskResult | null>(null)
+const routeFilter = ref<number | undefined>()
+const routeOptions = ref<{ label: string; value: number }[]>([])
+
+const filteredTaskPool = computed(() => {
+  if (!routeFilter.value) return store.taskPool
+  return store.taskPool.filter((task) => task.routeId === routeFilter.value)
+})
 
 const batchResultColumns = [
   { title: '任务', dataIndex: 'taskNo', key: 'taskNo', width: 120 },
@@ -654,6 +692,24 @@ async function handleExceptionReassign(item: ExceptionAdminListItem) {
   }
 }
 
+async function handleAssignFieldOps(item: ExceptionAdminListItem) {
+  actionLoading.value = `field-${item.id}`
+  try {
+    const users = (await fetchUsers()).data.filter((u) => u.role === 'FIELD_OPS' && u.status === 'ACTIVE')
+    if (users.length === 0) {
+      message.warning('暂无 FIELD_OPS 用户，请先在用户管理创建')
+      return
+    }
+    const assignee = users[0]
+    await assignFieldOps(item.id, assignee.id, '工作台指派')
+    message.success(`已指派给 ${assignee.displayName || assignee.username}`)
+  } catch {
+    // interceptor handles
+  } finally {
+    actionLoading.value = null
+  }
+}
+
 async function handleBumpPriority(task: TaskAdminListItem) {
   actionLoading.value = `bump-${task.taskId}`
   try {
@@ -724,12 +780,36 @@ useWorkbenchShortcuts(workbenchShortcutsEnabled, {
   moveSelection: moveTaskSelection,
 })
 
+async function loadDispatchPause() {
+  if (!authStore.isAdmin) return
+  const res = await fetchDispatchPauseStatus(parkScope.selectedParkId ?? undefined)
+  dispatchPaused.value = res.data.globalPaused || res.data.parkPaused
+}
+
+async function onDispatchPauseChange(checked: boolean) {
+  await setDispatchPause(parkScope.selectedParkId ?? null, checked)
+  message.success(checked ? '已暂停新派单' : '已恢复新派单')
+}
+
 onMounted(() => {
   refreshAll()
+  void loadDispatchPause()
+  void loadRouteOptions()
 })
+
+async function loadRouteOptions() {
+  try {
+    const res = await fetchRoutes(parkScope.selectedParkId ?? undefined)
+    routeOptions.value = res.data.map((r: DispatchRoute) => ({ label: r.routeName, value: r.id }))
+  } catch {
+    routeOptions.value = []
+  }
+}
 
 watch(() => parkScope.scopeVersion, () => {
   loadTrafficSummary()
+  void loadDispatchPause()
+  void loadRouteOptions()
 })
 </script>
 
@@ -953,6 +1033,21 @@ watch(() => parkScope.scopeVersion, () => {
 .filter-tabs {
   display: flex;
   gap: 4px;
+}
+
+.hub-link {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--fsd-accent);
+  text-decoration: none;
+}
+
+.route-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 180, 216, 0.15);
+  color: #00b4d8;
 }
 
 .filter-tab {

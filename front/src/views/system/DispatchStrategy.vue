@@ -115,6 +115,9 @@
             </a-form-item>
           </a-col>
         </a-row>
+        <a-form-item label="低电恢复策略">
+          <a-select v-model:value="form.energyRecoveryMode" :options="energyRecoveryOptions" />
+        </a-form-item>
         <a-form-item label="备注">
           <a-textarea v-model:value="form.remark" :rows="2" />
         </a-form-item>
@@ -158,8 +161,15 @@ const form = reactive<DispatchStrategyUpsertPayload>({
   weightPluggedStandbyBonus: 80,
   minAssignableSoc: 30,
   fullSoc: 100,
+  energyRecoveryMode: 'CHARGE',
   remark: '',
 })
+
+const energyRecoveryOptions = [
+  { label: '充电 CHARGE', value: 'CHARGE' },
+  { label: '换电 SWAP', value: 'SWAP' },
+  { label: '自动 AUTO', value: 'AUTO' },
+]
 
 const columns = [
   { title: '名称', dataIndex: 'profileName', key: 'name' },
@@ -195,6 +205,7 @@ function resetForm() {
   form.weightPluggedStandbyBonus = 80
   form.minAssignableSoc = 30
   form.fullSoc = 100
+  form.energyRecoveryMode = 'CHARGE'
   form.remark = ''
 }
 
@@ -215,6 +226,7 @@ function openEdit(record: DispatchStrategyProfile) {
   form.weightPluggedStandbyBonus = Number(record.weightPluggedStandbyBonus)
   form.minAssignableSoc = record.minAssignableSoc
   form.fullSoc = record.fullSoc
+  form.energyRecoveryMode = record.energyRecoveryMode || 'CHARGE'
   form.remark = record.remark || ''
   modalOpen.value = true
 }

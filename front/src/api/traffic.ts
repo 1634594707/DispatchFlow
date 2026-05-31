@@ -20,6 +20,19 @@ export function refreshCongestion(parkId?: number) {
   })
 }
 
+export interface TrafficSegmentImpact {
+  segmentId: number
+  affectedTaskCount: number
+  unreachableStationCount: number
+  alternativePathHints: string[]
+}
+
+export function fetchSegmentImpact(segmentId: number) {
+  return request.get<any, ApiResponse<TrafficSegmentImpact>>(
+    `/admin/traffic/segments/${segmentId}/impact`,
+  )
+}
+
 export function disableTrafficSegment(segmentId: number) {
   return request.post<any, ApiResponse<TrafficSegment>>(`/admin/traffic/segments/${segmentId}/disable`)
 }

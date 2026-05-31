@@ -8,8 +8,24 @@ import type {
   ChangePasswordPayload,
 } from '@/types/auth'
 
-export function login(username: string, password: string) {
-  return request.post<any, ApiResponse<AdminLoginResult>>('/admin/auth/login', { username, password })
+export function login(username: string, password: string, totpCode?: string) {
+  return request.post<any, ApiResponse<AdminLoginResult>>('/admin/auth/login', {
+    username,
+    password,
+    totpCode,
+  })
+}
+
+export function enrollTotp() {
+  return request.post<any, ApiResponse<{ secret: string; otpauthUrl: string }>>('/admin/auth/totp/enroll')
+}
+
+export function enableTotp(code: string) {
+  return request.post<any, ApiResponse<void>>('/admin/auth/totp/enable', { code })
+}
+
+export function disableTotp(code: string) {
+  return request.post<any, ApiResponse<void>>('/admin/auth/totp/disable', { code })
 }
 
 export function logout() {

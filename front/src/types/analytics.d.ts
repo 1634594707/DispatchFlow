@@ -86,5 +86,8 @@ export interface AnalyticsChargingOverview {
   occupiedPileCount: number
   totalPileCount: number
   avgChargeSpeedPerHour: number
+  activeSwapSessionCount?: number
+  totalChargeDurationMinutes?: number
+  totalSwapDurationMinutes?: number
   recentHistory: AnalyticsChargingHistory[]
 }

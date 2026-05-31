@@ -34,6 +34,9 @@ export function getParkOrders() {
   return request.get<any, ApiResponse<ParkOrderSnapshot[]>>('/admin/park/orders')
 }
 
-export function createParkOrder(data: ParkOrderCreateRequest) {
-  return request.post<any, ApiResponse<ParkOrderCreateResponse>>('/admin/park/orders', data)
+export function createParkOrder(data: ParkOrderCreateRequest, mobileApiKey?: string) {
+  const key = mobileApiKey || localStorage.getItem('fsd_mobile_api_key') || undefined
+  return request.post<any, ApiResponse<ParkOrderCreateResponse>>('/admin/park/orders', data, {
+    headers: key ? { 'X-Mobile-Api-Key': key } : undefined,
+  })
 }

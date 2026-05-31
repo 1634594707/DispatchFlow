@@ -11,7 +11,13 @@ import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.fleet.service.FleetSnapshotAssembler;
+import com.fsd.dispatch.entity.BatterySwapCabinetEntity;
+import com.fsd.dispatch.fleet.FleetAdapterRegistry;
 import com.fsd.dispatch.fleet.simulation.SimulationFleetAdapter;
+import com.fsd.dispatch.mapper.BatterySwapCabinetMapper;
+import com.fsd.dispatch.service.BatterySwapSessionService;
+import com.fsd.dispatch.service.DispatchAutomationRuleService;
+import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import com.fsd.dispatch.fleet.simulation.SimulationMotionState;
 import com.fsd.dispatch.fleet.simulation.SimulationMotionStore;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
@@ -64,9 +70,14 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private final ParkStationService parkStationService;
     private final ParkingFacilityService parkingFacilityService;
     private final SimulationMotionStore simulationMotionStore;
+    private final FleetAdapterRegistry fleetAdapterRegistry;
     private final SimulationFleetAdapter simulationFleetAdapter;
     private final FleetSnapshotAssembler fleetSnapshotAssembler;
     private final FleetRuntimeService fleetRuntimeService;
+    private final DispatchStrategyRuntimeService strategyRuntimeService;
+    private final BatterySwapSessionService batterySwapSessionService;
+    private final BatterySwapCabinetMapper batterySwapCabinetMapper;
+    private final DispatchAutomationRuleService automationRuleService;
     private boolean dispatchDemandActive;
 
     public ParkPilotSimulationServiceImpl(ParkPilotProperties parkPilotProperties,
@@ -80,9 +91,14 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                                           ParkStationService parkStationService,
                                           ParkingFacilityService parkingFacilityService,
                                           SimulationMotionStore simulationMotionStore,
+                                          FleetAdapterRegistry fleetAdapterRegistry,
                                           SimulationFleetAdapter simulationFleetAdapter,
                                           FleetSnapshotAssembler fleetSnapshotAssembler,
-                                          FleetRuntimeService fleetRuntimeService) {
+                                          FleetRuntimeService fleetRuntimeService,
+                                          DispatchStrategyRuntimeService strategyRuntimeService,
+                                          BatterySwapSessionService batterySwapSessionService,
+                                          BatterySwapCabinetMapper batterySwapCabinetMapper,
+                                          DispatchAutomationRuleService automationRuleService) {
         this.parkPilotProperties = parkPilotProperties;
         this.fleetEnergyProperties = fleetEnergyProperties;
         this.fleetChargePolicy = fleetChargePolicy;
@@ -94,9 +110,14 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         this.parkStationService = parkStationService;
         this.parkingFacilityService = parkingFacilityService;
         this.simulationMotionStore = simulationMotionStore;
+        this.fleetAdapterRegistry = fleetAdapterRegistry;
         this.simulationFleetAdapter = simulationFleetAdapter;
         this.fleetSnapshotAssembler = fleetSnapshotAssembler;
         this.fleetRuntimeService = fleetRuntimeService;
+        this.strategyRuntimeService = strategyRuntimeService;
+        this.batterySwapSessionService = batterySwapSessionService;
+        this.batterySwapCabinetMapper = batterySwapCabinetMapper;
+        this.automationRuleService = automationRuleService;
     }
 
     @Override
@@ -198,6 +219,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         vehicle.setOnlineStatus(state.offlineUntil == null ? VehicleOnlineStatus.ONLINE.name() : VehicleOnlineStatus.OFFLINE.name());
         if (state.offlineUntil == null) {
             vehicle.setDispatchStatus(VehicleDispatchStatus.IDLE.name());
+            automationRuleService.evaluateSimulationTick(defaultParkId(), vehicle, state);
             processIdleStage(vehicle, state);
         }
         vehicle.setLastReportTime(LocalDateTime.now());
@@ -283,6 +305,8 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                 || "CHARGING".equals(stage)
                 || "TO_CHARGING".equals(stage)
                 || "WAIT_CHARGING".equals(stage)
+                || "TO_SWAP".equals(stage)
+                || "SWAPPING".equals(stage)
                 || "RETURNING_TO_STANDBY".equals(stage);
     }
 
@@ -324,7 +348,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     private void routeAfterDelivery(VehicleEntity vehicle, SimulationMotionState state) {
         if (isLowBattery(vehicle)) {
-            routeToCharging(vehicle, state);
+            routeToEnergyRecovery(vehicle, state);
             return;
         }
         if (shouldPreferCharging()) {
@@ -385,6 +409,21 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                     enterPluggedInStandby(vehicle, state);
                 }
             }
+            case "TO_SWAP" -> {
+                moveVehicleAlongRoute(vehicle, state);
+                if (state.routeIndex >= state.route.size()) {
+                    state.stage = "SWAPPING";
+                    state.swapTicks = 0;
+                    bindSwap(vehicle, state);
+                }
+            }
+            case "SWAPPING" -> {
+                state.swapTicks++;
+                if (state.swapTicks >= fleetEnergyProperties.getSwapDurationTicks()) {
+                    completeSwap(vehicle, state);
+                    routeToStandby(vehicle, state);
+                }
+            }
             case "RETURNING_TO_STANDBY" -> {
                 if (shouldPreferCharging() && !isFullyCharged(vehicle)) {
                     routeToCharging(vehicle, state);
@@ -405,7 +444,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                     break;
                 }
                 if (needsCharging(vehicle, state)) {
-                    routeToCharging(vehicle, state);
+                    routeToEnergyRecovery(vehicle, state);
                     break;
                 }
                 ensureStandbyLocation(state);
@@ -433,8 +472,73 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             return;
         }
         if (needsCharging(vehicle, state)) {
+            routeToEnergyRecovery(vehicle, state);
+        }
+    }
+
+    private void routeToEnergyRecovery(VehicleEntity vehicle, SimulationMotionState state) {
+        String mode = resolveEnergyRecoveryMode();
+        if ("SWAP".equalsIgnoreCase(mode) || ("AUTO".equalsIgnoreCase(mode) && vehicle.getId() % 2 == 0)) {
+            routeToSwap(vehicle, state);
+        } else {
             routeToCharging(vehicle, state);
         }
+    }
+
+    private String resolveEnergyRecoveryMode() {
+        FleetEnergyProperties energy = strategyRuntimeService.energyForAssign(defaultParkId());
+        return energy.getEnergyRecoveryMode() == null ? "CHARGE" : energy.getEnergyRecoveryMode();
+    }
+
+    private void routeToSwap(VehicleEntity vehicle, SimulationMotionState state) {
+        ensureStandbyLocation(state);
+        state.busyMoveTicks = 0;
+        state.pluggedIn = false;
+        parkingFacilityService.releaseByVehicle(vehicle.getId());
+        BatterySwapCabinetEntity cabinet = findSwapCabinet(defaultParkId());
+        if (cabinet == null) {
+            routeToCharging(vehicle, state);
+            return;
+        }
+        state.swapPoint = ParkPointResponse.builder()
+                .code(cabinet.getCabinetCode())
+                .x(cabinet.getCoordX())
+                .y(cabinet.getCoordY())
+                .build();
+        state.stage = "TO_SWAP";
+        routeToTarget(state, state.swapPoint, "SWAP");
+        if (state.routeIndex >= state.route.size()) {
+            state.stage = "SWAPPING";
+            state.swapTicks = 0;
+            bindSwap(vehicle, state);
+        }
+    }
+
+    private BatterySwapCabinetEntity findSwapCabinet(Long parkId) {
+        return batterySwapCabinetMapper.selectOne(new LambdaQueryWrapper<BatterySwapCabinetEntity>()
+                .eq(BatterySwapCabinetEntity::getDeleted, 0)
+                .eq(BatterySwapCabinetEntity::getStatus, "ACTIVE")
+                .eq(BatterySwapCabinetEntity::getParkId, parkId)
+                .last("limit 1"));
+    }
+
+    private void bindSwap(VehicleEntity vehicle, SimulationMotionState state) {
+        if (state.swapPoint == null) {
+            return;
+        }
+        BatterySwapCabinetEntity cabinet = findSwapCabinet(defaultParkId());
+        if (cabinet == null) {
+            return;
+        }
+        batterySwapSessionService.startSession(defaultParkId(), vehicle.getId(), cabinet.getId(),
+                vehicle.getBatteryLevel() == null ? 0 : vehicle.getBatteryLevel());
+    }
+
+    private void completeSwap(VehicleEntity vehicle, SimulationMotionState state) {
+        batterySwapSessionService.completeActiveSession(vehicle.getId());
+        vehicle.setBatteryLevel(fleetEnergyProperties.getFullSoc());
+        state.stage = "STANDBY";
+        state.swapTicks = 0;
     }
 
     private boolean needsCharging(VehicleEntity vehicle, SimulationMotionState state) {
@@ -489,7 +593,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private boolean isChargingStage(String stage) {
-        return fleetChargePolicy.isActivelyCharging(stage);
+        return fleetChargePolicy.isActivelyCharging(stage) || fleetChargePolicy.isActivelySwapping(stage);
     }
 
     private void submitVehicleReport(VehicleEntity vehicle, String reportType, String message) {

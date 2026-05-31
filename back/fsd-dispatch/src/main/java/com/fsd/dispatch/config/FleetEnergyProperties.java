@@ -26,4 +26,9 @@ public class FleetEnergyProperties {
     private boolean pluggedStandbyNoDrain = true;
 
     private boolean idleChargeWhenNoDemand = true;
+
+    /** CHARGE, SWAP, or AUTO */
+    private String energyRecoveryMode = "CHARGE";
+
+    private int swapDurationTicks = 5;
 }

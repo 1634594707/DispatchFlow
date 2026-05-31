@@ -1,9 +1,19 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
+import { visualizer } from 'rollup-plugin-visualizer'
 
-export default defineConfig({
-  plugins: [vue()],
+export default defineConfig(({ mode }) => ({
+  plugins: [
+    vue(),
+    mode === 'analyze'
+      ? visualizer({
+          filename: 'dist/bundle-stats.html',
+          gzipSize: true,
+          open: false,
+        })
+      : undefined,
+  ].filter(Boolean),
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -28,4 +38,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

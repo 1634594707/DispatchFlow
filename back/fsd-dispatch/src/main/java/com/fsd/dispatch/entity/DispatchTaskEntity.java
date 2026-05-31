@@ -33,6 +33,8 @@ public class DispatchTaskEntity {
 
     private LocalDateTime finishTime;
 
+    private String peakModeAtFinish;
+
     private Integer manualFlag;
 
     private Integer retryCount;

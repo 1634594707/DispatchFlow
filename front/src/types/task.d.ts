@@ -36,6 +36,9 @@ export interface TaskAdminListItem {
   openExceptions?: OpenExceptionBrief[]
   orderPriority?: string
   waitMinutes?: number
+  routeId?: number
+  routeCode?: string
+  routeName?: string
 }
 
 export interface TaskDetailResponse {

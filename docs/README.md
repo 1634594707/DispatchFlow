@@ -1,15 +1,17 @@
 # DispatchFlow 文档索引
 
-> 更新：2026-05-30 · 验收入口见 **[acceptance/README.md](./acceptance/README.md)**
+> 更新：2026-05-31 · 验收入口见 **[acceptance/README.md](./acceptance/README.md)**
 
 ## 常用（先看这些）
 
 | 文档 | 说明 |
 |------|------|
 | **[acceptance/README.md](./acceptance/README.md)** | **验收总方案**（环境、顺序、勾选表） |
-| [DEPLOYMENT.md](./DEPLOYMENT.md) | Docker / 本地启动、SQL 迁移 V01–V14 |
+| [DEPLOYMENT.md](./DEPLOYMENT.md) | Docker / 本地启动、SQL 迁移 V01–V18 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 模块划分、Fleet 模型、事件流 |
-| [ROADMAP-V2.md](./ROADMAP-V2.md) | **产品路线图**（Phase 11 M1 已完成，Phase 12–14 待办） |
+| [ROADMAP-V2.md](./ROADMAP-V2.md) | **产品路线图**（Phase 14 已完成，Phase 15 进行中） |
+| [phase15/VDA5050-EVALUATION.md](./phase15/VDA5050-EVALUATION.md) | VDA5050 MQTT 适配评估 |
+| [perf/navigation-baseline.md](./perf/navigation-baseline.md) | 导航重构性能基线 |
 | [releases/phase2.md](./releases/phase2.md) | Phase 2 合入说明与文件清单 |
 
 ## 验收细则

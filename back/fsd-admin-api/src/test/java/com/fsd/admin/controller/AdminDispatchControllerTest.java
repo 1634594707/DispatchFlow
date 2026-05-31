@@ -20,8 +20,10 @@ import com.fsd.dispatch.dto.ParkOrderCreateRequest;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
+import com.fsd.dispatch.service.MobileOrderAuthService;
 import com.fsd.dispatch.service.ParkPilotCommandService;
 import com.fsd.dispatch.service.ParkPilotService;
+import jakarta.servlet.http.HttpServletRequest;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
 import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
@@ -66,6 +68,10 @@ class AdminDispatchControllerTest {
     private ParkPilotService parkPilotService;
     @Mock
     private ParkPilotCommandService parkPilotCommandService;
+    @Mock
+    private MobileOrderAuthService mobileOrderAuthService;
+    @Mock
+    private HttpServletRequest httpServletRequest;
 
     @InjectMocks
     private AdminDispatchController adminDispatchController;
@@ -302,7 +308,7 @@ class AdminDispatchControllerTest {
                         .build()
         );
 
-        ApiResponse<ParkOrderCreateResponse> response = adminDispatchController.createParkOrder(request);
+        ApiResponse<ParkOrderCreateResponse> response = adminDispatchController.createParkOrder(request, httpServletRequest);
 
         assertEquals(1L, response.getData().getOrderId());
         assertEquals("ASSIGNED", response.getData().getTaskStatus());

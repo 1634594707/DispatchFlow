@@ -1,0 +1,48 @@
+package com.fsd.admin.controller;
+
+import com.fsd.admin.auth.AdminAuthSupport;
+import com.fsd.admin.vo.AdminDispatchPauseStatusResponse;
+import com.fsd.common.model.ApiResponse;
+import com.fsd.dispatch.service.DispatchPauseControlService;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/admin/dispatch/pause")
+public class AdminDispatchPauseController {
+
+    private final DispatchPauseControlService dispatchPauseControlService;
+
+    public AdminDispatchPauseController(DispatchPauseControlService dispatchPauseControlService) {
+        this.dispatchPauseControlService = dispatchPauseControlService;
+    }
+
+    @GetMapping
+    public ApiResponse<AdminDispatchPauseStatusResponse> status(@RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(AdminDispatchPauseStatusResponse.builder()
+                .parkId(parkId)
+                .globalPaused(dispatchPauseControlService.isGlobalDispatchPaused())
+                .parkPaused(parkId != null && dispatchPauseControlService.isDispatchPaused(parkId))
+                .build());
+    }
+
+    @PostMapping
+    public ApiResponse<AdminDispatchPauseStatusResponse> setPaused(@RequestBody Map<String, Object> body,
+                                                                 HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        Long parkId = body.get("parkId") == null ? null : Long.parseLong(body.get("parkId").toString());
+        boolean paused = Boolean.TRUE.equals(body.get("paused"));
+        dispatchPauseControlService.setDispatchPaused(parkId, paused);
+        return ApiResponse.success(AdminDispatchPauseStatusResponse.builder()
+                .parkId(parkId)
+                .globalPaused(dispatchPauseControlService.isGlobalDispatchPaused())
+                .parkPaused(parkId != null && dispatchPauseControlService.isDispatchPaused(parkId))
+                .build());
+    }
+}

@@ -32,8 +32,12 @@ public final class DispatchFailExplainSupport {
                     List.of("打开路网管理，检查禁用路段与节点", "查看交通态势，处理高拥堵路段", "确认取货站点坐标在路网范围内"));
             case "HUB_CAPACITY_FULL" -> new ExplainResult(
                     "HUB_CAPACITY_FULL",
-                    "枢纽/母港容量已满，暂无法派车（预留）",
-                    List.of("查看母港分流视图（Phase 14）", "改派至其他枢纽或缓冲站点", "联系现场释放枢纽容量"));
+                    rawMessage != null && !rawMessage.isBlank() ? rawMessage : "枢纽/母港容量已满，暂无法派车",
+                    List.of("打开母港分流视图查看占用", "改派至其他枢纽或缓冲站点", "联系现场释放枢纽容量"));
+            case "ROUTE_OCCUPANCY_FULL" -> new ExplainResult(
+                    "ROUTE_OCCUPANCY_FULL",
+                    rawMessage != null && !rawMessage.isBlank() ? rawMessage : "线路并发任务已达上限",
+                    List.of("查看线路占用与运营时段", "切换高峰预案提升吞吐", "等待在途任务完成后再派"));
             case "CONFLICT" -> new ExplainResult(
                     "CONFLICT",
                     rawMessage != null && !rawMessage.isBlank() ? rawMessage : "车辆占车或占桩冲突",
@@ -65,7 +69,7 @@ public final class DispatchFailExplainSupport {
                 links.add("road-network");
                 links.add("traffic");
             }
-            case "HUB_CAPACITY_FULL" -> links.add("workbench");
+            case "HUB_CAPACITY_FULL", "ROUTE_OCCUPANCY_FULL" -> links.add("hub-overview");
             default -> links.add("exceptions");
         }
         return links;

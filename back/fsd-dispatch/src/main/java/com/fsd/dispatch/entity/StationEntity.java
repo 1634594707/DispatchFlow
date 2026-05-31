@@ -32,6 +32,8 @@ public class StationEntity {
 
     private Integer sortOrder;
 
+    private Integer capacityLimit;
+
     private String remark;
 
     private LocalDateTime createdAt;

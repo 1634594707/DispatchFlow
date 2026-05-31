@@ -13,5 +13,7 @@ public class DispatchFleetMetricsResponse {
 
     private int chargingCount;
 
+    private int swappingCount;
+
     private int onlineVehicleCount;
 }

@@ -49,6 +49,7 @@ export interface DigitalTwinSnapshot {
 
 export interface DigitalTwinSimulateResult {
   scenario: string
+  simulationMode?: 'ENGINE' | 'ESTIMATE'
   summary: string
   estimatedMinutes: number
   recommendedVehicleCount: number

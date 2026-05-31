@@ -17,4 +17,10 @@ public interface AdminAuthService {
     AdminUserResponse getCurrentUser(Long userId);
 
     void changePassword(Long userId, AdminChangePasswordRequest request);
+
+    java.util.Map<String, String> enrollTotp(Long userId);
+
+    void enableTotp(Long userId, String code);
+
+    void disableTotp(Long userId, String code);
 }

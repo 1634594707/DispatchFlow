@@ -67,6 +67,23 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
 
     @Override
     @Transactional
+    public void recordVehicleException(Long vehicleId, String exceptionType, String exceptionMsg) {
+        if (hasOpenVehicleException(vehicleId, exceptionType)) {
+            return;
+        }
+        DispatchExceptionRecordEntity entity = new DispatchExceptionRecordEntity();
+        entity.setVehicleId(vehicleId);
+        entity.setExceptionType(exceptionType);
+        entity.setExceptionStatus("OPEN");
+        entity.setExceptionMsg(exceptionMsg);
+        entity.setSeverity(ExceptionSeverity.WARN.name());
+        entity.setOccurTime(LocalDateTime.now());
+        exceptionRecordMapper.insert(entity);
+        eventPublisher.publish(DispatchEventType.EXCEPTION_OPEN, String.valueOf(entity.getId()), buildPayload(entity));
+    }
+
+    @Override
+    @Transactional
     public void resolveException(Long exceptionId, DispatchExceptionResolveRequest request) {
         validateAction(request.getAction());
         DispatchExceptionRecordEntity entity = exceptionRecordMapper.selectById(exceptionId);
@@ -132,6 +149,17 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         }
         Long count = exceptionRecordMapper.selectCount(new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
                 .eq(DispatchExceptionRecordEntity::getTaskId, taskId)
+                .eq(DispatchExceptionRecordEntity::getExceptionType, exceptionType)
+                .eq(DispatchExceptionRecordEntity::getExceptionStatus, "OPEN"));
+        return count != null && count > 0;
+    }
+
+    private boolean hasOpenVehicleException(Long vehicleId, String exceptionType) {
+        if (vehicleId == null || exceptionType == null) {
+            return false;
+        }
+        Long count = exceptionRecordMapper.selectCount(new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
+                .eq(DispatchExceptionRecordEntity::getVehicleId, vehicleId)
                 .eq(DispatchExceptionRecordEntity::getExceptionType, exceptionType)
                 .eq(DispatchExceptionRecordEntity::getExceptionStatus, "OPEN"));
         return count != null && count > 0;

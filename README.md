@@ -5,12 +5,12 @@
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](back/)
 [![Vue](https://img.shields.io/badge/Vue-3-green.svg)](front/)
 
-**DispatchFlow** 是一套面向园区短驳配送场景的**无人车智能调度平台（FMS 调度中台）**，覆盖移动端下单、调度工作台、自动/手动派车、车辆状态机执行、Fleet 运行态监控、充电能量策略、异常处置、运营分析与 RabbitMQ 事件驱动，形成完整可运营的业务闭环。
+**DispatchFlow** 是一套面向园区短驳配送场景的**无人车智能调度平台（FMS 调度中台）**，覆盖移动端下单、调度工作台、自动/手动派车、车辆状态机执行、Fleet 运行态监控、充电/换电能量策略、异常处置、运营分析与 RabbitMQ 事件驱动，形成完整可运营的业务闭环。
 
 **在线演示**：[aplicity.online](https://www.aplicity.online)
 
 ```text
-下单 → 订单 → 调度任务 → 派车 → 车辆执行 → 回报联动 → 完成/失败 → 待命/充电
+下单 → 订单 → 调度任务 → 派车 → 车辆执行 → 回报联动 → 完成/失败 → 待命/充电/换电
 ```
 
 ---
@@ -23,15 +23,18 @@
 | Fleet 运行态 | Redis 持久化位置、电量、阶段、插枪状态；SSE 实时推送监控大屏 |
 | 智能派车 | 路网可达性 + SOC/距离评分；失败可解释（`reasonCode` / 建议 / 快捷跳转） |
 | 调度工作台 | 任务池拖拽排序、批量派/改派/取消、异常队列、园区态势小地图 |
-| 充电管理 | 满电插枪待命、低电返充、无单优先充电、充电报表 |
-| 异常闭环 | 分级、去重、人工处置、派车成功自动 resolve |
+| 充电 / 换电 | 满电插枪待命、低电返充/换电（CHARGE / SWAP / AUTO）；换电柜 CRUD；REAL 遥测驱动换电会话 |
+| 异常闭环 | 分级、去重、人工处置、派车成功自动 resolve；OPEN 超时升级 |
 | 交通管制 | 地图框选区域暂停派车、路段降权/禁用、拥堵摘要条 |
-| 运营分析 | 效率/异常趋势、每日摘要、跨园区对比、CSV 导出 |
-| 开放集成 | Open API、Webhook、API Key、调度策略按园区配置 |
+| 运营分析 | 效率/异常趋势、每日摘要、跨园区对比、链路 KPI、高峰对比、PDF/定时邮件 |
+| 开放集成 | Open API、Webhook、API Key、调用统计与投递日志 |
 | 数字孪生 | 园区态势估算可视化 + 场景仿真预评估（标注非引擎回放） |
-| 权限体系 | ADMIN / OPERATOR / VIEWER；写操作 UI 与后端对齐 |
+| 权限体系 | ADMIN / OPERATOR / VIEWER / FIELD_OPS；写操作 UI 与后端对齐；TOTP 2FA |
 | 命令面板 | `Ctrl+K` 全局搜索导航；规则型「调度快捷指令」 |
+| 家纺垂直 | 线路 CRUD、枢纽分流、高峰预案（含 cron 自动切换）、自动化 IF-THEN 规则、运维快照 |
+| 现场运维 | FIELD_OPS 工单、大屏运维视图 |
 | 事件驱动 | Outbox + RabbitMQ，保证关键业务事件可靠投递 |
+| Fleet 适配 | `FleetAdapterRegistry`：SIM / REAL；Phase 15 规划 VDA5050 MQTT |
 
 ---
 
@@ -39,13 +42,14 @@
 
 | 阶段 | 状态 | 说明 |
 |------|------|------|
-| Phase 1–9 | ✅ | 核心调度、Fleet、充电、异常、基础设施、分析、策略、集成 |
-| Phase 10 | ✅ | 命令面板、快捷指令、数字孪生、系统健康、全局搜索 |
+| Phase 1–10 | ✅ | 核心调度、Fleet、充电、异常、基础设施、分析、策略、集成、命令面板、数字孪生 |
 | **Phase 11（M1）** | ✅ | 全站园区一致、VIEWER 只读、派车失败可解释、交通可行动 |
-| Phase 12 | 进行中 | 地图化路网编辑、轨迹回放、引擎级仿真 |
-| Phase 13–14 | 规划中 | Webhook 可观测、PDF 报表、线路/枢纽/旺季垂直 |
+| **Phase 12（M2）** | ✅ | 轨迹回放、引擎仿真、配置向导、路网基础 |
+| **Phase 13（M3）** | ✅ | Webhook 日志、PDF、链路 KPI、暂停派单、服务端告警、定时报表 |
+| **Phase 14（M4–M5）** | ✅ | 家纺垂直（线路/枢纽/旺季/规则/换电仿真）、路网拖拽 MVP、2FA、运维视图 |
+| **Phase 15（M6）** | 进行中 | REAL 换电链路 ✅ · VDA5050 评估完成 · MQTT demo / 规模化待办 |
 
-详细待办见 **[docs/ROADMAP-V2.md](docs/ROADMAP-V2.md)**。
+详细待办见 **[docs/ROADMAP-V2.md](docs/ROADMAP-V2.md)** · VDA5050 评估见 **[docs/phase15/VDA5050-EVALUATION.md](docs/phase15/VDA5050-EVALUATION.md)**。
 
 ---
 
@@ -96,6 +100,10 @@ npm run dev
 | 车辆监控大屏 | http://localhost:3000/vehicle-tracking |
 | 运营分析 | http://localhost:3000/analytics |
 | 交通态势 | http://localhost:3000/infrastructure/traffic |
+| 线路管理 | http://localhost:3000/vertical/routes |
+| 高峰预案 | http://localhost:3000/vertical/peak-mode |
+| 换电柜管理 | http://localhost:3000/infrastructure/swap-cabinets |
+| 现场工单 | http://localhost:3000/field-ops/tickets |
 | 数字孪生 | http://localhost:3000/digital-twin |
 | 移动下单 | http://localhost:3000/mobile/order |
 | API 文档 | http://localhost:8080/swagger-ui.html |
@@ -118,10 +126,11 @@ npm run dev
    (Redis 运行态)         (自动/手动派车)        (分级 / 去重 / resolve)      (RabbitMQ)
           ▲
           │
-   SimulationFleetAdapter  ← 可替换为真实车端遥测 Adapter
+   FleetAdapterRegistry ── SIM: SimulationFleetAdapter
+                        └── REAL: RealFleetAdapter (+ RealFleetSwapCoordinator)
 ```
 
-**设计原则：** 业务状态（MySQL）与 Fleet 运行态（Redis）分离；仿真仅作为 Fleet Adapter 的一种实现，便于后续对接真实无人车。
+**设计原则：** 业务状态（MySQL）与 Fleet 运行态（Redis）分离；仿真与 REAL 均通过 `FleetAdapter` 注册，便于对接 VDA5050 MQTT（Phase 15）。
 
 详细设计见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
@@ -131,7 +140,7 @@ npm run dev
 
 ```text
 DispatchFlow/
-├── front/                 前端 SPA（管理端 + 监控 + 移动下单）
+├── front/                 前端 SPA（管理端 + 监控 + 移动下单 + 垂直产业运营）
 ├── back/                  后端 Maven 多模块
 │   ├── fsd-common             公共模型与枚举
 │   ├── fsd-order              订单域
@@ -139,8 +148,8 @@ DispatchFlow/
 │   ├── fsd-vehicle            车辆占用与回报
 │   ├── fsd-admin-api          管理端 API
 │   ├── fsd-bootstrap          启动模块
-│   └── sql/migrations/        数据库迁移脚本 (V01–V14)
-├── docs/                  文档（验收、架构、路线图）
+│   └── sql/migrations/        数据库迁移脚本 (V01–V18)
+├── docs/                  文档（验收、架构、路线图、Phase 15 评估）
 ├── docker-compose.yml     一键启动基础设施与后端
 ├── .github/workflows/     CI 流水线
 ├── CHANGELOG.md
@@ -155,11 +164,12 @@ DispatchFlow/
 | 文档 | 内容 |
 |------|------|
 | **[docs/acceptance/README.md](docs/acceptance/README.md)** | **验收总方案**（环境、顺序、勾选表） |
-| **[docs/ROADMAP-V2.md](docs/ROADMAP-V2.md)** | **产品路线图**（Phase 11–14 待办） |
+| **[docs/ROADMAP-V2.md](docs/ROADMAP-V2.md)** | **产品路线图**（Phase 15 待办） |
+| [docs/phase15/VDA5050-EVALUATION.md](docs/phase15/VDA5050-EVALUATION.md) | VDA5050 MQTT 适配评估 |
+| [docs/perf/navigation-baseline.md](docs/perf/navigation-baseline.md) | 导航重构性能基线 |
 | [docs/README.md](docs/README.md) | 文档索引 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 模块划分、领域边界、Fleet 模型、事件流 |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker / 本地部署、迁移、故障排查 |
-| [docs/releases/phase2.md](docs/releases/phase2.md) | Phase 2 合入说明 |
 | [back/README.md](back/README.md) | 后端模块与测试说明 |
 | [front/README.md](front/README.md) | 前端页面与开发说明 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
@@ -221,6 +231,21 @@ CI 在每次 push / PR 时自动运行后端测试与前端构建。
   "reasonCode": "NO_IDLE_VEHICLE",
   "reasonMessage": "当前无在线空闲车辆可派",
   "suggestions": ["打开车辆列表，确认在线且空闲车辆数量", "可对任务执行手动派车"]
+}
+```
+
+**REAL 车队遥测** — `POST /api/open/vehicle/telemetry`（需 API Key，车辆 `linkMode=REAL`）
+
+```json
+{
+  "vehicleCode": "REAL-001",
+  "runtimeStage": "SWAPPING",
+  "targetCode": "SWAP-01",
+  "soc": 18,
+  "x": 600.0,
+  "y": 500.0,
+  "reportTime": "2026-05-31T10:00:00",
+  "eventSeq": 1001
 }
 ```
 

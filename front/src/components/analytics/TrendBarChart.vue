@@ -1,6 +1,12 @@
 <template>
   <div class="trend-chart">
-    <div v-for="point in points" :key="point.label" class="trend-bar-row">
+    <div
+      v-for="point in points"
+      :key="point.label"
+      class="trend-bar-row"
+      :class="{ clickable }"
+      @click="onBarClick(point)"
+    >
       <span class="trend-label">{{ point.label }}</span>
       <div class="trend-bar-track">
         <div
@@ -23,12 +29,18 @@ const props = withDefaults(
     points: AnalyticsTrendPoint[]
     metric?: 'completionRate' | 'totalCount'
     color?: string
+    clickable?: boolean
   }>(),
   {
     metric: 'completionRate',
     color: '#00B4D8',
-  }
+    clickable: false,
+  },
 )
+
+const emit = defineEmits<{
+  barClick: [point: AnalyticsTrendPoint]
+}>()
 
 const maxValue = computed(() => {
   if (props.metric === 'totalCount') {
@@ -50,6 +62,12 @@ function valueLabel(point: AnalyticsTrendPoint) {
   }
   return `${point.completionRate.toFixed(1)}%`
 }
+
+function onBarClick(point: AnalyticsTrendPoint) {
+  if (props.clickable) {
+    emit('barClick', point)
+  }
+}
 </script>
 
 <style scoped lang="less">
@@ -64,6 +82,16 @@ function valueLabel(point: AnalyticsTrendPoint) {
   grid-template-columns: 44px 1fr 52px;
   gap: 10px;
   align-items: center;
+
+  &.clickable {
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    &:hover {
+      background: rgba(0, 180, 216, 0.08);
+    }
+  }
 }
 
 .trend-label {

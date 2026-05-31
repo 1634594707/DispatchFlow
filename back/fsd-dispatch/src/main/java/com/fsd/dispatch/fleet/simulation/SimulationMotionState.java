@@ -24,6 +24,8 @@ public class SimulationMotionState {
     public BigDecimal lastY;
     public ParkPointResponse standbyPoint;
     public ParkPointResponse chargingPoint;
+    public ParkPointResponse swapPoint;
+    public int swapTicks;
     public LocalDateTime holdUntil;
     public LocalDateTime offlineUntil;
     public List<ParkPointResponse> route = List.of();

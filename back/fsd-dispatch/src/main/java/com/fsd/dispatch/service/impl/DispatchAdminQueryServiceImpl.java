@@ -2,6 +2,7 @@ package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
+import com.fsd.dispatch.entity.DispatchRouteEntity;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.mapper.DispatchExceptionRecordMapper;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
@@ -9,6 +10,7 @@ import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
 import com.fsd.dispatch.service.DispatchExceptionService;
+import com.fsd.dispatch.service.DispatchRouteService;
 import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.dispatch.service.ParkPilotService;
 import com.fsd.dispatch.vo.DispatchFleetMetricsResponse;
@@ -45,6 +47,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
     private final FleetRuntimeService fleetRuntimeService;
     private final FleetChargePolicy fleetChargePolicy;
     private final OrderMapper orderMapper;
+    private final DispatchRouteService dispatchRouteService;
 
     public DispatchAdminQueryServiceImpl(DispatchTaskMapper dispatchTaskMapper,
                                          DispatchExceptionRecordMapper exceptionRecordMapper,
@@ -53,7 +56,8 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
                                          ParkPilotService parkPilotService,
                                          FleetRuntimeService fleetRuntimeService,
                                          FleetChargePolicy fleetChargePolicy,
-                                         OrderMapper orderMapper) {
+                                         OrderMapper orderMapper,
+                                         DispatchRouteService dispatchRouteService) {
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.exceptionRecordMapper = exceptionRecordMapper;
         this.dispatchTaskService = dispatchTaskService;
@@ -62,6 +66,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
         this.fleetRuntimeService = fleetRuntimeService;
         this.fleetChargePolicy = fleetChargePolicy;
         this.orderMapper = orderMapper;
+        this.dispatchRouteService = dispatchRouteService;
     }
 
     @Override
@@ -148,6 +153,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
         int assignable = 0;
         int pluggedStandby = 0;
         int charging = 0;
+        int swapping = 0;
         int online = 0;
         for (ParkVehicleSnapshotResponse vehicle : vehicles) {
             if ("ONLINE".equals(vehicle.getOnlineStatus())) {
@@ -169,6 +175,9 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
                 if (fleetChargePolicy.isActivelyCharging(runtime.getRuntimeStage())) {
                     charging++;
                 }
+                if (fleetChargePolicy.isActivelySwapping(runtime.getRuntimeStage())) {
+                    swapping++;
+                }
             } else if (Boolean.TRUE.equals(vehicle.getCharging())) {
                 charging++;
             }
@@ -177,6 +186,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
                 .assignableVehicleCount(assignable)
                 .pluggedStandbyCount(pluggedStandby)
                 .chargingCount(charging)
+                .swappingCount(swapping)
                 .onlineVehicleCount(online)
                 .build();
     }
@@ -256,6 +266,13 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
                             task, openByTaskId.getOrDefault(task.getTaskId(), List.of()));
                     OrderEntity order = orderById.get(task.getOrderId());
                     enriched.setOrderPriority(order == null ? "P2" : order.getPriority());
+                    if (order != null && order.getRouteId() != null) {
+                        enriched.setRouteId(order.getRouteId());
+                        dispatchRouteService.findRoute(order.getRouteId()).ifPresent(route -> {
+                            enriched.setRouteCode(route.getRouteCode());
+                            enriched.setRouteName(route.getRouteName());
+                        });
+                    }
                     LocalDateTime baseTime = task.getCreatedAt() != null ? task.getCreatedAt() : now;
                     enriched.setWaitMinutes(Math.max(0, Duration.between(baseTime, now).toMinutes()));
                     return enriched;

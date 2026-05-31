@@ -51,4 +51,24 @@ public class AdminAuthController {
         adminAuthService.changePassword(context.getUserId(), request);
         return ApiResponse.success(null);
     }
+
+    @PostMapping("/totp/enroll")
+    public ApiResponse<java.util.Map<String, String>> enrollTotp(HttpServletRequest request) {
+        AdminAuthContext context = AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(adminAuthService.enrollTotp(context.getUserId()));
+    }
+
+    @PostMapping("/totp/enable")
+    public ApiResponse<Void> enableTotp(@RequestBody java.util.Map<String, String> body, HttpServletRequest request) {
+        AdminAuthContext context = AdminAuthSupport.requireAuth(request);
+        adminAuthService.enableTotp(context.getUserId(), body.get("code"));
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/totp/disable")
+    public ApiResponse<Void> disableTotp(@RequestBody java.util.Map<String, String> body, HttpServletRequest request) {
+        AdminAuthContext context = AdminAuthSupport.requireAuth(request);
+        adminAuthService.disableTotp(context.getUserId(), body.get("code"));
+        return ApiResponse.success(null);
+    }
 }

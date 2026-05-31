@@ -1,5 +1,7 @@
 package com.fsd.dispatch.fleet.simulation;
 
+import com.fsd.common.enums.VehicleLinkMode;
+import com.fsd.dispatch.fleet.FleetAdapter;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.model.FleetTrajectoryPoint;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
@@ -11,12 +13,17 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
-public class SimulationFleetAdapter {
+public class SimulationFleetAdapter implements FleetAdapter {
 
     private final FleetRuntimeService fleetRuntimeService;
 
     public SimulationFleetAdapter(FleetRuntimeService fleetRuntimeService) {
         this.fleetRuntimeService = fleetRuntimeService;
+    }
+
+    @Override
+    public VehicleLinkMode supportedLinkMode() {
+        return VehicleLinkMode.SIM;
     }
 
     public void publishTelemetry(VehicleEntity vehicle, SimulationMotionState motion) {

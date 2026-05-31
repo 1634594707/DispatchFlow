@@ -18,5 +18,11 @@ public class AdminAnalyticsChargingOverviewResponse {
 
     private double avgChargeSpeedPerHour;
 
+    private long activeSwapSessionCount;
+
+    private double totalChargeDurationMinutes;
+
+    private double totalSwapDurationMinutes;
+
     private List<AdminAnalyticsChargingHistoryItem> recentHistory;
 }

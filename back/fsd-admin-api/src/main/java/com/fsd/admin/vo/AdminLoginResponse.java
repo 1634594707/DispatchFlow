@@ -9,5 +9,7 @@ public class AdminLoginResponse {
 
     private String token;
 
+    private boolean requiresTotp;
+
     private AdminUserResponse user;
 }

@@ -36,6 +36,8 @@ public class AdminStationUpsertRequest {
 
     private Integer sortOrder;
 
+    private Integer capacityLimit;
+
     @Size(max = 255, message = "备注不能超过 255 位")
     private String remark;
 }

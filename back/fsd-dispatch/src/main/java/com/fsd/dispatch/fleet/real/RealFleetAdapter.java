@@ -1,9 +1,12 @@
 package com.fsd.dispatch.fleet.real;
 
+import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.dispatch.dto.VehicleTelemetryRequest;
+import com.fsd.dispatch.fleet.FleetAdapter;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.model.FleetTrajectoryPoint;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
+import com.fsd.dispatch.service.FleetTelemetryPersistenceService;
 import com.fsd.vehicle.entity.VehicleEntity;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -12,16 +15,28 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 @Component
-public class RealFleetAdapter {
+public class RealFleetAdapter implements FleetAdapter {
 
     private final FleetRuntimeService fleetRuntimeService;
+    private final FleetTelemetryPersistenceService telemetryPersistenceService;
+    private final RealFleetSwapCoordinator swapCoordinator;
 
-    public RealFleetAdapter(FleetRuntimeService fleetRuntimeService) {
+    public RealFleetAdapter(FleetRuntimeService fleetRuntimeService,
+                            FleetTelemetryPersistenceService telemetryPersistenceService,
+                            RealFleetSwapCoordinator swapCoordinator) {
         this.fleetRuntimeService = fleetRuntimeService;
+        this.telemetryPersistenceService = telemetryPersistenceService;
+        this.swapCoordinator = swapCoordinator;
+    }
+
+    @Override
+    public VehicleLinkMode supportedLinkMode() {
+        return VehicleLinkMode.REAL;
     }
 
     public void ingestTelemetry(VehicleEntity vehicle, VehicleTelemetryRequest request) {
         FleetRuntime existing = fleetRuntimeService.get(vehicle.getId()).orElse(null);
+        swapCoordinator.onTelemetry(vehicle, request, existing);
         List<FleetTrajectoryPoint> trajectory = appendTrajectory(existing, request);
         FleetRuntime runtime = FleetRuntime.builder()
                 .vehicleId(vehicle.getId())
@@ -36,6 +51,15 @@ public class RealFleetAdapter {
                 .trajectory(trajectory)
                 .build();
         fleetRuntimeService.save(runtime);
+        if (request.getX() != null && request.getY() != null) {
+            telemetryPersistenceService.persistPoint(
+                    vehicle.getId(),
+                    null,
+                    request.getX(),
+                    request.getY(),
+                    request.getSoc(),
+                    request.getReportTime());
+        }
     }
 
     private List<FleetTrajectoryPoint> appendTrajectory(FleetRuntime existing, VehicleTelemetryRequest request) {

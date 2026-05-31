@@ -68,14 +68,9 @@
             <template v-else-if="column.key === 'actions'">
               <a-space>
                 <a-button type="link" size="small" @click="openSegmentEdit(record)">编辑</a-button>
-                <a-popconfirm
-                  :title="record.status === 'ACTIVE' ? '确定禁用该路段？' : '确定启用该路段？'"
-                  @confirm="handleToggleSegment(record.id)"
-                >
-                  <a-button type="link" size="small">
-                    {{ record.status === 'ACTIVE' ? '禁用' : '启用' }}
-                  </a-button>
-                </a-popconfirm>
+                <a-button type="link" size="small" @click="confirmToggleSegment(record)">
+                  {{ record.status === 'ACTIVE' ? '禁用' : '启用' }}
+                </a-button>
               </a-space>
             </template>
           </template>
@@ -83,8 +78,17 @@
       </a-tab-pane>
     </a-tabs>
 
-    <a-card v-if="filterParkId && mapPoints.length > 0" title="路网地图预览" size="small" style="margin-top: 16px;">
-      <ParkInfraPreview :park-id="filterParkId" :points="mapPoints" :segments="mapSegments" :height="320" />
+    <a-card v-if="filterParkId && mapPoints.length > 0" title="路网地图预览（可拖拽节点）" size="small" style="margin-top: 16px;">
+      <ParkInfraPreview
+        :park-id="filterParkId"
+        :points="mapPoints"
+        :segments="mapSegments"
+        :height="320"
+        pickable
+        draggable
+        @pick="onMapPick"
+        @node-move="onNodeDrag"
+      />
     </a-card>
 
     <a-modal
@@ -168,7 +172,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import ParkInfraPreview from '@/components/infrastructure/ParkInfraPreview.vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
+import * as trafficApi from '@/api/traffic'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { useParkOptions } from '@/composables/useParkOptions'
@@ -385,6 +390,65 @@ async function handleSegmentSave() {
   } finally {
     saving.value = false
   }
+}
+
+async function confirmToggleSegment(record: AdminRoadSegment) {
+  if (record.status !== 'ACTIVE') {
+    await handleToggleSegment(record.id)
+    return
+  }
+  try {
+    const impact = (await trafficApi.fetchSegmentImpact(record.id)).data
+    const hints = (impact.alternativePathHints || []).map((h) => `· ${h}`).join('\n')
+    Modal.confirm({
+      title: '确认禁用路段',
+      content: `影响进行中任务约 ${impact.affectedTaskCount} 个；可能不可达站点 ${impact.unreachableStationCount} 个。\n${hints}`,
+      async onOk() {
+        await handleToggleSegment(record.id)
+      },
+    })
+  } catch {
+    Modal.confirm({
+      title: '确认禁用路段',
+      content: '无法获取影响评估，仍要禁用该路段吗？',
+      async onOk() {
+        await handleToggleSegment(record.id)
+      },
+    })
+  }
+}
+
+function onMapPick(x: number, y: number) {
+  if (activeTab.value === 'nodes' && nodeModalOpen.value) {
+    nodeForm.coordX = Math.round(x)
+    nodeForm.coordY = Math.round(y)
+    message.success(`已选坐标 (${nodeForm.coordX}, ${nodeForm.coordY})`)
+  }
+}
+
+const dragSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function onNodeDrag(code: string, x: number, y: number) {
+  const node = nodes.value.find((n) => n.nodeCode === code)
+  if (!node) return
+  node.coordX = x
+  node.coordY = y
+  const existing = dragSaveTimers.get(code)
+  if (existing) clearTimeout(existing)
+  dragSaveTimers.set(code, setTimeout(async () => {
+    try {
+      await infraApi.updateRoadNode(node.id, {
+        parkId: node.parkId,
+        nodeCode: node.nodeCode,
+        coordX: x,
+        coordY: y,
+        status: node.status,
+        remark: node.remark,
+      })
+    } catch {
+      message.error(`节点 ${code} 保存失败`)
+    }
+  }, 400))
 }
 
 async function handleToggleSegment(segmentId: number) {

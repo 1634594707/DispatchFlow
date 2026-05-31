@@ -9,6 +9,8 @@ public interface DispatchExceptionService {
 
     void recordException(Long taskId, Long orderId, Long vehicleId, String exceptionType, String exceptionMsg, String severity);
 
+    void recordVehicleException(Long vehicleId, String exceptionType, String exceptionMsg);
+
     void resolveException(Long exceptionId, DispatchExceptionResolveRequest request);
 
     void resolveOpenExceptionsForTask(Long taskId, String resolverId, String remark);

@@ -1,6 +1,8 @@
 package com.fsd.admin.controller;
 
 import com.fsd.admin.service.AnalyticsAdminService;
+import com.fsd.admin.vo.AdminPeakCompareResponse;
+import com.fsd.admin.vo.AdminAnalyticsChainKpiResponse;
 import com.fsd.admin.vo.AdminAnalyticsChargingOverviewResponse;
 import com.fsd.admin.vo.AdminAnalyticsDailySummaryResponse;
 import com.fsd.admin.vo.AdminAnalyticsEfficiencyResponse;
@@ -60,6 +62,31 @@ public class AdminAnalyticsController {
     public ApiResponse<List<AdminAnalyticsParkCompareItem>> parkComparison(
             @RequestParam(defaultValue = "week") String period) {
         return ApiResponse.success(analyticsAdminService.getParkComparison(period));
+    }
+
+    @GetMapping("/chain-kpi")
+    public ApiResponse<AdminAnalyticsChainKpiResponse> chainKpi(
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(analyticsAdminService.getChainKpi(period, parkId));
+    }
+
+    @GetMapping("/peak-compare")
+    public ApiResponse<AdminPeakCompareResponse> peakCompare(
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(analyticsAdminService.getPeakCompare(period, parkId));
+    }
+
+    @GetMapping("/export/pdf")
+    public void exportPdf(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                          @RequestParam(required = false) Long parkId,
+                          HttpServletResponse response) throws IOException {
+        byte[] pdf = analyticsAdminService.exportPdf(date, parkId);
+        String filename = "daily-report-" + (date == null ? LocalDate.now() : date) + ".pdf";
+        response.setContentType(MediaType.APPLICATION_PDF_VALUE);
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
+        response.getOutputStream().write(pdf);
     }
 
     @GetMapping("/export/csv")

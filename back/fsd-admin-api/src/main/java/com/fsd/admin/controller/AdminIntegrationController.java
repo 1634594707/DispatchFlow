@@ -4,6 +4,7 @@ import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.dto.AdminWebhookUpsertRequest;
 import com.fsd.admin.service.IntegrationAdminService;
 import com.fsd.admin.vo.AdminExternalApiKeyResponse;
+import com.fsd.admin.vo.AdminWebhookDeliveryLogResponse;
 import com.fsd.admin.vo.AdminWebhookResponse;
 import com.fsd.common.model.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,6 +41,14 @@ public class AdminIntegrationController {
                                                          HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         return ApiResponse.success(integrationAdminService.saveWebhook(body));
+    }
+
+    @GetMapping("/webhooks/{id}/deliveries")
+    public ApiResponse<List<AdminWebhookDeliveryLogResponse>> listDeliveries(@PathVariable Long id,
+                                                                             @RequestParam(defaultValue = "50") int limit,
+                                                                             HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        return ApiResponse.success(integrationAdminService.listDeliveryLogs(id, limit));
     }
 
     @DeleteMapping("/webhooks/{id}")

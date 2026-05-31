@@ -21,10 +21,10 @@
     </div>
 
     <a-alert
-      type="warning"
+      type="info"
       show-icon
-      message="当前为估算态势，非引擎级回放"
-      description="车辆位置与仿真推演基于实时快照与规则估算；引擎级仿真与历史回放见 Phase 12。"
+      message="态势为实时快照；仿真支持引擎 dry-run 与规则估算"
+      description="仿真结果将标注「引擎仿真」或「估算仿真」。历史轨迹回放请至车辆详情。"
       class="estimate-alert"
     />
 
@@ -44,7 +44,12 @@
       class="simulate-alert"
     >
       <template #description>
-        <p>预计耗时 {{ simulateResult.estimatedMinutes }} 分钟 · 建议投入 {{ simulateResult.recommendedVehicleCount }} 台车</p>
+        <p>
+          <a-tag :color="simulateResult.simulationMode === 'ENGINE' ? 'green' : 'orange'">
+            {{ simulateResult.simulationMode === 'ENGINE' ? '引擎仿真' : '估算仿真' }}
+          </a-tag>
+          预计耗时 {{ simulateResult.estimatedMinutes }} 分钟 · 建议投入 {{ simulateResult.recommendedVehicleCount }} 台车
+        </p>
         <ul>
           <li v-for="(note, i) in simulateResult.notes" :key="i">{{ note }}</li>
         </ul>
@@ -78,6 +83,7 @@ const hasLayout = computed(() => Boolean(snapshot.value?.layout?.width && snapsh
 
 const scenarioOptions = [
   { label: '派车高峰', value: 'DISPATCH_PEAK' },
+  { label: '家纺旺季', value: 'TEXTILE_PEAK' },
   { label: '充电高峰', value: 'CHARGING_SURGE' },
   { label: '异常风暴', value: 'EXCEPTION_STORM' },
 ]

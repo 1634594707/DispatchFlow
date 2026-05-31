@@ -14,8 +14,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => user.value?.role === 'ADMIN')
+  const isFieldOps = computed(() => user.value?.role === 'FIELD_OPS')
   const isOperator = computed(() => user.value?.role === 'OPERATOR' || isAdmin.value)
   const canWrite = computed(() => user.value?.role !== 'VIEWER')
+  const fieldOpsCanWrite = computed(() => isFieldOps.value || isOperator.value)
   const displayName = computed(() => user.value?.displayName || user.value?.username || '管理员')
 
   function readStoredUser(): AdminUser | null {
@@ -42,10 +44,13 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(USER_KEY)
   }
 
-  async function login(username: string, password: string) {
+  async function login(username: string, password: string, totpCode?: string) {
     loading.value = true
     try {
-      const result = await authApi.login(username, password)
+      const result = await authApi.login(username, password, totpCode)
+      if (result.data.requiresTotp && !result.data.token) {
+        return result
+      }
       persistSession(result.data.token, result.data.user)
       return result
     } finally {
@@ -91,8 +96,10 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     isAuthenticated,
     isAdmin,
+    isFieldOps,
     isOperator,
     canWrite,
+    fieldOpsCanWrite,
     displayName,
     login,
     logout,

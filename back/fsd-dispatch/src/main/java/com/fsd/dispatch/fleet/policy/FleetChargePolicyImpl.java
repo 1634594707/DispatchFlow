@@ -47,6 +47,11 @@ public class FleetChargePolicyImpl implements FleetChargePolicy {
         return "TO_CHARGING".equals(runtimeStage) || "CHARGING".equals(runtimeStage);
     }
 
+    @Override
+    public boolean isActivelySwapping(String runtimeStage) {
+        return "TO_SWAP".equals(runtimeStage) || "SWAPPING".equals(runtimeStage);
+    }
+
     private int normalizeSoc(Integer batteryLevel) {
         return batteryLevel == null ? fleetEnergyProperties.getFullSoc() : batteryLevel;
     }

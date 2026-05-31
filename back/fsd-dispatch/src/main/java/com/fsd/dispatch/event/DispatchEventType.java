@@ -12,6 +12,8 @@ public final class DispatchEventType {
     public static final String TASK_CANCELLED = "dispatch.task.cancelled";
     public static final String EXCEPTION_OPEN = "dispatch.exception.open";
     public static final String EXCEPTION_RESOLVED = "dispatch.exception.resolved";
+    public static final String HUB_ARRIVAL = "dispatch.hub.arrival";
+    public static final String HUB_DEPARTURE = "dispatch.hub.departure";
 
     private DispatchEventType() {
     }

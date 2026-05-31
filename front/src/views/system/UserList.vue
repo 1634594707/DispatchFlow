@@ -102,6 +102,7 @@ const columns = [
 const roleOptions = [
   { label: '观察员 (VIEWER)', value: 'VIEWER' },
   { label: '调度员 (OPERATOR)', value: 'OPERATOR' },
+  { label: '现场运维 (FIELD_OPS)', value: 'FIELD_OPS' },
   { label: '管理员 (ADMIN)', value: 'ADMIN' },
 ]
 
@@ -114,6 +115,7 @@ function roleLabel(role: string) {
   const map: Record<string, string> = {
     VIEWER: '观察员',
     OPERATOR: '调度员',
+    FIELD_OPS: '现场运维',
     ADMIN: '管理员',
   }
   return map[role] || role
@@ -123,6 +125,7 @@ function roleColor(role: string) {
   const map: Record<string, string> = {
     VIEWER: 'default',
     OPERATOR: 'processing',
+    FIELD_OPS: 'orange',
     ADMIN: 'cyan',
   }
   return map[role] || 'default'

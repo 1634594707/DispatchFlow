@@ -3,6 +3,7 @@ package com.fsd.dispatch.service.impl;
 import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.dto.VehicleTelemetryRequest;
+import com.fsd.dispatch.fleet.FleetAdapterRegistry;
 import com.fsd.dispatch.fleet.real.RealFleetAdapter;
 import com.fsd.dispatch.infra.VehicleTelemetryIdempotencyService;
 import com.fsd.dispatch.service.VehicleGatewayService;
@@ -19,16 +20,16 @@ public class VehicleGatewayServiceImpl implements VehicleGatewayService {
 
     private final VehicleService vehicleService;
     private final VehicleReportService vehicleReportService;
-    private final RealFleetAdapter realFleetAdapter;
+    private final FleetAdapterRegistry fleetAdapterRegistry;
     private final VehicleTelemetryIdempotencyService telemetryIdempotencyService;
 
     public VehicleGatewayServiceImpl(VehicleService vehicleService,
                                      VehicleReportService vehicleReportService,
-                                     RealFleetAdapter realFleetAdapter,
+                                     FleetAdapterRegistry fleetAdapterRegistry,
                                      VehicleTelemetryIdempotencyService telemetryIdempotencyService) {
         this.vehicleService = vehicleService;
         this.vehicleReportService = vehicleReportService;
-        this.realFleetAdapter = realFleetAdapter;
+        this.fleetAdapterRegistry = fleetAdapterRegistry;
         this.telemetryIdempotencyService = telemetryIdempotencyService;
     }
 
@@ -40,7 +41,8 @@ public class VehicleGatewayServiceImpl implements VehicleGatewayService {
         }
         VehicleEntity vehicle = vehicleService.getByVehicleCode(request.getVehicleCode());
         assertRealVehicle(vehicle);
-        realFleetAdapter.ingestTelemetry(vehicle, request);
+        RealFleetAdapter adapter = fleetAdapterRegistry.require(VehicleLinkMode.REAL, RealFleetAdapter.class);
+        adapter.ingestTelemetry(vehicle, request);
         vehicle.setBatteryLevel(request.getSoc());
         vehicle.setCurrentLatitude(request.getY());
         vehicle.setCurrentLongitude(request.getX());

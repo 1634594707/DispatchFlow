@@ -33,6 +33,7 @@ import com.fsd.dispatch.infra.DispatchLockService;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
 
 import com.fsd.dispatch.service.DispatchExceptionService;
+import com.fsd.dispatch.service.DispatchPauseControlService;
 
 import com.fsd.dispatch.service.ParkingFacilityService;
 
@@ -108,6 +109,8 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
     private final VehicleCommandService vehicleCommandService;
 
+    private final DispatchPauseControlService dispatchPauseControlService;
+
 
 
     public DispatchTaskServiceImpl(DispatchTaskMapper dispatchTaskMapper,
@@ -130,7 +133,8 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
                                    DispatchEventPublisher eventPublisher,
 
-                                   VehicleCommandService vehicleCommandService) {
+                                   VehicleCommandService vehicleCommandService,
+                                   DispatchPauseControlService dispatchPauseControlService) {
 
         this.dispatchTaskMapper = dispatchTaskMapper;
 
@@ -153,6 +157,8 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
         this.eventPublisher = eventPublisher;
 
         this.vehicleCommandService = vehicleCommandService;
+
+        this.dispatchPauseControlService = dispatchPauseControlService;
 
     }
 
@@ -251,6 +257,9 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
             DispatchAssignResult assignResult;
 
             try {
+                if (dispatchPauseControlService.isDispatchPaused(orderEntity.getParkId())) {
+                    throw new BusinessException("DISPATCH_PAUSED", "当前园区已暂停新派单");
+                }
 
                 assignResult = dispatchVehicleAssignService.selectBestVehicle(orderEntity);
 

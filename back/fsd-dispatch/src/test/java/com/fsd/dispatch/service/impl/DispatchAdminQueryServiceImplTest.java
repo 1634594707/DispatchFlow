@@ -40,6 +40,8 @@ class DispatchAdminQueryServiceImplTest {
     private com.fsd.dispatch.fleet.policy.FleetChargePolicy fleetChargePolicy;
     @Mock
     private com.fsd.order.mapper.OrderMapper orderMapper;
+    @Mock
+    private com.fsd.dispatch.service.DispatchRouteService dispatchRouteService;
 
     @InjectMocks
     private DispatchAdminQueryServiceImpl dispatchAdminQueryService;

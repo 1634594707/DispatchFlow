@@ -10,6 +10,7 @@ export interface DispatchStrategyProfile {
   weightPluggedStandbyBonus: number
   minAssignableSoc: number
   fullSoc: number
+  energyRecoveryMode?: string
   remark?: string
   updatedAt?: string
 }
@@ -24,6 +25,7 @@ export interface DispatchStrategyUpsertPayload {
   weightPluggedStandbyBonus: number
   minAssignableSoc: number
   fullSoc: number
+  energyRecoveryMode?: string
   remark?: string
 }
 

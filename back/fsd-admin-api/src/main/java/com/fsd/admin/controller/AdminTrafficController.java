@@ -4,6 +4,7 @@ import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.dto.AdminTrafficPauseZoneRequest;
 import com.fsd.admin.service.TrafficAdminService;
 import com.fsd.admin.vo.AdminTrafficPauseZoneResponse;
+import com.fsd.admin.vo.AdminTrafficSegmentImpactResponse;
 import com.fsd.admin.vo.AdminTrafficSegmentResponse;
 import com.fsd.admin.vo.AdminTrafficSummaryResponse;
 import com.fsd.common.model.ApiResponse;
@@ -46,6 +47,13 @@ public class AdminTrafficController {
         AdminAuthSupport.requireAdmin(request);
         trafficAdminService.refreshCongestion(parkId);
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/segments/{segmentId}/impact")
+    public ApiResponse<AdminTrafficSegmentImpactResponse> segmentImpact(@PathVariable Long segmentId,
+                                                                      HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        return ApiResponse.success(trafficAdminService.getSegmentImpact(segmentId));
     }
 
     @PostMapping("/segments/{segmentId}/disable")

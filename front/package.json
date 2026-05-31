@@ -7,8 +7,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "build:analyze": "vue-tsc --noEmit && vite build --mode analyze",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "perf:lighthouse": "node scripts/perf/lighthouse-routes.mjs",
+    "perf:nav": "playwright test",
+    "perf:all": "npm run build && npm run perf:lighthouse && npm run perf:nav"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
@@ -21,9 +25,14 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@types/leaflet": "^1.9.21",
     "@vitejs/plugin-vue": "^5.2.3",
+    "chrome-launcher": "^1.2.0",
     "less": "^4.2.1",
+    "lighthouse": "^12.6.0",
+    "puppeteer-core": "^24.8.2",
+    "rollup-plugin-visualizer": "^5.14.0",
     "typescript": "~5.7.0",
     "vite": "^6.3.5",
     "vue-tsc": "^2.2.0"

@@ -121,13 +121,11 @@
             <a-empty v-else description="暂无健康数据" />
           </a-tab-pane>
 
-          <a-tab-pane v-if="authStore.isAdmin" key="trajectory" tab="轨迹回放">
-            <div class="tab-toolbar">
-              <a-button size="small" :loading="trajectoryLoading" @click="loadTrajectory">刷新轨迹</a-button>
-              <a-button size="small" @click="exportTrajectory">导出 CSV</a-button>
+          <a-tab-pane v-if="authStore.isOperator" key="trajectory" tab="轨迹回放">
+            <TrajectoryReplayPanel :vehicle-id="Number(route.params.vehicleId)" />
+            <div v-if="authStore.isAdmin" class="tab-toolbar" style="margin-top: 8px;">
+              <a-button size="small" @click="exportTrajectory">导出 CSV（ADMIN）</a-button>
             </div>
-            <canvas ref="trajectoryCanvas" class="trajectory-canvas" height="320" />
-            <p v-if="trajectoryPoints.length === 0" class="text-muted">暂无轨迹点（Redis 运行时缓存）</p>
           </a-tab-pane>
 
           <a-tab-pane v-if="authStore.isAdmin" key="maintenance" tab="维护记录">
@@ -178,6 +176,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import dayjs, { type Dayjs } from 'dayjs'
 import PageContainer from '@/components/common/PageContainer.vue'
+import TrajectoryReplayPanel from '@/components/vehicle/TrajectoryReplayPanel.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useVehicleStore } from '@/stores/vehicle'
 import { useAuthStore } from '@/stores/auth'
@@ -311,8 +310,14 @@ function drawTrajectory() {
   ctx.fill()
 }
 
-function exportTrajectory() {
-  const rows = ['x,y,soc,ts', ...trajectoryPoints.value.map((p) => `${p.x},${p.y},${p.soc ?? ''},${p.ts ?? ''}`)]
+async function exportTrajectory() {
+  const vehicleId = Number(route.params.vehicleId)
+  const points = (await fetchVehicleTrajectory(vehicleId, {
+    source: 'history',
+    from: dayjs().subtract(24, 'hour').toISOString(),
+    to: dayjs().toISOString(),
+  })).data
+  const rows = ['x,y,soc,ts', ...points.map((p) => `${p.x},${p.y},${p.soc ?? ''},${p.ts ?? ''}`)]
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

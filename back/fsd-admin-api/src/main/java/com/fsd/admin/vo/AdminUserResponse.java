@@ -18,6 +18,8 @@ public class AdminUserResponse {
 
     private String status;
 
+    private Boolean totpEnabled;
+
     private LocalDateTime lastLoginAt;
 
     private LocalDateTime createdAt;

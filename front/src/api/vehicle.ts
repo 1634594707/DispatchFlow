@@ -93,9 +93,31 @@ export function fetchVehicleHealth(vehicleId: number) {
   return request.get<any, ApiResponse<VehicleHealth>>(`/admin/vehicles/manage/${vehicleId}/health`)
 }
 
-export function fetchVehicleTrajectory(vehicleId: number) {
+export function fetchVehicleTrajectory(
+  vehicleId: number,
+  opts?: { source?: string; from?: string; to?: string },
+) {
   return request.get<any, ApiResponse<VehicleTrajectoryPoint[]>>(
     `/admin/vehicles/manage/${vehicleId}/trajectory`,
+    { params: opts },
+  )
+}
+
+export interface VehicleTrajectoryDwell {
+  startTime?: string
+  endTime?: string
+  x: number
+  y: number
+  durationMinutes: number
+}
+
+export function fetchVehicleTrajectoryDwell(
+  vehicleId: number,
+  opts?: { from?: string; to?: string },
+) {
+  return request.get<any, ApiResponse<VehicleTrajectoryDwell[]>>(
+    `/admin/vehicles/manage/${vehicleId}/trajectory/dwell`,
+    { params: opts },
   )
 }
 

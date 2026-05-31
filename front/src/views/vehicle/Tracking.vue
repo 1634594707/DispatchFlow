@@ -33,7 +33,25 @@
           </div>
           <p class="header-sub">
             {{ activeParkName }} · {{ currentTime }}
-            <span class="mode-placeholder">· 模式：生产（高峰模式 Phase 14）</span>
+            <span class="mode-toggle">
+              模式：{{ peakModeLabel }}
+              <a-switch
+                v-if="authStore.isAdmin"
+                v-model:checked="peakEnabled"
+                size="small"
+                checked-children="高峰"
+                un-checked-children="日常"
+                @change="onPeakModeChange"
+              />
+              <a-switch
+                v-model:checked="opsMode"
+                size="small"
+                checked-children="运维"
+                un-checked-children="常规"
+                style="margin-left: 8px"
+                @change="loadOpsSnapshot"
+              />
+            </span>
             <span v-if="streamConnected && lastStreamLatencyMs != null" class="stream-latency">
               · 推送延迟 {{ formatStreamLatency(lastStreamLatencyMs) }}
             </span>
@@ -79,6 +97,27 @@
           <button class="filter-chip filter-chip-layer" :class="{ active: showChargeLayer }" @click="toggleChargeLayer">
             充电图层
           </button>
+        </div>
+
+        <div v-if="opsMode && opsSnapshot" class="ops-panel">
+          <section class="panel-section">
+            <div class="section-head"><span class="section-title">低电簇</span></div>
+            <div v-for="c in opsSnapshot.lowBatteryClusters" :key="c.gridKey" class="ops-line">
+              {{ c.gridKey }} · {{ c.vehicleCount }} 台 · 最低 {{ c.minSoc }}%
+            </div>
+          </section>
+          <section class="panel-section">
+            <div class="section-head"><span class="section-title">离线 &gt;5min</span></div>
+            <div v-for="v in opsSnapshot.offlineVehicles" :key="v.vehicleId" class="ops-line">
+              {{ v.vehicleCode }} · {{ v.offlineMinutes }} 分
+            </div>
+          </section>
+          <section class="panel-section">
+            <div class="section-head"><span class="section-title">枢纽排队</span></div>
+            <div v-for="t in opsSnapshot.hubQueuedTasks" :key="t.taskId" class="ops-line">
+              {{ t.hubStationName }} · {{ t.taskNo }}
+            </div>
+          </section>
         </div>
 
         <div class="panel-body">
@@ -254,7 +293,9 @@ import 'dayjs/locale/zh-cn'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { getParkLayout, getParkOrders, getParkVehicles } from '@/api/park'
 import { getFleetTelemetryStreamUrl } from '@/api/dispatch'
+import { fetchPeakMode, updatePeakMode, fetchOpsSnapshot, type OpsSnapshot } from '@/api/vertical'
 import { useParkScopeStore } from '@/stores/parkScope'
+import { useAuthStore } from '@/stores/auth'
 import { createSSEClient } from '@/utils/sseClient'
 import type { SSEClient } from '@/types/stream'
 import type {
@@ -269,6 +310,11 @@ dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
 const parkScope = useParkScopeStore()
+const authStore = useAuthStore()
+const peakEnabled = ref(false)
+const peakTemplateCode = ref('DAILY')
+const opsMode = ref(false)
+const opsSnapshot = ref<OpsSnapshot | null>(null)
 
 const mapContainer = ref<HTMLElement>()
 const panelCollapsed = ref(false)
@@ -297,6 +343,46 @@ const activeParkName = computed(() => {
   const park = parkScope.parks.find((item) => item.parkId === effectiveParkId.value)
   return park?.parkName || parkLayout.value?.parkName || '默认园区'
 })
+
+const peakModeLabel = computed(() =>
+  peakEnabled.value
+    ? `高峰 · ${peakTemplateCode.value === 'TEXTILE_PROMO' ? '家纺大促' : peakTemplateCode.value}`
+    : '日常生产',
+)
+
+async function loadPeakModeState() {
+  const parkId = effectiveParkId.value
+  if (!parkId) return
+  try {
+    const state = (await fetchPeakMode(parkId)).data
+    peakEnabled.value = state.mode === 'PEAK'
+    peakTemplateCode.value = state.templateCode || 'DAILY'
+  } catch {
+    peakEnabled.value = false
+  }
+}
+
+async function onPeakModeChange(checked: boolean) {
+  const parkId = effectiveParkId.value
+  if (!parkId || !authStore.isAdmin) return
+  await updatePeakMode({
+    parkId,
+    mode: checked ? 'PEAK' : 'NORMAL',
+    templateCode: peakTemplateCode.value,
+  })
+}
+
+async function loadOpsSnapshot() {
+  if (!opsMode.value) {
+    opsSnapshot.value = null
+    return
+  }
+  try {
+    opsSnapshot.value = (await fetchOpsSnapshot(effectiveParkId.value ?? undefined)).data
+  } catch {
+    opsSnapshot.value = null
+  }
+}
 
 let map: L.Map | null = null
 let markersLayer: L.LayerGroup | null = null
@@ -796,7 +882,7 @@ async function bootstrapData() {
     }
     parkScope.ensureValidSelection()
     await fetchLayout()
-    await Promise.all([fetchVehicles(), fetchOrders()])
+    await Promise.all([fetchVehicles(), fetchOrders(), loadPeakModeState()])
     backendOnline.value = true
   } catch {
     backendOnline.value = false
@@ -1857,5 +1943,16 @@ onUnmounted(() => {
   .filter-chip-layer {
     margin-left: 0;
   }
+}
+.ops-panel {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  max-height: 220px;
+  overflow: auto;
+}
+.ops-line {
+  font-size: 12px;
+  color: #8b949e;
+  padding: 2px 0;
 }
 </style>

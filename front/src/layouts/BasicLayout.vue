@@ -37,84 +37,11 @@
         mode="inline"
         @click="handleMenuClick"
       >
-        <a-menu-item key="workbench">
-          <template #icon>
-            <a-badge
-              :count="workbenchBadgeCount"
-              :offset="[6, 0]"
-              :overflow-count="99"
-            >
-              <ControlOutlined />
-            </a-badge>
-          </template>
-          <span>调度工作台</span>
-        </a-menu-item>
-        <a-menu-item key="dashboard">
-          <template #icon><DashboardOutlined /></template>
-          <span>调度看板</span>
-        </a-menu-item>
-        <a-menu-item key="analytics">
-          <template #icon><LineChartOutlined /></template>
-          <span>运营分析</span>
-        </a-menu-item>
-        <a-menu-item key="orders">
-          <template #icon><FileTextOutlined /></template>
-          <span>订单管理</span>
-        </a-menu-item>
-        <a-menu-item key="tasks">
-          <template #icon><CarOutlined /></template>
-          <span>调度任务</span>
-        </a-menu-item>
-        <a-menu-item key="vehicles">
-          <template #icon><ToolOutlined /></template>
-          <span>车辆管理</span>
-        </a-menu-item>
-        <a-menu-item key="vehicle-tracking">
-          <template #icon><HeatMapOutlined /></template>
-          <span>车辆监控大屏</span>
-        </a-menu-item>
-        <a-menu-item key="exceptions">
-          <template #icon>
-            <a-badge :count="workbenchStore.openExceptionCount" :offset="[6, 0]" :overflow-count="99">
-              <AlertOutlined />
-            </a-badge>
-          </template>
-          <span>异常任务</span>
-        </a-menu-item>
-        <a-sub-menu v-if="authStore.isAdmin" key="infrastructure">
-          <template #icon><ApartmentOutlined /></template>
-          <template #title>基础设施</template>
-          <a-menu-item key="infra-parks">园区管理</a-menu-item>
-          <a-menu-item key="infra-stations">站点管理</a-menu-item>
-          <a-menu-item key="infra-parking-slots">停车位管理</a-menu-item>
-          <a-menu-item key="infra-charging-piles">充电桩管理</a-menu-item>
-          <a-menu-item key="infra-road-network">路网管理</a-menu-item>
-          <a-menu-item key="infra-traffic">交通态势</a-menu-item>
-        </a-sub-menu>
-        <a-menu-item v-if="authStore.isAdmin" key="system-users">
-          <template #icon><TeamOutlined /></template>
-          <span>用户管理</span>
-        </a-menu-item>
-        <a-menu-item v-if="authStore.isAdmin" key="system-operate-logs">
-          <template #icon><AuditOutlined /></template>
-          <span>操作日志</span>
-        </a-menu-item>
-        <a-menu-item v-if="authStore.isAdmin" key="system-dispatch-strategy">
-          <template #icon><ControlOutlined /></template>
-          <span>调度策略</span>
-        </a-menu-item>
-        <a-menu-item v-if="authStore.isAdmin" key="system-integration">
-          <template #icon><ApiOutlined /></template>
-          <span>外部集成</span>
-        </a-menu-item>
-        <a-menu-item key="digital-twin">
-          <template #icon><DeploymentUnitOutlined /></template>
-          <span>数字孪生</span>
-        </a-menu-item>
-        <a-menu-item v-if="authStore.isAdmin" key="system-health">
-          <template #icon><HeartOutlined /></template>
-          <span>系统健康</span>
-        </a-menu-item>
+        <NavMenuItems
+          :items="visibleNavItems"
+          :workbench-badge-count="workbenchBadgeCount"
+          :exception-badge-count="workbenchStore.openExceptionCount"
+        />
       </a-menu>
     </a-layout-sider>
 
@@ -279,29 +206,16 @@ import type { ExceptionAdminListItem } from '@/types/exception'
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 import {
-  ControlOutlined,
-  DashboardOutlined,
-  FileTextOutlined,
-  CarOutlined,
-  ToolOutlined,
-  AlertOutlined,
-  HeatMapOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   BellOutlined,
   ReloadOutlined,
   UserOutlined,
   LogoutOutlined,
-  TeamOutlined,
-  ApartmentOutlined,
-  LineChartOutlined,
-  AuditOutlined,
-  ApiOutlined,
   SearchOutlined,
   RobotOutlined,
-  DeploymentUnitOutlined,
-  HeartOutlined,
 } from '@ant-design/icons-vue'
+import NavMenuItems from '@/components/layout/NavMenuItems.vue'
 import CommandPalette from '@/components/command/CommandPalette.vue'
 import DispatchAssistantDrawer from '@/components/assistant/DispatchAssistantDrawer.vue'
 import { useCommandPalette, type CommandPaletteItem } from '@/composables/useCommandPalette'
@@ -312,6 +226,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useRealtimeStore } from '@/stores/realtime'
 import { useAlertStore } from '@/stores/alert'
 import { ADMIN_AUTH_ENABLED } from '@/config'
+import {
+  BREADCRUMB_PATH_MAP,
+  NAV_PARENT_KEY_MAP,
+  NAV_PATH_MAP,
+  NAVIGATION_TREE,
+  filterNavByRole,
+  resolveMenuKeyFromPath,
+} from '@/config/navigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -336,72 +258,17 @@ const workbenchBadgeCount = computed(
   () => workbenchStore.pendingCount + workbenchStore.manualPendingCount + workbenchStore.openExceptionCount
 )
 
-const menuKeyMap: Record<string, string> = {
-  '/workbench': 'workbench',
-  '/dashboard': 'dashboard',
-  '/orders': 'orders',
-  '/tasks': 'tasks',
-  '/vehicle-tracking': 'vehicle-tracking',
-  '/vehicles': 'vehicles',
-  '/exceptions': 'exceptions',
-  '/system/users': 'system-users',
-  '/system/operate-logs': 'system-operate-logs',
-  '/system/alert-settings': 'system-alert-settings',
-  '/system/dispatch-strategy': 'system-dispatch-strategy',
-  '/system/integration': 'system-integration',
-  '/analytics': 'analytics',
-  '/analytics/charging': 'analytics-charging',
-  '/infrastructure/parks': 'infra-parks',
-  '/infrastructure/stations': 'infra-stations',
-  '/infrastructure/parking-slots': 'infra-parking-slots',
-  '/infrastructure/charging-piles': 'infra-charging-piles',
-  '/infrastructure/road-network': 'infra-road-network',
-  '/infrastructure/traffic': 'infra-traffic',
-  '/digital-twin': 'digital-twin',
-  '/system/health': 'system-health',
-}
+const visibleNavItems = computed(() => filterNavByRole(NAVIGATION_TREE, authStore.user?.role))
 
 const selectedKeys = ref<string[]>(['workbench'])
 const openKeys = ref<string[]>([])
-
-const infraMenuKeys = new Set([
-  'infra-parks',
-  'infra-stations',
-  'infra-parking-slots',
-  'infra-charging-piles',
-  'infra-road-network',
-  'infra-traffic',
-])
 
 const breadcrumbItems = computed(() => {
   const meta = route.meta
   const crumbs = meta?.breadcrumb as string[] | undefined
   if (!crumbs) return []
 
-  const pathMap: Record<string, string> = {
-    '调度工作台': '/workbench',
-    '调度看板': '/dashboard',
-    '订单管理': '/orders',
-    '调度任务': '/tasks',
-    '车辆管理': '/vehicles',
-    '车辆监控大屏': '/vehicle-tracking',
-    '异常任务': '/exceptions',
-    '用户管理': '/system/users',
-    '操作日志': '/system/operate-logs',
-    '告警设置': '/system/alert-settings',
-    '运营分析': '/analytics',
-    '充电报表': '/analytics/charging',
-    '园区管理': '/infrastructure/parks',
-    '站点管理': '/infrastructure/stations',
-    '停车位管理': '/infrastructure/parking-slots',
-    '充电桩管理': '/infrastructure/charging-piles',
-    '路网管理': '/infrastructure/road-network',
-    '交通态势': '/infrastructure/traffic',
-    '调度策略': '/system/dispatch-strategy',
-    '外部集成': '/system/integration',
-    '数字孪生': '/digital-twin',
-    '系统健康': '/system/health',
-  }
+  const pathMap = BREADCRUMB_PATH_MAP
 
   return crumbs.map((label, i) => {
     const isLast = i === crumbs.length - 1
@@ -444,32 +311,9 @@ function goException() {
 }
 
 function handleMenuClick({ key }: { key: string }) {
-  const pathMap: Record<string, string> = {
-    workbench: '/workbench',
-    dashboard: '/dashboard',
-    analytics: '/analytics',
-    orders: '/orders',
-    tasks: '/tasks',
-    vehicles: '/vehicles',
-    'vehicle-tracking': '/vehicle-tracking',
-    exceptions: '/exceptions',
-    'system-users': '/system/users',
-    'system-operate-logs': '/system/operate-logs',
-    'system-alert-settings': '/system/alert-settings',
-    'analytics-charging': '/analytics/charging',
-    'infra-parks': '/infrastructure/parks',
-    'infra-stations': '/infrastructure/stations',
-    'infra-parking-slots': '/infrastructure/parking-slots',
-    'infra-charging-piles': '/infrastructure/charging-piles',
-    'infra-road-network': '/infrastructure/road-network',
-    'infra-traffic': '/infrastructure/traffic',
-    'system-dispatch-strategy': '/system/dispatch-strategy',
-    'system-integration': '/system/integration',
-    'digital-twin': '/digital-twin',
-    'system-health': '/system/health',
-  }
-  if (pathMap[key]) {
-    router.push(pathMap[key])
+  const path = NAV_PATH_MAP[key]
+  if (path) {
+    router.push(path)
   }
 }
 
@@ -511,14 +355,11 @@ async function onParkScopeChange() {
 watch(
   () => route.path,
   (path) => {
-    const key = Object.keys(menuKeyMap)
-      .sort((a, b) => b.length - a.length)
-      .find((k) => path.startsWith(k))
-    if (key) {
-      selectedKeys.value = [menuKeyMap[key]]
-      if (infraMenuKeys.has(menuKeyMap[key])) {
-        openKeys.value = ['infrastructure']
-      }
+    const menuKey = resolveMenuKeyFromPath(path)
+    if (menuKey) {
+      selectedKeys.value = [menuKey]
+      const parentKey = NAV_PARENT_KEY_MAP[menuKey]
+      openKeys.value = parentKey ? [parentKey] : []
     }
   },
   { immediate: true }

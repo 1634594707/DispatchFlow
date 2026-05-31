@@ -12,9 +12,16 @@ import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.dto.VehicleTelemetryRequest;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
+import com.fsd.dispatch.fleet.FleetAdapterRegistry;
 import com.fsd.dispatch.fleet.real.RealFleetAdapter;
+import com.fsd.dispatch.fleet.real.RealFleetSwapCoordinator;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.infra.VehicleTelemetryIdempotencyService;
+import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
+import com.fsd.dispatch.mapper.BatterySwapCabinetMapper;
+import com.fsd.dispatch.service.BatterySwapSessionService;
+import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
+import com.fsd.dispatch.service.FleetTelemetryPersistenceService;
 import com.fsd.dispatch.service.impl.VehicleGatewayServiceImpl;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.service.VehicleReportService;
@@ -24,15 +31,27 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class Phase3AcceptanceTest {
+
+    private RealFleetSwapCoordinator noopSwapCoordinator() {
+        RealFleetSwapCoordinator coordinator = new RealFleetSwapCoordinator(
+                mock(BatterySwapSessionService.class),
+                mock(BatterySwapCabinetMapper.class),
+                mock(FleetChargePolicy.class),
+                mock(DispatchStrategyRuntimeService.class));
+        ReflectionTestUtils.setField(coordinator, "defaultParkId", 1L);
+        return coordinator;
+    }
 
     @Test
     void realFleetAdapterShouldPersistTelemetry() {
         FleetRuntimeService fleetRuntimeService = mock(FleetRuntimeService.class);
         when(fleetRuntimeService.get(1L)).thenReturn(Optional.empty());
 
-        RealFleetAdapter adapter = new RealFleetAdapter(fleetRuntimeService);
+        RealFleetAdapter adapter = new RealFleetAdapter(
+                fleetRuntimeService, mock(FleetTelemetryPersistenceService.class), noopSwapCoordinator());
         adapter.ingestTelemetry(realVehicle(), telemetryRequest(1001L));
 
         ArgumentCaptor<FleetRuntime> captor = ArgumentCaptor.forClass(FleetRuntime.class);
@@ -47,10 +66,12 @@ class Phase3AcceptanceTest {
         VehicleReportService vehicleReportService = mock(VehicleReportService.class);
         FleetRuntimeService fleetRuntimeService = mock(FleetRuntimeService.class);
         VehicleTelemetryIdempotencyService idempotencyService = mock(VehicleTelemetryIdempotencyService.class);
-        RealFleetAdapter realFleetAdapter = new RealFleetAdapter(fleetRuntimeService);
+        RealFleetAdapter realFleetAdapter = new RealFleetAdapter(
+                fleetRuntimeService, mock(FleetTelemetryPersistenceService.class), noopSwapCoordinator());
+        FleetAdapterRegistry registry = new FleetAdapterRegistry(java.util.List.of(realFleetAdapter));
 
         VehicleGatewayServiceImpl gatewayService = new VehicleGatewayServiceImpl(
-                vehicleService, vehicleReportService, realFleetAdapter, idempotencyService);
+                vehicleService, vehicleReportService, registry, idempotencyService);
 
         VehicleEntity vehicle = realVehicle();
         VehicleTelemetryRequest request = telemetryRequest(2002L);
@@ -69,10 +90,15 @@ class Phase3AcceptanceTest {
     void simVehicleShouldBeRejectedByGateway() {
         VehicleService vehicleService = mock(VehicleService.class);
         VehicleTelemetryIdempotencyService idempotencyService = mock(VehicleTelemetryIdempotencyService.class);
+        RealFleetAdapter realFleetAdapter = new RealFleetAdapter(
+                mock(FleetRuntimeService.class),
+                mock(FleetTelemetryPersistenceService.class),
+                noopSwapCoordinator());
+        FleetAdapterRegistry registry = new FleetAdapterRegistry(java.util.List.of(realFleetAdapter));
         VehicleGatewayServiceImpl gatewayService = new VehicleGatewayServiceImpl(
                 vehicleService,
                 mock(VehicleReportService.class),
-                new RealFleetAdapter(mock(FleetRuntimeService.class)),
+                registry,
                 idempotencyService);
 
         VehicleEntity vehicle = realVehicle();

@@ -17,6 +17,10 @@ public class AdminUserEntity {
 
     private String passwordHash;
 
+    private String totpSecret;
+
+    private Integer totpEnabled;
+
     private String displayName;
 
     private String role;

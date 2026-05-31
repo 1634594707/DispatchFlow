@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.admin.service.AnalyticsAdminService;
 import com.fsd.admin.service.AdminParkScopeService;
 import com.fsd.admin.vo.AdminAnalyticsChargingHistoryItem;
+import com.fsd.admin.vo.AdminAnalyticsChainKpiResponse;
 import com.fsd.admin.vo.AdminAnalyticsChargingOverviewResponse;
 import com.fsd.admin.vo.AdminAnalyticsChargingSessionItem;
 import com.fsd.admin.vo.AdminAnalyticsDailySummaryResponse;
@@ -16,6 +17,9 @@ import com.fsd.admin.vo.AdminAnalyticsTypeCount;
 import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.mapper.ParkMapper;
 import com.fsd.common.enums.ChargingSessionStatus;
+import com.fsd.admin.vo.AdminPeakCompareResponse;
+import com.fsd.dispatch.entity.BatterySwapSessionEntity;
+import com.fsd.dispatch.mapper.BatterySwapSessionMapper;
 import com.fsd.dispatch.entity.ChargingPileEntity;
 import com.fsd.dispatch.entity.ChargingSessionEntity;
 import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
@@ -42,6 +46,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import com.lowagie.text.Document;
+import com.lowagie.text.Font;
+import com.lowagie.text.FontFactory;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.pdf.PdfWriter;
+import java.io.ByteArrayOutputStream;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -53,6 +63,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     private final DispatchTaskMapper dispatchTaskMapper;
     private final DispatchExceptionRecordMapper exceptionRecordMapper;
     private final ChargingSessionMapper chargingSessionMapper;
+    private final BatterySwapSessionMapper batterySwapSessionMapper;
     private final ChargingPileMapper chargingPileMapper;
     private final VehicleMapper vehicleMapper;
     private final FleetRuntimeService fleetRuntimeService;
@@ -63,6 +74,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                                      DispatchTaskMapper dispatchTaskMapper,
                                      DispatchExceptionRecordMapper exceptionRecordMapper,
                                      ChargingSessionMapper chargingSessionMapper,
+                                     BatterySwapSessionMapper batterySwapSessionMapper,
                                      ChargingPileMapper chargingPileMapper,
                                      VehicleMapper vehicleMapper,
                                      FleetRuntimeService fleetRuntimeService,
@@ -72,6 +84,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.exceptionRecordMapper = exceptionRecordMapper;
         this.chargingSessionMapper = chargingSessionMapper;
+        this.batterySwapSessionMapper = batterySwapSessionMapper;
         this.chargingPileMapper = chargingPileMapper;
         this.vehicleMapper = vehicleMapper;
         this.fleetRuntimeService = fleetRuntimeService;
@@ -278,12 +291,33 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 .average()
                 .orElse(0D);
 
+        List<BatterySwapSessionEntity> activeSwaps = batterySwapSessionMapper.selectList(
+                new LambdaQueryWrapper<BatterySwapSessionEntity>()
+                        .eq(BatterySwapSessionEntity::getStatus, "IN_PROGRESS"));
+        List<BatterySwapSessionEntity> completedSwaps = batterySwapSessionMapper.selectList(
+                new LambdaQueryWrapper<BatterySwapSessionEntity>()
+                        .eq(BatterySwapSessionEntity::getStatus, "COMPLETED")
+                        .orderByDesc(BatterySwapSessionEntity::getFinishedAt)
+                        .last("LIMIT 20"));
+        double chargeDuration = history.stream()
+                .map(AdminAnalyticsChargingHistoryItem::getDurationMinutes)
+                .filter(Objects::nonNull)
+                .mapToLong(Long::longValue)
+                .sum();
+        double swapDuration = completedSwaps.stream()
+                .filter(s -> s.getStartedAt() != null && s.getFinishedAt() != null)
+                .mapToDouble(s -> Duration.between(s.getStartedAt(), s.getFinishedAt()).toMinutes())
+                .sum();
+
         return AdminAnalyticsChargingOverviewResponse.builder()
                 .activeSessions(activeItems)
                 .activeSessionCount(activeItems.size())
                 .occupiedPileCount(occupied)
                 .totalPileCount(totalPiles)
                 .avgChargeSpeedPerHour(round1(avgSpeed))
+                .activeSwapSessionCount(activeSwaps.size())
+                .totalChargeDurationMinutes(round1(chargeDuration))
+                .totalSwapDurationMinutes(round1(swapDuration))
                 .recentHistory(history)
                 .build();
     }
@@ -590,5 +624,127 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         }
         String escaped = value.replace("\"", "\"\"");
         return "\"" + escaped + "\"";
+    }
+
+    @Override
+    public AdminAnalyticsChainKpiResponse getChainKpi(String period, Long parkId) {
+        String normalized = normalizePeriod(period);
+        LocalDateTime start = rangeStart(normalized);
+        List<DispatchTaskEntity> tasks = filterTasksByPark(loadTasksSince(start), parkId);
+        List<DispatchTaskEntity> success = tasks.stream()
+                .filter(t -> "SUCCESS".equals(t.getStatus()))
+                .filter(t -> t.getStartTime() != null && t.getFinishTime() != null)
+                .toList();
+        double avgCompletion = success.stream()
+                .mapToLong(t -> Duration.between(t.getStartTime(), t.getFinishTime()).toMinutes())
+                .average()
+                .orElse(0D);
+        List<Long> waitMinutes = tasks.stream()
+                .filter(t -> t.getCreatedAt() != null && t.getAssignTime() != null)
+                .map(t -> Duration.between(t.getCreatedAt(), t.getAssignTime()).toMinutes())
+                .sorted()
+                .toList();
+        double p50 = percentile(waitMinutes, 50);
+        double p90 = percentile(waitMinutes, 90);
+        long days = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(start.toLocalDate(), LocalDate.now()) + 1);
+        long vehicleCount = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
+                        .eq(VehicleEntity::getDeleted, 0))
+                .stream()
+                .filter(v -> matchesVehicleEntityPark(v, parkId))
+                .count();
+        long successCount = success.size();
+        double tasksPerVehiclePerDay = vehicleCount <= 0 ? 0D : (double) successCount / vehicleCount / days;
+        return AdminAnalyticsChainKpiResponse.builder()
+                .period(normalized)
+                .parkId(parkId)
+                .avgCompletionMinutes(round1(avgCompletion))
+                .waitP50Minutes(round1(p50))
+                .waitP90Minutes(round1(p90))
+                .tasksPerVehiclePerDay(round1(tasksPerVehiclePerDay))
+                .build();
+    }
+
+    @Override
+    public AdminPeakCompareResponse getPeakCompare(String period, Long parkId) {
+        String normalized = normalizePeriod(period);
+        LocalDateTime start = rangeStart(normalized);
+        List<DispatchTaskEntity> tasks = filterTasksByPark(loadTasksSince(start), parkId);
+        return AdminPeakCompareResponse.builder()
+                .normalMode(buildChainKpiFromTasks(tasks, normalized, parkId, "NORMAL"))
+                .peakMode(buildChainKpiFromTasks(tasks, normalized, parkId, "PEAK"))
+                .build();
+    }
+
+    private AdminAnalyticsChainKpiResponse buildChainKpiFromTasks(List<DispatchTaskEntity> tasks,
+                                                                  String period,
+                                                                  Long parkId,
+                                                                  String peakMode) {
+        List<DispatchTaskEntity> filtered = tasks.stream()
+                .filter(t -> peakMode.equalsIgnoreCase(t.getPeakModeAtFinish()))
+                .filter(t -> "SUCCESS".equals(t.getStatus()))
+                .toList();
+        double avgCompletion = filtered.stream()
+                .filter(t -> t.getStartTime() != null && t.getFinishTime() != null)
+                .mapToLong(t -> Duration.between(t.getStartTime(), t.getFinishTime()).toMinutes())
+                .average()
+                .orElse(0D);
+        List<Long> waitMinutes = tasks.stream()
+                .filter(t -> peakMode.equalsIgnoreCase(t.getPeakModeAtFinish()))
+                .filter(t -> t.getCreatedAt() != null && t.getAssignTime() != null)
+                .map(t -> Duration.between(t.getCreatedAt(), t.getAssignTime()).toMinutes())
+                .sorted()
+                .toList();
+        long vehicleCount = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
+                        .eq(VehicleEntity::getDeleted, 0))
+                .stream()
+                .filter(v -> matchesVehicleEntityPark(v, parkId))
+                .count();
+        long days = Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(rangeStart(period).toLocalDate(), LocalDate.now()) + 1);
+        double tasksPerVehiclePerDay = vehicleCount <= 0 ? 0D : (double) filtered.size() / vehicleCount / days;
+        return AdminAnalyticsChainKpiResponse.builder()
+                .period(period)
+                .parkId(parkId)
+                .avgCompletionMinutes(round1(avgCompletion))
+                .waitP50Minutes(round1(percentile(waitMinutes, 50)))
+                .waitP90Minutes(round1(percentile(waitMinutes, 90)))
+                .tasksPerVehiclePerDay(round1(tasksPerVehiclePerDay))
+                .build();
+    }
+
+    @Override
+    public byte[] exportPdf(LocalDate date, Long parkId) {
+        LocalDate target = date == null ? LocalDate.now() : date;
+        AdminAnalyticsDailySummaryResponse summary = getDailySummary(target, parkId);
+        AdminAnalyticsEfficiencyResponse efficiency = getEfficiency("day", parkId);
+        AdminAnalyticsChainKpiResponse chain = getChainKpi("day", parkId);
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Document document = new Document();
+            PdfWriter.getInstance(document, out);
+            document.open();
+            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
+            Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 11);
+            document.add(new Paragraph("DispatchFlow 运营日报", titleFont));
+            document.add(new Paragraph("日期: " + summary.getDate(), bodyFont));
+            document.add(new Paragraph("订单完成: " + summary.getOrderCompleted() + "/" + summary.getOrderTotal()
+                    + " (" + summary.getOrderCompletionRate() + "%)", bodyFont));
+            document.add(new Paragraph("平均任务时长: " + efficiency.getAvgTaskDurationMinutes() + " 分钟", bodyFont));
+            document.add(new Paragraph("车辆利用率: " + efficiency.getVehicleUtilizationRate() + "%", bodyFont));
+            document.add(new Paragraph("链路 KPI — 完成均时: " + chain.getAvgCompletionMinutes()
+                    + " 分, 等待 P50/P90: " + chain.getWaitP50Minutes() + "/" + chain.getWaitP90Minutes()
+                    + " 分, 单车日均: " + chain.getTasksPerVehiclePerDay(), bodyFont));
+            document.close();
+            return out.toByteArray();
+        } catch (Exception ex) {
+            throw new RuntimeException("PDF export failed", ex);
+        }
+    }
+
+    private static double percentile(List<Long> sorted, int pct) {
+        if (sorted.isEmpty()) {
+            return 0D;
+        }
+        int index = (int) Math.ceil(pct / 100.0 * sorted.size()) - 1;
+        index = Math.max(0, Math.min(index, sorted.size() - 1));
+        return sorted.get(index);
     }
 }

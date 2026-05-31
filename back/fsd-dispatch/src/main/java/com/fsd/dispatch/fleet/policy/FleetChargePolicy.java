@@ -14,4 +14,6 @@ public interface FleetChargePolicy {
     boolean shouldSkipDrain(VehicleEntity vehicle, FleetRuntime runtime);
 
     boolean isActivelyCharging(String runtimeStage);
+
+    boolean isActivelySwapping(String runtimeStage);
 }

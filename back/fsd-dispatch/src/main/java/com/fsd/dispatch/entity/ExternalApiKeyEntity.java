@@ -23,6 +23,8 @@ public class ExternalApiKeyEntity {
 
     private Long totalCalls;
 
+    private Long rateLimitHits;
+
     private LocalDateTime lastUsedAt;
 
     private LocalDateTime createdAt;

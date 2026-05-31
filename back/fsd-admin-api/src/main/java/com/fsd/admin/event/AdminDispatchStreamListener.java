@@ -1,5 +1,6 @@
 package com.fsd.admin.event;
 
+import com.fsd.admin.scheduler.OpenExceptionEscalationScheduler;
 import com.fsd.admin.service.AdminDispatchStreamService;
 import com.fsd.dispatch.config.DispatchMessagingConfig;
 import com.fsd.dispatch.event.DispatchDomainEvent;
@@ -33,6 +34,16 @@ public class AdminDispatchStreamListener {
 
         if (DispatchEventType.EXCEPTION_OPEN.equals(eventType)) {
             streamService.broadcast("exception", Map.of(
+                    "eventType", eventType,
+                    "businessKey", event.getBusinessKey(),
+                    "payload", event.getPayload(),
+                    "eventTime", event.getEventTime(),
+                    "ts", Instant.now().toString()
+            ));
+        }
+
+        if (OpenExceptionEscalationScheduler.EVENT_ESCALATED.equals(eventType)) {
+            streamService.broadcast("exception-escalated", Map.of(
                     "eventType", eventType,
                     "businessKey", event.getBusinessKey(),
                     "payload", event.getPayload(),
