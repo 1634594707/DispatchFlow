@@ -1,4 +1,5 @@
 import type { FleetTelemetryPayload, SSEClient, SSEClientOptions } from '@/types/stream'
+import { registerSSEConnection } from '@/utils/sseConnectionRegistry'
 
 export function createSSEClient(options: SSEClientOptions): SSEClient {
   const {
@@ -17,12 +18,7 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
   let retryCount = 0
   let retryTimer: ReturnType<typeof setTimeout> | null = null
   let stopped = false
-
-  function calculateDelay(): number {
-    const delay = Math.min(baseDelay * Math.pow(2, retryCount), maxDelay)
-    const jitter = delay * 0.1 * Math.random()
-    return delay + jitter
-  }
+  let unregister: (() => void) | null = null
 
   function handlePayload(event: MessageEvent) {
     try {
@@ -33,8 +29,22 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
     }
   }
 
+  function teardownEventSource() {
+    if (!eventSource) return
+    eventSource.onopen = null
+    eventSource.onmessage = null
+    eventSource.onerror = null
+    if (eventName) {
+      eventSource.removeEventListener(eventName, handlePayload as EventListener)
+    }
+    eventSource.close()
+    eventSource = null
+  }
+
   function connect() {
     if (stopped) return
+
+    teardownEventSource()
 
     try {
       eventSource = new EventSource(url)
@@ -70,31 +80,34 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
       return
     }
 
-    const delay = calculateDelay()
-    console.log(`[SSE] Reconnecting in ${Math.round(delay)}ms (attempt ${retryCount + 1}/${maxRetries})`)
+    const delay = Math.min(baseDelay * Math.pow(2, retryCount), maxDelay)
+    const jitter = delay * 0.1 * Math.random()
+    const waitMs = delay + jitter
+    console.log(`[SSE] Reconnecting in ${Math.round(waitMs)}ms (attempt ${retryCount + 1}/${maxRetries})`)
 
     retryTimer = setTimeout(() => {
       retryCount++
       connect()
-    }, delay)
+    }, waitMs)
   }
 
   function start() {
     stopped = false
     retryCount = 0
+    unregister?.()
+    unregister = registerSSEConnection(stop)
     connect()
   }
 
   function stop() {
     stopped = true
+    unregister?.()
+    unregister = null
     if (retryTimer) {
       clearTimeout(retryTimer)
       retryTimer = null
     }
-    if (eventSource) {
-      eventSource.close()
-      eventSource = null
-    }
+    teardownEventSource()
     onClose?.()
   }
 

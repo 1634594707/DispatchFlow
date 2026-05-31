@@ -118,9 +118,9 @@ cp back/docker-compose.yml "$BACKUP_DIR/docker-compose.yml"
 
 ## 4. 数据库迁移
 
-DispatchFlow **不使用 Flyway 自动迁移**。MySQL 容器**仅在首次初始化数据卷时**通过 `back/sql/init/00-run-migrations.sh` 顺序执行 `V01`–`V18`。
+DispatchFlow 使用 **Flyway** 管理 **V21+** 新迁移；**V01–V20** 仍通过 `back/sql/migrations/` 维护，应用启动时对已有库 **baseline 至 V20**（`spring.flyway.baseline-version=20`），避免重复执行。
 
-**已有数据卷升级时，必须手动补跑缺失的迁移脚本。**
+MySQL 容器**首次初始化数据卷时**仍会通过 `back/sql/init/00-run-migrations.sh` 顺序执行全部 `V*.sql`（与 Flyway baseline 兼容）。**已有数据卷升级时，若 Release 含 V19/V20 等新脚本且尚未执行，须手动补跑**（见 §4.3）。
 
 ### 4.1 迁移脚本一览
 

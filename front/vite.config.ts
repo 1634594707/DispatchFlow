@@ -38,4 +38,25 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return
+          }
+          if (id.includes('ant-design-vue') || id.includes('@ant-design/icons-vue')) {
+            return 'antd'
+          }
+          if (id.includes('leaflet')) {
+            return 'leaflet'
+          }
+          if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router')) {
+            return 'vue-vendor'
+          }
+          return 'vendor'
+        },
+      },
+    },
+  },
 }))

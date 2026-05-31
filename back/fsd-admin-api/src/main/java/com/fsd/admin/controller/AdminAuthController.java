@@ -8,6 +8,7 @@ import com.fsd.admin.service.AdminAuthService;
 import com.fsd.admin.vo.AdminLoginResponse;
 import com.fsd.admin.vo.AdminUserResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin/auth")
+@Tag(name = "Admin Auth", description = "Login, logout, password, and TOTP 2FA")
 public class AdminAuthController {
 
     private final AdminAuthService adminAuthService;

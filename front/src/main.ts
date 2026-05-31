@@ -5,6 +5,11 @@ import App from './App.vue'
 import router from './router'
 import 'ant-design-vue/dist/reset.css'
 import './styles/global.less'
+import { stopAllSSEConnections } from '@/utils/sseConnectionRegistry'
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => stopAllSSEConnections())
+}
 
 const app = createApp(App)
 

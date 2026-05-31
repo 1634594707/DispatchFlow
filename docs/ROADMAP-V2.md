@@ -62,9 +62,8 @@ _已完成（2026-05-31）_：VDA5050 MQTT 适配器 MVP、车辆 VDA5050 配置
 #### 15.3 规模化
 
 - [ ] 1000+ 车 MAPF 实时（需架构升级：图分区 / 预约表 / 外置求解器）
-- [ ] Redis 热点预加载（Fleet 位置批量读）
 
-_已完成（2026-05-31）_：任务池 DB 索引（V20）、服务端分页（`POST /admin/dispatch/task-pool/query`）、工作台加载更多。
+_已完成（2026-05-31）_：任务池 DB 索引（V20）、服务端分页（`POST /admin/dispatch/task-pool/query`）、工作台加载更多；Redis Fleet 位置 `multiGet` 批量读。
 
 ---
 
@@ -81,14 +80,13 @@ _已完成（2026-05-31）_：任务池 DB 索引（V20）、服务端分页（`
 ## 五、技术债务
 
 ### 架构
-- [ ] 版本号统一（`front/package.json` 0.1.0 vs `CHANGELOG.md` 0.2.0）
-- [ ] 引入 Flyway 替代手动 SQL（现 V01–V17 手动迁移）
-- [ ] Swagger 注解补全（springdoc 已配置，Controller 基本无注解）
+- [ ] Swagger 注解补全（springdoc 已配置，`OpenApiConfig` + 部分 Controller `@Tag` 已加；其余 Controller 待补）
+
+_已完成（2026-05-31）_：版本号统一（`front/package.json` → 0.2.0）；Flyway 引入（V01–V20 baseline，新迁移走 classpath `db/migration`）。
 
 ### 性能
-- [ ] Redis 热点预加载
-- [ ] 前端代码分割与懒加载（路由已 lazy，缺 Vite `manualChunks`）
-- [ ] SSE 连接池防泄漏
+
+_已完成（2026-05-31）_：Redis Fleet `getBatch` 改用 `multiGet`；Vite `manualChunks`（antd / leaflet / vue-vendor）；SSE 全局注册表 + 重连前 teardown 防泄漏。
 
 ### 代码质量
 - [ ] 单测覆盖率 → 80%

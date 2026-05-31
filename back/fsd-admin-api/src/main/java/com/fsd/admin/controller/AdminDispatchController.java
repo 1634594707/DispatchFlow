@@ -45,6 +45,8 @@ import com.fsd.order.vo.OrderDetailResponse;
 import com.fsd.vehicle.service.VehicleAdminQueryService;
 import com.fsd.vehicle.vo.VehicleAdminDetailResponse;
 import com.fsd.vehicle.vo.VehicleAdminListItemResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -58,6 +60,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/admin")
+@Tag(name = "Dispatch Admin", description = "Dashboard, workbench, task pool, park pilot, and order queries")
 public class AdminDispatchController {
 
     private final OrderAdminQueryService orderAdminQueryService;
@@ -217,6 +220,7 @@ public class AdminDispatchController {
     }
 
     @PostMapping("/dispatch/task-pool/query")
+    @Operation(summary = "Query task pool with server-side pagination")
     public ApiResponse<PageResponse<DispatchTaskListItemResponse>> queryTaskPool(
             @RequestBody AdminTaskQueryRequest request) {
         return ApiResponse.success(adminQueryFacadeService.queryTasks(request));

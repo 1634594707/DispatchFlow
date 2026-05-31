@@ -16,6 +16,12 @@ spring:
     port: ${RABBITMQ_PORT:5673}
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 20
+    baseline-description: Pre-Flyway migrations V01-V20
   mail:
     host: ${MAIL_HOST:127.0.0.1}
     port: ${MAIL_PORT:1025}

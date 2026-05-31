@@ -8,7 +8,9 @@ import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -67,8 +69,20 @@ public class RedisFleetRuntimeServiceImpl implements FleetRuntimeService {
         if (vehicleIds == null || vehicleIds.isEmpty()) {
             return result;
         }
-        for (Long vehicleId : vehicleIds) {
-            get(vehicleId).ifPresent(runtime -> result.put(vehicleId, runtime));
+        List<Long> ids = vehicleIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return result;
+        }
+        List<String> keys = ids.stream().map(this::buildKey).toList();
+        List<String> values = stringRedisTemplate.opsForValue().multiGet(keys);
+        if (values == null) {
+            return result;
+        }
+        for (int i = 0; i < ids.size(); i++) {
+            String json = values.get(i);
+            if (json != null && !json.isBlank()) {
+                result.put(ids.get(i), readJson(json));
+            }
         }
         return result;
     }
