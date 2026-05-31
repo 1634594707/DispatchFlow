@@ -34,22 +34,19 @@
 | 家纺垂直 | 线路 CRUD、枢纽分流、高峰预案（含 cron 自动切换）、自动化 IF-THEN 规则、运维快照 |
 | 现场运维 | FIELD_OPS 工单、大屏运维视图 |
 | 事件驱动 | Outbox + RabbitMQ，保证关键业务事件可靠投递 |
-| Fleet 适配 | `FleetAdapterRegistry`：SIM / REAL；Phase 15 规划 VDA5050 MQTT |
+| Fleet 适配 | `FleetAdapterRegistry`：SIM / REAL / **VDA5050 MQTT** |
 
 ---
 
 ## 版本与路线图
 
-| 阶段 | 状态 | 说明 |
+| 版本 | 状态 | 说明 |
 |------|------|------|
-| Phase 1–10 | ✅ | 核心调度、Fleet、充电、异常、基础设施、分析、策略、集成、命令面板、数字孪生 |
-| **Phase 11（M1）** | ✅ | 全站园区一致、VIEWER 只读、派车失败可解释、交通可行动 |
-| **Phase 12（M2）** | ✅ | 轨迹回放、引擎仿真、配置向导、路网基础 |
-| **Phase 13（M3）** | ✅ | Webhook 日志、PDF、链路 KPI、暂停派单、服务端告警、定时报表 |
-| **Phase 14（M4–M5）** | ✅ | 家纺垂直（线路/枢纽/旺季/规则/换电仿真）、路网拖拽 MVP、2FA、运维视图 |
-| **Phase 15（M6）** | 进行中 | REAL 换电 ✅ · VDA5050 MQTT demo ✅ · 规模化待办 |
+| **v2.0.0** | ✅ | Phase 10–11：园区一致、交通管控、命令面板 |
+| **v3.0.0**（当前） | ✅ | Phase 12–15：垂直/开放协议/规模化 MVP · [Release Notes](docs/releases/v3.0.0.md) |
+| **V3 规划** | 待办 | MAPF、覆盖率 80%、可观测性深化 · [ROADMAP](docs/ROADMAP-V2.md) |
 
-详细待办见 **[docs/ROADMAP-V2.md](docs/ROADMAP-V2.md)** · VDA5050 评估见 **[docs/phase15/VDA5050-EVALUATION.md](docs/phase15/VDA5050-EVALUATION.md)**。
+VDA5050 评估见 **[docs/phase15/VDA5050-EVALUATION.md](docs/phase15/VDA5050-EVALUATION.md)**。
 
 ---
 

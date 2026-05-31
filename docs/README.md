@@ -10,7 +10,8 @@
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Docker / 本地启动、SQL 迁移 V01–V18 |
 | **[UPDATE-OPERATIONS.md](./UPDATE-OPERATIONS.md)** | **云服务器 Docker 环境更新操作手册** |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 模块划分、Fleet 模型、事件流 |
-| [ROADMAP-V2.md](./ROADMAP-V2.md) | **产品路线图**（Phase 15 已收尾，Phase 16 候选） |
+| [ROADMAP-V2.md](./ROADMAP-V2.md) | **产品路线图**（V2 已交付，**V3 待办**） |
+| [releases/v3.0.0.md](./releases/v3.0.0.md) | **v3.0.0 Release Notes** |
 | **[REQUIREMENTS-DESIGN.md](./REQUIREMENTS-DESIGN.md)** | **新需求设计模板** |
 | [phase15/VDA5050-EVALUATION.md](./phase15/VDA5050-EVALUATION.md) | VDA5050 MQTT 适配评估 |
 | [phase15/MAPF-EVALUATION.md](./phase15/MAPF-EVALUATION.md) | 1000+ 车 MAPF 架构评估 |

@@ -26,7 +26,7 @@ public class OpenApiConfig {
                                 Admin endpoints (except `/api/admin/auth/login`) require header `X-Admin-Token` from login response.
                                 SSE streams accept the same token as query param `token`.
                                 """)
-                        .version("0.2.0")
+                        .version("0.3.0")
                         .contact(new Contact().name("DispatchFlow").url("https://github.com/1634594707/DispatchFlow"))
                         .license(new License().name("Proprietary")))
                 .components(new Components()

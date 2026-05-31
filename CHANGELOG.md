@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-31
+
+### Added
+
+- Phase 12–14: trajectory replay, engine simulation, vertical (routes/hub/peak/automation rules), swap cabinets, field ops, 2FA
+- Phase 15: VDA5050 MQTT adapter, REAL swap sessions, task pool server pagination (V20), Redis fleet batch read
+- Flyway migration baseline, Swagger OpenAPI tags, ESLint/Prettier, JaCoCo, Prometheus metrics
+- Cloud update guide (`docs/UPDATE-OPERATIONS.md`), MAPF architecture evaluation
+
+### Changed
+
+- Frontend version 0.3.0, Vite manualChunks, SSE connection registry
+- GitHub Release **v3.0.0** supersedes v2.0.0 as latest
+
 ## [0.2.0] - 2026-05-25
 
 ### Added
@@ -45,5 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - RabbitMQ event publishing with Outbox pattern
 - Docker Compose for MySQL, Redis, RabbitMQ, and backend
 
+[0.3.0]: https://github.com/1634594707/DispatchFlow/compare/v2.0.0...v3.0.0
 [0.2.0]: https://github.com/1634594707/DispatchFlow/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/1634594707/DispatchFlow/releases/tag/v0.1.0
