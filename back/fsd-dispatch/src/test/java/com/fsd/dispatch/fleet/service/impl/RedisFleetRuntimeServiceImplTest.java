@@ -22,6 +22,8 @@ class RedisFleetRuntimeServiceImplTest {
                 .runtimeStage("STANDBY")
                 .pluggedIn(true)
                 .soc(100)
+                .longitude(new java.math.BigDecimal("121.062280"))
+                .latitude(new java.math.BigDecimal("31.912450"))
                 .lastTelemetryAt(LocalDateTime.now())
                 .build();
 
@@ -32,6 +34,8 @@ class RedisFleetRuntimeServiceImplTest {
         assertEquals(true, reloaded.getPluggedIn());
         assertEquals(100, reloaded.getSoc());
         assertEquals(42L, reloaded.getVehicleId());
+        assertEquals(new java.math.BigDecimal("121.062280"), reloaded.getLongitude());
+        assertEquals(new java.math.BigDecimal("31.912450"), reloaded.getLatitude());
     }
 
     @Test

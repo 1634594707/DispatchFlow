@@ -59,12 +59,18 @@ public class ParkDataInitializer implements ApplicationRunner {
 
         ParkEntity park = new ParkEntity();
         park.setParkCode(parkPilotProperties.getDefaultParkCode());
-        park.setParkName("默认示范园区");
+        park.setParkName("叠石桥家纺示范园区");
         park.setMapWidth(parkPilotProperties.getWidth());
         park.setMapHeight(parkPilotProperties.getHeight());
         park.setMinZoom(parkPilotProperties.getMinZoom());
         park.setMaxZoom(parkPilotProperties.getMaxZoom());
         park.setVehicleSpeedPxPerSecond(parkPilotProperties.getVehicleSpeedPxPerSecond());
+        ParkPilotProperties.GeoConfig geo = parkPilotProperties.getGeo();
+        if (geo != null && geo.isEnabled()) {
+            park.setCenterLng(geo.getAnchorLng());
+            park.setCenterLat(geo.getAnchorLat());
+            park.setMapProvider("AMAP");
+        }
         park.setStatus(ParkStatus.ACTIVE.name());
         park.setDefaultFlag(1);
         park.setVersion(0);

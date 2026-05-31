@@ -10,17 +10,7 @@
     >
       <div class="sider-logo">
         <div class="logo-icon">
-          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="32" height="32" rx="8" fill="url(#logo-grad)" />
-            <path d="M8 22L16 10L24 22H8Z" fill="white" opacity="0.9" />
-            <circle cx="16" cy="18" r="2" fill="white" />
-            <defs>
-              <linearGradient id="logo-grad" x1="0" y1="0" x2="32" y2="32">
-                <stop stop-color="#00B4D8" />
-                <stop offset="1" stop-color="#0077B6" />
-              </linearGradient>
-            </defs>
-          </svg>
+          <DispatchFlowLogo :size="32" />
         </div>
         <transition name="fade">
           <div v-if="!collapsed" class="logo-text">
@@ -153,9 +143,12 @@
           </a-popover>
           <a-dropdown>
             <div class="user-info">
-              <a-avatar :size="32" style="background: var(--fsd-accent);">
-                <template #icon><UserOutlined /></template>
-              </a-avatar>
+              <UserAvatar
+                :name="authStore.displayName"
+                :username="authStore.user?.username"
+                :role="authStore.user?.role"
+                :size="32"
+              />
               <span class="user-name">{{ authStore.displayName }}</span>
             </div>
             <template #overlay>
@@ -216,6 +209,8 @@ import {
   RobotOutlined,
 } from '@ant-design/icons-vue'
 import NavMenuItems from '@/components/layout/NavMenuItems.vue'
+import DispatchFlowLogo from '@/components/brand/DispatchFlowLogo.vue'
+import UserAvatar from '@/components/brand/UserAvatar.vue'
 import CommandPalette from '@/components/command/CommandPalette.vue'
 import DispatchAssistantDrawer from '@/components/assistant/DispatchAssistantDrawer.vue'
 import { useCommandPalette, type CommandPaletteItem } from '@/composables/useCommandPalette'
@@ -431,21 +426,27 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 9;
+  margin-left: 208px;
   height: 64px;
   padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  transition: margin-left 0.2s;
 
   .header-left {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .trigger-btn {
     width: 40px;
     height: 40px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -460,13 +461,27 @@ onUnmounted(() => {
   }
 
   .header-breadcrumb {
+    flex: 1;
+    min-width: 0;
     font-size: 14px;
+
+    :deep(ol) {
+      flex-wrap: nowrap;
+    }
+
+    :deep(li:last-child) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
   }
 
   .header-right {
     display: flex;
     align-items: center;
     gap: 4px;
+    flex-shrink: 0;
   }
 
   .header-icon-btn {
@@ -488,9 +503,9 @@ onUnmounted(() => {
   .user-info {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 4px 12px 4px 4px;
-    border-radius: var(--fsd-radius);
+    gap: 10px;
+    padding: 4px 8px 4px 4px;
+    border-radius: 999px;
     cursor: pointer;
     transition: background 0.2s;
 
@@ -500,8 +515,13 @@ onUnmounted(() => {
   }
 
   .user-name {
-    font-size: 14px;
-    color: var(--fsd-text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fsd-text-primary);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
@@ -520,6 +540,7 @@ onUnmounted(() => {
   }
 }
 
+:deep(.ant-layout-sider-collapsed) ~ .ant-layout .fsd-header,
 :deep(.ant-layout-sider-collapsed) ~ .ant-layout .fsd-content {
   margin-left: 64px;
 }

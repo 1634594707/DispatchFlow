@@ -46,7 +46,7 @@
 | 外部系统 | MQTT / ERP / WMS |
 | 性能 / 规模 | |
 
-参考现有锚点：[`ROADMAP-V2.md`](./ROADMAP-V2.md) 第七节 · [`ARCHITECTURE.md`](./ARCHITECTURE.md)
+参考现有锚点：[`ROADMAP-V3.md`](./ROADMAP-V3.md) 第九节 · [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 
 ## 5. 接口草案
 
@@ -76,4 +76,33 @@ POST /api/admin/...
 
 ---
 
-**维护**：需求定稿后，在 `ROADMAP-V2.md` 新增 Phase 章节，并删除本文档中已转入路线图的空占位。
+**维护**：需求定稿后，在 `ROADMAP-V3.md` 勾选对应 `- [ ]` 项，并删除本文档中已转入路线图的占位。
+
+---
+
+## 附录 A：真实地图接入（V3 M1–M3 草案）
+
+| 项 | 内容 |
+|----|------|
+| **需求名称** | V3 真实地理地图接入 |
+| **提出方 / 场景** | 产品 · 园区 REAL 车队监控、多园区 GIS 总览 |
+| **业务目标** | 监控大屏支持 GCJ-02 底图；REAL 车经纬度与调度图位置一致（标定后误差 &lt; 5m） |
+| **非目标** | 不用互联网地图替换 A* 派车；不做 SLAM 建图；不做真 3D 孪生 |
+
+### 功能范围（MVP）
+
+- [ ] `MapProvider` 抽象 + 高德 PoC（首选）+ 百度对比
+- [ ] 园区控制点标定（≥3 点）与 `CoordinateTransformService`
+- [ ] `Tracking.vue` 调度图 / 地理图双模式
+- [ ] Flyway V21：`t_park.center_lng/lat`、`map_provider`
+
+### 架构要点
+
+| 维度 | 方案 |
+|------|------|
+| 前端 | `GeoMap.vue` + `@amap/amap-jsapi-loader`（动态 chunk） |
+| 后端 | `fsd-dispatch` 坐标转换；Fleet Redis 增 `lng/lat` |
+| 数据模型 | V21 迁移；站点保留 `x/y` 并可选 `lng/lat` |
+| 外部系统 | 高德 JS API 2.0；可选高德物流矩阵（M4） |
+
+选型依据：[`v3/MAP-PROVIDER-EVALUATION.md`](./v3/MAP-PROVIDER-EVALUATION.md)

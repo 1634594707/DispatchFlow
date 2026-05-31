@@ -15,10 +15,12 @@ docs/*
 !docs/DEPLOYMENT.md
 !docs/README.md
 !docs/ROADMAP-V2.md
+!docs/ROADMAP-V3.md
 !docs/REQUIREMENTS-DESIGN.md
 !docs/SECURITY-AUDIT.md
 !docs/UPDATE-OPERATIONS.md
-!docs/phase15/
+!docs/v3/
+!docs/archive/
 !docs/releases/
 docs/private/
 
@@ -28,6 +30,9 @@ dist/
 # Frontend
 front/node_modules/
 front/dist/
+front/.env.local
+front/scripts/perf/.auth/
+front/test-results/
 
 # Backend
 back/.m2/

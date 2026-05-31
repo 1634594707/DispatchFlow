@@ -146,3 +146,21 @@ export function updateRoadSegment(segmentId: number, payload: AdminRoadSegmentUp
 export function toggleRoadSegmentStatus(segmentId: number) {
   return request.post<any, ApiResponse<AdminRoadSegment>>(`/admin/infrastructure/road-segments/${segmentId}/toggle-status`)
 }
+
+export function fetchGeofences(parkId: number) {
+  return request.get<any, ApiResponse<import('@/types/infrastructure').AdminGeofence[]>>('/admin/infrastructure/geofences', {
+    params: { parkId },
+  })
+}
+
+export function createGeofence(payload: import('@/types/infrastructure').AdminGeofenceUpsertPayload) {
+  return request.post<any, ApiResponse<import('@/types/infrastructure').AdminGeofence>>('/admin/infrastructure/geofences', payload)
+}
+
+export function updateGeofence(geofenceId: number, payload: import('@/types/infrastructure').AdminGeofenceUpdatePayload) {
+  return request.put<any, ApiResponse<import('@/types/infrastructure').AdminGeofence>>(`/admin/infrastructure/geofences/${geofenceId}`, payload)
+}
+
+export function deleteGeofence(geofenceId: number) {
+  return request.post<any, ApiResponse<void>>(`/admin/infrastructure/geofences/${geofenceId}/delete`)
+}

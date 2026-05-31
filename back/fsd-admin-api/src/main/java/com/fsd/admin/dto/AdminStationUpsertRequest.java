@@ -29,6 +29,12 @@ public class AdminStationUpsertRequest {
     @NotNull(message = "坐标 Y 不能为空")
     private BigDecimal coordY;
 
+    /** Optional GCJ-02 longitude; falls back to park x/y transform when absent. */
+    private BigDecimal coordLng;
+
+    /** Optional GCJ-02 latitude; falls back to park x/y transform when absent. */
+    private BigDecimal coordLat;
+
     @Size(max = 32, message = "区域标识不能超过 32 位")
     private String area;
 

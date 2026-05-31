@@ -13,4 +13,7 @@ public interface DispatchAutomationRuleService {
 
     /** Evaluate energy rules for real fleet vehicles (creates charge exception when matched). */
     boolean evaluateFleetEnergyRules(Long parkId, VehicleEntity vehicle, String runtimeStage);
+
+    /** Hook automation rules when a geofence breach is detected. */
+    void evaluateGeofenceBreach(Long parkId, VehicleEntity vehicle, String geofenceCode, String breachType);
 }

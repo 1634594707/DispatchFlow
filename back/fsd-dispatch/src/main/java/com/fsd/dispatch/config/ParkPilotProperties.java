@@ -40,6 +40,25 @@ public class ParkPilotProperties {
 
     private SimulationConfig simulation = new SimulationConfig();
 
+    private GeoConfig geo = new GeoConfig();
+
+    @Data
+    public static class GeoConfig {
+
+        /** Map park schematic x/y to GCJ-02 around 叠石桥家纺产业带. */
+        private boolean enabled = true;
+
+        private BigDecimal anchorLng = new BigDecimal("121.062280");
+
+        private BigDecimal anchorLat = new BigDecimal("31.912450");
+
+        private Integer parkWidthMeters = 2400;
+
+        private Integer parkHeightMeters = 1600;
+
+        private String scenario = "TEXTILE_DIESHIQIAO";
+    }
+
     @Data
     public static class StationConfig {
 

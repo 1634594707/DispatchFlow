@@ -32,7 +32,12 @@ import com.fsd.dispatch.service.ParkPilotCommandService;
 import com.fsd.dispatch.service.ParkPilotService;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
 import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
+import com.fsd.dispatch.geo.CoordinateTransformService;
+import com.fsd.dispatch.vo.GeoCalibrationPointResponse;
+import com.fsd.dispatch.vo.GeoTransformResponse;
+import com.fsd.dispatch.vo.ParkGeofenceResponse;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
+import com.fsd.dispatch.vo.ParkOverviewResponse;
 import com.fsd.dispatch.vo.ParkOrderCreateResponse;
 import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
 import com.fsd.dispatch.vo.ParkResponse;
@@ -49,6 +54,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -76,6 +82,7 @@ public class AdminDispatchController {
     private final BatchTaskAdminService batchTaskAdminService;
     private final TaskPriorityAdminService taskPriorityAdminService;
     private final MobileOrderAuthService mobileOrderAuthService;
+    private final CoordinateTransformService coordinateTransformService;
 
     public AdminDispatchController(OrderAdminQueryService orderAdminQueryService,
                                    OrderQueryService orderQueryService,
@@ -89,7 +96,8 @@ public class AdminDispatchController {
                                    ParkPilotCommandService parkPilotCommandService,
                                    BatchTaskAdminService batchTaskAdminService,
                                    TaskPriorityAdminService taskPriorityAdminService,
-                                   MobileOrderAuthService mobileOrderAuthService) {
+                                   MobileOrderAuthService mobileOrderAuthService,
+                                   CoordinateTransformService coordinateTransformService) {
         this.orderAdminQueryService = orderAdminQueryService;
         this.orderQueryService = orderQueryService;
         this.dispatchAdminQueryService = dispatchAdminQueryService;
@@ -103,6 +111,7 @@ public class AdminDispatchController {
         this.batchTaskAdminService = batchTaskAdminService;
         this.taskPriorityAdminService = taskPriorityAdminService;
         this.mobileOrderAuthService = mobileOrderAuthService;
+        this.coordinateTransformService = coordinateTransformService;
     }
 
     @GetMapping("/orders")
@@ -273,6 +282,31 @@ public class AdminDispatchController {
         return ApiResponse.success(parkPilotService.getLayout(parkId));
     }
 
+    @GetMapping("/park/geo/calibration-points")
+    public ApiResponse<List<GeoCalibrationPointResponse>> listGeoCalibrationPoints(
+            @RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(coordinateTransformService.listCalibrationPoints(parkId));
+    }
+
+    @GetMapping("/park/geo/transform")
+    public ApiResponse<GeoTransformResponse> transformGeoCoordinates(
+            @RequestParam(required = false) BigDecimal parkX,
+            @RequestParam(required = false) BigDecimal parkY,
+            @RequestParam(required = false) BigDecimal longitude,
+            @RequestParam(required = false) BigDecimal latitude) {
+        if (parkX != null && parkY != null) {
+            return coordinateTransformService.parkToGcj02(parkX, parkY)
+                    .map(ApiResponse::success)
+                    .orElseGet(() -> ApiResponse.failure("GEO_TRANSFORM_DISABLED", "Geo transform is disabled"));
+        }
+        if (longitude != null && latitude != null) {
+            return coordinateTransformService.gcj02ToPark(longitude, latitude)
+                    .map(ApiResponse::success)
+                    .orElseGet(() -> ApiResponse.failure("GEO_TRANSFORM_DISABLED", "Geo transform is disabled"));
+        }
+        return ApiResponse.failure("GEO_TRANSFORM_INVALID", "Provide parkX/parkY or longitude/latitude");
+    }
+
     @GetMapping("/park/stations")
     public ApiResponse<List<ParkStationResponse>> listParkStations(@RequestParam(required = false) Long parkId) {
         if (parkId == null) {
@@ -284,6 +318,16 @@ public class AdminDispatchController {
     @GetMapping("/park/vehicles")
     public ApiResponse<List<ParkVehicleSnapshotResponse>> listParkVehicles() {
         return ApiResponse.success(parkPilotService.listVehicleSnapshots());
+    }
+
+    @GetMapping("/park/geofences")
+    public ApiResponse<List<ParkGeofenceResponse>> listParkGeofences(@RequestParam(required = false) Long parkId) {
+        return ApiResponse.success(parkPilotService.listGeofences(parkId));
+    }
+
+    @GetMapping("/park/overview")
+    public ApiResponse<List<ParkOverviewResponse>> listParkOverview() {
+        return ApiResponse.success(parkPilotService.listParkOverview());
     }
 
     @GetMapping("/park/orders")

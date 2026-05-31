@@ -15,6 +15,7 @@ final class IntegrationTestSchema {
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_admin_user");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_charging_session");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_charging_pile");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_park_geofence");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_parking_slot");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_external_api_key");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_webhook_subscription");
@@ -43,6 +44,9 @@ final class IntegrationTestSchema {
                     min_zoom INT,
                     max_zoom INT,
                     vehicle_speed_px_per_second DECIMAL(10,2),
+                    center_lng DECIMAL(10,6),
+                    center_lat DECIMAL(10,6),
+                    map_provider VARCHAR(32),
                     status VARCHAR(32) NOT NULL,
                     default_flag TINYINT NOT NULL DEFAULT 0,
                     remark VARCHAR(255),
@@ -62,10 +66,29 @@ final class IntegrationTestSchema {
                     station_type VARCHAR(32) NOT NULL,
                     coord_x DECIMAL(12,4) NOT NULL,
                     coord_y DECIMAL(12,4) NOT NULL,
+                    coord_lng DECIMAL(10,6),
+                    coord_lat DECIMAL(10,6),
                     area VARCHAR(32),
                     status VARCHAR(32) NOT NULL,
                     sort_order INT DEFAULT 0,
                     capacity_limit INT,
+                    remark VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    version INT DEFAULT 0,
+                    deleted TINYINT DEFAULT 0
+                )
+                """);
+
+        jdbcTemplate.execute("""
+                CREATE TABLE t_park_geofence (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    park_id BIGINT NOT NULL,
+                    fence_code VARCHAR(64) NOT NULL,
+                    fence_name VARCHAR(128) NOT NULL,
+                    fence_type VARCHAR(32) NOT NULL DEFAULT 'BOUNDARY',
+                    polygon_json CLOB NOT NULL,
+                    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -238,6 +261,8 @@ final class IntegrationTestSchema {
                     slot_type VARCHAR(32) NOT NULL,
                     coord_x DECIMAL(12,4) NOT NULL,
                     coord_y DECIMAL(12,4) NOT NULL,
+                    coord_lng DECIMAL(10,6),
+                    coord_lat DECIMAL(10,6),
                     status VARCHAR(32) NOT NULL,
                     occupied_vehicle_id BIGINT,
                     sort_order INT DEFAULT 0,

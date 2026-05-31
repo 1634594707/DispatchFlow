@@ -36,6 +36,8 @@ export interface AdminStation {
   stationType: 'PICKUP' | 'DROPOFF' | 'GENERAL' | 'HUB' | 'BUFFER' | 'MOTHERSHIP'
   coordX: number
   coordY: number
+  coordLng?: number | null
+  coordLat?: number | null
   area?: string
   status: 'ACTIVE' | 'INACTIVE'
   sortOrder?: number
@@ -52,6 +54,8 @@ export interface AdminStationUpsertPayload {
   stationType: string
   coordX: number
   coordY: number
+  coordLng?: number | null
+  coordLat?: number | null
   area?: string
   status?: string
   sortOrder?: number
@@ -159,5 +163,36 @@ export interface AdminRoadSegmentUpsertPayload {
   status?: string
   speedLimitKmh?: number
   congestionLevel?: number
+  remark?: string
+}
+
+export interface AdminGeofence {
+  id: number
+  parkId: number
+  parkName?: string
+  fenceCode: string
+  fenceName: string
+  fenceType: 'BOUNDARY' | 'RESTRICTED' | string
+  polygon: [number, number][]
+  status: string
+  remark?: string
+  updatedAt?: string
+}
+
+export interface AdminGeofenceUpsertPayload {
+  parkId: number
+  fenceCode: string
+  fenceName: string
+  fenceType: string
+  polygonJson: string
+  status?: string
+  remark?: string
+}
+
+export interface AdminGeofenceUpdatePayload {
+  fenceName?: string
+  fenceType?: string
+  polygonJson?: string
+  status?: string
   remark?: string
 }

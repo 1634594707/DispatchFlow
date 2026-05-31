@@ -16,6 +16,10 @@ import com.fsd.dispatch.fleet.FleetAdapterRegistry;
 import com.fsd.dispatch.fleet.real.RealFleetAdapter;
 import com.fsd.dispatch.fleet.real.RealFleetSwapCoordinator;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
+import com.fsd.dispatch.geo.FleetGeoResolver;
+import com.fsd.dispatch.geo.ParkGeoTransformService;
+import com.fsd.dispatch.config.ParkPilotProperties;
+import com.fsd.dispatch.service.GeofenceBreachService;
 import com.fsd.dispatch.infra.VehicleTelemetryIdempotencyService;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.mapper.BatterySwapCabinetMapper;
@@ -35,6 +39,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 class Phase3AcceptanceTest {
 
+    private final FleetGeoResolver fleetGeoResolver =
+            new FleetGeoResolver(new ParkGeoTransformService(new ParkPilotProperties()));
+
     private RealFleetSwapCoordinator noopSwapCoordinator() {
         RealFleetSwapCoordinator coordinator = new RealFleetSwapCoordinator(
                 mock(BatterySwapSessionService.class),
@@ -51,13 +58,16 @@ class Phase3AcceptanceTest {
         when(fleetRuntimeService.get(1L)).thenReturn(Optional.empty());
 
         RealFleetAdapter adapter = new RealFleetAdapter(
-                fleetRuntimeService, mock(FleetTelemetryPersistenceService.class), noopSwapCoordinator());
+                fleetRuntimeService, mock(FleetTelemetryPersistenceService.class), noopSwapCoordinator(), fleetGeoResolver,
+                mock(GeofenceBreachService.class));
         adapter.ingestTelemetry(realVehicle(), telemetryRequest(1001L));
 
         ArgumentCaptor<FleetRuntime> captor = ArgumentCaptor.forClass(FleetRuntime.class);
         verify(fleetRuntimeService).save(captor.capture());
         assertEquals("STANDBY", captor.getValue().getRuntimeStage());
         assertEquals(95, captor.getValue().getSoc());
+        assertEquals(new BigDecimal("121.062280"), captor.getValue().getLongitude());
+        assertEquals(new BigDecimal("31.912450"), captor.getValue().getLatitude());
     }
 
     @Test
@@ -67,7 +77,8 @@ class Phase3AcceptanceTest {
         FleetRuntimeService fleetRuntimeService = mock(FleetRuntimeService.class);
         VehicleTelemetryIdempotencyService idempotencyService = mock(VehicleTelemetryIdempotencyService.class);
         RealFleetAdapter realFleetAdapter = new RealFleetAdapter(
-                fleetRuntimeService, mock(FleetTelemetryPersistenceService.class), noopSwapCoordinator());
+                fleetRuntimeService, mock(FleetTelemetryPersistenceService.class), noopSwapCoordinator(), fleetGeoResolver,
+                mock(GeofenceBreachService.class));
         FleetAdapterRegistry registry = new FleetAdapterRegistry(java.util.List.of(realFleetAdapter));
 
         VehicleGatewayServiceImpl gatewayService = new VehicleGatewayServiceImpl(
@@ -93,7 +104,9 @@ class Phase3AcceptanceTest {
         RealFleetAdapter realFleetAdapter = new RealFleetAdapter(
                 mock(FleetRuntimeService.class),
                 mock(FleetTelemetryPersistenceService.class),
-                noopSwapCoordinator());
+                noopSwapCoordinator(),
+                fleetGeoResolver,
+                mock(GeofenceBreachService.class));
         FleetAdapterRegistry registry = new FleetAdapterRegistry(java.util.List.of(realFleetAdapter));
         VehicleGatewayServiceImpl gatewayService = new VehicleGatewayServiceImpl(
                 vehicleService,
@@ -125,8 +138,8 @@ class Phase3AcceptanceTest {
         request.setRuntimeStage("STANDBY");
         request.setPluggedIn(false);
         request.setSoc(95);
-        request.setX(BigDecimal.valueOf(220));
-        request.setY(BigDecimal.valueOf(170));
+        request.setX(BigDecimal.valueOf(600));
+        request.setY(BigDecimal.valueOf(400));
         request.setReportTime(LocalDateTime.now());
         request.setEventSeq(eventSeq);
         return request;

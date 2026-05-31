@@ -54,6 +54,13 @@ management:
     export:
       prometheus:
         enabled: true
+  tracing:
+    enabled: ${MANAGEMENT_TRACING_ENABLED:false}
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://127.0.0.1:9411/api/v2/spans}
 
 springdoc:
   api-docs:
@@ -72,6 +79,13 @@ fsd:
     min-zoom: ${FSD_PARK_MIN_ZOOM:-1}
     max-zoom: ${FSD_PARK_MAX_ZOOM:3}
     vehicle-speed-px-per-second: ${FSD_PARK_VEHICLE_SPEED_PX_PER_SECOND:8}
+    geo:
+      enabled: ${FSD_PARK_GEO_ENABLED:true}
+      anchor-lng: ${FSD_PARK_GEO_ANCHOR_LNG:121.062280}
+      anchor-lat: ${FSD_PARK_GEO_ANCHOR_LAT:31.912450}
+      park-width-meters: ${FSD_PARK_GEO_WIDTH_M:2400}
+      park-height-meters: ${FSD_PARK_GEO_HEIGHT_M:1600}
+      scenario: TEXTILE_DIESHIQIAO
     x-field-alias: currentLongitude
     y-field-alias: currentLatitude
     parking-spots:
@@ -343,6 +357,9 @@ fsd:
         viewer-demo: VIEWER
         operator-demo: OPERATOR
         admin-demo: ADMIN
+    field-encryption:
+      enabled: ${FSD_FIELD_ENCRYPTION_ENABLED:false}
+      key: ${FSD_FIELD_ENCRYPTION_KEY:}
     vehicle-gateway:
       enabled: ${FSD_VEHICLE_GATEWAY_AUTH_ENABLED:true}
   vda5050:
@@ -352,3 +369,16 @@ fsd:
       client-id: ${FSD_VDA5050_MQTT_CLIENT_ID:dispatchflow-fms}
       interface-name: ${FSD_VDA5050_MQTT_INTERFACE:uagv/v2}
       qos: ${FSD_VDA5050_MQTT_QOS:1}
+  amap:
+    web-service-key: ${FSD_AMAP_WEB_SERVICE_KEY:}
+    logistics:
+      enabled: ${FSD_AMAP_LOGISTICS_ENABLED:false}
+      blend-weight: ${FSD_AMAP_LOGISTICS_BLEND_WEIGHT:0.3}
+      timeout-ms: ${FSD_AMAP_LOGISTICS_TIMEOUT_MS:3000}
+  mapf:
+    enabled: ${FSD_MAPF_ENABLED:true}
+    bucket-ms: ${FSD_MAPF_BUCKET_MS:500}
+    horizon-buckets: ${FSD_MAPF_HORIZON_BUCKETS:6}
+    zone-grid-size: ${FSD_MAPF_ZONE_GRID_SIZE:4}
+    max-replan-attempts: ${FSD_MAPF_MAX_REPLAN_ATTEMPTS:4}
+    conflict-penalty-multiplier: ${FSD_MAPF_CONFLICT_PENALTY:3.0}

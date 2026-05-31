@@ -30,6 +30,12 @@ public class VehicleTelemetryRequest {
     @NotNull(message = "y is required")
     private BigDecimal y;
 
+    /** Optional GCJ-02 longitude from on-vehicle GPS; falls back to park x/y transform. */
+    private BigDecimal longitude;
+
+    /** Optional GCJ-02 latitude from on-vehicle GPS; falls back to park x/y transform. */
+    private BigDecimal latitude;
+
     @NotNull(message = "reportTime is required")
     private LocalDateTime reportTime;
 

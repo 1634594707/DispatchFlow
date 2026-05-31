@@ -83,6 +83,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '车辆监控大屏', breadcrumb: ['分析监控', '车辆监控大屏'], fullscreen: true },
       },
       {
+        path: 'gis/park-overview',
+        name: 'ParkOverview',
+        component: () => import('@/views/gis/ParkOverview.vue'),
+        meta: { title: '多园区总览', breadcrumb: ['分析监控', '多园区总览'], fullscreen: true },
+      },
+      {
+        path: 'dev/map-poc',
+        name: 'MapPoc',
+        component: () => import('@/views/dev/MapPoc.vue'),
+        meta: { title: '高德地图 PoC', breadcrumb: ['开发验证', '高德地图 PoC'], requiresAdmin: true },
+      },
+      {
         path: 'vehicles/:vehicleId',
         name: 'VehicleDetail',
         component: () => import('@/views/vehicle/Detail.vue'),
@@ -183,6 +195,12 @@ const routes: RouteRecordRaw[] = [
         name: 'InfraTraffic',
         component: () => import('@/views/infrastructure/TrafficOverview.vue'),
         meta: { title: '交通态势', breadcrumb: ['基础设施', '交通态势'], requiresAdmin: true },
+      },
+      {
+        path: 'infrastructure/geofences',
+        name: 'InfraGeofenceList',
+        component: () => import('@/views/infrastructure/GeofenceList.vue'),
+        meta: { title: '地理围栏', breadcrumb: ['基础设施', '地理围栏'], requiresAdmin: true },
       },
       {
         path: 'digital-twin',

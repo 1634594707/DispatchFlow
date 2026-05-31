@@ -8,10 +8,13 @@ import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
+import com.fsd.dispatch.service.ParkGeofenceService;
 import com.fsd.dispatch.service.ParkPilotService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
+import com.fsd.dispatch.vo.ParkGeofenceResponse;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
+import com.fsd.dispatch.vo.ParkOverviewResponse;
 import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
 import com.fsd.dispatch.vo.ParkPointResponse;
@@ -48,6 +51,7 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     private final DispatchTaskMapper dispatchTaskMapper;
     private final FleetRuntimeService fleetRuntimeService;
     private final FleetSnapshotAssembler fleetSnapshotAssembler;
+    private final ParkGeofenceService parkGeofenceService;
 
     public ParkPilotServiceImpl(ParkPilotProperties parkPilotProperties,
                                 ParkStationService parkStationService,
@@ -57,7 +61,8 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                                 OrderMapper orderMapper,
                                 DispatchTaskMapper dispatchTaskMapper,
                                 FleetRuntimeService fleetRuntimeService,
-                                FleetSnapshotAssembler fleetSnapshotAssembler) {
+                                FleetSnapshotAssembler fleetSnapshotAssembler,
+                                ParkGeofenceService parkGeofenceService) {
         this.parkPilotProperties = parkPilotProperties;
         this.parkStationService = parkStationService;
         this.parkPilotSimulationService = parkPilotSimulationService;
@@ -67,6 +72,7 @@ public class ParkPilotServiceImpl implements ParkPilotService {
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.fleetRuntimeService = fleetRuntimeService;
         this.fleetSnapshotAssembler = fleetSnapshotAssembler;
+        this.parkGeofenceService = parkGeofenceService;
     }
 
     @Override
@@ -99,6 +105,9 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                         : parkPilotProperties.getVehicleSpeedPxPerSecond())
                 .xFieldAlias(parkPilotProperties.getXFieldAlias())
                 .yFieldAlias(parkPilotProperties.getYFieldAlias())
+                .centerLng(resolveCenterLng(park))
+                .centerLat(resolveCenterLat(park))
+                .mapProvider(resolveMapProvider(park))
                 .stations(listStations(parkId))
                 .parkingSpots(parkPilotProperties.getParkingSpots().stream()
                         .map(point -> ParkPointResponse.builder()
@@ -140,6 +149,30 @@ public class ParkPilotServiceImpl implements ParkPilotService {
 
     private Integer resolveMapDimension(Integer parkValue, Integer fallback) {
         return parkValue != null ? parkValue : fallback;
+    }
+
+    private BigDecimal resolveCenterLng(ParkEntity park) {
+        if (park.getCenterLng() != null) {
+            return park.getCenterLng();
+        }
+        ParkPilotProperties.GeoConfig geo = parkPilotProperties.getGeo();
+        return geo != null && geo.isEnabled() ? geo.getAnchorLng() : null;
+    }
+
+    private BigDecimal resolveCenterLat(ParkEntity park) {
+        if (park.getCenterLat() != null) {
+            return park.getCenterLat();
+        }
+        ParkPilotProperties.GeoConfig geo = parkPilotProperties.getGeo();
+        return geo != null && geo.isEnabled() ? geo.getAnchorLat() : null;
+    }
+
+    private String resolveMapProvider(ParkEntity park) {
+        if (park.getMapProvider() != null && !park.getMapProvider().isBlank()) {
+            return park.getMapProvider();
+        }
+        ParkPilotProperties.GeoConfig geo = parkPilotProperties.getGeo();
+        return geo != null && geo.isEnabled() ? "AMAP" : null;
     }
 
     @Override
@@ -318,5 +351,41 @@ public class ParkPilotServiceImpl implements ParkPilotService {
             candidates.add(task.getUpdatedAt());
         }
         return candidates.stream().filter(Objects::nonNull).max(java.time.LocalDateTime::compareTo).orElse(null);
+    }
+
+    @Override
+    public List<ParkGeofenceResponse> listGeofences(Long parkId) {
+        Long effectiveParkId = parkId != null ? parkId : parkStationService.requireDefaultPark().getId();
+        return parkGeofenceService.listActiveByPark(effectiveParkId);
+    }
+
+    @Override
+    public List<ParkOverviewResponse> listParkOverview() {
+        List<ParkVehicleSnapshotResponse> vehicles = listVehicleSnapshots();
+        ParkEntity defaultPark = parkStationService.requireDefaultPark();
+        return parkStationService.listActiveParks().stream()
+                .map(park -> {
+                    ParkEntity entity = parkStationService.requirePark(park.getParkId());
+                    boolean isDefault = defaultPark.getId().equals(park.getParkId());
+                    List<ParkVehicleSnapshotResponse> parkVehicles = isDefault ? vehicles : List.of();
+                    long online = parkVehicles.stream()
+                            .filter(v -> "ONLINE".equals(v.getOnlineStatus()))
+                            .count();
+                    long busy = parkVehicles.stream()
+                            .filter(v -> "BUSY".equals(v.getDispatchStatus()))
+                            .count();
+                    return ParkOverviewResponse.builder()
+                            .parkId(park.getParkId())
+                            .parkCode(park.getParkCode())
+                            .parkName(park.getParkName())
+                            .centerLng(entity.getCenterLng())
+                            .centerLat(entity.getCenterLat())
+                            .mapProvider(entity.getMapProvider())
+                            .vehicleCount(parkVehicles.size())
+                            .onlineCount(online)
+                            .busyCount(busy)
+                            .build();
+                })
+                .toList();
     }
 }

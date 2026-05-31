@@ -1,6 +1,8 @@
 package com.fsd.admin.controller;
 
 import com.fsd.admin.auth.AdminAuthSupport;
+import com.fsd.admin.dto.AdminGeofenceUpdateRequest;
+import com.fsd.admin.dto.AdminGeofenceUpsertRequest;
 import com.fsd.admin.dto.AdminBatterySwapCabinetUpsertRequest;
 import com.fsd.admin.dto.AdminChargingPileUpsertRequest;
 import com.fsd.admin.dto.AdminParkUpsertRequest;
@@ -9,6 +11,7 @@ import com.fsd.admin.dto.AdminRoadNodeUpsertRequest;
 import com.fsd.admin.dto.AdminRoadSegmentUpsertRequest;
 import com.fsd.admin.dto.AdminStationUpsertRequest;
 import com.fsd.admin.service.InfrastructureAdminService;
+import com.fsd.admin.vo.AdminGeofenceResponse;
 import com.fsd.admin.vo.AdminBatterySwapCabinetResponse;
 import com.fsd.admin.vo.AdminChargingPileResponse;
 import com.fsd.admin.vo.AdminParkResponse;
@@ -216,5 +219,34 @@ public class AdminInfrastructureController {
                                                                          HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         return ApiResponse.success(infrastructureAdminService.toggleRoadSegmentStatus(segmentId));
+    }
+
+    @GetMapping("/geofences")
+    public ApiResponse<List<AdminGeofenceResponse>> listGeofences(@RequestParam Long parkId,
+                                                                  HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        return ApiResponse.success(infrastructureAdminService.listGeofences(parkId));
+    }
+
+    @PostMapping("/geofences")
+    public ApiResponse<AdminGeofenceResponse> createGeofence(@Valid @RequestBody AdminGeofenceUpsertRequest body,
+                                                             HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        return ApiResponse.success(infrastructureAdminService.createGeofence(body));
+    }
+
+    @PutMapping("/geofences/{geofenceId}")
+    public ApiResponse<AdminGeofenceResponse> updateGeofence(@PathVariable Long geofenceId,
+                                                             @Valid @RequestBody AdminGeofenceUpdateRequest body,
+                                                             HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        return ApiResponse.success(infrastructureAdminService.updateGeofence(geofenceId, body));
+    }
+
+    @PostMapping("/geofences/{geofenceId}/delete")
+    public ApiResponse<Void> deleteGeofence(@PathVariable Long geofenceId, HttpServletRequest request) {
+        AdminAuthSupport.requireAdmin(request);
+        infrastructureAdminService.deleteGeofence(geofenceId);
+        return ApiResponse.success(null);
     }
 }

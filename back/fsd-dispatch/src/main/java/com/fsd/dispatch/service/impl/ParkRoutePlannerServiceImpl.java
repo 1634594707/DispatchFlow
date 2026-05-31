@@ -57,16 +57,38 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
 
         String startNode = nearestNode(graph, startX, startY);
         String endNode = nearestNode(graph, endX, endY);
-        List<String> nodePath = shortestNodePath(graph, startNode, endNode);
+        List<String> nodePath = shortestNodePath(graph, startNode, endNode, Map.of());
+        return buildRouteFromNodePath(graph, startX, startY, endX, endY, nodePath);
+    }
 
+    @Override
+    public List<ParkPointResponse> buildRouteFromNodePath(ParkRoadGraph graph,
+                                                          BigDecimal startX, BigDecimal startY,
+                                                          BigDecimal endX, BigDecimal endY,
+                                                          List<String> nodePath) {
         List<ParkPointResponse> route = new ArrayList<>();
         route.add(point("START", startX, startY));
         for (String code : nodePath) {
             ParkRoadGraph.NodeView node = graph.node(code);
-            route.add(point(code, node.x(), node.y()));
+            if (node != null) {
+                route.add(point(code, node.x(), node.y()));
+            }
         }
         route.add(point("END", endX, endY));
         return route;
+    }
+
+    @Override
+    public List<String> shortestNodePathWithPenalties(ParkRoadGraph graph,
+                                                      BigDecimal startX, BigDecimal startY,
+                                                      BigDecimal endX, BigDecimal endY,
+                                                      Map<String, Double> edgePenalties) {
+        if (graph.isEmpty() || startX == null || startY == null || endX == null || endY == null) {
+            return List.of();
+        }
+        String startNode = nearestNode(graph, startX, startY);
+        String endNode = nearestNode(graph, endX, endY);
+        return shortestNodePath(graph, startNode, endNode, edgePenalties == null ? Map.of() : edgePenalties);
     }
 
     @Override
@@ -81,7 +103,7 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
         try {
             String startNode = nearestNode(graph, startX, startY);
             String endNode = nearestNode(graph, endX, endY);
-            shortestNodePath(graph, startNode, endNode);
+            shortestNodePath(graph, startNode, endNode, Map.of());
             return true;
         } catch (BusinessException ex) {
             if ("PARK_ROUTE_NOT_FOUND".equals(ex.getCode())) {
@@ -94,6 +116,11 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
     /**
      * DB has nodes for this park → use DB only; otherwise YAML fallback (P2-10).
      */
+    @Override
+    public ParkRoadGraph loadGraph(Long parkId) {
+        return resolveGraph(parkId);
+    }
+
     ParkRoadGraph resolveGraph(Long parkId) {
         Long resolvedParkId = parkId != null ? parkId : parkStationService.requireDefaultPark().getId();
         List<RoadNodeEntity> dbNodes = roadNodeMapper.selectList(new QueryWrapper<RoadNodeEntity>()
@@ -108,7 +135,8 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
         return ParkRoadGraph.fromYaml(parkPilotProperties);
     }
 
-    private List<String> shortestNodePath(ParkRoadGraph graph, String startNode, String endNode) {
+    private List<String> shortestNodePath(ParkRoadGraph graph, String startNode, String endNode,
+                                          Map<String, Double> edgePenalties) {
         if (Objects.equals(startNode, endNode)) {
             return List.of(startNode);
         }
@@ -128,7 +156,8 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
                 break;
             }
             for (String next : graph.neighbors(current.code())) {
-                double candidate = current.distance() + graph.edgeCost(current.code(), next);
+                double penalty = edgePenalties.getOrDefault(directedKey(current.code(), next), 0D);
+                double candidate = current.distance() + graph.edgeCost(current.code(), next) * (1D + penalty);
                 if (candidate < distances.getOrDefault(next, Double.MAX_VALUE)) {
                     distances.put(next, candidate);
                     previous.put(next, current.code());
@@ -149,6 +178,10 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
             path.add(0, cursor);
         }
         return path;
+    }
+
+    private static String directedKey(String from, String to) {
+        return from + ">" + to;
     }
 
     private String nearestNode(ParkRoadGraph graph, BigDecimal x, BigDecimal y) {

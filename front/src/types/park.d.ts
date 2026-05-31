@@ -46,6 +46,9 @@ export interface ParkLayout {
   minZoom: number
   maxZoom: number
   vehicleSpeedPxPerSecond: number
+  centerLng?: number | null
+  centerLat?: number | null
+  mapProvider?: string | null
   xFieldAlias: string
   yFieldAlias: string
   stations: ParkStation[]
@@ -65,6 +68,8 @@ export interface ParkVehicleSnapshot {
   batteryLevel: number
   x: number
   y: number
+  longitude?: number | null
+  latitude?: number | null
   runtimeStage: string
   targetCode: string | null
   targetType: string | null
@@ -72,6 +77,29 @@ export interface ParkVehicleSnapshot {
   lowBattery: boolean
   linkMode: 'SIM' | 'REAL' | 'VDA5050'
   trajectory: ParkPoint[]
+}
+
+export interface ParkGeofence {
+  id: number
+  parkId: number
+  fenceCode: string
+  fenceName: string
+  fenceType: 'BOUNDARY' | 'RESTRICTED' | string
+  polygon: [number, number][]
+  status: string
+  remark?: string
+}
+
+export interface ParkOverviewItem {
+  parkId: number
+  parkCode: string
+  parkName: string
+  centerLng?: number | null
+  centerLat?: number | null
+  mapProvider?: string | null
+  vehicleCount: number
+  onlineCount: number
+  busyCount: number
 }
 
 export interface ParkOrderSnapshot {

@@ -22,6 +22,8 @@ import com.fsd.dispatch.service.DispatchRouteService;
 import com.fsd.dispatch.service.HubCapacityService;
 import com.fsd.dispatch.service.PeakModeService;
 import com.fsd.dispatch.service.TrafficZoneControlService;
+import com.fsd.dispatch.geo.DispatchGeoDistanceService;
+import com.fsd.dispatch.mapf.MapfRoutePlannerService;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.order.entity.OrderEntity;
@@ -62,6 +64,29 @@ class DispatchVehicleAssignServiceImplTest {
     @Mock
     private DispatchAutomationRuleService automationRuleService;
 
+    private final DispatchGeoDistanceService dispatchGeoDistanceService = new DispatchGeoDistanceService(
+            null, null, null, null) {
+        @Override
+        public boolean isGeoBlendEnabled() {
+            return false;
+        }
+
+        @Override
+        public List<Double> applyGeoBlend(List<VehicleEntity> candidates,
+                                          ParkStationResponse pickup,
+                                          List<Double> parkDistancesPx) {
+            return parkDistancesPx;
+        }
+    };
+
+    private final MapfRoutePlannerService mapfRoutePlannerService = new MapfRoutePlannerService(
+            null, null, null, null, null) {
+        @Override
+        public boolean isEnabled() {
+            return false;
+        }
+    };
+
     private DispatchVehicleAssignServiceImpl assignService;
 
     @BeforeEach
@@ -91,7 +116,9 @@ class DispatchVehicleAssignServiceImplTest {
                 hubCapacityService,
                 dispatchRouteService,
                 peakModeService,
-                automationRuleService);
+                automationRuleService,
+                dispatchGeoDistanceService,
+                mapfRoutePlannerService);
     }
 
     @Test

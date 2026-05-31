@@ -51,6 +51,9 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('leaflet')) {
             return 'leaflet'
           }
+          if (id.includes('@amap/amap-jsapi-loader') || id.includes('amap-jsapi')) {
+            return 'amap'
+          }
           if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router')) {
             return 'vue-vendor'
           }

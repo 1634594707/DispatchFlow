@@ -30,6 +30,16 @@ export function getParkVehicles() {
   return request.get<any, ApiResponse<ParkVehicleSnapshot[]>>('/admin/park/vehicles')
 }
 
+export function getParkGeofences(parkId?: number) {
+  return request.get<any, ApiResponse<import('@/types/park').ParkGeofence[]>>('/admin/park/geofences', {
+    params: parkId != null ? { parkId } : undefined,
+  })
+}
+
+export function getParkOverview() {
+  return request.get<any, ApiResponse<import('@/types/park').ParkOverviewItem[]>>('/admin/park/overview')
+}
+
 export function getParkOrders() {
   return request.get<any, ApiResponse<ParkOrderSnapshot[]>>('/admin/park/orders')
 }

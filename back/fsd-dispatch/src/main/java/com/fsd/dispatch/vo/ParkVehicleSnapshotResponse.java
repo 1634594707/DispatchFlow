@@ -29,6 +29,10 @@ public class ParkVehicleSnapshotResponse {
 
     private BigDecimal y;
 
+    private BigDecimal longitude;
+
+    private BigDecimal latitude;
+
     private String runtimeStage;
 
     private String targetCode;

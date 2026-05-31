@@ -20,10 +20,14 @@ function Apply-Migration {
     }
 }
 
-Write-Host "Applying SQL migrations if MySQL container is running..." -ForegroundColor Cyan
+Write-Host "Applying legacy SQL migrations if MySQL container is running..." -ForegroundColor Cyan
+Write-Host "  (V21+ managed by Flyway on startup — skipped here)" -ForegroundColor DarkGray
 $mysqlRunning = docker ps --filter "name=fsd-mysql" --format "{{.Names}}" 2>$null
 if ($mysqlRunning -eq "fsd-mysql") {
     Get-ChildItem (Join-Path $PSScriptRoot "sql\migrations\V*.sql") | Sort-Object Name | ForEach-Object {
+        if ($_.Name -match '^V(\d+)__' -and [int]$Matches[1] -ge 21) {
+            return
+        }
         Apply-Migration $_.Name
     }
 } else {

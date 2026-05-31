@@ -31,6 +31,15 @@ public class ParkLayoutResponse {
 
     private String yFieldAlias;
 
+    /** GCJ-02 map center longitude */
+    private BigDecimal centerLng;
+
+    /** GCJ-02 map center latitude */
+    private BigDecimal centerLat;
+
+    /** Map provider: AMAP, etc. */
+    private String mapProvider;
+
     private List<ParkStationResponse> stations;
 
     private List<ParkPointResponse> parkingSpots;

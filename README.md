@@ -44,9 +44,9 @@
 |------|------|------|
 | **v2.0.0** | ✅ | Phase 10–11：园区一致、交通管控、命令面板 |
 | **v3.0.0**（当前） | ✅ | Phase 12–15：垂直/开放协议/规模化 MVP · [Release Notes](docs/releases/v3.0.0.md) |
-| **V3 规划** | 待办 | MAPF、覆盖率 80%、可观测性深化 · [ROADMAP](docs/ROADMAP-V2.md) |
+| **V3 规划** | 进行中 | 真实地图 · MAPF · 质量/可观测 · [ROADMAP-V3](docs/ROADMAP-V3.md) |
 
-VDA5050 评估见 **[docs/phase15/VDA5050-EVALUATION.md](docs/phase15/VDA5050-EVALUATION.md)**。
+VDA5050 评估见 **[docs/archive/phase15/VDA5050-EVALUATION.md](docs/archive/phase15/VDA5050-EVALUATION.md)**。
 
 ---
 
@@ -161,8 +161,8 @@ DispatchFlow/
 | 文档 | 内容 |
 |------|------|
 | **[docs/acceptance/README.md](docs/acceptance/README.md)** | **验收总方案**（环境、顺序、勾选表） |
-| **[docs/ROADMAP-V2.md](docs/ROADMAP-V2.md)** | **产品路线图**（Phase 15 待办） |
-| [docs/phase15/VDA5050-EVALUATION.md](docs/phase15/VDA5050-EVALUATION.md) | VDA5050 MQTT 适配评估 |
+| **[docs/ROADMAP-V3.md](docs/ROADMAP-V3.md)** | **V3 产品路线图**（`- [ ]` 任务清单） |
+| [docs/archive/phase15/VDA5050-EVALUATION.md](docs/archive/phase15/VDA5050-EVALUATION.md) | VDA5050 MQTT 适配评估 |
 | [docs/perf/navigation-baseline.md](docs/perf/navigation-baseline.md) | 导航重构性能基线 |
 | [docs/README.md](docs/README.md) | 文档索引 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 模块划分、领域边界、Fleet 模型、事件流 |

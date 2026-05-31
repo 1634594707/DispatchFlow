@@ -33,6 +33,12 @@ public class FleetRuntime {
 
     private BigDecimal y;
 
+    /** GCJ-02 longitude cached from telemetry or park x/y transform. */
+    private BigDecimal longitude;
+
+    /** GCJ-02 latitude cached from telemetry or park x/y transform. */
+    private BigDecimal latitude;
+
     private LocalDateTime lastTelemetryAt;
 
     @Builder.Default

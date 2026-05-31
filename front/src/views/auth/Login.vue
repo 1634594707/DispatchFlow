@@ -9,17 +9,7 @@
     <div class="login-card animate-fade-in-up">
       <div class="login-brand">
         <div class="brand-icon">
-          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="32" height="32" rx="8" fill="url(#login-grad)" />
-            <path d="M8 22L16 10L24 22H8Z" fill="white" opacity="0.9" />
-            <circle cx="16" cy="18" r="2" fill="white" />
-            <defs>
-              <linearGradient id="login-grad" x1="0" y1="0" x2="32" y2="32">
-                <stop stop-color="#00B4D8" />
-                <stop offset="1" stop-color="#0077B6" />
-              </linearGradient>
-            </defs>
-          </svg>
+          <DispatchFlowLogo :size="48" />
         </div>
         <h1>DispatchFlow</h1>
         <p>无人车调度管理平台</p>
@@ -93,6 +83,7 @@ import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
+import DispatchFlowLogo from '@/components/brand/DispatchFlowLogo.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()

@@ -4,6 +4,7 @@ import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.model.FleetTrajectoryPoint;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
+import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
 import com.fsd.vehicle.entity.VehicleEntity;
@@ -17,12 +18,19 @@ public class FleetSnapshotAssembler {
 
     private final FleetChargePolicy fleetChargePolicy;
 
-    public FleetSnapshotAssembler(FleetChargePolicy fleetChargePolicy) {
+    private final ParkGeoTransformService parkGeoTransformService;
+
+    public FleetSnapshotAssembler(FleetChargePolicy fleetChargePolicy,
+                                  ParkGeoTransformService parkGeoTransformService) {
         this.fleetChargePolicy = fleetChargePolicy;
+        this.parkGeoTransformService = parkGeoTransformService;
     }
 
     public ParkVehicleSnapshotResponse assemble(VehicleEntity vehicle, FleetRuntime runtime) {
         FleetRuntime effectiveRuntime = runtime != null ? runtime : defaultRuntime(vehicle);
+        java.math.BigDecimal x = firstNonNull(effectiveRuntime.getX(), vehicle.getCurrentLongitude());
+        java.math.BigDecimal y = firstNonNull(effectiveRuntime.getY(), vehicle.getCurrentLatitude());
+        var geo = resolveGeo(effectiveRuntime, x, y);
         return ParkVehicleSnapshotResponse.builder()
                 .vehicleId(vehicle.getId())
                 .vehicleCode(vehicle.getVehicleCode())
@@ -32,8 +40,10 @@ public class FleetSnapshotAssembler {
                 .currentTaskId(vehicle.getCurrentTaskId())
                 .currentOrderId(vehicle.getCurrentOrderId())
                 .batteryLevel(vehicle.getBatteryLevel())
-                .x(firstNonNull(effectiveRuntime.getX(), vehicle.getCurrentLongitude()))
-                .y(firstNonNull(effectiveRuntime.getY(), vehicle.getCurrentLatitude()))
+                .x(x)
+                .y(y)
+                .longitude(geo != null ? geo.longitude() : null)
+                .latitude(geo != null ? geo.latitude() : null)
                 .runtimeStage(effectiveRuntime.getRuntimeStage())
                 .targetCode(effectiveRuntime.getTargetCode())
                 .targetType(effectiveRuntime.getTargetType())
@@ -79,5 +89,14 @@ public class FleetSnapshotAssembler {
         return vehicle.getLinkMode() == null || vehicle.getLinkMode().isBlank()
                 ? VehicleLinkMode.SIM.name()
                 : vehicle.getLinkMode();
+    }
+
+    private ParkGeoTransformService.GeoPoint resolveGeo(FleetRuntime runtime,
+                                                          java.math.BigDecimal x,
+                                                          java.math.BigDecimal y) {
+        if (runtime.getLongitude() != null && runtime.getLatitude() != null) {
+            return new ParkGeoTransformService.GeoPoint(runtime.getLongitude(), runtime.getLatitude());
+        }
+        return parkGeoTransformService.toGcj02(x, y).orElse(null);
     }
 }

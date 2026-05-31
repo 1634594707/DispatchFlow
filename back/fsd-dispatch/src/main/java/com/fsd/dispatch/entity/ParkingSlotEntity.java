@@ -26,6 +26,10 @@ public class ParkingSlotEntity {
 
     private BigDecimal coordY;
 
+    private BigDecimal coordLng;
+
+    private BigDecimal coordLat;
+
     private String status;
 
     private Long occupiedVehicleId;

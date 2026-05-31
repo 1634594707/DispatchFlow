@@ -1,6 +1,7 @@
 package com.fsd.dispatch.integration;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fsd.common.security.FieldEncryptionService;
 import com.fsd.dispatch.entity.WebhookDeliveryLogEntity;
 import com.fsd.dispatch.entity.WebhookSubscriptionEntity;
 import com.fsd.dispatch.event.DispatchDomainEvent;
@@ -26,14 +27,17 @@ public class WebhookDeliveryService {
 
     private final WebhookSubscriptionMapper subscriptionMapper;
     private final WebhookDeliveryLogMapper deliveryLogMapper;
+    private final FieldEncryptionService fieldEncryptionService;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3))
             .build();
 
     public WebhookDeliveryService(WebhookSubscriptionMapper subscriptionMapper,
-                                  WebhookDeliveryLogMapper deliveryLogMapper) {
+                                  WebhookDeliveryLogMapper deliveryLogMapper,
+                                  FieldEncryptionService fieldEncryptionService) {
         this.subscriptionMapper = subscriptionMapper;
         this.deliveryLogMapper = deliveryLogMapper;
+        this.fieldEncryptionService = fieldEncryptionService;
     }
 
     public void deliver(DispatchDomainEvent event) {
@@ -56,7 +60,10 @@ public class WebhookDeliveryService {
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
                 if (sub.getSecretToken() != null && !sub.getSecretToken().isBlank()) {
-                    builder.header("X-Webhook-Secret", sub.getSecretToken());
+                    String secret = fieldEncryptionService.decrypt(sub.getSecretToken());
+                    if (secret != null && !secret.isBlank()) {
+                        builder.header("X-Webhook-Secret", secret);
+                    }
                 }
                 HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
                 boolean success = response.statusCode() >= 200 && response.statusCode() < 300;

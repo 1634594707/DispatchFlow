@@ -107,6 +107,28 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
         return false;
     }
 
+    @Override
+    public void evaluateGeofenceBreach(Long parkId, VehicleEntity vehicle, String geofenceCode, String breachType) {
+        if (vehicle == null || geofenceCode == null || breachType == null) {
+            return;
+        }
+        for (DispatchAutomationRuleEntity rule : enabledRules(parkId)) {
+            if (!geofenceCode.equalsIgnoreCase(rule.getConditionValue())) {
+                continue;
+            }
+            String condition = rule.getConditionType() == null ? "" : rule.getConditionType().toUpperCase();
+            if (!condition.equals(breachType) && !"GEOFENCE_BREACH".equals(condition)) {
+                continue;
+            }
+            if ("CREATE_EXCEPTION".equalsIgnoreCase(rule.getActionType())) {
+                dispatchExceptionService.recordVehicleException(
+                        vehicle.getId(),
+                        breachType,
+                        "规则「" + rule.getRuleName() + "」响应围栏事件 " + geofenceCode);
+            }
+        }
+    }
+
     private List<DispatchAutomationRuleEntity> enabledRules(Long parkId) {
         return ruleMapper.selectList(new LambdaQueryWrapper<DispatchAutomationRuleEntity>()
                 .eq(DispatchAutomationRuleEntity::getDeleted, 0)

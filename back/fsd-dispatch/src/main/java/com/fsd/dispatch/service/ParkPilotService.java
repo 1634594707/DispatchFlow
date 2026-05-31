@@ -1,7 +1,9 @@
 package com.fsd.dispatch.service;
 
+import com.fsd.dispatch.vo.ParkGeofenceResponse;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
 import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
+import com.fsd.dispatch.vo.ParkOverviewResponse;
 import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
@@ -27,4 +29,8 @@ public interface ParkPilotService {
     List<ParkVehicleSnapshotResponse> listVehicleSnapshots();
 
     List<ParkOrderSnapshotResponse> listOrderSnapshots();
+
+    List<ParkGeofenceResponse> listGeofences(Long parkId);
+
+    List<ParkOverviewResponse> listParkOverview();
 }

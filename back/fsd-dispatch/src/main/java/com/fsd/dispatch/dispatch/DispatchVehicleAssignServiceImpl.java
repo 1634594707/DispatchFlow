@@ -14,6 +14,9 @@ import com.fsd.dispatch.service.DispatchRouteService;
 import com.fsd.dispatch.service.HubCapacityService;
 import com.fsd.dispatch.service.PeakModeService;
 import com.fsd.dispatch.service.TrafficZoneControlService;
+import com.fsd.dispatch.geo.DispatchGeoDistanceService;
+import com.fsd.dispatch.mapf.MapfRoutePlanResult;
+import com.fsd.dispatch.mapf.MapfRoutePlannerService;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.entity.DispatchRouteEntity;
 import com.fsd.dispatch.vo.ParkPointResponse;
@@ -42,6 +45,8 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
     private final DispatchRouteService dispatchRouteService;
     private final PeakModeService peakModeService;
     private final DispatchAutomationRuleService automationRuleService;
+    private final DispatchGeoDistanceService dispatchGeoDistanceService;
+    private final MapfRoutePlannerService mapfRoutePlannerService;
 
     public DispatchVehicleAssignServiceImpl(VehicleService vehicleService,
                                             ParkStationService parkStationService,
@@ -53,7 +58,9 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                                             HubCapacityService hubCapacityService,
                                             DispatchRouteService dispatchRouteService,
                                             PeakModeService peakModeService,
-                                            DispatchAutomationRuleService automationRuleService) {
+                                            DispatchAutomationRuleService automationRuleService,
+                                            DispatchGeoDistanceService dispatchGeoDistanceService,
+                                            MapfRoutePlannerService mapfRoutePlannerService) {
         this.vehicleService = vehicleService;
         this.parkStationService = parkStationService;
         this.parkRoutePlannerService = parkRoutePlannerService;
@@ -65,6 +72,8 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         this.dispatchRouteService = dispatchRouteService;
         this.peakModeService = peakModeService;
         this.automationRuleService = automationRuleService;
+        this.dispatchGeoDistanceService = dispatchGeoDistanceService;
+        this.mapfRoutePlannerService = mapfRoutePlannerService;
     }
 
     @Override
@@ -122,31 +131,67 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                     "All idle vehicles are below minimum assignable SOC");
         }
 
-        List<ScoredCandidate> reachable = new ArrayList<>();
+        List<VehicleEntity> reachableVehicles = new ArrayList<>();
+        List<Double> parkDistances = new ArrayList<>();
         for (VehicleEntity vehicle : socEligible) {
             double distance = estimateRouteDistance(parkId, vehicle, pickup);
             if (Double.isInfinite(distance)) {
                 continue;
             }
-            reachable.add(scoreCandidate(parkId, vehicle, distance, energy, scoring));
+            reachableVehicles.add(vehicle);
+            parkDistances.add(distance);
         }
-        if (reachable.isEmpty()) {
+        if (reachableVehicles.isEmpty()) {
             return DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
                     "Pickup station is not reachable from any candidate vehicle on the road network");
         }
 
-        ScoredCandidate best = reachable.stream()
-                .min(Comparator.comparingDouble(ScoredCandidate::totalScore))
-                .orElseThrow();
+        List<Double> blendedDistances = dispatchGeoDistanceService.applyGeoBlend(reachableVehicles, pickup, parkDistances);
+        List<ScoredCandidate> reachable = new ArrayList<>();
+        for (int i = 0; i < reachableVehicles.size(); i++) {
+            reachable.add(scoreCandidate(parkId, reachableVehicles.get(i), blendedDistances.get(i), energy, scoring));
+        }
+
+        reachable.sort(Comparator.comparingDouble(ScoredCandidate::totalScore));
+        ScoredCandidate best = selectWithMapfReservation(parkId, pickup, reachable);
+        if (best == null) {
+            return DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
+                    "No conflict-free MAPF route to pickup from any candidate vehicle");
+        }
+        String geoNote = dispatchGeoDistanceService.isGeoBlendEnabled() ? ", geoBlend=on" : "";
+        String mapfNote = mapfRoutePlannerService.isEnabled() ? ", mapf=on" : "";
         String explanation = String.format(
-                "Selected %s: distance=%.1f, socPenalty=%.1f, pluggedBonus=%.1f, total=%.1f",
+                "Selected %s: distance=%.1f, socPenalty=%.1f, pluggedBonus=%.1f, total=%.1f%s%s",
                 best.vehicle().getVehicleCode(),
                 best.distanceScore(),
                 best.socScore(),
                 best.pluggedBonus(),
-                best.totalScore());
+                best.totalScore(),
+                geoNote,
+                mapfNote);
         return DispatchAssignResult.success(best.vehicle(), explanation, best.totalScore(),
                 best.distanceScore(), best.socScore(), best.pluggedBonus());
+    }
+
+    private ScoredCandidate selectWithMapfReservation(Long parkId, ParkStationResponse pickup,
+                                                      List<ScoredCandidate> ranked) {
+        if (!mapfRoutePlannerService.isEnabled()) {
+            return ranked.get(0);
+        }
+        for (ScoredCandidate candidate : ranked) {
+            VehicleEntity vehicle = candidate.vehicle();
+            MapfRoutePlanResult plan = mapfRoutePlannerService.planAndReserve(
+                    parkId,
+                    vehicle.getId(),
+                    vehicle.getCurrentLongitude(),
+                    vehicle.getCurrentLatitude(),
+                    pickup.getX(),
+                    pickup.getY());
+            if (plan.isSuccess() && plan.isReserved()) {
+                return candidate;
+            }
+        }
+        return ranked.isEmpty() ? null : ranked.get(0);
     }
 
     private Long resolveParkId(OrderEntity order) {

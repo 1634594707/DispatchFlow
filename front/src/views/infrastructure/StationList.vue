@@ -98,6 +98,18 @@
           </a-col>
         </a-row>
         <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="GCJ-02 经度（可选）">
+              <a-input-number v-model:value="form.coordLng" :step="0.000001" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="GCJ-02 纬度（可选）">
+              <a-input-number v-model:value="form.coordLat" :step="0.000001" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-row :gutter="16">
           <a-col :span="8">
             <a-form-item label="容量上限">
               <a-input-number v-model:value="form.capacityLimit" :min="1" placeholder="枢纽/缓冲" style="width: 100%" />
@@ -152,6 +164,8 @@ const form = reactive({
   stationType: 'PICKUP',
   coordX: 0,
   coordY: 0,
+  coordLng: undefined as number | undefined,
+  coordLat: undefined as number | undefined,
   area: '',
   status: 'ACTIVE',
   sortOrder: 0,
@@ -210,6 +224,8 @@ function openCreate() {
   form.stationType = 'PICKUP'
   form.coordX = 0
   form.coordY = 0
+  form.coordLng = undefined
+  form.coordLat = undefined
   form.area = ''
   form.status = 'ACTIVE'
   form.sortOrder = 0
@@ -225,6 +241,8 @@ function openEdit(record: AdminStation) {
   form.stationType = record.stationType
   form.coordX = Number(record.coordX)
   form.coordY = Number(record.coordY)
+  form.coordLng = record.coordLng != null ? Number(record.coordLng) : undefined
+  form.coordLat = record.coordLat != null ? Number(record.coordLat) : undefined
   form.area = record.area ?? ''
   form.status = record.status
   form.sortOrder = record.sortOrder ?? 0
@@ -246,6 +264,8 @@ async function handleSave() {
       stationType: form.stationType,
       coordX: form.coordX,
       coordY: form.coordY,
+      coordLng: form.coordLng,
+      coordLat: form.coordLat,
       area: form.area || undefined,
       status: form.status,
       sortOrder: form.sortOrder,

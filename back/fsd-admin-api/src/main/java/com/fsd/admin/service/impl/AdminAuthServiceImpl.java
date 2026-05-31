@@ -14,6 +14,7 @@ import com.fsd.admin.vo.AdminUserResponse;
 import com.fsd.common.enums.AdminRole;
 import com.fsd.common.enums.AdminUserStatus;
 import com.fsd.common.exception.BusinessException;
+import com.fsd.common.security.FieldEncryptionService;
 import dev.samstevens.totp.code.CodeVerifier;
 import dev.samstevens.totp.code.DefaultCodeGenerator;
 import dev.samstevens.totp.code.DefaultCodeVerifier;
@@ -37,14 +38,18 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
     private final AdminUserMapper adminUserMapper;
     private final AdminSessionMapper adminSessionMapper;
+    private final FieldEncryptionService fieldEncryptionService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecretGenerator secretGenerator = new DefaultSecretGenerator();
     private final TimeProvider timeProvider = new SystemTimeProvider();
     private final CodeVerifier codeVerifier = new DefaultCodeVerifier(new DefaultCodeGenerator(HashingAlgorithm.SHA1), timeProvider);
 
-    public AdminAuthServiceImpl(AdminUserMapper adminUserMapper, AdminSessionMapper adminSessionMapper) {
+    public AdminAuthServiceImpl(AdminUserMapper adminUserMapper,
+                                AdminSessionMapper adminSessionMapper,
+                                FieldEncryptionService fieldEncryptionService) {
         this.adminUserMapper = adminUserMapper;
         this.adminSessionMapper = adminSessionMapper;
+        this.fieldEncryptionService = fieldEncryptionService;
     }
 
     @Override
@@ -66,7 +71,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                         .user(toUserResponse(user))
                         .build();
             }
-            if (!verifyTotp(user.getTotpSecret(), request.getTotpCode())) {
+            if (!verifyTotp(decryptTotpSecret(user.getTotpSecret()), request.getTotpCode())) {
                 throw new BusinessException("ADMIN_TOTP_INVALID", "验证码错误");
             }
         }
@@ -97,7 +102,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
             throw new BusinessException("ADMIN_TOTP_FORBIDDEN", "仅 ADMIN 可启用 2FA");
         }
         String secret = secretGenerator.generate();
-        user.setTotpSecret(secret);
+        user.setTotpSecret(fieldEncryptionService.encrypt(secret));
         user.setTotpEnabled(0);
         adminUserMapper.updateById(user);
         Map<String, String> result = new LinkedHashMap<>();
@@ -110,7 +115,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     @Transactional
     public void enableTotp(Long userId, String code) {
         AdminUserEntity user = requireActiveUser(userId);
-        if (user.getTotpSecret() == null || !verifyTotp(user.getTotpSecret(), code)) {
+        if (user.getTotpSecret() == null || !verifyTotp(decryptTotpSecret(user.getTotpSecret()), code)) {
             throw new BusinessException("ADMIN_TOTP_INVALID", "验证码错误");
         }
         user.setTotpEnabled(1);
@@ -121,7 +126,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     @Transactional
     public void disableTotp(Long userId, String code) {
         AdminUserEntity user = requireActiveUser(userId);
-        if (isTotpEnabled(user) && !verifyTotp(user.getTotpSecret(), code)) {
+        if (isTotpEnabled(user) && !verifyTotp(decryptTotpSecret(user.getTotpSecret()), code)) {
             throw new BusinessException("ADMIN_TOTP_INVALID", "验证码错误");
         }
         user.setTotpEnabled(0);
@@ -195,6 +200,10 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
     private boolean verifyTotp(String secret, String code) {
         return codeVerifier.isValidCode(secret, code);
+    }
+
+    private String decryptTotpSecret(String stored) {
+        return fieldEncryptionService.decrypt(stored);
     }
 
     private AdminUserEntity requireActiveUser(Long userId) {

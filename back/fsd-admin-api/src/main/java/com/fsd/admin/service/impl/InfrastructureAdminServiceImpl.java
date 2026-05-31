@@ -56,6 +56,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
     private final BatterySwapCabinetMapper batterySwapCabinetMapper;
     private final RoadNodeMapper roadNodeMapper;
     private final RoadSegmentMapper roadSegmentMapper;
+    private final com.fsd.dispatch.service.ParkGeofenceService parkGeofenceService;
 
     public InfrastructureAdminServiceImpl(ParkMapper parkMapper,
                                           StationMapper stationMapper,
@@ -63,7 +64,8 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
                                           ChargingPileMapper chargingPileMapper,
                                           BatterySwapCabinetMapper batterySwapCabinetMapper,
                                           RoadNodeMapper roadNodeMapper,
-                                          RoadSegmentMapper roadSegmentMapper) {
+                                          RoadSegmentMapper roadSegmentMapper,
+                                          com.fsd.dispatch.service.ParkGeofenceService parkGeofenceService) {
         this.parkMapper = parkMapper;
         this.stationMapper = stationMapper;
         this.parkingSlotMapper = parkingSlotMapper;
@@ -71,6 +73,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         this.batterySwapCabinetMapper = batterySwapCabinetMapper;
         this.roadNodeMapper = roadNodeMapper;
         this.roadSegmentMapper = roadSegmentMapper;
+        this.parkGeofenceService = parkGeofenceService;
     }
 
     @Override
@@ -426,6 +429,48 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         return toRoadSegmentResponse(segment, requirePark(segment.getParkId()));
     }
 
+    @Override
+    public List<com.fsd.admin.vo.AdminGeofenceResponse> listGeofences(Long parkId) {
+        Map<Long, ParkEntity> parks = parkNameMap();
+        return parkGeofenceService.listByPark(parkId).stream()
+                .map(item -> toGeofenceResponse(item, parks.get(item.getParkId())))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public com.fsd.admin.vo.AdminGeofenceResponse createGeofence(com.fsd.admin.dto.AdminGeofenceUpsertRequest request) {
+        ParkEntity park = requirePark(request.getParkId());
+        var created = parkGeofenceService.create(
+                request.getParkId(),
+                request.getFenceCode(),
+                request.getFenceName(),
+                request.getFenceType(),
+                request.getPolygonJson(),
+                request.getRemark());
+        return toGeofenceResponse(created, park);
+    }
+
+    @Override
+    @Transactional
+    public com.fsd.admin.vo.AdminGeofenceResponse updateGeofence(Long geofenceId,
+                                                                 com.fsd.admin.dto.AdminGeofenceUpdateRequest request) {
+        var updated = parkGeofenceService.update(
+                geofenceId,
+                request.getFenceName(),
+                request.getFenceType(),
+                request.getPolygonJson(),
+                request.getStatus(),
+                request.getRemark());
+        return toGeofenceResponse(updated, requirePark(updated.getParkId()));
+    }
+
+    @Override
+    @Transactional
+    public void deleteGeofence(Long geofenceId) {
+        parkGeofenceService.delete(geofenceId);
+    }
+
     private Map<Long, ParkEntity> parkNameMap() {
         return parkMapper.selectList(new LambdaQueryWrapper<ParkEntity>()
                         .eq(ParkEntity::getDeleted, 0))
@@ -464,6 +509,8 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         station.setStationType(request.getStationType());
         station.setCoordX(request.getCoordX());
         station.setCoordY(request.getCoordY());
+        station.setCoordLng(request.getCoordLng());
+        station.setCoordLat(request.getCoordLat());
         station.setArea(request.getArea());
         station.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);
         station.setCapacityLimit(request.getCapacityLimit());
@@ -737,6 +784,8 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
                 .stationType(station.getStationType())
                 .coordX(station.getCoordX())
                 .coordY(station.getCoordY())
+                .coordLng(station.getCoordLng())
+                .coordLat(station.getCoordLat())
                 .area(station.getArea())
                 .status(station.getStatus())
                 .sortOrder(station.getSortOrder())
@@ -869,6 +918,22 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
                 .remark(cabinet.getRemark())
                 .createdAt(cabinet.getCreatedAt())
                 .updatedAt(cabinet.getUpdatedAt())
+                .build();
+    }
+
+    private com.fsd.admin.vo.AdminGeofenceResponse toGeofenceResponse(com.fsd.dispatch.vo.ParkGeofenceResponse item,
+                                                                      ParkEntity park) {
+        return com.fsd.admin.vo.AdminGeofenceResponse.builder()
+                .id(item.getId())
+                .parkId(item.getParkId())
+                .parkName(park != null ? park.getParkName() : null)
+                .fenceCode(item.getFenceCode())
+                .fenceName(item.getFenceName())
+                .fenceType(item.getFenceType())
+                .polygon(item.getPolygon())
+                .status(item.getStatus())
+                .remark(item.getRemark())
+                .updatedAt(item.getUpdatedAt())
                 .build();
     }
 }

@@ -85,6 +85,7 @@ export const NAVIGATION_TREE: NavItem[] = [
       { key: 'analytics', label: '运营分析', path: '/analytics', icon: 'analytics' },
       { key: 'analytics-charging', label: '充电报表', path: '/analytics/charging', icon: 'charging' },
       { key: 'vehicle-tracking', label: '车辆监控大屏', path: '/vehicle-tracking', icon: 'tracking' },
+      { key: 'park-overview', label: '多园区总览', path: '/gis/park-overview', icon: 'tracking' },
     ],
   },
   {
@@ -111,6 +112,7 @@ export const NAVIGATION_TREE: NavItem[] = [
       { key: 'infra-swap-cabinets', label: '换电柜管理', path: '/infrastructure/swap-cabinets' },
       { key: 'infra-road-network', label: '路网管理', path: '/infrastructure/road-network' },
       { key: 'infra-traffic', label: '交通态势', path: '/infrastructure/traffic' },
+      { key: 'infra-geofences', label: '地理围栏', path: '/infrastructure/geofences' },
     ],
   },
   {

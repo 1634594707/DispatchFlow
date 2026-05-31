@@ -1,66 +1,72 @@
 <template>
   <div class="workbench-page">
     <header class="workbench-header">
-      <div class="header-main">
-        <h1 class="page-title">调度工作台</h1>
-        <p class="page-sub">任务池 · 园区态势 · 异常处置</p>
-      </div>
-      <div class="header-metrics">
-        <div class="metric">
-          <span class="metric-value">{{ store.pendingCount }}</span>
-          <span class="metric-label">待派单</span>
+      <div class="header-top">
+        <div class="header-main">
+          <h1 class="page-title">调度工作台</h1>
+          <p class="page-sub">任务池 · 园区态势 · 异常处置</p>
         </div>
-        <div class="metric metric-warn">
-          <span class="metric-value">{{ store.manualPendingCount }}</span>
-          <span class="metric-label">人工待处理</span>
-        </div>
-        <div class="metric metric-danger">
-          <span class="metric-value">{{ store.openExceptionCount }}</span>
-          <span class="metric-label">OPEN 异常</span>
-        </div>
-        <div class="metric-divider"></div>
-        <div class="metric metric-success">
-          <span class="metric-value">{{ store.assignableVehicleCount }}</span>
-          <span class="metric-label">可派车</span>
-        </div>
-        <div class="metric metric-info">
-          <span class="metric-value">{{ store.pluggedStandbyCount }}</span>
-          <span class="metric-label">插枪待命</span>
-        </div>
-        <div class="metric metric-charging">
-          <span class="metric-value">{{ store.chargingCount }}</span>
-          <span class="metric-label">充电中</span>
-        </div>
-        <div class="metric metric-online">
-          <span class="metric-value">{{ store.onlineVehicleCount }}</span>
-          <span class="metric-label">在线车辆</span>
+        <div class="header-actions">
+          <a-switch
+            v-if="authStore.isAdmin"
+            v-model:checked="dispatchPaused"
+            checked-children="暂停派单"
+            un-checked-children="正常派单"
+            @change="onDispatchPauseChange"
+          />
+          <a-button :loading="store.loading" @click="refreshAll">
+            <ReloadOutlined /> 刷新 <span class="kbd-hint">R</span>
+          </a-button>
+          <router-link
+            v-if="trafficSummary"
+            class="congestion-bar"
+            :class="congestionBarClass"
+            to="/infrastructure/traffic"
+          >
+            拥堵 L{{ trafficSummary.maxCongestionLevel }}
+            <span v-if="trafficSummary.highCongestionSegmentCount > 0">
+              · {{ trafficSummary.highCongestionSegmentCount }} 条高拥堵
+            </span>
+            <span v-if="trafficSummary.pausedZoneCount > 0">
+              · {{ trafficSummary.pausedZoneCount }} 个管制区
+            </span>
+          </router-link>
         </div>
       </div>
-      <a-switch
-        v-if="authStore.isAdmin"
-        v-model:checked="dispatchPaused"
-        checked-children="暂停派单"
-        un-checked-children="正常派单"
-        @change="onDispatchPauseChange"
-      />
-      <a-button :loading="store.loading" @click="refreshAll">
-        <ReloadOutlined /> 刷新 <span class="kbd-hint">R</span>
-      </a-button>
-      <span class="shortcut-hint">快捷键：R 刷新 · A 自动派车 · M 手动派车 · ↑↓ 切换任务</span>
-      <router-link
-        v-if="trafficSummary"
-        class="congestion-bar"
-        :class="congestionBarClass"
-        to="/infrastructure/traffic"
-      >
-        拥堵 L{{ trafficSummary.maxCongestionLevel }}
-        <span v-if="trafficSummary.highCongestionSegmentCount > 0">
-          · {{ trafficSummary.highCongestionSegmentCount }} 条高拥堵
-        </span>
-        <span v-if="trafficSummary.pausedZoneCount > 0">
-          · {{ trafficSummary.pausedZoneCount }} 个管制区
-        </span>
-      </router-link>
+      <div class="header-bottom">
+        <div class="header-metrics">
+          <div class="metric">
+            <span class="metric-value">{{ store.pendingCount }}</span>
+            <span class="metric-label">待派单</span>
+          </div>
+          <div class="metric metric-warn">
+            <span class="metric-value">{{ store.manualPendingCount }}</span>
+            <span class="metric-label">人工待处理</span>
+          </div>
+          <div class="metric metric-danger">
+            <span class="metric-value">{{ store.openExceptionCount }}</span>
+            <span class="metric-label">OPEN 异常</span>
+          </div>
+          <div class="metric-divider"></div>
+          <div class="metric metric-success">
+            <span class="metric-value">{{ store.assignableVehicleCount }}</span>
+            <span class="metric-label">可派车</span>
+          </div>
+          <div class="metric metric-info">
+            <span class="metric-value">{{ store.pluggedStandbyCount }}</span>
+            <span class="metric-label">插枪待命</span>
+          </div>
+          <div class="metric metric-charging">
+            <span class="metric-value">{{ store.chargingCount }}</span>
+            <span class="metric-label">充电中</span>
+          </div>
+          <div class="metric metric-online">
+            <span class="metric-value">{{ store.onlineVehicleCount }}</span>
+            <span class="metric-label">在线车辆</span>
+          </div>
+        </div>
+        <span class="shortcut-hint">快捷键：R 刷新 · A 自动派车 · M 手动派车 · ↑↓ 切换任务</span>
+      </div>
     </header>
 
     <a-alert
@@ -75,29 +81,33 @@
       <!-- 左：任务池 -->
       <section class="panel panel-tasks">
         <div class="panel-head">
-          <h2>任务池</h2>
-          <span class="panel-order-hint">拖动排序仅在本浏览器有效</span>
-          <div class="filter-tabs">
-            <button
-              v-for="tab in taskTabs"
-              :key="tab.key"
-              class="filter-tab"
-              :class="{ active: store.taskFilter === tab.key }"
-              @click="onTaskTabChange(tab.key)"
-            >
-              {{ tab.label }}
-              <span v-if="tab.count > 0" class="tab-count">{{ tab.count }}</span>
-            </button>
+          <div class="panel-head-title">
+            <h2>任务池</h2>
+            <span class="panel-order-hint">拖动排序仅在本浏览器有效</span>
           </div>
-          <a-select
-            v-model:value="routeFilter"
-            allow-clear
-            placeholder="按线路筛选"
-            :options="routeOptions"
-            style="width: 168px; margin-left: 8px"
-            size="small"
-          />
-          <router-link to="/vertical/hub" class="hub-link">母港分流</router-link>
+          <div class="panel-head-toolbar">
+            <div class="filter-tabs">
+              <button
+                v-for="tab in taskTabs"
+                :key="tab.key"
+                class="filter-tab"
+                :class="{ active: store.taskFilter === tab.key }"
+                @click="onTaskTabChange(tab.key)"
+              >
+                {{ tab.label }}
+                <span v-if="tab.count > 0" class="tab-count">{{ tab.count }}</span>
+              </button>
+            </div>
+            <a-select
+              v-model:value="routeFilter"
+              allow-clear
+              placeholder="按线路筛选"
+              :options="routeOptions"
+              class="route-filter"
+              size="small"
+            />
+            <router-link to="/vertical/hub" class="hub-link">母港分流</router-link>
+          </div>
         </div>
         <div v-if="authStore.canWrite && selectedTaskIds.length > 0" class="batch-toolbar">
           <span class="batch-hint">已选 {{ selectedTaskIds.length }} 项</span>
@@ -835,7 +845,7 @@ watch(() => parkScope.scopeVersion, () => {
 .shortcut-hint {
   font-size: 12px;
   color: #8c9bab;
-  margin-left: 8px;
+  white-space: nowrap;
 }
 
 .kbd-hint {
@@ -848,12 +858,35 @@ watch(() => parkScope.scopeVersion, () => {
 
 .workbench-header {
   display: flex;
-  align-items: center;
-  gap: 24px;
+  flex-direction: column;
+  gap: 14px;
   padding: 20px 24px;
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(0, 119, 182, 0.12) 0%, rgba(13, 17, 23, 0.95) 55%);
   border: 1px solid var(--fsd-border);
+}
+
+.header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.header-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .viewer-readonly-banner {
@@ -861,7 +894,6 @@ watch(() => parkScope.scopeVersion, () => {
 }
 
 .congestion-bar {
-  margin-left: auto;
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 12px;
@@ -889,7 +921,7 @@ watch(() => parkScope.scopeVersion, () => {
 .panel-order-hint {
   font-size: 11px;
   color: var(--fsd-text-tertiary);
-  margin-right: auto;
+  white-space: nowrap;
 }
 
 .task-fail-detail {
@@ -1006,7 +1038,7 @@ watch(() => parkScope.scopeVersion, () => {
 .workbench-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(300px, 340px) 1fr minmax(300px, 360px);
+  grid-template-columns: minmax(320px, 380px) 1fr minmax(300px, 360px);
   gap: 16px;
   min-height: 520px;
 }
@@ -1022,9 +1054,8 @@ watch(() => parkScope.scopeVersion, () => {
 
 .panel-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--fsd-border);
 
@@ -1033,7 +1064,27 @@ watch(() => parkScope.scopeVersion, () => {
     font-size: 14px;
     font-weight: 600;
     color: var(--fsd-text-primary);
+    white-space: nowrap;
   }
+}
+
+.panel-head-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.panel-head-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.route-filter {
+  width: 148px;
+  flex-shrink: 0;
 }
 
 .panel-hint {
@@ -1051,6 +1102,7 @@ watch(() => parkScope.scopeVersion, () => {
   font-size: 12px;
   color: var(--fsd-accent);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .route-badge {

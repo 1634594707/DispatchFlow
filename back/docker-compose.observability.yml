@@ -3,6 +3,8 @@
 #
 # Prometheus UI: http://localhost:9090
 # Grafana UI:    http://localhost:3001  (admin / admin)
+# Zipkin UI:     http://localhost:9411
+# Kibana UI:     http://localhost:5601
 
 services:
   prometheus:
@@ -29,6 +31,47 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
 
+  zipkin:
+    image: openzipkin/zipkin:3.4
+    container_name: fsd-zipkin
+    ports:
+      - "${ZIPKIN_HOST_PORT:-9411}:9411"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: fsd-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "${ELASTICSEARCH_HOST_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    container_name: fsd-kibana
+    depends_on:
+      - elasticsearch
+    ports:
+      - "${KIBANA_HOST_PORT:-5601}:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.15.3
+    container_name: fsd-filebeat
+    user: root
+    depends_on:
+      - elasticsearch
+    volumes:
+      - ./observability/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: filebeat -e -strict.perms=false
+
 volumes:
   prometheus-data:
   grafana-data:
+  elasticsearch-data:

@@ -1,6 +1,18 @@
 <template>
   <div class="tracking-page">
-    <div ref="mapContainer" class="map-container"></div>
+    <div
+      v-show="mapViewMode === 'schematic' || (mapViewMode === 'geo' && !geoMapAvailable)"
+      ref="mapContainer"
+      class="map-container"
+    ></div>
+    <AmapGeoMap
+      v-if="mapViewMode === 'geo' && geoMapAvailable"
+      class="map-container geo-map-layer"
+      :center="geoMapCenter"
+      :markers="geoMarkers"
+      :polygons="geoPolygons"
+      :zoom="geoMapZoom"
+    />
 
     <div v-if="apiError" class="api-alert">
       <span class="api-alert-dot"></span>
@@ -9,9 +21,15 @@
     </div>
 
     <aside class="side-panel" :class="{ collapsed: panelCollapsed }">
-      <button class="panel-toggle" @click="panelCollapsed = !panelCollapsed">
-        <RightOutlined v-if="!panelCollapsed" />
-        <LeftOutlined v-else />
+      <button
+        class="panel-toggle"
+        type="button"
+        :title="panelCollapsed ? '展开面板' : '收起面板'"
+        :aria-label="panelCollapsed ? '展开面板' : '收起面板'"
+        @click="panelCollapsed = !panelCollapsed"
+      >
+        <LeftOutlined v-if="!panelCollapsed" />
+        <RightOutlined v-else />
       </button>
 
       <div v-if="!panelCollapsed" class="panel-content">
@@ -32,7 +50,31 @@
             </div>
           </div>
           <p class="header-sub">
-            {{ activeParkName }} · {{ currentTime }}
+            <span class="header-sub-line">{{ activeParkName }} · {{ currentTime }}</span>
+            <span v-if="streamConnected && lastStreamLatencyMs != null" class="stream-latency">
+              推送延迟 {{ formatStreamLatency(lastStreamLatencyMs) }}
+            </span>
+          </p>
+          <div class="header-controls">
+            <span class="map-mode-toggle">
+              <button
+                type="button"
+                class="map-mode-btn"
+                :class="{ active: mapViewMode === 'schematic' }"
+                @click="mapViewMode = 'schematic'"
+              >
+                调度图
+              </button>
+              <button
+                type="button"
+                class="map-mode-btn"
+                :class="{ active: mapViewMode === 'geo' }"
+                :title="geoMapAvailable ? '高德地理图' : '无 Key 时回退 Leaflet 调度图'"
+                @click="mapViewMode = 'geo'"
+              >
+                地理图
+              </button>
+            </span>
             <span class="mode-toggle">
               模式：{{ peakModeLabel }}
               <a-switch
@@ -48,14 +90,10 @@
                 size="small"
                 checked-children="运维"
                 un-checked-children="常规"
-                style="margin-left: 8px"
                 @change="loadOpsSnapshot"
               />
             </span>
-            <span v-if="streamConnected && lastStreamLatencyMs != null" class="stream-latency">
-              · 推送延迟 {{ formatStreamLatency(lastStreamLatencyMs) }}
-            </span>
-          </p>
+          </div>
         </header>
 
         <div class="panel-toolbar">
@@ -264,6 +302,13 @@
             <span>坐标</span>
             <span>{{ selectedVehicle.x.toFixed(0) }}, {{ selectedVehicle.y.toFixed(0) }}</span>
           </div>
+          <div
+            v-if="selectedVehicle.longitude != null && selectedVehicle.latitude != null"
+            class="detail-row"
+          >
+            <span>经纬度</span>
+            <span>{{ Number(selectedVehicle.longitude).toFixed(6) }}, {{ Number(selectedVehicle.latitude).toFixed(6) }}</span>
+          </div>
           <div v-if="selectedVehicle.currentTaskId" class="detail-row">
             <span>当前任务</span>
             <router-link :to="`/tasks/${selectedVehicle.currentTaskId}`" class="detail-link">
@@ -283,7 +328,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { CloseOutlined, InboxOutlined, LeftOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons-vue'
@@ -291,7 +336,10 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import StatusBadge from '@/components/common/StatusBadge.vue'
-import { getParkLayout, getParkOrders, getParkVehicles } from '@/api/park'
+import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
+import { getParkGeofences, getParkLayout, getParkOrders, getParkVehicles } from '@/api/park'
+import { defaultMapCenter, isAmapConfigured, parkXYToGcj02 } from '@/maps'
+import type { GeoMapMarker, GeoMapPolygon } from '@/maps'
 import { getFleetTelemetryStreamUrl } from '@/api/dispatch'
 import { fetchPeakMode, updatePeakMode, fetchOpsSnapshot, type OpsSnapshot } from '@/api/vertical'
 import { useParkScopeStore } from '@/stores/parkScope'
@@ -299,6 +347,7 @@ import { useAuthStore } from '@/stores/auth'
 import { createSSEClient } from '@/utils/sseClient'
 import type { SSEClient } from '@/types/stream'
 import type {
+  ParkGeofence,
   ParkLayout,
   ParkOrderSnapshot,
   ParkPoint,
@@ -316,6 +365,10 @@ const peakTemplateCode = ref('DAILY')
 const opsMode = ref(false)
 const opsSnapshot = ref<OpsSnapshot | null>(null)
 
+const mapViewMode = ref<'schematic' | 'geo'>('schematic')
+const geoMapAvailable = isAmapConfigured()
+const geoMapZoom = 15
+
 const mapContainer = ref<HTMLElement>()
 const panelCollapsed = ref(false)
 const activeFilter = ref('all')
@@ -326,6 +379,7 @@ const currentTime = ref(dayjs().format('HH:mm:ss'))
 const vehicles = ref<ParkVehicleSnapshot[]>([])
 const parkOrders = ref<ParkOrderSnapshot[]>([])
 const parkLayout = ref<ParkLayout | null>(null)
+const parkGeofences = ref<ParkGeofence[]>([])
 const apiError = ref('')
 const backendOnline = ref(false)
 const streamConnected = ref(false)
@@ -450,6 +504,43 @@ const filteredVehicles = computed(() => {
   }
 })
 
+const geoMapCenter = computed((): [number, number] => {
+  const layout = parkLayout.value
+  if (layout?.centerLng != null && layout?.centerLat != null) {
+    return [Number(layout.centerLng), Number(layout.centerLat)]
+  }
+  return defaultMapCenter()
+})
+
+function vehicleGeoPosition(vehicle: ParkVehicleSnapshot): [number, number] {
+  if (vehicle.longitude != null && vehicle.latitude != null) {
+    return [Number(vehicle.longitude), Number(vehicle.latitude)]
+  }
+  return parkXYToGcj02(vehicle.x, vehicle.y)
+}
+
+const geoMarkers = computed((): GeoMapMarker[] =>
+  filteredVehicles.value.map((vehicle) => ({
+    id: String(vehicle.vehicleId),
+    position: vehicleGeoPosition(vehicle),
+    label:
+      selectedId.value === vehicle.vehicleId
+        ? `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%`
+        : undefined,
+  })),
+)
+
+const geoPolygons = computed((): GeoMapPolygon[] =>
+  parkGeofences.value
+    .filter((fence) => fence.status === 'ACTIVE' && fence.polygon?.length >= 3)
+    .map((fence) => ({
+      id: String(fence.id),
+      path: fence.polygon.map((point) => [Number(point[0]), Number(point[1])] as [number, number]),
+      strokeColor: fence.fenceType === 'RESTRICTED' ? '#ff6b6b' : '#00d4aa',
+      fillColor: fence.fenceType === 'RESTRICTED' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(0, 212, 170, 0.12)',
+    })),
+)
+
 const selectedVehicle = computed(() => {
   if (!selectedId.value) return null
   return vehicles.value.find(vehicle => vehicle.vehicleId === selectedId.value) || null
@@ -538,20 +629,71 @@ function orderColor(stage: string) {
   return '#3ea6ff'
 }
 
-function createVehicleIcon(vehicle: ParkVehicleSnapshot) {
+function shortVehicleCode(code: string) {
+  const parts = code.split('-')
+  if (parts.length >= 2) return `${parts[0]}-${parts[1]}`
+  return code.length > 10 ? `${code.slice(0, 10)}…` : code
+}
+
+const LABEL_SLOTS = [
+  { codeY: -28, stageY: 16, batteryY: 32 },
+  { codeY: -28, stageY: 16, batteryY: 32, codeX: 42 },
+  { codeY: -28, stageY: 16, batteryY: 32, codeX: -42 },
+  { codeY: 18, stageY: 36, batteryY: 52 },
+  { codeY: 18, stageY: 36, batteryY: 52, codeX: 42 },
+  { codeY: 18, stageY: 36, batteryY: 52, codeX: -42 },
+]
+
+function vehicleDistance(a: ParkVehicleSnapshot, b: ParkVehicleSnapshot) {
+  const dx = a.x - b.x
+  const dy = a.y - b.y
+  return Math.hypot(dx, dy)
+}
+
+function labelSlotForVehicle(vehicle: ParkVehicleSnapshot, list: ParkVehicleSnapshot[]) {
+  const nearbyBefore = list.filter(
+    (item) =>
+      item.vehicleId !== vehicle.vehicleId &&
+      list.indexOf(item) < list.indexOf(vehicle) &&
+      vehicleDistance(item, vehicle) < 72,
+  ).length
+  return nearbyBefore % LABEL_SLOTS.length
+}
+
+function createVehicleIcon(vehicle: ParkVehicleSnapshot, expanded = false, slot = 0) {
   const color = markerColor(vehicle)
+  if (!expanded) {
+    return L.divIcon({
+      className: 'vehicle-marker-wrap vehicle-marker-wrap--compact',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+      html: `
+        <div class="vehicle-marker vehicle-marker--compact" style="--marker-color:${color}">
+          <span class="vehicle-core"></span>
+        </div>
+      `,
+    })
+  }
+
   const stage = stageLabel(vehicle.runtimeStage)
-  const batteryText = vehicle.charging ? `充电 ${vehicle.batteryLevel}%` : `电量 ${vehicle.batteryLevel}%`
+  const batteryText = vehicle.charging ? `${vehicle.batteryLevel}%` : `${vehicle.batteryLevel}%`
+  const code = shortVehicleCode(vehicle.vehicleCode)
+  const offset = LABEL_SLOTS[slot] || LABEL_SLOTS[0]
+  const codeX = offset.codeX ?? 0
+  const codeTransform = codeX ? `translate(calc(-50% + ${codeX}px), 0)` : 'translateX(-50%)'
+  const stageTransform = codeX ? `translate(calc(-50% + ${codeX}px), 0)` : 'translateX(-50%)'
+  const batteryTransform = codeX ? `translate(calc(-50% + ${codeX}px), 0)` : 'translateX(-50%)'
+
   return L.divIcon({
     className: 'vehicle-marker-wrap',
     iconSize: [96, 96],
     iconAnchor: [48, 48],
     html: `
-      <div class="vehicle-marker" style="--marker-color:${color}">
+      <div class="vehicle-marker vehicle-marker--expanded" style="--marker-color:${color}">
         <span class="vehicle-core"></span>
-        <span class="vehicle-code">${vehicle.vehicleCode}</span>
-        <span class="vehicle-stage">${stage}</span>
-        <span class="vehicle-battery">${batteryText}</span>
+        <span class="vehicle-code" style="top:calc(50% + ${offset.codeY}px);transform:${codeTransform}">${code}</span>
+        <span class="vehicle-stage" style="top:calc(50% + ${offset.stageY}px);transform:${stageTransform}">${stage}</span>
+        <span class="vehicle-battery" style="top:calc(50% + ${offset.batteryY}px);transform:${batteryTransform}">${batteryText}</span>
       </div>
     `,
   })
@@ -725,7 +867,12 @@ function updateVehicleMarkers() {
       )
     }
 
-    const marker = L.marker(toLatLng(vehicle.x, vehicle.y), { icon: createVehicleIcon(vehicle) }).on('click', () => {
+    const expanded = selectedId.value === vehicle.vehicleId
+    const slot = labelSlotForVehicle(vehicle, filteredVehicles.value)
+    const marker = L.marker(toLatLng(vehicle.x, vehicle.y), {
+      icon: createVehicleIcon(vehicle, expanded, slot),
+      zIndexOffset: expanded ? 1000 : 0,
+    }).on('click', () => {
       selectedId.value = vehicle.vehicleId
     })
     markersLayer!.addLayer(marker)
@@ -789,6 +936,7 @@ function drawOrderChains() {
 
 function focusVehicle(vehicle: ParkVehicleSnapshot) {
   selectedId.value = vehicle.vehicleId
+  if (mapViewMode.value === 'geo') return
   map?.flyTo(toLatLng(vehicle.x, vehicle.y), 2, { duration: 0.8 })
 }
 
@@ -889,6 +1037,20 @@ async function fetchOrders() {
   drawOrderChains()
 }
 
+async function fetchGeofences() {
+  const parkId = effectiveParkId.value
+  if (!parkId) {
+    parkGeofences.value = []
+    return
+  }
+  try {
+    const response = await getParkGeofences(parkId)
+    parkGeofences.value = response.data || []
+  } catch {
+    parkGeofences.value = []
+  }
+}
+
 async function bootstrapData() {
   apiError.value = ''
   try {
@@ -897,7 +1059,7 @@ async function bootstrapData() {
     }
     parkScope.ensureValidSelection()
     await fetchLayout()
-    await Promise.all([fetchVehicles(), fetchOrders(), loadPeakModeState()])
+    await Promise.all([fetchVehicles(), fetchOrders(), fetchGeofences(), loadPeakModeState()])
     backendOnline.value = true
   } catch {
     backendOnline.value = false
@@ -908,7 +1070,7 @@ async function bootstrapData() {
 async function handleParkChange() {
   try {
     await fetchLayout()
-    await Promise.all([fetchVehicles(), fetchOrders()])
+    await Promise.all([fetchVehicles(), fetchOrders(), fetchGeofences()])
     initSSEStream()
   } catch {
     apiError.value = '切换园区失败，请确认后端服务正常'
@@ -934,12 +1096,30 @@ watch(filteredVehicles, () => {
   updateVehicleMarkers()
 })
 
+watch(selectedId, () => {
+  updateVehicleMarkers()
+})
+
 watch(
   () => parkScope.scopeVersion,
   async () => {
     await handleParkChange()
   },
 )
+
+watch(mapViewMode, (mode) => {
+  if (mode === 'schematic' || (mode === 'geo' && !geoMapAvailable)) {
+    nextTick(() => {
+      if (!map && mapContainer.value) initMap()
+      if (map && parkLayout.value) {
+        loadParkImage()
+        drawStations()
+        updateVehicleMarkers()
+        drawOrderChains()
+      }
+    })
+  }
+})
 
 onMounted(async () => {
   initMap()
@@ -995,6 +1175,46 @@ onUnmounted(() => {
   height: 100%;
 }
 
+.geo-map-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.map-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.map-mode-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--track-text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+
+  &.active {
+    color: var(--track-text);
+    background: rgba(0, 180, 216, 0.18);
+  }
+
+  &.disabled,
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
 :deep(.leaflet-container) {
   background: #070b12;
   font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
@@ -1023,6 +1243,26 @@ onUnmounted(() => {
   transition: transform 120ms ease-out;
 }
 
+:deep(.vehicle-marker--compact) {
+  width: 28px;
+  height: 28px;
+}
+
+:deep(.vehicle-marker-wrap--compact) {
+  pointer-events: auto;
+}
+
+:deep(.vehicle-marker--compact .vehicle-core) {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--marker-color) 22%, transparent);
+}
+
+:deep(.vehicle-marker--expanded) {
+  z-index: 2;
+}
+
 :deep(.vehicle-core) {
   position: absolute;
   left: 50%;
@@ -1040,7 +1280,6 @@ onUnmounted(() => {
 :deep(.vehicle-code) {
   position: absolute;
   left: 50%;
-  top: calc(50% - 30px);
   transform: translateX(-50%);
   padding: 2px 8px;
   border-radius: 999px;
@@ -1052,6 +1291,7 @@ onUnmounted(() => {
   font-weight: 600;
   white-space: nowrap;
   z-index: 2;
+  pointer-events: none;
 }
 
 :deep(.vehicle-stage),
@@ -1064,16 +1304,15 @@ onUnmounted(() => {
   background: rgba(5, 9, 19, 0.85);
   white-space: nowrap;
   z-index: 2;
+  pointer-events: none;
 }
 
 :deep(.vehicle-stage) {
-  top: calc(50% + 16px);
   color: var(--marker-color);
   font-size: 9px;
 }
 
 :deep(.vehicle-battery) {
-  top: calc(50% + 34px);
   color: #9fb4ca;
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
@@ -1170,7 +1409,8 @@ onUnmounted(() => {
 }
 
 .side-panel.collapsed {
-  width: 48px;
+  width: 0;
+  overflow: visible;
 }
 
 .panel-toggle {
@@ -1178,19 +1418,35 @@ onUnmounted(() => {
   top: 16px;
   right: -14px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
+  padding: 0;
   border: 1px solid var(--track-border);
   border-left: none;
   border-radius: 0 8px 8px 0;
   background: rgba(13, 17, 23, 0.95);
   color: var(--track-text-muted);
   cursor: pointer;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 
   &:hover {
     color: var(--track-accent);
     border-color: var(--track-border-accent);
+    background: rgba(13, 17, 23, 0.98);
   }
+}
+
+.side-panel.collapsed .panel-toggle {
+  right: auto;
+  left: 16px;
+  border-left: 1px solid var(--track-border);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.25);
 }
 
 .panel-content {
@@ -1302,15 +1558,37 @@ onUnmounted(() => {
   margin: 0;
   color: var(--track-text-muted);
   font-size: 12px;
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
 
   .stream-latency {
     color: #3ecf8e;
     font-variant-numeric: tabular-nums;
   }
+}
+
+.header-sub-line {
+  min-width: 0;
+}
+
+.header-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--track-text-muted);
 }
 
 .live-badge {

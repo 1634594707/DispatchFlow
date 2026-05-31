@@ -17,6 +17,9 @@ import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
 import com.fsd.dispatch.event.DispatchEventPublisher;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicyImpl;
+import com.fsd.dispatch.config.ParkPilotProperties;
+import com.fsd.dispatch.geo.FleetGeoResolver;
+import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.dispatch.fleet.simulation.SimulationFleetAdapter;
 import com.fsd.dispatch.fleet.simulation.SimulationMotionState;
 import com.fsd.dispatch.mapper.DispatchExceptionRecordMapper;
@@ -163,7 +166,10 @@ class Phase1AcceptanceTest {
 
         @Test
         void assignShouldPublishUnpluggedRuntime() {
-            SimulationFleetAdapter adapter = new SimulationFleetAdapter(fleetRuntimeService);
+            SimulationFleetAdapter adapter = new SimulationFleetAdapter(
+                    fleetRuntimeService,
+                    new FleetGeoResolver(new ParkGeoTransformService(new ParkPilotProperties())),
+                    mock(com.fsd.dispatch.service.GeofenceBreachService.class));
             VehicleEntity vehicle = new VehicleEntity();
             vehicle.setId(99L);
             vehicle.setBatteryLevel(100);

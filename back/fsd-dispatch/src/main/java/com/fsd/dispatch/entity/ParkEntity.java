@@ -28,6 +28,12 @@ public class ParkEntity {
 
     private BigDecimal vehicleSpeedPxPerSecond;
 
+    private BigDecimal centerLng;
+
+    private BigDecimal centerLat;
+
+    private String mapProvider;
+
     private String status;
 
     private Integer defaultFlag;

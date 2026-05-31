@@ -26,6 +26,10 @@ public class StationEntity {
 
     private BigDecimal coordY;
 
+    private BigDecimal coordLng;
+
+    private BigDecimal coordLat;
+
     private String area;
 
     private String status;

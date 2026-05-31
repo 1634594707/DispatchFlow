@@ -6,7 +6,10 @@ import com.fsd.dispatch.fleet.FleetAdapter;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.model.FleetTrajectoryPoint;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
+import com.fsd.dispatch.geo.FleetGeoResolver;
+import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
 import com.fsd.dispatch.service.FleetTelemetryPersistenceService;
+import com.fsd.dispatch.service.GeofenceBreachService;
 import com.fsd.vehicle.entity.VehicleEntity;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -20,13 +23,22 @@ public class RealFleetAdapter implements FleetAdapter {
     private final FleetRuntimeService fleetRuntimeService;
     private final FleetTelemetryPersistenceService telemetryPersistenceService;
     private final RealFleetSwapCoordinator swapCoordinator;
+    private final FleetGeoResolver fleetGeoResolver;
+    private final GeofenceBreachService geofenceBreachService;
+
+    @org.springframework.beans.factory.annotation.Value("${fsd.automation.default-park-id:1}")
+    private Long defaultParkId;
 
     public RealFleetAdapter(FleetRuntimeService fleetRuntimeService,
                             FleetTelemetryPersistenceService telemetryPersistenceService,
-                            RealFleetSwapCoordinator swapCoordinator) {
+                            RealFleetSwapCoordinator swapCoordinator,
+                            FleetGeoResolver fleetGeoResolver,
+                            GeofenceBreachService geofenceBreachService) {
         this.fleetRuntimeService = fleetRuntimeService;
         this.telemetryPersistenceService = telemetryPersistenceService;
         this.swapCoordinator = swapCoordinator;
+        this.fleetGeoResolver = fleetGeoResolver;
+        this.geofenceBreachService = geofenceBreachService;
     }
 
     @Override
@@ -38,6 +50,7 @@ public class RealFleetAdapter implements FleetAdapter {
         FleetRuntime existing = fleetRuntimeService.get(vehicle.getId()).orElse(null);
         swapCoordinator.onTelemetry(vehicle, request, existing);
         List<FleetTrajectoryPoint> trajectory = appendTrajectory(existing, request);
+        GeoPoint geo = fleetGeoResolver.resolve(request).orElse(null);
         FleetRuntime runtime = FleetRuntime.builder()
                 .vehicleId(vehicle.getId())
                 .runtimeStage(request.getRuntimeStage())
@@ -47,10 +60,15 @@ public class RealFleetAdapter implements FleetAdapter {
                 .soc(request.getSoc())
                 .x(request.getX())
                 .y(request.getY())
+                .longitude(geo != null ? geo.longitude() : null)
+                .latitude(geo != null ? geo.latitude() : null)
                 .lastTelemetryAt(request.getReportTime())
                 .trajectory(trajectory)
                 .build();
         fleetRuntimeService.save(runtime);
+        if (geo != null) {
+            geofenceBreachService.evaluateVehiclePosition(defaultParkId, vehicle, geo.longitude(), geo.latitude());
+        }
         if (request.getX() != null && request.getY() != null) {
             telemetryPersistenceService.persistPoint(
                     vehicle.getId(),

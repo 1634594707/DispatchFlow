@@ -9,6 +9,7 @@ import com.fsd.admin.dto.AdminRoadSegmentUpsertRequest;
 import com.fsd.admin.dto.AdminStationUpsertRequest;
 import com.fsd.admin.vo.AdminBatterySwapCabinetResponse;
 import com.fsd.admin.vo.AdminChargingPileResponse;
+import com.fsd.admin.vo.AdminGeofenceResponse;
 import com.fsd.admin.vo.AdminParkResponse;
 import com.fsd.admin.vo.AdminParkingSlotResponse;
 import com.fsd.admin.vo.AdminRoadNodeResponse;
@@ -65,4 +66,12 @@ public interface InfrastructureAdminService {
     AdminRoadSegmentResponse updateRoadSegment(Long segmentId, AdminRoadSegmentUpsertRequest request);
 
     AdminRoadSegmentResponse toggleRoadSegmentStatus(Long segmentId);
+
+    List<AdminGeofenceResponse> listGeofences(Long parkId);
+
+    AdminGeofenceResponse createGeofence(com.fsd.admin.dto.AdminGeofenceUpsertRequest request);
+
+    AdminGeofenceResponse updateGeofence(Long geofenceId, com.fsd.admin.dto.AdminGeofenceUpdateRequest request);
+
+    void deleteGeofence(Long geofenceId);
 }

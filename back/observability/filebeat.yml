@@ -1,0 +1,20 @@
+filebeat.inputs:
+  - type: container
+    paths:
+      - /var/lib/docker/containers/*/*.log
+    processors:
+      - add_docker_metadata: ~
+      - decode_json_fields:
+          fields: ["message"]
+          target: "dispatchflow"
+          overwrite_keys: true
+          add_error_key: true
+          when.regexp.message: '^\{'
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  index: "dispatchflow-%{+yyyy.MM.dd}"
+
+setup.template.name: "dispatchflow"
+setup.template.pattern: "dispatchflow-*"
+setup.ilm.enabled: false

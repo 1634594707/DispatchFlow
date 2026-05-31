@@ -9,6 +9,7 @@ import com.fsd.admin.vo.AdminWebhookResponse;
 import com.fsd.dispatch.entity.WebhookDeliveryLogEntity;
 import com.fsd.dispatch.mapper.WebhookDeliveryLogMapper;
 import com.fsd.common.exception.BusinessException;
+import com.fsd.common.security.FieldEncryptionService;
 import com.fsd.dispatch.entity.ExternalApiKeyEntity;
 import com.fsd.dispatch.entity.WebhookSubscriptionEntity;
 import com.fsd.dispatch.mapper.ExternalApiKeyMapper;
@@ -25,13 +26,16 @@ public class IntegrationAdminServiceImpl implements IntegrationAdminService {
     private final WebhookSubscriptionMapper webhookMapper;
     private final ExternalApiKeyMapper apiKeyMapper;
     private final WebhookDeliveryLogMapper deliveryLogMapper;
+    private final FieldEncryptionService fieldEncryptionService;
 
     public IntegrationAdminServiceImpl(WebhookSubscriptionMapper webhookMapper,
                                        ExternalApiKeyMapper apiKeyMapper,
-                                       WebhookDeliveryLogMapper deliveryLogMapper) {
+                                       WebhookDeliveryLogMapper deliveryLogMapper,
+                                       FieldEncryptionService fieldEncryptionService) {
         this.webhookMapper = webhookMapper;
         this.apiKeyMapper = apiKeyMapper;
         this.deliveryLogMapper = deliveryLogMapper;
+        this.fieldEncryptionService = fieldEncryptionService;
     }
 
     @Override
@@ -60,7 +64,7 @@ public class IntegrationAdminServiceImpl implements IntegrationAdminService {
         }
         entity.setName(request.getName());
         entity.setCallbackUrl(request.getCallbackUrl());
-        entity.setSecretToken(request.getSecretToken());
+        entity.setSecretToken(fieldEncryptionService.encrypt(request.getSecretToken()));
         entity.setEventTypes(request.getEventTypes());
         entity.setEnabled(Boolean.FALSE.equals(request.getEnabled()) ? 0 : 1);
         if (request.getId() == null) {

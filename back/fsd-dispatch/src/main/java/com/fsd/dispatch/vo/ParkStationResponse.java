@@ -24,5 +24,10 @@ public class ParkStationResponse {
 
     private BigDecimal y;
 
+    /** 可选 GCJ-02，M4 物流矩阵 N-1 评分。 */
+    private BigDecimal coordLng;
+
+    private BigDecimal coordLat;
+
     private String area;
 }

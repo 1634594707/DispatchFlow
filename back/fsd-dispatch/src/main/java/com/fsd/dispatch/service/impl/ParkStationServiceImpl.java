@@ -147,6 +147,8 @@ public class ParkStationServiceImpl implements ParkStationService {
                 .stationType(station.getStationType())
                 .x(station.getCoordX())
                 .y(station.getCoordY())
+                .coordLng(station.getCoordLng())
+                .coordLat(station.getCoordLat())
                 .area(station.getArea())
                 .build();
     }

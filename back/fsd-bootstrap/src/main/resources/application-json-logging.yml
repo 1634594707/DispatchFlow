@@ -1,0 +1,7 @@
+spring:
+  config:
+    activate:
+      on-profile: json-logging
+
+logging:
+  config: classpath:logback-json.xml
