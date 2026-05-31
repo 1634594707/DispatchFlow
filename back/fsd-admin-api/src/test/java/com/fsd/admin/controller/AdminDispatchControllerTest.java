@@ -82,7 +82,7 @@ class AdminDispatchControllerTest {
                 OrderAdminListItemResponse.builder().orderId(1L).orderNo("ORD-1").status("WAITING_DISPATCH").build()
         ));
 
-        ApiResponse<List<OrderAdminListItemResponse>> response = adminDispatchController.listOrders();
+        ApiResponse<List<OrderAdminListItemResponse>> response = adminDispatchController.listOrders(httpServletRequest);
 
         assertEquals(1, response.getData().size());
         assertEquals("ORD-1", response.getData().getFirst().getOrderNo());
@@ -94,7 +94,7 @@ class AdminDispatchControllerTest {
                 DispatchTaskDetailResponse.builder().taskId(10L).status("ASSIGNED").build()
         );
 
-        ApiResponse<DispatchTaskDetailResponse> response = adminDispatchController.getTaskDetail(10L);
+        ApiResponse<DispatchTaskDetailResponse> response = adminDispatchController.getTaskDetail(10L, httpServletRequest);
 
         assertEquals(10L, response.getData().getTaskId());
         assertEquals("ASSIGNED", response.getData().getStatus());
@@ -108,7 +108,7 @@ class AdminDispatchControllerTest {
                 .onlineVehicleCount(3)
                 .build());
 
-        ApiResponse<AdminDashboardSummaryResponse> response = adminDispatchController.getDashboardSummary(null);
+        ApiResponse<AdminDashboardSummaryResponse> response = adminDispatchController.getDashboardSummary(null, httpServletRequest);
 
         assertEquals(2, response.getData().getManualPendingCount());
         assertEquals(3, response.getData().getOnlineVehicleCount());
@@ -120,7 +120,7 @@ class AdminDispatchControllerTest {
                 OrderDetailResponse.builder().orderId(1L).orderNo("ORD-1").status("DISPATCHED").build()
         );
 
-        ApiResponse<OrderDetailResponse> response = adminDispatchController.getOrderDetail(1L);
+        ApiResponse<OrderDetailResponse> response = adminDispatchController.getOrderDetail(1L, httpServletRequest);
 
         assertEquals("ORD-1", response.getData().getOrderNo());
     }
@@ -131,7 +131,7 @@ class AdminDispatchControllerTest {
                 DispatchExceptionListItemResponse.builder().id(7L).taskId(3L).taskNo("TSK-3").build()
         ));
 
-        ApiResponse<List<DispatchExceptionListItemResponse>> response = adminDispatchController.listExceptions();
+        ApiResponse<List<DispatchExceptionListItemResponse>> response = adminDispatchController.listExceptions(httpServletRequest);
 
         assertEquals(1, response.getData().size());
         assertEquals(7L, response.getData().getFirst().getId());
@@ -147,7 +147,7 @@ class AdminDispatchControllerTest {
                         .build()
         );
 
-        ApiResponse<DispatchInterventionQueueResponse> response = adminDispatchController.getInterventionQueue(null);
+        ApiResponse<DispatchInterventionQueueResponse> response = adminDispatchController.getInterventionQueue(null, httpServletRequest);
 
         assertEquals(1, response.getData().getManualPendingCount());
         assertEquals(1, response.getData().getOpenExceptionCount());
@@ -159,7 +159,7 @@ class AdminDispatchControllerTest {
                 DispatchTaskListItemResponse.builder().taskId(3L).status("MANUAL_PENDING").build()
         ));
 
-        ApiResponse<List<DispatchTaskListItemResponse>> response = adminDispatchController.listTasks();
+        ApiResponse<List<DispatchTaskListItemResponse>> response = adminDispatchController.listTasks(httpServletRequest);
 
         assertEquals(1, response.getData().size());
         assertEquals("MANUAL_PENDING", response.getData().getFirst().getStatus());
@@ -172,7 +172,7 @@ class AdminDispatchControllerTest {
                         .records(List.of(OrderAdminListItemResponse.builder().orderId(1L).build())).build()
         );
         ApiResponse<PageResponse<OrderAdminListItemResponse>> response =
-                adminDispatchController.queryOrders(new AdminOrderQueryRequest());
+                adminDispatchController.queryOrders(new AdminOrderQueryRequest(), httpServletRequest);
         assertEquals(1, response.getData().getTotal());
     }
 
@@ -183,7 +183,7 @@ class AdminDispatchControllerTest {
                         .records(List.of(DispatchTaskListItemResponse.builder().taskId(1L).build())).build()
         );
         ApiResponse<PageResponse<DispatchTaskListItemResponse>> response =
-                adminDispatchController.queryTasks(new AdminTaskQueryRequest());
+                adminDispatchController.queryTasks(new AdminTaskQueryRequest(), httpServletRequest);
         assertEquals(1, response.getData().getTotal());
     }
 
@@ -194,7 +194,7 @@ class AdminDispatchControllerTest {
                         .records(List.of(DispatchExceptionListItemResponse.builder().id(1L).build())).build()
         );
         ApiResponse<PageResponse<DispatchExceptionListItemResponse>> response =
-                adminDispatchController.queryExceptions(new AdminExceptionQueryRequest());
+                adminDispatchController.queryExceptions(new AdminExceptionQueryRequest(), httpServletRequest);
         assertEquals(1, response.getData().getTotal());
     }
 
@@ -207,8 +207,8 @@ class AdminDispatchControllerTest {
                 VehicleAdminDetailResponse.builder().vehicleId(1L).vehicleCode("V-1").build()
         );
 
-        ApiResponse<List<VehicleAdminListItemResponse>> listResponse = adminDispatchController.listVehicles();
-        ApiResponse<VehicleAdminDetailResponse> detailResponse = adminDispatchController.getVehicleDetail(1L);
+        ApiResponse<List<VehicleAdminListItemResponse>> listResponse = adminDispatchController.listVehicles(httpServletRequest);
+        ApiResponse<VehicleAdminDetailResponse> detailResponse = adminDispatchController.getVehicleDetail(1L, httpServletRequest);
 
         assertEquals("V-1", listResponse.getData().getFirst().getVehicleCode());
         assertEquals("V-1", detailResponse.getData().getVehicleCode());
@@ -221,7 +221,7 @@ class AdminDispatchControllerTest {
                         .records(List.of(VehicleAdminListItemResponse.builder().vehicleId(1L).build())).build()
         );
         ApiResponse<PageResponse<VehicleAdminListItemResponse>> response =
-                adminDispatchController.queryVehicles(new AdminVehicleQueryRequest());
+                adminDispatchController.queryVehicles(new AdminVehicleQueryRequest(), httpServletRequest);
         assertEquals(1, response.getData().getTotal());
     }
 
@@ -233,7 +233,7 @@ class AdminDispatchControllerTest {
         request.setAction("MARK_FAILED");
         request.setRemark("done");
 
-        ApiResponse<Void> response = adminDispatchController.resolveException(1L, request);
+        ApiResponse<Void> response = adminDispatchController.resolveException(1L, request, httpServletRequest);
 
         assertEquals("SUCCESS", response.getCode());
     }
@@ -247,7 +247,7 @@ class AdminDispatchControllerTest {
                 .yFieldAlias("currentLatitude")
                 .build());
 
-        ApiResponse<ParkLayoutResponse> response = adminDispatchController.getParkLayout(null);
+        ApiResponse<ParkLayoutResponse> response = adminDispatchController.getParkLayout(null, httpServletRequest);
 
         assertEquals(1200, response.getData().getWidth());
         assertEquals("currentLongitude", response.getData().getXFieldAlias());
@@ -259,7 +259,7 @@ class AdminDispatchControllerTest {
                 ParkVehicleSnapshotResponse.builder().vehicleId(1L).vehicleCode("PARK-01").runtimeStage("IDLE_PATROL").build()
         ));
 
-        ApiResponse<List<ParkVehicleSnapshotResponse>> response = adminDispatchController.listParkVehicles();
+        ApiResponse<List<ParkVehicleSnapshotResponse>> response = adminDispatchController.listParkVehicles(httpServletRequest);
 
         assertEquals(1, response.getData().size());
         assertEquals("PARK-01", response.getData().getFirst().getVehicleCode());
@@ -271,7 +271,7 @@ class AdminDispatchControllerTest {
                 ParkStationResponse.builder().stationId(101L).stationCode("A1").build()
         ));
 
-        ApiResponse<List<ParkStationResponse>> response = adminDispatchController.listParkStations(null);
+        ApiResponse<List<ParkStationResponse>> response = adminDispatchController.listParkStations(null, httpServletRequest);
 
         assertEquals(1, response.getData().size());
         assertEquals("A1", response.getData().getFirst().getStationCode());
@@ -283,7 +283,7 @@ class AdminDispatchControllerTest {
                 ParkOrderSnapshotResponse.builder().orderId(1L).orderNo("ORD-1").runtimeStage("HEADING_TO_PICKUP").build()
         ));
 
-        ApiResponse<List<ParkOrderSnapshotResponse>> response = adminDispatchController.listParkOrders();
+        ApiResponse<List<ParkOrderSnapshotResponse>> response = adminDispatchController.listParkOrders(httpServletRequest);
 
         assertEquals(1, response.getData().size());
         assertEquals("ORD-1", response.getData().getFirst().getOrderNo());
