@@ -1,6 +1,7 @@
 package com.fsd.admin.controller;
 
 import com.fsd.admin.service.AdminDispatchStreamService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ public class AdminDispatchStreamController {
     }
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "Dispatch SSE stream", description = "Real-time push for dashboard, workbench, and exception alerts. Auth via `token` query param.")
     public SseEmitter stream() {
         return streamService.createStream();
     }

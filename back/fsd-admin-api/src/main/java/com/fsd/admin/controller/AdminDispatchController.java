@@ -51,6 +51,8 @@ import com.fsd.vehicle.service.VehicleAdminQueryService;
 import com.fsd.vehicle.vo.VehicleAdminDetailResponse;
 import com.fsd.vehicle.vo.VehicleAdminListItemResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -67,6 +69,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin")
 @Tag(name = "Dispatch Admin", description = "Dashboard, workbench, task pool, park pilot, and order queries")
+@SecurityRequirement(name = "adminToken")
 public class AdminDispatchController {
 
     private final OrderAdminQueryService orderAdminQueryService;
@@ -115,44 +118,77 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/orders")
-    public ApiResponse<List<OrderAdminListItemResponse>> listOrders() {
+    @Operation(summary = "List all orders")
+    public ApiResponse<List<OrderAdminListItemResponse>> listOrders(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(orderAdminQueryService.listOrders());
     }
 
     @PostMapping("/orders/query")
-    public ApiResponse<PageResponse<OrderAdminListItemResponse>> queryOrders(@RequestBody AdminOrderQueryRequest request) {
-        return ApiResponse.success(adminQueryFacadeService.queryOrders(request));
+    @Operation(summary = "Query orders with pagination and filters")
+    public ApiResponse<PageResponse<OrderAdminListItemResponse>> queryOrders(
+            @Valid @RequestBody AdminOrderQueryRequest body,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(adminQueryFacadeService.queryOrders(body));
     }
 
     @GetMapping("/orders/{orderId}")
-    public ApiResponse<OrderDetailResponse> getOrderDetail(@PathVariable Long orderId) {
+    @Operation(summary = "Get order detail")
+    public ApiResponse<OrderDetailResponse> getOrderDetail(@PathVariable Long orderId,
+                                                           HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(orderQueryService.getOrderDetail(orderId));
     }
 
     @GetMapping("/tasks")
-    public ApiResponse<List<DispatchTaskListItemResponse>> listTasks() {
+    @Operation(summary = "List all dispatch tasks")
+    public ApiResponse<List<DispatchTaskListItemResponse>> listTasks(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(dispatchAdminQueryService.listTasks());
     }
 
     @PostMapping("/tasks/query")
-    public ApiResponse<PageResponse<DispatchTaskListItemResponse>> queryTasks(@RequestBody AdminTaskQueryRequest request) {
-        return ApiResponse.success(adminQueryFacadeService.queryTasks(request));
+    @Operation(summary = "Query tasks with pagination and filters")
+    public ApiResponse<PageResponse<DispatchTaskListItemResponse>> queryTasks(
+            @Valid @RequestBody AdminTaskQueryRequest body,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(adminQueryFacadeService.queryTasks(body));
     }
 
     @GetMapping("/tasks/{taskId}")
-    public ApiResponse<DispatchTaskDetailResponse> getTaskDetail(@PathVariable Long taskId) {
+    @Operation(summary = "Get task detail")
+    public ApiResponse<DispatchTaskDetailResponse> getTaskDetail(@PathVariable Long taskId,
+                                                                 HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(dispatchAdminQueryService.getTaskDetail(taskId));
     }
 
     @PostMapping("/tasks/{taskId}/auto-assign")
-    public ApiResponse<DispatchTaskAssignResponse> autoAssignTask(@PathVariable Long taskId) {
+    @Operation(summary = "Auto-assign vehicle to task")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Assignment result returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "No vehicle available"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
+    public ApiResponse<DispatchTaskAssignResponse> autoAssignTask(@PathVariable Long taskId,
+                                                                  HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(dispatchTaskService.autoAssignTask(taskId));
     }
 
     @PostMapping("/tasks/{taskId}/manual-assign")
+    @Operation(summary = "Manually assign vehicle to task")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Assignment result returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
     public ApiResponse<DispatchTaskAssignResponse> manualAssignTask(@PathVariable Long taskId,
                                                                     @Valid @RequestBody AdminTaskManualAssignRequest request,
                                                                     HttpServletRequest httpRequest) {
+        AdminAuthSupport.requireAuth(httpRequest);
         DispatchTaskManualAssignRequest assignRequest = new DispatchTaskManualAssignRequest();
         assignRequest.setVehicleId(request.getVehicleId());
         OperatorIdentity operator = resolveOperator(httpRequest);
@@ -163,18 +199,31 @@ public class AdminDispatchController {
     }
 
     @PostMapping("/tasks/{taskId}/cancel")
+    @Operation(summary = "Cancel task")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Task cancelled"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
     public ApiResponse<DispatchTaskAssignResponse> cancelTask(@PathVariable Long taskId,
                                                                 @RequestBody(required = false) AdminTaskCancelRequest body,
                                                                 HttpServletRequest httpRequest) {
+        AdminAuthSupport.requireAuth(httpRequest);
         OperatorIdentity operator = resolveOperator(httpRequest);
         String remark = body != null ? body.getRemark() : null;
         return ApiResponse.success(dispatchTaskService.cancelTask(taskId, operator.id(), operator.name(), remark));
     }
 
     @PostMapping("/tasks/{taskId}/reassign")
+    @Operation(summary = "Reassign task to a different vehicle")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Reassignment result returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
     public ApiResponse<DispatchTaskAssignResponse> reassignTask(@PathVariable Long taskId,
                                                                 @Valid @RequestBody AdminTaskManualAssignRequest request,
                                                                 HttpServletRequest httpRequest) {
+        AdminAuthSupport.requireAuth(httpRequest);
         DispatchTaskManualAssignRequest assignRequest = new DispatchTaskManualAssignRequest();
         assignRequest.setVehicleId(request.getVehicleId());
         OperatorIdentity operator = resolveOperator(httpRequest);
@@ -185,97 +234,163 @@ public class AdminDispatchController {
     }
 
     @PostMapping("/tasks/{taskId}/bump-priority")
-    public ApiResponse<Void> bumpTaskPriority(@PathVariable Long taskId) {
+    @Operation(summary = "Bump task priority")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Priority bumped"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
+    public ApiResponse<Void> bumpTaskPriority(@PathVariable Long taskId,
+                                              HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         taskPriorityAdminService.bumpTaskPriority(taskId);
         return ApiResponse.success(null);
     }
 
     @PostMapping("/tasks/batch/auto-assign")
+    @Operation(summary = "Batch auto-assign tasks")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Batch result returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
     public ApiResponse<AdminBatchTaskResultResponse> batchAutoAssign(@Valid @RequestBody AdminBatchTaskRequest request,
                                                                      HttpServletRequest httpRequest) {
+        AdminAuthSupport.requireAuth(httpRequest);
         OperatorIdentity operator = resolveOperator(httpRequest);
         return ApiResponse.success(batchTaskAdminService.batchAutoAssign(request, operator.id(), operator.name()));
     }
 
     @PostMapping("/tasks/batch/cancel")
+    @Operation(summary = "Batch cancel tasks")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Batch result returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
     public ApiResponse<AdminBatchTaskResultResponse> batchCancel(@Valid @RequestBody AdminBatchTaskRequest request,
                                                                  HttpServletRequest httpRequest) {
+        AdminAuthSupport.requireAuth(httpRequest);
         OperatorIdentity operator = resolveOperator(httpRequest);
         return ApiResponse.success(batchTaskAdminService.batchCancel(request, operator.id(), operator.name()));
     }
 
     @PostMapping("/tasks/batch/reassign")
+    @Operation(summary = "Batch reassign tasks")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Batch result returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
     public ApiResponse<AdminBatchTaskResultResponse> batchReassign(@Valid @RequestBody AdminBatchTaskRequest request,
                                                                    HttpServletRequest httpRequest) {
+        AdminAuthSupport.requireAuth(httpRequest);
         OperatorIdentity operator = resolveOperator(httpRequest);
         return ApiResponse.success(batchTaskAdminService.batchReassign(request, operator.id(), operator.name()));
     }
 
     @GetMapping("/exceptions")
-    public ApiResponse<List<DispatchExceptionListItemResponse>> listExceptions() {
+    @Operation(summary = "List dispatch exceptions")
+    public ApiResponse<List<DispatchExceptionListItemResponse>> listExceptions(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(dispatchAdminQueryService.listExceptions());
     }
 
     @PostMapping("/exceptions/query")
+    @Operation(summary = "Query exceptions with pagination")
     public ApiResponse<PageResponse<DispatchExceptionListItemResponse>> queryExceptions(
-            @RequestBody AdminExceptionQueryRequest request) {
-        return ApiResponse.success(adminQueryFacadeService.queryExceptions(request));
+            @Valid @RequestBody AdminExceptionQueryRequest body,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(adminQueryFacadeService.queryExceptions(body));
     }
 
     @GetMapping("/dispatch/intervention-queue")
+    @Operation(summary = "Get intervention queue", description = "Tasks and exceptions awaiting manual intervention")
     public ApiResponse<DispatchInterventionQueueResponse> getInterventionQueue(
-            @RequestParam(required = false) Long parkId) {
+            @RequestParam(required = false) Long parkId,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(dispatchAdminQueryService.getInterventionQueue(parkId));
     }
 
     @PostMapping("/dispatch/task-pool/query")
     @Operation(summary = "Query task pool with server-side pagination")
     public ApiResponse<PageResponse<DispatchTaskListItemResponse>> queryTaskPool(
-            @RequestBody AdminTaskQueryRequest request) {
-        return ApiResponse.success(adminQueryFacadeService.queryTasks(request));
+            @Valid @RequestBody AdminTaskQueryRequest body,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(adminQueryFacadeService.queryTasks(body));
     }
 
     @GetMapping("/dispatch/workbench")
+    @Operation(summary = "Dispatch workbench overview", description = "Real-time task pool, vehicle status, and station summary for the workbench UI")
     public ApiResponse<DispatchWorkbenchResponse> getDispatchWorkbench(
-            @RequestParam(required = false) Long parkId) {
+            @RequestParam(required = false) Long parkId,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(dispatchAdminQueryService.getWorkbench(parkId));
     }
 
     @PostMapping("/exceptions/{exceptionId}/resolve")
+    @Operation(summary = "Resolve dispatch exception")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Exception resolved"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
     public ApiResponse<Void> resolveException(@PathVariable Long exceptionId,
-                                              @Valid @RequestBody AdminDispatchExceptionResolveRequest request) {
+                                              @Valid @RequestBody AdminDispatchExceptionResolveRequest request,
+                                              HttpServletRequest httpRequest) {
+        AdminAuthSupport.requireAuth(httpRequest);
         dispatchExceptionService.resolveException(exceptionId, request.toDispatchRequest());
         return ApiResponse.success(null);
     }
 
     @GetMapping("/vehicles")
-    public ApiResponse<List<VehicleAdminListItemResponse>> listVehicles() {
+    @Operation(summary = "List all vehicles")
+    public ApiResponse<List<VehicleAdminListItemResponse>> listVehicles(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(vehicleAdminQueryService.listVehicles());
     }
 
     @PostMapping("/vehicles/query")
-    public ApiResponse<PageResponse<VehicleAdminListItemResponse>> queryVehicles(@RequestBody AdminVehicleQueryRequest request) {
-        return ApiResponse.success(adminQueryFacadeService.queryVehicles(request));
+    @Operation(summary = "Query vehicles with pagination and filters")
+    public ApiResponse<PageResponse<VehicleAdminListItemResponse>> queryVehicles(
+            @Valid @RequestBody AdminVehicleQueryRequest body,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(adminQueryFacadeService.queryVehicles(body));
     }
 
     @GetMapping("/vehicles/{vehicleId}")
-    public ApiResponse<VehicleAdminDetailResponse> getVehicleDetail(@PathVariable Long vehicleId) {
+    @Operation(summary = "Get vehicle detail")
+    public ApiResponse<VehicleAdminDetailResponse> getVehicleDetail(@PathVariable Long vehicleId,
+                                                                    HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(vehicleAdminQueryService.getVehicleDetail(vehicleId));
     }
 
     @GetMapping("/dashboard/summary")
+    @Operation(summary = "Dashboard summary", description = "Aggregated counts for tasks, vehicles, orders, and exceptions")
     public ApiResponse<AdminDashboardSummaryResponse> getDashboardSummary(
-            @RequestParam(required = false) Long parkId) {
+            @RequestParam(required = false) Long parkId,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(adminDashboardService.getSummary(parkId));
     }
 
     @GetMapping("/parks")
-    public ApiResponse<List<ParkResponse>> listParks() {
+    @Operation(summary = "List parks")
+    public ApiResponse<List<ParkResponse>> listParks(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(parkPilotService.listParks());
     }
 
     @GetMapping("/park/layout")
-    public ApiResponse<ParkLayoutResponse> getParkLayout(@RequestParam(required = false) Long parkId) {
+    @Operation(summary = "Get park layout", description = "Map layout with stations, roads, and vehicle positions")
+    public ApiResponse<ParkLayoutResponse> getParkLayout(@RequestParam(required = false) Long parkId,
+                                                         HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         if (parkId == null) {
             return ApiResponse.success(parkPilotService.getLayout());
         }
@@ -283,17 +398,27 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/park/geo/calibration-points")
+    @Operation(summary = "List geo calibration points")
     public ApiResponse<List<GeoCalibrationPointResponse>> listGeoCalibrationPoints(
-            @RequestParam(required = false) Long parkId) {
+            @RequestParam(required = false) Long parkId,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(coordinateTransformService.listCalibrationPoints(parkId));
     }
 
     @GetMapping("/park/geo/transform")
+    @Operation(summary = "Transform geo coordinates", description = "Convert between park-local coordinates and GCJ-02")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Transform result returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Must provide parkX/parkY or longitude/latitude")
+    })
     public ApiResponse<GeoTransformResponse> transformGeoCoordinates(
             @RequestParam(required = false) BigDecimal parkX,
             @RequestParam(required = false) BigDecimal parkY,
             @RequestParam(required = false) BigDecimal longitude,
-            @RequestParam(required = false) BigDecimal latitude) {
+            @RequestParam(required = false) BigDecimal latitude,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         if (parkX != null && parkY != null) {
             return coordinateTransformService.parkToGcj02(parkX, parkY)
                     .map(ApiResponse::success)
@@ -308,7 +433,10 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/park/stations")
-    public ApiResponse<List<ParkStationResponse>> listParkStations(@RequestParam(required = false) Long parkId) {
+    @Operation(summary = "List park stations")
+    public ApiResponse<List<ParkStationResponse>> listParkStations(@RequestParam(required = false) Long parkId,
+                                                                   HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         if (parkId == null) {
             return ApiResponse.success(parkPilotService.listStations());
         }
@@ -316,26 +444,41 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/park/vehicles")
-    public ApiResponse<List<ParkVehicleSnapshotResponse>> listParkVehicles() {
+    @Operation(summary = "List park vehicle snapshots", description = "Live vehicle positions and status for the park map")
+    public ApiResponse<List<ParkVehicleSnapshotResponse>> listParkVehicles(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(parkPilotService.listVehicleSnapshots());
     }
 
     @GetMapping("/park/geofences")
-    public ApiResponse<List<ParkGeofenceResponse>> listParkGeofences(@RequestParam(required = false) Long parkId) {
+    @Operation(summary = "List park geofences")
+    public ApiResponse<List<ParkGeofenceResponse>> listParkGeofences(@RequestParam(required = false) Long parkId,
+                                                                     HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(parkPilotService.listGeofences(parkId));
     }
 
     @GetMapping("/park/overview")
-    public ApiResponse<List<ParkOverviewResponse>> listParkOverview() {
+    @Operation(summary = "List park overviews", description = "Summary stats for all parks")
+    public ApiResponse<List<ParkOverviewResponse>> listParkOverview(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(parkPilotService.listParkOverview());
     }
 
     @GetMapping("/park/orders")
-    public ApiResponse<List<ParkOrderSnapshotResponse>> listParkOrders() {
+    @Operation(summary = "List park order snapshots")
+    public ApiResponse<List<ParkOrderSnapshotResponse>> listParkOrders(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(parkPilotService.listOrderSnapshots());
     }
 
     @PostMapping("/park/orders")
+    @Operation(summary = "Create park order via mobile API key", description = "Authenticated by X-Mobile-Api-Key header or mobileApiKey query param, not admin token")
+    @SecurityRequirement(name = "")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Order created"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid mobile API key or validation error")
+    })
     public ApiResponse<ParkOrderCreateResponse> createParkOrder(@Valid @RequestBody ParkOrderCreateRequest request,
                                                                   jakarta.servlet.http.HttpServletRequest httpRequest) {
         String mobileKey = httpRequest.getHeader("X-Mobile-Api-Key");

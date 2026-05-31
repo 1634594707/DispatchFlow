@@ -14,6 +14,8 @@ import com.fsd.admin.vo.AdminHubOverviewResponse;
 import com.fsd.admin.vo.AdminOpsSnapshotResponse;
 import com.fsd.admin.vo.AdminPeakModeResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/vertical")
 @Tag(name = "Vertical", description = "Home-textile routes, peak mode, hub, automation rules, and ops snapshot")
+@SecurityRequirement(name = "adminToken")
 public class AdminVerticalController {
 
     private final VerticalAdminService verticalAdminService;
@@ -43,6 +46,7 @@ public class AdminVerticalController {
     }
 
     @GetMapping("/routes")
+    @Operation(summary = "List dispatch routes")
     public ApiResponse<List<AdminDispatchRouteResponse>> listRoutes(@RequestParam(required = false) Long parkId,
                                                                     HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
@@ -50,6 +54,7 @@ public class AdminVerticalController {
     }
 
     @PostMapping("/routes")
+    @Operation(summary = "Create dispatch route")
     public ApiResponse<AdminDispatchRouteResponse> createRoute(@Valid @RequestBody AdminDispatchRouteUpsertRequest body,
                                                                HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -57,6 +62,7 @@ public class AdminVerticalController {
     }
 
     @PutMapping("/routes/{routeId}")
+    @Operation(summary = "Update dispatch route")
     public ApiResponse<AdminDispatchRouteResponse> updateRoute(@PathVariable Long routeId,
                                                                @Valid @RequestBody AdminDispatchRouteUpsertRequest body,
                                                                HttpServletRequest request) {
@@ -65,6 +71,7 @@ public class AdminVerticalController {
     }
 
     @PostMapping("/routes/{routeId}/toggle-status")
+    @Operation(summary = "Toggle route active status")
     public ApiResponse<AdminDispatchRouteResponse> toggleRoute(@PathVariable Long routeId,
                                                                HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -72,6 +79,7 @@ public class AdminVerticalController {
     }
 
     @GetMapping("/peak-mode")
+    @Operation(summary = "Get peak mode config")
     public ApiResponse<AdminPeakModeResponse> getPeakMode(@RequestParam Long parkId,
                                                           HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
@@ -79,6 +87,7 @@ public class AdminVerticalController {
     }
 
     @PutMapping("/peak-mode")
+    @Operation(summary = "Update peak mode config")
     public ApiResponse<AdminPeakModeResponse> updatePeakMode(@Valid @RequestBody AdminPeakModeUpsertRequest body,
                                                              HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -86,6 +95,7 @@ public class AdminVerticalController {
     }
 
     @GetMapping("/hub-overview")
+    @Operation(summary = "Get hub overview")
     public ApiResponse<AdminHubOverviewResponse> getHubOverview(@RequestParam(required = false) Long parkId,
                                                                   HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
@@ -93,6 +103,7 @@ public class AdminVerticalController {
     }
 
     @GetMapping("/ops-snapshot")
+    @Operation(summary = "Get ops snapshot")
     public ApiResponse<AdminOpsSnapshotResponse> getOpsSnapshot(@RequestParam(required = false) Long parkId,
                                                                 HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
@@ -100,6 +111,7 @@ public class AdminVerticalController {
     }
 
     @GetMapping("/automation-rules")
+    @Operation(summary = "List automation rules")
     public ApiResponse<List<AdminAutomationRuleResponse>> listRules(@RequestParam(required = false) Long parkId,
                                                                     HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
@@ -107,6 +119,7 @@ public class AdminVerticalController {
     }
 
     @PostMapping("/automation-rules")
+    @Operation(summary = "Create automation rule")
     public ApiResponse<AdminAutomationRuleResponse> createRule(@Valid @RequestBody AdminAutomationRuleUpsertRequest body,
                                                                HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -115,6 +128,7 @@ public class AdminVerticalController {
     }
 
     @PutMapping("/automation-rules/{ruleId}")
+    @Operation(summary = "Update automation rule")
     public ApiResponse<AdminAutomationRuleResponse> updateRule(@PathVariable Long ruleId,
                                                                @Valid @RequestBody AdminAutomationRuleUpsertRequest body,
                                                                HttpServletRequest request) {
@@ -124,6 +138,7 @@ public class AdminVerticalController {
     }
 
     @DeleteMapping("/automation-rules/{ruleId}")
+    @Operation(summary = "Delete automation rule")
     public ApiResponse<Void> deleteRule(@PathVariable Long ruleId, HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         AdminAuthContext ctx = AdminAuthSupport.fromRequest(request);
@@ -132,6 +147,7 @@ public class AdminVerticalController {
     }
 
     @PostMapping("/automation-rules/{ruleId}/toggle")
+    @Operation(summary = "Toggle automation rule enabled/disabled")
     public ApiResponse<AdminAutomationRuleResponse> toggleRule(@PathVariable Long ruleId,
                                                                HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -140,6 +156,7 @@ public class AdminVerticalController {
     }
 
     @GetMapping("/automation-rules/{ruleId}/audit")
+    @Operation(summary = "List automation rule audit log")
     public ApiResponse<List<AdminAutomationRuleAuditResponse>> listRuleAudit(@PathVariable Long ruleId,
                                                                              HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);

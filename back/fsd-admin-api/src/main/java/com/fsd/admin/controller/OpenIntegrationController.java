@@ -5,6 +5,7 @@ import com.fsd.dispatch.service.DispatchAdminQueryService;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
 import com.fsd.order.service.OrderQueryService;
 import com.fsd.order.vo.OrderDetailResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,11 +27,13 @@ public class OpenIntegrationController {
     }
 
     @GetMapping("/orders/{orderId}")
+    @Operation(summary = "Get order by ID (external)")
     public ApiResponse<OrderDetailResponse> getOrder(@PathVariable Long orderId) {
         return ApiResponse.success(orderQueryService.getOrderDetail(orderId));
     }
 
     @GetMapping("/tasks/{taskId}")
+    @Operation(summary = "Get task by ID (external)")
     public ApiResponse<DispatchTaskDetailResponse> getTask(@PathVariable Long taskId) {
         return ApiResponse.success(dispatchAdminQueryService.getTaskDetail(taskId));
     }

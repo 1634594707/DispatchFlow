@@ -1,6 +1,7 @@
 package com.fsd.admin.controller;
 
 import com.fsd.admin.service.FleetTelemetryStreamService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +22,7 @@ public class FleetTelemetryStreamController {
     }
 
     @GetMapping(value = "/telemetry/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "Fleet telemetry SSE stream", description = "Live vehicle positions and sensor data. Auth via `token` query param.")
     public SseEmitter streamTelemetry(@RequestParam(required = false) Long parkId) {
         return streamService.createStream(parkId);
     }

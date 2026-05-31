@@ -1,5 +1,6 @@
 package com.fsd.admin.service.impl;
 
+import com.fsd.admin.dto.AdminReportScheduleUpsertRequest;
 import com.fsd.admin.service.ReportScheduleAdminService;
 import com.fsd.admin.vo.AdminReportScheduleResponse;
 import com.fsd.common.exception.BusinessException;
@@ -26,7 +27,7 @@ public class ReportScheduleAdminServiceImpl implements ReportScheduleAdminServic
 
     @Override
     @Transactional
-    public AdminReportScheduleResponse upsert(AdminReportScheduleResponse request) {
+    public AdminReportScheduleResponse upsert(AdminReportScheduleUpsertRequest request) {
         ReportScheduleEntity entity;
         if (request.getId() == null) {
             entity = new ReportScheduleEntity();

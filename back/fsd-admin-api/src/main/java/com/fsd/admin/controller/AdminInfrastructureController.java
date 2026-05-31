@@ -20,6 +20,8 @@ import com.fsd.admin.vo.AdminRoadNodeResponse;
 import com.fsd.admin.vo.AdminRoadSegmentResponse;
 import com.fsd.admin.vo.AdminStationResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -36,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/infrastructure")
 @Tag(name = "Infrastructure", description = "Parks, stations, road network, parking, charging, and swap cabinets")
+@SecurityRequirement(name = "adminToken")
 public class AdminInfrastructureController {
 
     private final InfrastructureAdminService infrastructureAdminService;
@@ -45,12 +48,14 @@ public class AdminInfrastructureController {
     }
 
     @GetMapping("/parks")
+    @Operation(summary = "List parks")
     public ApiResponse<List<AdminParkResponse>> listParks(HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         return ApiResponse.success(infrastructureAdminService.listParks());
     }
 
     @PostMapping("/parks")
+    @Operation(summary = "Create park")
     public ApiResponse<AdminParkResponse> createPark(@Valid @RequestBody AdminParkUpsertRequest body,
                                                      HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -58,6 +63,7 @@ public class AdminInfrastructureController {
     }
 
     @PutMapping("/parks/{parkId}")
+    @Operation(summary = "Update park")
     public ApiResponse<AdminParkResponse> updatePark(@PathVariable Long parkId,
                                                      @Valid @RequestBody AdminParkUpsertRequest body,
                                                      HttpServletRequest request) {
@@ -66,6 +72,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/parks/{parkId}/toggle-status")
+    @Operation(summary = "Toggle park active status")
     public ApiResponse<AdminParkResponse> toggleParkStatus(@PathVariable Long parkId,
                                                            HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -73,6 +80,7 @@ public class AdminInfrastructureController {
     }
 
     @GetMapping("/stations")
+    @Operation(summary = "List stations")
     public ApiResponse<List<AdminStationResponse>> listStations(@RequestParam(required = false) Long parkId,
                                                                 HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -80,6 +88,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/stations")
+    @Operation(summary = "Create station")
     public ApiResponse<AdminStationResponse> createStation(@Valid @RequestBody AdminStationUpsertRequest body,
                                                            HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -87,6 +96,7 @@ public class AdminInfrastructureController {
     }
 
     @PutMapping("/stations/{stationId}")
+    @Operation(summary = "Update station")
     public ApiResponse<AdminStationResponse> updateStation(@PathVariable Long stationId,
                                                            @Valid @RequestBody AdminStationUpsertRequest body,
                                                            HttpServletRequest request) {
@@ -95,6 +105,7 @@ public class AdminInfrastructureController {
     }
 
     @GetMapping("/parking-slots")
+    @Operation(summary = "List parking slots")
     public ApiResponse<List<AdminParkingSlotResponse>> listParkingSlots(@RequestParam(required = false) Long parkId,
                                                                         HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -102,6 +113,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/parking-slots")
+    @Operation(summary = "Create parking slot")
     public ApiResponse<AdminParkingSlotResponse> createParkingSlot(@Valid @RequestBody AdminParkingSlotUpsertRequest body,
                                                                    HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -109,6 +121,7 @@ public class AdminInfrastructureController {
     }
 
     @PutMapping("/parking-slots/{slotId}")
+    @Operation(summary = "Update parking slot")
     public ApiResponse<AdminParkingSlotResponse> updateParkingSlot(@PathVariable Long slotId,
                                                                    @Valid @RequestBody AdminParkingSlotUpsertRequest body,
                                                                    HttpServletRequest request) {
@@ -117,6 +130,7 @@ public class AdminInfrastructureController {
     }
 
     @GetMapping("/charging-piles")
+    @Operation(summary = "List charging piles")
     public ApiResponse<List<AdminChargingPileResponse>> listChargingPiles(@RequestParam(required = false) Long parkId,
                                                                           HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -124,6 +138,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/charging-piles")
+    @Operation(summary = "Create charging pile")
     public ApiResponse<AdminChargingPileResponse> createChargingPile(@Valid @RequestBody AdminChargingPileUpsertRequest body,
                                                                        HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -131,6 +146,7 @@ public class AdminInfrastructureController {
     }
 
     @PutMapping("/charging-piles/{pileId}")
+    @Operation(summary = "Update charging pile")
     public ApiResponse<AdminChargingPileResponse> updateChargingPile(@PathVariable Long pileId,
                                                                      @Valid @RequestBody AdminChargingPileUpsertRequest body,
                                                                      HttpServletRequest request) {
@@ -139,6 +155,7 @@ public class AdminInfrastructureController {
     }
 
     @GetMapping("/swap-cabinets")
+    @Operation(summary = "List battery swap cabinets")
     public ApiResponse<List<AdminBatterySwapCabinetResponse>> listSwapCabinets(
             @RequestParam(required = false) Long parkId,
             HttpServletRequest request) {
@@ -147,6 +164,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/swap-cabinets")
+    @Operation(summary = "Create battery swap cabinet")
     public ApiResponse<AdminBatterySwapCabinetResponse> createSwapCabinet(
             @Valid @RequestBody AdminBatterySwapCabinetUpsertRequest body,
             HttpServletRequest request) {
@@ -155,6 +173,7 @@ public class AdminInfrastructureController {
     }
 
     @PutMapping("/swap-cabinets/{cabinetId}")
+    @Operation(summary = "Update battery swap cabinet")
     public ApiResponse<AdminBatterySwapCabinetResponse> updateSwapCabinet(
             @PathVariable Long cabinetId,
             @Valid @RequestBody AdminBatterySwapCabinetUpsertRequest body,
@@ -164,6 +183,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/swap-cabinets/{cabinetId}/delete")
+    @Operation(summary = "Delete battery swap cabinet")
     public ApiResponse<Void> deleteSwapCabinet(@PathVariable Long cabinetId, HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         infrastructureAdminService.deleteBatterySwapCabinet(cabinetId);
@@ -171,6 +191,7 @@ public class AdminInfrastructureController {
     }
 
     @GetMapping("/road-nodes")
+    @Operation(summary = "List road nodes")
     public ApiResponse<List<AdminRoadNodeResponse>> listRoadNodes(@RequestParam(required = false) Long parkId,
                                                                   HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -178,6 +199,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/road-nodes")
+    @Operation(summary = "Create road node")
     public ApiResponse<AdminRoadNodeResponse> createRoadNode(@Valid @RequestBody AdminRoadNodeUpsertRequest body,
                                                              HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -185,6 +207,7 @@ public class AdminInfrastructureController {
     }
 
     @PutMapping("/road-nodes/{nodeId}")
+    @Operation(summary = "Update road node")
     public ApiResponse<AdminRoadNodeResponse> updateRoadNode(@PathVariable Long nodeId,
                                                              @Valid @RequestBody AdminRoadNodeUpsertRequest body,
                                                              HttpServletRequest request) {
@@ -193,6 +216,7 @@ public class AdminInfrastructureController {
     }
 
     @GetMapping("/road-segments")
+    @Operation(summary = "List road segments")
     public ApiResponse<List<AdminRoadSegmentResponse>> listRoadSegments(@RequestParam(required = false) Long parkId,
                                                                         HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -200,6 +224,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/road-segments")
+    @Operation(summary = "Create road segment")
     public ApiResponse<AdminRoadSegmentResponse> createRoadSegment(@Valid @RequestBody AdminRoadSegmentUpsertRequest body,
                                                                    HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -207,6 +232,7 @@ public class AdminInfrastructureController {
     }
 
     @PutMapping("/road-segments/{segmentId}")
+    @Operation(summary = "Update road segment")
     public ApiResponse<AdminRoadSegmentResponse> updateRoadSegment(@PathVariable Long segmentId,
                                                                    @Valid @RequestBody AdminRoadSegmentUpsertRequest body,
                                                                    HttpServletRequest request) {
@@ -215,6 +241,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/road-segments/{segmentId}/toggle-status")
+    @Operation(summary = "Toggle road segment status")
     public ApiResponse<AdminRoadSegmentResponse> toggleRoadSegmentStatus(@PathVariable Long segmentId,
                                                                          HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -222,6 +249,7 @@ public class AdminInfrastructureController {
     }
 
     @GetMapping("/geofences")
+    @Operation(summary = "List geofences")
     public ApiResponse<List<AdminGeofenceResponse>> listGeofences(@RequestParam Long parkId,
                                                                   HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -229,6 +257,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/geofences")
+    @Operation(summary = "Create geofence")
     public ApiResponse<AdminGeofenceResponse> createGeofence(@Valid @RequestBody AdminGeofenceUpsertRequest body,
                                                              HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -236,6 +265,7 @@ public class AdminInfrastructureController {
     }
 
     @PutMapping("/geofences/{geofenceId}")
+    @Operation(summary = "Update geofence")
     public ApiResponse<AdminGeofenceResponse> updateGeofence(@PathVariable Long geofenceId,
                                                              @Valid @RequestBody AdminGeofenceUpdateRequest body,
                                                              HttpServletRequest request) {
@@ -244,6 +274,7 @@ public class AdminInfrastructureController {
     }
 
     @PostMapping("/geofences/{geofenceId}/delete")
+    @Operation(summary = "Delete geofence")
     public ApiResponse<Void> deleteGeofence(@PathVariable Long geofenceId, HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         infrastructureAdminService.deleteGeofence(geofenceId);

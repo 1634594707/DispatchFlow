@@ -8,6 +8,8 @@ import com.fsd.admin.vo.AdminTrafficSegmentImpactResponse;
 import com.fsd.admin.vo.AdminTrafficSegmentResponse;
 import com.fsd.admin.vo.AdminTrafficSummaryResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/traffic")
 @Tag(name = "Traffic", description = "Congestion overview, segment control, and pause zones")
+@SecurityRequirement(name = "adminToken")
 public class AdminTrafficController {
 
     private final TrafficAdminService trafficAdminService;
@@ -33,6 +36,7 @@ public class AdminTrafficController {
     }
 
     @GetMapping("/overview")
+    @Operation(summary = "Traffic segment overview")
     public ApiResponse<List<AdminTrafficSegmentResponse>> overview(@RequestParam(required = false) Long parkId,
                                                                    HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -40,11 +44,14 @@ public class AdminTrafficController {
     }
 
     @GetMapping("/summary")
-    public ApiResponse<AdminTrafficSummaryResponse> summary(@RequestParam(required = false) Long parkId) {
+    @Operation(summary = "Traffic summary")
+    public ApiResponse<AdminTrafficSummaryResponse> summary(@RequestParam(required = false) Long parkId, HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(trafficAdminService.getSummary(parkId));
     }
 
     @PostMapping("/refresh-congestion")
+    @Operation(summary = "Refresh congestion data")
     public ApiResponse<Void> refresh(@RequestParam(required = false) Long parkId, HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         trafficAdminService.refreshCongestion(parkId);
@@ -52,6 +59,7 @@ public class AdminTrafficController {
     }
 
     @GetMapping("/segments/{segmentId}/impact")
+    @Operation(summary = "Get segment impact analysis")
     public ApiResponse<AdminTrafficSegmentImpactResponse> segmentImpact(@PathVariable Long segmentId,
                                                                       HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -59,6 +67,7 @@ public class AdminTrafficController {
     }
 
     @PostMapping("/segments/{segmentId}/disable")
+    @Operation(summary = "Disable road segment")
     public ApiResponse<AdminTrafficSegmentResponse> disableSegment(@PathVariable Long segmentId,
                                                                    HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -66,6 +75,7 @@ public class AdminTrafficController {
     }
 
     @PostMapping("/segments/{segmentId}/downgrade-congestion")
+    @Operation(summary = "Downgrade segment congestion level")
     public ApiResponse<AdminTrafficSegmentResponse> downgradeCongestion(@PathVariable Long segmentId,
                                                                           HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -73,6 +83,7 @@ public class AdminTrafficController {
     }
 
     @GetMapping("/pause-zones")
+    @Operation(summary = "List traffic pause zones")
     public ApiResponse<List<AdminTrafficPauseZoneResponse>> listPauseZones(@RequestParam(required = false) Long parkId,
                                                                            HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -80,6 +91,7 @@ public class AdminTrafficController {
     }
 
     @PostMapping("/pause-zones")
+    @Operation(summary = "Add traffic pause zone")
     public ApiResponse<AdminTrafficPauseZoneResponse> addPauseZone(@Valid @RequestBody AdminTrafficPauseZoneRequest body,
                                                                    HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -87,6 +99,7 @@ public class AdminTrafficController {
     }
 
     @DeleteMapping("/pause-zones")
+    @Operation(summary = "Clear traffic pause zones")
     public ApiResponse<Void> clearPauseZones(@RequestParam(required = false) Long parkId,
                                              HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
