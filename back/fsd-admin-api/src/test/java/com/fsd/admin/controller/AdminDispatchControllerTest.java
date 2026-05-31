@@ -2,6 +2,7 @@ package com.fsd.admin.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.fsd.admin.dto.AdminDispatchExceptionResolveRequest;
@@ -39,6 +40,7 @@ import com.fsd.vehicle.service.VehicleAdminQueryService;
 import com.fsd.vehicle.vo.VehicleAdminDetailResponse;
 import com.fsd.vehicle.vo.VehicleAdminListItemResponse;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -75,6 +77,14 @@ class AdminDispatchControllerTest {
 
     @InjectMocks
     private AdminDispatchController adminDispatchController;
+
+    @BeforeEach
+    void setUpAuth() {
+        lenient().when(httpServletRequest.getAttribute("fsd.admin.role")).thenReturn("ADMIN");
+        lenient().when(httpServletRequest.getAttribute("fsd.admin.userId")).thenReturn(1L);
+        lenient().when(httpServletRequest.getAttribute("fsd.admin.username")).thenReturn("testadmin");
+        lenient().when(httpServletRequest.getAttribute("fsd.admin.displayName")).thenReturn("Test Admin");
+    }
 
     @Test
     void shouldReturnOrders() {
