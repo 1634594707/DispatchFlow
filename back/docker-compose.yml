@@ -83,6 +83,10 @@ services:
       RABBITMQ_PASSWORD: guest
       FSD_DISPATCH_OUTBOX_RETRY_ENABLED: "true"
       FSD_DISPATCH_OUTBOX_RETRY_DELAY_MS: 30000
+      FSD_ADMIN_AUTH_ENABLED: "false"
+      MOBILE_ORDER_REQUIRE_KEY: "false"
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
     ports:
       - "${APP_HOST_PORT:-8080}:8080"
     restart: unless-stopped

@@ -17,6 +17,11 @@ spring:
       - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
 
 fsd:
+  security:
+    admin:
+      enabled: false
+  mobile-order:
+    require-api-key: false
   fleet:
     telemetry:
       scheduler-enabled: false

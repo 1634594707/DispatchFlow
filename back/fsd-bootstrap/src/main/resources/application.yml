@@ -46,7 +46,8 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,prometheus
+      base-path: /internal/actuator
   endpoint:
     prometheus:
       enabled: true
@@ -65,12 +66,14 @@ management:
 springdoc:
   api-docs:
     path: /api-docs
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:false}
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
 
 fsd:
   mobile-order:
-    require-api-key: ${MOBILE_ORDER_REQUIRE_KEY:false}
+    require-api-key: ${MOBILE_ORDER_REQUIRE_KEY:true}
   park:
     enabled: ${FSD_PARK_ENABLED:true}
     default-park-code: ${FSD_PARK_DEFAULT_CODE:DEFAULT}
@@ -352,14 +355,13 @@ fsd:
       check-ms: ${FSD_REPORT_MAIL_CHECK_MS:60000}
   security:
     admin:
-      enabled: ${FSD_ADMIN_AUTH_ENABLED:false}
-      tokens:
-        viewer-demo: VIEWER
-        operator-demo: OPERATOR
-        admin-demo: ADMIN
+      enabled: ${FSD_ADMIN_AUTH_ENABLED:true}
+      tokens: {}
     field-encryption:
       enabled: ${FSD_FIELD_ENCRYPTION_ENABLED:false}
       key: ${FSD_FIELD_ENCRYPTION_KEY:}
+    cors:
+      allowed-origins: ${FSD_CORS_ALLOWED_ORIGINS:}
     vehicle-gateway:
       enabled: ${FSD_VEHICLE_GATEWAY_AUTH_ENABLED:true}
   vda5050:
