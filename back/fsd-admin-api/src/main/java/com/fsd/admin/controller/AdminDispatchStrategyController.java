@@ -6,6 +6,8 @@ import com.fsd.admin.service.DispatchStrategyAdminService;
 import com.fsd.admin.vo.AdminDispatchStrategyResponse;
 import com.fsd.admin.vo.AdminStrategyChangeLogResponse;
 import com.fsd.common.model.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/dispatch/strategy")
 @Tag(name = "Dispatch Strategy", description = "Strategy profiles, activation, and change logs")
+@SecurityRequirement(name = "adminToken")
 public class AdminDispatchStrategyController {
 
     private final DispatchStrategyAdminService strategyAdminService;
@@ -30,18 +33,21 @@ public class AdminDispatchStrategyController {
     }
 
     @GetMapping("/profiles")
+    @Operation(summary = "List strategy profiles")
     public ApiResponse<List<AdminDispatchStrategyResponse>> listProfiles(HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         return ApiResponse.success(strategyAdminService.listProfiles());
     }
 
     @GetMapping("/change-logs")
+    @Operation(summary = "List strategy change logs")
     public ApiResponse<List<AdminStrategyChangeLogResponse>> changeLogs(HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         return ApiResponse.success(strategyAdminService.listChangeLogs());
     }
 
     @PostMapping("/profiles")
+    @Operation(summary = "Create strategy profile")
     public ApiResponse<AdminDispatchStrategyResponse> create(@Valid @RequestBody AdminDispatchStrategyUpsertRequest body,
                                                                HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
@@ -49,6 +55,7 @@ public class AdminDispatchStrategyController {
     }
 
     @PutMapping("/profiles/{id}")
+    @Operation(summary = "Update strategy profile")
     public ApiResponse<AdminDispatchStrategyResponse> update(@PathVariable Long id,
                                                              @Valid @RequestBody AdminDispatchStrategyUpsertRequest body,
                                                              HttpServletRequest request) {
@@ -57,6 +64,7 @@ public class AdminDispatchStrategyController {
     }
 
     @PostMapping("/profiles/{id}/activate")
+    @Operation(summary = "Activate strategy profile")
     public ApiResponse<Void> activate(@PathVariable Long id, HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
         strategyAdminService.activate(id, operatorName(request));
