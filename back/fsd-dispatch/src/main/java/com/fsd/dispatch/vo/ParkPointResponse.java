@@ -13,4 +13,8 @@ public class ParkPointResponse {
     private BigDecimal x;
 
     private BigDecimal y;
+
+    private BigDecimal longitude;
+
+    private BigDecimal latitude;
 }

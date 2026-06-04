@@ -55,6 +55,9 @@
       :rowClassName="rowClassName"
       @change="handleTableChange"
     >
+      <template #emptyText>
+        <EmptyState description="暂无车辆，可新建仿真车或调整筛选条件" />
+      </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'vehicleCode'">
           <router-link :to="`/vehicles/${record.vehicleId}`" class="link-cell">
@@ -130,11 +133,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ReloadOutlined, SearchOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useVehicleStore } from '@/stores/vehicle'
 import { useAuthStore } from '@/stores/auth'
@@ -185,6 +189,12 @@ const queryForm = reactive({
 
 const pageNo = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
+let silentRefreshTimer: ReturnType<typeof setInterval> | null = null
+
+const ACTIVE_DISPATCH_STATUSES: DispatchStatus[] = [
+  DispatchStatus.BUSY,
+  DispatchStatus.CHARGING,
+]
 
 const columns = [
   { title: '车辆编号', dataIndex: 'vehicleCode', width: 140 },
@@ -314,6 +324,25 @@ async function handleSave() {
   }
 }
 
+function hasActiveVehiclesInList() {
+  return store.list.some(item =>
+    ACTIVE_DISPATCH_STATUSES.includes(item.dispatchStatus)
+    || (item.onlineStatus === 'ONLINE' && item.currentTaskId != null),
+  )
+}
+
+function syncSilentRefresh() {
+  if (silentRefreshTimer) {
+    clearInterval(silentRefreshTimer)
+    silentRefreshTimer = null
+  }
+  if (hasActiveVehiclesInList()) {
+    silentRefreshTimer = setInterval(() => {
+      if (!store.loading) fetchData()
+    }, 10_000)
+  }
+}
+
 onMounted(() => {
   const onlineParam = route.query.onlineStatus as string
   if (onlineParam) {
@@ -321,6 +350,16 @@ onMounted(() => {
   }
   fetchData()
 })
+
+onUnmounted(() => {
+  if (silentRefreshTimer) clearInterval(silentRefreshTimer)
+})
+
+watch(
+  () => store.list,
+  () => syncSilentRefresh(),
+  { deep: true },
+)
 
 watch(
   () => parkScope.scopeVersion,

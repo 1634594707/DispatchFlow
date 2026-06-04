@@ -8,6 +8,12 @@ import { useParkScopeStore } from '@/stores/parkScope'
 
 const TOKEN_KEY = 'fsd_admin_token'
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    skipErrorToast?: boolean
+  }
+}
+
 const instance: AxiosInstance = axios.create({
   baseURL: API_BASE,
   timeout: REQUEST_TIMEOUT,
@@ -52,37 +58,44 @@ instance.interceptors.response.use(
         window.location.href = '/login'
       }
     }
-    message.error(errMsg)
+    if (!response.config.skipErrorToast) {
+      message.error(errMsg)
+    }
     return Promise.reject(new Error(errMsg))
   },
   (error) => {
+    const skipToast = error.config?.skipErrorToast
     if (error.response) {
       const { status, data } = error.response
       switch (status) {
         case 401:
-          message.error('未授权，请重新登录')
+          if (!skipToast) message.error('未授权，请重新登录')
           break
         case 403:
-          message.error('无权限访问')
+          if (!skipToast) message.error('无权限访问')
           break
         case 404:
-          message.error('数据不存在或已被删除')
+          if (!skipToast) message.error('数据不存在或已被删除')
           break
         case 409:
-          message.error('数据已被修改，请刷新后重试')
+          if (!skipToast) message.error('数据已被修改，请刷新后重试')
           break
         case 422:
-          message.error(data?.message || '参数校验失败')
+          if (!skipToast) message.error(data?.message || '参数校验失败')
           break
         case 500:
-          message.error('服务器繁忙，请稍后重试')
+          if (!skipToast) message.error('服务器繁忙，请稍后重试')
           break
         default:
-          message.error(data?.message || `请求失败 (${status})`)
+          if (!skipToast) {
+            message.error(
+              friendlyApiMessage(data?.code, data?.message) || data?.message || `请求失败 (${status})`
+            )
+          }
       }
     } else if (error.code === 'ECONNABORTED') {
-      message.error('网络超时，请检查网络后重试')
-    } else {
+      if (!error.config?.skipErrorToast) message.error('网络超时，请检查网络后重试')
+    } else if (!error.config?.skipErrorToast) {
       message.error('网络异常，请检查网络后重试')
     }
     return Promise.reject(error)
@@ -95,6 +108,13 @@ function friendlyApiMessage(code?: string, raw?: string): string {
   if (code === 'ADMIN_AUTH_FAILED') return '登录已失效，请重新登录'
   if (code === 'ADMIN_FORBIDDEN') return '当前账号无写操作权限，请联系管理员'
   if (code === 'PARK_NOT_FOUND') return '所选园区无效或已停用，已重置为全部园区'
+  if (code === 'PARK_STATION_NOT_FOUND') {
+    return '站点已失效（可能为旧厂内示意站），请刷新页面后重试'
+  }
+  if (code === 'DISPATCH_TASK_STATUS_INVALID' || code === 'INVALID_STATUS') {
+    return raw || '当前任务状态不允许自动派车，请先取消老任务或重启后端后再试'
+  }
+  if (code === 'DISPATCH_TASK_LOCKED') return '任务正在处理中，请几秒后重试'
   if (raw.includes('No static resource') || code === 'NOT_FOUND') {
     return '后端接口未找到，请在 back/fsd-bootstrap 目录执行 mvn spring-boot:run 并重启后端'
   }

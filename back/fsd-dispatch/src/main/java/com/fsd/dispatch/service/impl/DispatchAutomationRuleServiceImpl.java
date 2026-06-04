@@ -3,9 +3,12 @@ package com.fsd.dispatch.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.dispatch.entity.DispatchAutomationRuleEntity;
+import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.fleet.simulation.SimulationMotionState;
 import com.fsd.dispatch.mapper.DispatchAutomationRuleMapper;
+import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.fleet.real.RealFleetSwapCoordinator;
 import com.fsd.dispatch.service.DispatchAutomationRuleService;
 import com.fsd.dispatch.service.DispatchExceptionService;
@@ -17,17 +20,25 @@ import org.springframework.stereotype.Service;
 @Service
 public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRuleService {
 
+    private static final List<String> DISPATCH_BACKLOG_STATUSES = List.of(
+            DispatchTaskStatus.PENDING.name(),
+            DispatchTaskStatus.MANUAL_PENDING.name(),
+            DispatchTaskStatus.ASSIGNING.name());
+
     private final DispatchAutomationRuleMapper ruleMapper;
+    private final DispatchTaskMapper dispatchTaskMapper;
     private final PeakModeService peakModeService;
     private final DispatchExceptionService dispatchExceptionService;
     private final RealFleetSwapCoordinator realFleetSwapCoordinator;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DispatchAutomationRuleServiceImpl(DispatchAutomationRuleMapper ruleMapper,
+                                               DispatchTaskMapper dispatchTaskMapper,
                                                PeakModeService peakModeService,
                                                DispatchExceptionService dispatchExceptionService,
                                                RealFleetSwapCoordinator realFleetSwapCoordinator) {
         this.ruleMapper = ruleMapper;
+        this.dispatchTaskMapper = dispatchTaskMapper;
         this.peakModeService = peakModeService;
         this.dispatchExceptionService = dispatchExceptionService;
         this.realFleetSwapCoordinator = realFleetSwapCoordinator;
@@ -66,6 +77,10 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
                     continue;
                 }
                 if ("CREATE_CHARGE_TASK".equalsIgnoreCase(rule.getActionType()) && isIdleLike(state.stage)) {
+                    // 有待派任务时优先恢复可派车，避免全员卡在 WAIT_CHARGING 导致 NO_VEHICLE/LOW_SOC 雪崩
+                    if (hasDispatchBacklog(parkId)) {
+                        continue;
+                    }
                     state.stage = "WAIT_CHARGING";
                 }
             }
@@ -158,6 +173,13 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
         } catch (NumberFormatException ex) {
             return fallback;
         }
+    }
+
+    private boolean hasDispatchBacklog(Long parkId) {
+        Long count = dispatchTaskMapper.selectCount(new LambdaQueryWrapper<DispatchTaskEntity>()
+                .eq(DispatchTaskEntity::getDeleted, 0)
+                .in(DispatchTaskEntity::getStatus, DISPATCH_BACKLOG_STATUSES));
+        return count != null && count > 0;
     }
 
     private boolean isIdleLike(String stage) {

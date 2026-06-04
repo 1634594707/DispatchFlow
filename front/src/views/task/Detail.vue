@@ -1,6 +1,12 @@
 <template>
   <PageContainer :title="`任务详情：${store.detail?.taskNo || route.params.taskId}`">
     <template #actions>
+      <router-link
+        v-if="store.detail?.vehicleId && store.detail?.orderId"
+        :to="geoTrackingLink"
+      >
+        <a-button type="primary">地图追踪</a-button>
+      </router-link>
       <a-button @click="router.back()">返回列表</a-button>
     </template>
 
@@ -19,6 +25,18 @@
                 <router-link :to="`/orders/${store.detail.orderId}`" class="link">
                   {{ store.detail.orderId }}
                 </router-link>
+              </a-descriptions-item>
+              <a-descriptions-item label="取货点">
+                <span v-if="store.detail.pickupStationCode">
+                  {{ store.detail.pickupStationCode }} · {{ store.detail.pickupPointName }}
+                </span>
+                <span v-else class="text-secondary">-</span>
+              </a-descriptions-item>
+              <a-descriptions-item label="送货点">
+                <span v-if="store.detail.dropoffStationCode">
+                  {{ store.detail.dropoffStationCode }} · {{ store.detail.dropoffPointName }}
+                </span>
+                <span v-else class="text-secondary">-</span>
               </a-descriptions-item>
               <a-descriptions-item label="派单类型">
                 <a-tag :color="store.detail.dispatchType === 'AUTO' ? 'cyan' : 'orange'">
@@ -167,6 +185,7 @@ import { getVehicleDetail, queryVehicles } from '@/api/vehicle'
 import { autoAssignTask, manualAssignTask, cancelTask, reassignTask } from '@/api/task'
 import { fetchTaskOperateLogs } from '@/api/operateLog'
 import { TaskStatus, DispatchStatus } from '@/constants/enums'
+import { buildGeoTrackingLink } from '@/constants/parkDelivery'
 import dayjs from 'dayjs'
 import type { VehicleDetailResponse } from '@/types/vehicle'
 import type { OperateLogItem } from '@/types/operateLog'
@@ -184,6 +203,10 @@ const assignMode = ref<'manual' | 'reassign'>('manual')
 const assignForm = reactive({ vehicleId: undefined as number | undefined, remark: '' })
 const vehicleOptions = ref<{ label: string; value: number }[]>([])
 
+const geoTrackingLink = computed(() =>
+  buildGeoTrackingLink(store.detail?.orderId, store.detail?.vehicleId ?? undefined),
+)
+
 const canAutoAssign = computed(() => {
   const s = store.detail?.status
   return s === TaskStatus.PENDING
@@ -197,7 +220,8 @@ const canManualAssign = computed(() => {
 const canReassign = computed(() => store.detail?.status === TaskStatus.ASSIGNED)
 const canCancel = computed(() => {
   const s = store.detail?.status
-  return s === TaskStatus.PENDING || s === TaskStatus.MANUAL_PENDING || s === TaskStatus.ASSIGNED
+  return s === TaskStatus.PENDING || s === TaskStatus.MANUAL_PENDING
+      || s === TaskStatus.ASSIGNED || s === TaskStatus.EXECUTING
 })
 
 const finishColor = computed(() =>

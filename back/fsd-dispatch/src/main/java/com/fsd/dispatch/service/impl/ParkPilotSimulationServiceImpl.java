@@ -13,6 +13,7 @@ import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.fleet.service.FleetSnapshotAssembler;
 import com.fsd.dispatch.entity.BatterySwapCabinetEntity;
 import com.fsd.dispatch.fleet.FleetAdapterRegistry;
+import com.fsd.dispatch.fleet.PilotFleetSupport;
 import com.fsd.dispatch.fleet.simulation.SimulationFleetAdapter;
 import com.fsd.dispatch.mapper.BatterySwapCabinetMapper;
 import com.fsd.dispatch.service.BatterySwapSessionService;
@@ -22,6 +23,12 @@ import com.fsd.dispatch.fleet.simulation.SimulationMotionState;
 import com.fsd.dispatch.fleet.simulation.SimulationMotionStore;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.ParkingFacilityService;
+import com.fsd.dispatch.geo.ParkGeoTransformService;
+import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
+import com.fsd.dispatch.geo.RoadRouteFollower;
+import com.fsd.dispatch.geo.RoadRouteResult;
+import com.fsd.dispatch.geo.RoadRouteService;
+import com.fsd.dispatch.geo.local.StationRoadSnapService;
 import com.fsd.dispatch.mapf.MapfRoutePlanResult;
 import com.fsd.dispatch.mapf.MapfRoutePlannerService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
@@ -36,6 +43,7 @@ import com.fsd.vehicle.dto.VehicleReportRequest;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
 import com.fsd.vehicle.service.VehicleReportService;
+import com.fsd.vehicle.service.VehicleService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -53,11 +61,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationService {
 
-    private static final String PILOT_VEHICLE_PREFIX = "PARK-";
     private static final List<String> DISPATCH_DEMAND_STATUSES = List.of(
             DispatchTaskStatus.PENDING.name(),
             DispatchTaskStatus.ASSIGNING.name(),
             DispatchTaskStatus.MANUAL_PENDING.name(),
+            DispatchTaskStatus.ASSIGNED.name(),
+            DispatchTaskStatus.EXECUTING.name());
+    private static final List<String> ACTIVE_VEHICLE_TASK_STATUSES = List.of(
+            DispatchTaskStatus.ASSIGNING.name(),
             DispatchTaskStatus.ASSIGNED.name(),
             DispatchTaskStatus.EXECUTING.name());
 
@@ -65,6 +76,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private final FleetEnergyProperties fleetEnergyProperties;
     private final FleetChargePolicy fleetChargePolicy;
     private final VehicleMapper vehicleMapper;
+    private final VehicleService vehicleService;
     private final DispatchTaskMapper dispatchTaskMapper;
     private final OrderStateService orderStateService;
     private final VehicleReportService vehicleReportService;
@@ -81,12 +93,18 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private final BatterySwapCabinetMapper batterySwapCabinetMapper;
     private final DispatchAutomationRuleService automationRuleService;
     private final MapfRoutePlannerService mapfRoutePlannerService;
+    private final RoadRouteService roadRouteService;
+    private final ParkGeoTransformService parkGeoTransformService;
+    private final StationRoadSnapService stationRoadSnapService;
     private boolean dispatchDemandActive;
+
+    private List<ParkPointResponse> zjfChargingSpots;
 
     public ParkPilotSimulationServiceImpl(ParkPilotProperties parkPilotProperties,
                                           FleetEnergyProperties fleetEnergyProperties,
                                           FleetChargePolicy fleetChargePolicy,
                                           VehicleMapper vehicleMapper,
+                                          VehicleService vehicleService,
                                           DispatchTaskMapper dispatchTaskMapper,
                                           OrderStateService orderStateService,
                                           VehicleReportService vehicleReportService,
@@ -102,11 +120,15 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                                           BatterySwapSessionService batterySwapSessionService,
                                           BatterySwapCabinetMapper batterySwapCabinetMapper,
                                           DispatchAutomationRuleService automationRuleService,
-                                          MapfRoutePlannerService mapfRoutePlannerService) {
+                                          MapfRoutePlannerService mapfRoutePlannerService,
+                                          RoadRouteService roadRouteService,
+                                          ParkGeoTransformService parkGeoTransformService,
+                                          StationRoadSnapService stationRoadSnapService) {
         this.parkPilotProperties = parkPilotProperties;
         this.fleetEnergyProperties = fleetEnergyProperties;
         this.fleetChargePolicy = fleetChargePolicy;
         this.vehicleMapper = vehicleMapper;
+        this.vehicleService = vehicleService;
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.orderStateService = orderStateService;
         this.vehicleReportService = vehicleReportService;
@@ -123,6 +145,9 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         this.batterySwapCabinetMapper = batterySwapCabinetMapper;
         this.automationRuleService = automationRuleService;
         this.mapfRoutePlannerService = mapfRoutePlannerService;
+        this.roadRouteService = roadRouteService;
+        this.parkGeoTransformService = parkGeoTransformService;
+        this.stationRoadSnapService = stationRoadSnapService;
     }
 
     @Override
@@ -131,26 +156,36 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         if (!parkPilotProperties.isEnabled() || !parkPilotProperties.getSimulation().isEnabled()) {
             return;
         }
-        List<VehicleEntity> pilotVehicles = listPilotVehicles();
-        int targetCount = parkPilotProperties.getSimulation().getVehicleCount();
-        for (int i = pilotVehicles.size(); i < targetCount; i++) {
-            ParkPointResponse parkingSpot = getStandbySpot(i);
+        ensurePilotFleet(
+                PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX,
+                parkPilotProperties.getSimulation().getVehicleCount(),
+                true);
+        ensurePilotFleet(
+                PilotFleetSupport.GEO_VEHICLE_PREFIX,
+                parkPilotProperties.getSimulation().getGeoVehicleCount(),
+                false);
+    }
+
+    private void ensurePilotFleet(String prefix, int targetCount, boolean schematic) {
+        List<VehicleEntity> existing = listPilotVehicles(prefix);
+        for (int i = existing.size(); i < targetCount; i++) {
+            ParkPointResponse spawn = schematic ? getStandbySpot(i) : getGeoStandbySpot(i);
             VehicleEntity vehicle = new VehicleEntity();
-            vehicle.setVehicleCode(PILOT_VEHICLE_PREFIX + String.format("%02d", i + 1));
-            vehicle.setVehicleName("家纺无人快递车 " + (i + 1));
+            vehicle.setVehicleCode(prefix + String.format("%02d", i + 1));
+            vehicle.setVehicleName((schematic ? "园区仿真车 " : "短驳仿真车 ") + (i + 1));
             vehicle.setVehicleType("L4_DELIVERY");
             vehicle.setLinkMode(VehicleLinkMode.SIM.name());
             vehicle.setOnlineStatus(VehicleOnlineStatus.ONLINE.name());
             vehicle.setDispatchStatus(VehicleDispatchStatus.IDLE.name());
-            vehicle.setCurrentLongitude(parkingSpot.getX());
-            vehicle.setCurrentLatitude(parkingSpot.getY());
+            vehicle.setCurrentLongitude(spawn.getX());
+            vehicle.setCurrentLatitude(spawn.getY());
             vehicle.setBatteryLevel(ThreadLocalRandom.current().nextInt(80, 101));
             vehicle.setLastReportTime(LocalDateTime.now());
-            vehicle.setRemark("park-pilot");
+            vehicle.setRemark(schematic ? "park-pilot-schematic" : "park-pilot-geo");
             vehicle.setVersion(0);
             vehicle.setDeleted(0);
             vehicleMapper.insert(vehicle);
-            simulationMotionStore.put(vehicle.getId(), createIdleState(vehicle, i));
+            simulationMotionStore.put(vehicle.getId(), createIdleState(vehicle, i, schematic));
             simulationFleetAdapter.publishTelemetry(vehicle, simulationMotionStore.get(vehicle.getId()));
         }
     }
@@ -181,11 +216,25 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         for (VehicleEntity vehicle : listPilotVehicles()) {
             tickVehicle(vehicle);
         }
+        if (dispatchDemandActive) {
+            if (hasFleetDispatchDemand(false) && !fleetHasAssignableVehicle(PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX)) {
+                recoverFleetUnderDispatchPressure(PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX);
+            }
+            if (hasFleetDispatchDemand(true) && !fleetHasAssignableVehicle(PilotFleetSupport.GEO_VEHICLE_PREFIX)) {
+                recoverFleetUnderDispatchPressure(PilotFleetSupport.GEO_VEHICLE_PREFIX);
+            }
+        }
     }
 
     private void tickVehicle(VehicleEntity vehicle) {
+        reconcileStaleVehicleAssignment(vehicle);
         SimulationMotionState state = simulationMotionStore.getOrCreate(vehicle.getId(),
-                () -> createIdleState(vehicle, extractVehicleIndex(vehicle)));
+                () -> createIdleState(vehicle, extractVehicleIndex(vehicle),
+                        PilotFleetSupport.isSchematicPilotVehicle(vehicle)));
+        if (handleCriticalBattery(vehicle, state)) {
+            publishTelemetry(vehicle, state);
+            return;
+        }
         if (hasActiveAssignment(vehicle)) {
             if (!VehicleDispatchStatus.BUSY.name().equals(vehicle.getDispatchStatus())) {
                 vehicle.setDispatchStatus(VehicleDispatchStatus.BUSY.name());
@@ -242,7 +291,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                     submitVehicleReport(vehicle, "START_EXECUTE", "Arrived at pickup station");
                     state.stage = "LOADING";
                     state.holdUntil = LocalDateTime.now().plusSeconds(3);
-                    rotateDropoffTarget(state, vehicle.getId());
+                    rotateDropoffTarget(state, vehicle);
                 }
             }
             case "LOADING" -> {
@@ -289,6 +338,101 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         }
     }
 
+    /**
+     * 任务已结束/人工待处理但车辆仍占用 currentTaskId 时，释放为 IDLE，避免可派车长期为 0。
+     */
+    private void reconcileStaleVehicleAssignment(VehicleEntity vehicle) {
+        Long taskId = vehicle.getCurrentTaskId();
+        if (taskId == null) {
+            if (vehicle.getCurrentOrderId() != null) {
+                vehicle.setCurrentOrderId(null);
+                vehicleMapper.updateById(vehicle);
+            }
+            return;
+        }
+        DispatchTaskEntity task = dispatchTaskMapper.selectById(taskId);
+        boolean stale = task == null
+                || Integer.valueOf(1).equals(task.getDeleted())
+                || !ACTIVE_VEHICLE_TASK_STATUSES.contains(task.getStatus());
+        if (!stale) {
+            return;
+        }
+        vehicleService.releaseVehicle(vehicle.getId(), VehicleDispatchStatus.IDLE.name());
+        VehicleEntity refreshed = vehicleMapper.selectById(vehicle.getId());
+        if (refreshed != null) {
+            vehicle.setDispatchStatus(refreshed.getDispatchStatus());
+            vehicle.setCurrentTaskId(refreshed.getCurrentTaskId());
+            vehicle.setCurrentOrderId(refreshed.getCurrentOrderId());
+        }
+        SimulationMotionState state = simulationMotionStore.get(vehicle.getId());
+        if (state != null && isIdleLikeMotionStage(state.stage)) {
+            state.taskId = null;
+            state.orderId = null;
+        }
+    }
+
+    private boolean fleetHasAssignableVehicle(String prefix) {
+        return vehicleService.listAssignableVehicles().stream()
+                .filter(vehicle -> vehicle.getVehicleCode() != null && vehicle.getVehicleCode().startsWith(prefix))
+                .anyMatch(fleetChargePolicy::isAssignable);
+    }
+
+    private boolean hasFleetDispatchDemand(boolean geoFleet) {
+        return dispatchTaskMapper.selectList(new LambdaQueryWrapper<DispatchTaskEntity>()
+                        .eq(DispatchTaskEntity::getDeleted, 0)
+                        .in(DispatchTaskEntity::getStatus, DISPATCH_DEMAND_STATUSES))
+                .stream()
+                .anyMatch(task -> {
+                    if (task.getOrderId() == null) {
+                        return false;
+                    }
+                    try {
+                        OrderEntity order = orderStateService.getOrder(task.getOrderId());
+                        ParkStationResponse pickup = parkStationService.requireStation(order.getPickupPointId());
+                        ParkStationResponse dropoff = parkStationService.requireStation(order.getDropoffPointId());
+                        boolean geoOrder = PilotFleetSupport.isGeoDeliveryStation(pickup)
+                                || PilotFleetSupport.isGeoDeliveryStation(dropoff);
+                        return geoFleet == geoOrder;
+                    } catch (RuntimeException ex) {
+                        return false;
+                    }
+                });
+    }
+
+    /** 派单积压且无可派车时，仿真车快速恢复至可派单 SOC 并退出 WAIT_CHARGING。 */
+    private void recoverFleetUnderDispatchPressure(String prefix) {
+        int targetSoc = fleetEnergyProperties.getMinAssignableSoc();
+        for (VehicleEntity vehicle : listPilotVehicles(prefix)) {
+            if (!VehicleOnlineStatus.ONLINE.name().equals(vehicle.getOnlineStatus())
+                    || !VehicleDispatchStatus.IDLE.name().equals(vehicle.getDispatchStatus())) {
+                continue;
+            }
+            int soc = normalizeBattery(vehicle.getBatteryLevel());
+            SimulationMotionState state = simulationMotionStore.get(vehicle.getId());
+            if (soc >= targetSoc && fleetChargePolicy.isAssignable(vehicle)) {
+                continue;
+            }
+            if (state != null) {
+                if ("WAIT_CHARGING".equals(state.stage)) {
+                    state.stage = "STANDBY";
+                    parkingFacilityService.releaseReservation(vehicle.getId());
+                }
+                if (fleetChargePolicy.isActivelyCharging(state.stage)
+                        || fleetChargePolicy.isActivelySwapping(state.stage)) {
+                    state.stage = "STANDBY";
+                    state.route = List.of();
+                    state.routeIndex = 0;
+                    state.pluggedIn = false;
+                    parkingFacilityService.releaseByVehicle(vehicle.getId());
+                }
+            }
+            vehicle.setBatteryLevel(Math.min(
+                    fleetEnergyProperties.getFullSoc(),
+                    Math.max(targetSoc, soc + fleetEnergyProperties.getChargeRatePerTick() * 2)));
+            vehicleMapper.updateById(vehicle);
+        }
+    }
+
     private void syncBusyStateIfNeeded(VehicleEntity vehicle, SimulationMotionState state) {
         if (needsBusyResync(vehicle, state)) {
             syncBusyState(vehicle, state);
@@ -312,7 +456,8 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                 || "WAIT_CHARGING".equals(stage)
                 || "TO_SWAP".equals(stage)
                 || "SWAPPING".equals(stage)
-                || "RETURNING_TO_STANDBY".equals(stage);
+                || "RETURNING_TO_STANDBY".equals(stage)
+                || "EMERGENCY_PARKING".equals(stage);
     }
 
     private void syncBusyState(VehicleEntity vehicle, SimulationMotionState state) {
@@ -334,6 +479,14 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                 vehicle.getCurrentLongitude(), vehicle.getCurrentLatitude(),
                 pickup.getX(), pickup.getY());
         state.routeIndex = 1;
+        if (PilotFleetSupport.isGeoPilotVehicle(vehicle)) {
+            beginGeoRoute(vehicle, state, resolveGeo(vehicle), resolveStationGeo(pickup));
+        } else {
+            state.geoFollower = null;
+            state.plannedGeoPolyline = List.of();
+            state.routeSource = null;
+            state.routeInvalid = false;
+        }
         state.holdUntil = null;
         state.offlineUntil = null;
         state.busyMoveTicks = 0;
@@ -341,22 +494,30 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         parkingFacilityService.releaseByVehicle(vehicle.getId());
     }
 
-    private void rotateDropoffTarget(SimulationMotionState state, Long vehicleId) {
+    private void rotateDropoffTarget(SimulationMotionState state, VehicleEntity vehicle) {
         state.targetX = state.nextTargetX;
         state.targetY = state.nextTargetY;
         state.targetCode = state.nextTargetCode;
         state.targetType = state.nextTargetType;
-        state.route = planRoute(vehicleId, state.lastX, state.lastY, state.targetX, state.targetY);
+        state.route = planRoute(vehicle.getId(), state.lastX, state.lastY, state.targetX, state.targetY);
         state.routeIndex = 1;
+        if (PilotFleetSupport.isGeoPilotVehicle(vehicle)) {
+            beginGeoRouteForTarget(state, state.lastX, state.lastY, state.targetX, state.targetY);
+        } else {
+            state.geoFollower = null;
+            state.plannedGeoPolyline = List.of();
+            state.routeSource = null;
+            state.routeInvalid = false;
+        }
     }
 
     private void routeAfterDelivery(VehicleEntity vehicle, SimulationMotionState state) {
-        if (isLowBattery(vehicle)) {
+        if (shouldReturnToCharge(vehicle)) {
             routeToEnergyRecovery(vehicle, state);
             return;
         }
         if (shouldPreferCharging()) {
-            if (isFullyCharged(vehicle)) {
+            if (isChargeSessionComplete(vehicle)) {
                 enterPluggedInStandby(vehicle, state);
             } else {
                 routeToCharging(vehicle, state);
@@ -409,9 +570,15 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             }
             case "CHARGING" -> {
                 recoverBattery(vehicle);
-                if (isFullyCharged(vehicle)) {
+                if (dispatchDemandActive && !fleetChargePolicy.isAssignable(vehicle)) {
+                    recoverBattery(vehicle);
+                }
+                if (isChargeSessionComplete(vehicle)) {
                     enterPluggedInStandby(vehicle, state);
                 }
+            }
+            case "EMERGENCY_PARKING" -> {
+                vehicle.setDispatchStatus(VehicleDispatchStatus.IDLE.name());
             }
             case "TO_SWAP" -> {
                 moveVehicleAlongRoute(vehicle, state);
@@ -429,7 +596,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                 }
             }
             case "RETURNING_TO_STANDBY" -> {
-                if (shouldPreferCharging() && !isFullyCharged(vehicle)) {
+                if (shouldPreferCharging() && !isChargeSessionComplete(vehicle)) {
                     routeToCharging(vehicle, state);
                     break;
                 }
@@ -451,7 +618,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                     routeToEnergyRecovery(vehicle, state);
                     break;
                 }
-                ensureStandbyLocation(state);
+                ensureStandbyLocation(vehicle, state);
                 if (state.route != null && state.routeIndex < state.route.size()) {
                     moveVehicleAlongRoute(vehicle, state);
                 }
@@ -495,7 +662,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void routeToSwap(VehicleEntity vehicle, SimulationMotionState state) {
-        ensureStandbyLocation(state);
+        ensureStandbyLocation(vehicle, state);
         state.busyMoveTicks = 0;
         state.pluggedIn = false;
         parkingFacilityService.releaseByVehicle(vehicle.getId());
@@ -510,7 +677,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                 .y(cabinet.getCoordY())
                 .build();
         state.stage = "TO_SWAP";
-        routeToTarget(vehicle.getId(), state, state.swapPoint, "SWAP");
+        routeToTarget(vehicle, state, state.swapPoint, "SWAP");
         if (state.routeIndex >= state.route.size()) {
             state.stage = "SWAPPING";
             state.swapTicks = 0;
@@ -546,13 +713,13 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private boolean needsCharging(VehicleEntity vehicle, SimulationMotionState state) {
-        if (isLowBattery(vehicle)) {
+        if (shouldReturnToCharge(vehicle)) {
             return true;
         }
         if (!shouldPreferCharging()) {
             return false;
         }
-        return !isFullyCharged(vehicle) || !state.pluggedIn;
+        return !isChargeSessionComplete(vehicle) || !state.pluggedIn;
     }
 
     private boolean isPluggedInStandby(VehicleEntity vehicle, SimulationMotionState state) {
@@ -560,7 +727,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void enterPluggedInStandby(VehicleEntity vehicle, SimulationMotionState state) {
-        ensureStandbyLocation(state);
+        ensureStandbyLocation(vehicle, state);
         state.pluggedIn = true;
         state.stage = "STANDBY";
         state.route = List.of();
@@ -575,7 +742,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void holdPluggedInStandby(VehicleEntity vehicle, SimulationMotionState state) {
-        ensureStandbyLocation(state);
+        ensureStandbyLocation(vehicle, state);
         vehicle.setCurrentLongitude(state.chargingPoint.getX());
         vehicle.setCurrentLatitude(state.chargingPoint.getY());
         state.targetCode = state.chargingPoint.getCode();
@@ -588,12 +755,34 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         return fleetChargePolicy.isActivelyCharging(state.stage);
     }
 
-    private boolean isLowBattery(VehicleEntity vehicle) {
-        return fleetChargePolicy.isLowSoc(vehicle.getBatteryLevel());
+    private boolean shouldReturnToCharge(VehicleEntity vehicle) {
+        return fleetChargePolicy.shouldReturnToCharge(vehicle.getBatteryLevel());
+    }
+
+    private boolean isChargeSessionComplete(VehicleEntity vehicle) {
+        return fleetChargePolicy.isChargeSessionComplete(vehicle.getBatteryLevel());
     }
 
     private boolean isFullyCharged(VehicleEntity vehicle) {
         return fleetChargePolicy.isFullyCharged(vehicle.getBatteryLevel());
+    }
+
+    private boolean handleCriticalBattery(VehicleEntity vehicle, SimulationMotionState state) {
+        if (!fleetChargePolicy.isCriticalSoc(vehicle.getBatteryLevel())) {
+            return false;
+        }
+        if (hasActiveAssignment(vehicle) || isChargingStage(state.stage)) {
+            return false;
+        }
+        state.stage = "EMERGENCY_PARKING";
+        state.route = List.of();
+        state.routeIndex = 0;
+        vehicle.setOnlineStatus(VehicleOnlineStatus.ONLINE.name());
+        vehicle.setDispatchStatus(VehicleDispatchStatus.IDLE.name());
+        vehicle.setLastReportTime(LocalDateTime.now());
+        vehicleMapper.updateById(vehicle);
+        recordPoint(state, vehicle);
+        return true;
     }
 
     private boolean isChargingStage(String stage) {
@@ -636,6 +825,14 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void moveVehicleAlongRoute(VehicleEntity vehicle, SimulationMotionState state) {
+        if (state.geoFollower != null && !state.geoFollower.isEmpty()) {
+            advanceGeoAlongRoute(state);
+            syncParkCoordsFromGeo(vehicle, state);
+            if (state.geoFollower.isComplete()) {
+                finishRouteSegment(vehicle, state);
+            }
+            return;
+        }
         if (state.route == null || state.route.isEmpty() || state.routeIndex >= state.route.size()) {
             return;
         }
@@ -648,12 +845,40 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         }
     }
 
+    private void finishRouteSegment(VehicleEntity vehicle, SimulationMotionState state) {
+        if (state.route != null && !state.route.isEmpty()) {
+            ParkPointResponse end = state.route.get(state.route.size() - 1);
+            vehicle.setCurrentLongitude(end.getX());
+            vehicle.setCurrentLatitude(end.getY());
+            state.routeIndex = state.route.size();
+        }
+        syncParkCoordsFromGeo(vehicle, state);
+    }
+
+    private void syncParkCoordsFromGeo(VehicleEntity vehicle, SimulationMotionState state) {
+        if (state.geoLongitude == null || state.geoLatitude == null) {
+            return;
+        }
+        parkGeoTransformService.fromGcj02(state.geoLongitude, state.geoLatitude).ifPresent(park -> {
+            vehicle.setCurrentLongitude(park.x());
+            vehicle.setCurrentLatitude(park.y());
+        });
+    }
+
     private void reduceBattery(VehicleEntity vehicle, boolean busy, SimulationMotionState state) {
-        if (isChargingStage(state.stage) || isPluggedInStandby(vehicle, state)) {
+        if (isChargingStage(state.stage) || isPluggedInStandby(vehicle, state)
+                || "WAIT_CHARGING".equals(state.stage)) {
+            return;
+        }
+        if ("LOADING".equals(state.stage) || "UNLOADING".equals(state.stage)) {
             return;
         }
         int current = normalizeBattery(vehicle.getBatteryLevel());
         int floor = fleetEnergyProperties.getReserveSocFloor();
+        if (busy && state.geoFollower != null && !state.geoFollower.isEmpty()) {
+            drainBatteryByGeoDistance(vehicle, state, current, floor);
+            return;
+        }
         if (busy) {
             state.busyMoveTicks = state.busyMoveTicks + 1;
             int interval = Math.max(1, fleetEnergyProperties.getBusyDrainIntervalTicks());
@@ -664,6 +889,19 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             current = Math.max(floor, current - 1);
         }
         vehicle.setBatteryLevel(current);
+    }
+
+    private void drainBatteryByGeoDistance(VehicleEntity vehicle, SimulationMotionState state, int current, int floor) {
+        double traveled = state.geoFollower.traveledMeters();
+        double metersPerPercent = Math.max(50D, fleetEnergyProperties.getBusyDrainMetersPerPercent());
+        double delta = traveled - state.geoTraveledAtLastDrain;
+        if (delta < metersPerPercent) {
+            return;
+        }
+        int steps = (int) (delta / metersPerPercent);
+        current = Math.max(floor, current - steps);
+        vehicle.setBatteryLevel(current);
+        state.geoTraveledAtLastDrain += steps * metersPerPercent;
     }
 
     private void recoverBattery(VehicleEntity vehicle) {
@@ -687,20 +925,127 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private void recordPoint(SimulationMotionState state, VehicleEntity vehicle) {
         state.lastX = vehicle.getCurrentLongitude();
         state.lastY = vehicle.getCurrentLatitude();
-        state.trail.addLast(ParkPointResponse.builder()
+        ParkPointResponse.ParkPointResponseBuilder trailPoint = ParkPointResponse.builder()
                 .code(null)
                 .x(vehicle.getCurrentLongitude())
-                .y(vehicle.getCurrentLatitude())
-                .build());
+                .y(vehicle.getCurrentLatitude());
+        if (state.geoLongitude != null && state.geoLatitude != null) {
+            trailPoint.longitude(state.geoLongitude).latitude(state.geoLatitude);
+            state.geoTrail.add(new GeoPoint(state.geoLongitude, state.geoLatitude));
+            while (state.geoTrail.size() > parkPilotProperties.getSimulation().getMaxTrailSize()) {
+                state.geoTrail.remove(0);
+            }
+        }
+        state.trail.addLast(trailPoint.build());
         while (state.trail.size() > parkPilotProperties.getSimulation().getMaxTrailSize()) {
             state.trail.removeFirst();
         }
     }
 
-    private SimulationMotionState createIdleState(VehicleEntity vehicle, int index) {
+    private void beginGeoRoute(VehicleEntity vehicle, SimulationMotionState state, GeoPoint from, GeoPoint to) {
+        if (from == null || to == null) {
+            beginGeoRouteForTarget(state, vehicle.getCurrentLongitude(), vehicle.getCurrentLatitude(),
+                    state.targetX, state.targetY);
+            return;
+        }
+        RoadRouteResult route = roadRouteService.planDrivingRoute(from, to);
+        state.plannedGeoPolyline = route.polyline();
+        state.routeSource = route.source().name();
+        state.routeInvalid = route.invalid();
+        if (route.invalid() || route.polyline().size() < 2) {
+            state.geoFollower = null;
+        } else {
+            state.geoFollower = RoadRouteFollower.fromPolyline(route.polyline());
+            state.geoFollower.reset();
+            state.geoTraveledAtLastDrain = 0D;
+        }
+        syncGeoPosition(state);
+    }
+
+    private void beginGeoRouteForTarget(SimulationMotionState state,
+                                        BigDecimal fromX, BigDecimal fromY,
+                                        BigDecimal toX, BigDecimal toY) {
+        GeoPoint from = snapGeo(parkGeoTransformService.toGcj02(fromX, fromY).orElse(null));
+        GeoPoint to = snapGeo(parkGeoTransformService.toGcj02(toX, toY).orElse(null));
+        if (from == null || to == null) {
+            state.geoFollower = null;
+            state.plannedGeoPolyline = List.of();
+            state.routeSource = null;
+            state.routeInvalid = false;
+            return;
+        }
+        RoadRouteResult route = roadRouteService.planDrivingRoute(from, to);
+        state.plannedGeoPolyline = route.polyline();
+        state.routeSource = route.source().name();
+        state.routeInvalid = route.invalid();
+        if (route.invalid() || route.polyline().size() < 2) {
+            state.geoFollower = null;
+        } else {
+            state.geoFollower = RoadRouteFollower.fromPolyline(route.polyline());
+            state.geoFollower.reset();
+            state.geoTraveledAtLastDrain = 0D;
+        }
+        syncGeoPosition(state);
+    }
+
+    private void advanceGeoAlongRoute(SimulationMotionState state) {
+        if (state.geoFollower == null || state.geoFollower.isEmpty()) {
+            return;
+        }
+        state.geoFollower.advanceMeters(geoMetersPerTick());
+        syncGeoPosition(state);
+    }
+
+    private void syncGeoPosition(SimulationMotionState state) {
+        if (state.geoFollower == null || state.geoFollower.isEmpty()) {
+            return;
+        }
+        GeoPoint pos = state.geoFollower.currentPosition();
+        if (pos == null) {
+            return;
+        }
+        state.geoLongitude = pos.longitude();
+        state.geoLatitude = pos.latitude();
+        state.headingDegrees = state.geoFollower.headingDegrees();
+    }
+
+    private double geoMetersPerTick() {
+        int mapWidth = parkPilotProperties.getWidth() == null ? 1200 : parkPilotProperties.getWidth();
+        int widthMeters = parkPilotProperties.getGeo().getParkWidthMeters() == null
+                ? 960 : parkPilotProperties.getGeo().getParkWidthMeters();
+        double metersPerPx = widthMeters / (double) mapWidth;
+        return parkPilotProperties.getVehicleSpeedPxPerSecond().doubleValue() * metersPerPx;
+    }
+
+    private GeoPoint resolveGeo(VehicleEntity vehicle) {
+        if (vehicle.getCurrentLongitude() == null || vehicle.getCurrentLatitude() == null) {
+            return null;
+        }
+        return snapGeo(parkGeoTransformService.toGcj02(vehicle.getCurrentLongitude(), vehicle.getCurrentLatitude())
+                .orElse(null));
+    }
+
+    private GeoPoint resolveStationGeo(ParkStationResponse station) {
+        GeoPoint raw;
+        if (station.getCoordLng() != null && station.getCoordLat() != null) {
+            raw = new GeoPoint(station.getCoordLng(), station.getCoordLat());
+        } else {
+            raw = parkGeoTransformService.toGcj02(station.getX(), station.getY()).orElse(null);
+        }
+        return snapGeo(raw);
+    }
+
+    private GeoPoint snapGeo(GeoPoint point) {
+        if (point == null) {
+            return null;
+        }
+        return stationRoadSnapService.snapToNearestRoad(point).orElse(point);
+    }
+
+    private SimulationMotionState createIdleState(VehicleEntity vehicle, int index, boolean schematic) {
         SimulationMotionState state = new SimulationMotionState();
-        state.standbyPoint = getStandbySpot(index);
-        state.chargingPoint = getChargingSpot(index);
+        state.standbyPoint = schematic ? getStandbySpot(index) : getGeoStandbySpot(index);
+        state.chargingPoint = getChargingSpot(vehicle, index, schematic);
         state.stage = "STANDBY";
         state.targetCode = state.standbyPoint.getCode();
         state.targetType = "STANDBY";
@@ -730,8 +1075,58 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         return standbySpots.get(index % standbySpots.size());
     }
 
-    private ParkPointResponse getChargingSpot(int index) {
+    private ParkPointResponse getChargingSpot(VehicleEntity vehicle, int index, boolean schematic) {
+        if (!schematic) {
+            List<ParkPointResponse> chargingSpots = listZjfChargingSpots();
+            if (!chargingSpots.isEmpty()) {
+                return chargingSpots.get(index % chargingSpots.size());
+            }
+        }
         return getStandbySpot(index);
+    }
+
+    private ParkPointResponse getGeoStandbySpot(int index) {
+        try {
+            List<ParkStationResponse> idleStations = parkStationService.listStations(defaultParkId()).stream()
+                    .filter(station -> "ZJF-IDLE-01".equals(station.getStationCode()))
+                    .toList();
+            if (!idleStations.isEmpty()) {
+                ParkStationResponse idle = idleStations.get(0);
+                return ParkPointResponse.builder()
+                        .code(idle.getStationCode())
+                        .x(idle.getX())
+                        .y(idle.getY())
+                        .longitude(idle.getCoordLng())
+                        .latitude(idle.getCoordLat())
+                        .build();
+            }
+        } catch (RuntimeException ex) {
+            // fall through
+        }
+        return getStandbySpot(index);
+    }
+
+    private List<ParkPointResponse> listZjfChargingSpots() {
+        if (zjfChargingSpots != null) {
+            return zjfChargingSpots;
+        }
+        try {
+            Long parkId = defaultParkId();
+            zjfChargingSpots = parkStationService.listStations(parkId).stream()
+                    .filter(station -> station.getStationCode() != null
+                            && station.getStationCode().startsWith("ZJF-CHG"))
+                    .map(station -> ParkPointResponse.builder()
+                            .code(station.getStationCode())
+                            .x(station.getX())
+                            .y(station.getY())
+                            .longitude(station.getCoordLng())
+                            .latitude(station.getCoordLat())
+                            .build())
+                    .toList();
+        } catch (RuntimeException ex) {
+            zjfChargingSpots = List.of();
+        }
+        return zjfChargingSpots;
     }
 
     private void routeToStandby(VehicleEntity vehicle, SimulationMotionState state) {
@@ -739,17 +1134,17 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             routeToCharging(vehicle, state);
             return;
         }
-        ensureStandbyLocation(state);
+        ensureStandbyLocation(vehicle, state);
         state.pluggedIn = false;
         state.stage = "RETURNING_TO_STANDBY";
-        routeToTarget(vehicle.getId(), state, state.standbyPoint, "STANDBY");
+        routeToTarget(vehicle, state, state.standbyPoint, "STANDBY");
         if (state.routeIndex >= state.route.size()) {
             state.stage = "STANDBY";
         }
     }
 
     private void routeToCharging(VehicleEntity vehicle, SimulationMotionState state) {
-        ensureStandbyLocation(state);
+        ensureStandbyLocation(vehicle, state);
         state.busyMoveTicks = 0;
         state.pluggedIn = false;
         parkingFacilityService.releaseByVehicle(vehicle.getId());
@@ -762,23 +1157,25 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         }
         state.chargingPoint = reserved.get();
         state.stage = "TO_CHARGING";
-        routeToTarget(vehicle.getId(), state, state.chargingPoint, "CHARGING");
+        routeToTarget(vehicle, state, state.chargingPoint, "CHARGING");
         if (state.routeIndex >= state.route.size()) {
             state.stage = "CHARGING";
             bindCharging(vehicle, state);
         }
     }
 
-    private void ensureStandbyLocation(SimulationMotionState state) {
+    private void ensureStandbyLocation(VehicleEntity vehicle, SimulationMotionState state) {
         if (state.standbyPoint == null) {
-            state.standbyPoint = getStandbySpot(0);
+            state.standbyPoint = PilotFleetSupport.isSchematicPilotVehicle(vehicle)
+                    ? getStandbySpot(0)
+                    : getGeoStandbySpot(0);
         }
         if (state.chargingPoint == null) {
-            state.chargingPoint = getChargingSpot(0);
+            state.chargingPoint = getChargingSpot(vehicle, 0, PilotFleetSupport.isSchematicPilotVehicle(vehicle));
         }
     }
 
-    private void routeToTarget(Long vehicleId, SimulationMotionState state, ParkPointResponse point, String targetType) {
+    private void routeToTarget(VehicleEntity vehicle, SimulationMotionState state, ParkPointResponse point, String targetType) {
         state.targetCode = point.getCode();
         state.targetType = targetType;
         state.targetX = point.getX();
@@ -788,8 +1185,16 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             state.routeIndex = 0;
             return;
         }
-        state.route = planRoute(vehicleId, state.lastX, state.lastY, point.getX(), point.getY());
+        state.route = planRoute(vehicle.getId(), state.lastX, state.lastY, point.getX(), point.getY());
         state.routeIndex = state.route.size() > 1 ? 1 : state.route.size();
+        if (PilotFleetSupport.isGeoPilotVehicle(vehicle)) {
+            beginGeoRouteForTarget(state, state.lastX, state.lastY, point.getX(), point.getY());
+        } else {
+            state.geoFollower = null;
+            state.plannedGeoPolyline = List.of();
+            state.routeSource = null;
+            state.routeInvalid = false;
+        }
     }
 
     private List<ParkPointResponse> planRoute(Long vehicleId,
@@ -810,7 +1215,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void bindCharging(VehicleEntity vehicle, SimulationMotionState state) {
-        ensureStandbyLocation(state);
+        ensureStandbyLocation(vehicle, state);
         if (state.chargingPoint == null || state.chargingPoint.getCode() == null) {
             return;
         }
@@ -818,7 +1223,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private void bindPluggedStandby(VehicleEntity vehicle, SimulationMotionState state) {
-        ensureStandbyLocation(state);
+        ensureStandbyLocation(vehicle, state);
         if (state.chargingPoint == null || state.chargingPoint.getCode() == null) {
             return;
         }
@@ -827,11 +1232,20 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     private int extractVehicleIndex(VehicleEntity vehicle) {
         String code = vehicle.getVehicleCode();
-        if (code == null || !code.startsWith(PILOT_VEHICLE_PREFIX)) {
+        if (code == null) {
+            return 0;
+        }
+        String numeric = null;
+        if (code.startsWith(PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX)) {
+            numeric = code.substring(PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX.length());
+        } else if (code.startsWith(PilotFleetSupport.GEO_VEHICLE_PREFIX)) {
+            numeric = code.substring(PilotFleetSupport.GEO_VEHICLE_PREFIX.length());
+        }
+        if (numeric == null) {
             return 0;
         }
         try {
-            return Integer.parseInt(code.substring(PILOT_VEHICLE_PREFIX.length())) - 1;
+            return Integer.parseInt(numeric) - 1;
         } catch (NumberFormatException ex) {
             return 0;
         }
@@ -841,9 +1255,15 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         return vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
                         .eq(VehicleEntity::getDeleted, 0))
                 .stream()
-                .filter(vehicle -> vehicle.getVehicleCode() != null && vehicle.getVehicleCode().startsWith(PILOT_VEHICLE_PREFIX))
+                .filter(vehicle -> PilotFleetSupport.isPilotSimVehicleCode(vehicle.getVehicleCode()))
                 .filter(this::isSimulationVehicle)
                 .sorted(Comparator.comparing(VehicleEntity::getVehicleCode))
+                .toList();
+    }
+
+    private List<VehicleEntity> listPilotVehicles(String prefix) {
+        return listPilotVehicles().stream()
+                .filter(vehicle -> vehicle.getVehicleCode() != null && vehicle.getVehicleCode().startsWith(prefix))
                 .toList();
     }
 

@@ -4,17 +4,27 @@
       v-if="geoMapAvailable"
       class="overview-map"
       :center="mapCenter"
-      :zoom="11"
-      :markers="markers"
+      :zoom="15"
+      :markers="geoMarkers"
+      :polygons="geoPolygons"
+      :polylines="geoPolylines"
+      :circles="geoCircles"
     />
+    <div v-if="geoMapAvailable && routeWarning" class="route-anomaly-banner">
+      {{ routeWarning }}
+    </div>
     <div v-else class="overview-fallback">
       <p>高德 Key 未配置，已回退为列表视图。</p>
-      <p class="hint">配置 <code>front/.env.local</code> 后可查看区域地图。</p>
+      <p class="hint">配置 <code>front/.env.local</code> 后可查看 L1 试点地图与道路轨迹。</p>
     </div>
 
     <aside class="overview-panel">
-      <h1>多园区总览</h1>
-      <p class="subtitle">区域尺度车辆分布</p>
+      <h1>找家纺试点总览</h1>
+      <p class="subtitle">{{ ZJF_PILOT_GEO.label }} · L1 1570m×470m</p>
+      <div class="fleet-stats">
+        <span>全网 {{ ZJF_FLEET_STATS.fleetSize }} 辆</span>
+        <span>试点 {{ geoVehicles.length }} 辆</span>
+      </div>
       <a-spin :spinning="loading">
         <div v-for="park in overview" :key="park.parkId" class="park-card">
           <div class="park-card-head">
@@ -28,49 +38,94 @@
           </div>
         </div>
       </a-spin>
-      <router-link class="tracking-link" to="/vehicle-tracking">进入车辆监控大屏 →</router-link>
+      <div class="panel-links">
+        <router-link class="tracking-link" to="/vehicle-tracking">进入监控大屏 →</router-link>
+        <router-link class="tracking-link secondary" to="/mobile/order">移动下单 →</router-link>
+      </div>
     </aside>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
-import { getParkOverview } from '@/api/park'
-import { defaultMapCenter, isAmapConfigured } from '@/maps'
-import type { ParkOverviewItem } from '@/types/park'
-import type { GeoMapMarker } from '@/maps'
+import { getParkGeofences, getParkOverview, getParkOrders, getParkVehicles } from '@/api/park'
+import {
+  buildGeofencePolygons,
+  buildGeoPolylines,
+  buildL0CoverageCircles,
+  buildVehicleGeoMarkers,
+  isAmapConfigured,
+  pilotMapCenter,
+  ZJF_FLEET_STATS,
+  ZJF_PILOT_GEO,
+} from '@/maps'
+import { routeAnomalyWarning } from '@/maps/routeValidation'
+import { filterGeoDeliverySimVehicles } from '@/maps/stationLayers'
+import type { ParkGeofence, ParkOrderSnapshot, ParkOverviewItem, ParkVehicleSnapshot } from '@/types/park'
 
 const loading = ref(false)
 const overview = ref<ParkOverviewItem[]>([])
+const vehicles = ref<ParkVehicleSnapshot[]>([])
+const parkOrders = ref<ParkOrderSnapshot[]>([])
+const parkGeofences = ref<ParkGeofence[]>([])
 const geoMapAvailable = isAmapConfigured()
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const mapCenter = computed((): [number, number] => {
   const first = overview.value.find((park) => park.centerLng != null && park.centerLat != null)
-  if (first?.centerLng != null && first.centerLat != null) {
+  if (first?.centerLng != null && first?.centerLat != null) {
     return [Number(first.centerLng), Number(first.centerLat)]
   }
-  return defaultMapCenter()
+  return pilotMapCenter()
 })
 
-const markers = computed((): GeoMapMarker[] =>
-  overview.value
-    .filter((park) => park.centerLng != null && park.centerLat != null)
-    .map((park) => ({
-      id: String(park.parkId),
-      position: [Number(park.centerLng), Number(park.centerLat)] as [number, number],
-      label: `${park.parkName} · ${park.vehicleCount}车`,
-    })),
-)
+const geoVehicles = computed(() => filterGeoDeliverySimVehicles(vehicles.value))
+
+const geoMarkers = computed(() => buildVehicleGeoMarkers(geoVehicles.value))
+
+const geoPolygons = computed(() => buildGeofencePolygons(parkGeofences.value))
+
+const geoPolylines = computed(() => buildGeoPolylines(geoVehicles.value, parkOrders.value))
+
+const geoCircles = computed(() => buildL0CoverageCircles())
+
+const routeWarning = computed(() => routeAnomalyWarning(geoVehicles.value))
+
+async function refreshOverviewPanel() {
+  const response = await getParkOverview()
+  overview.value = response.data || []
+}
+
+async function refreshMapData() {
+  const [vehicleRes, orderRes, fenceRes] = await Promise.all([
+    getParkVehicles(),
+    getParkOrders(),
+    getParkGeofences(),
+  ])
+  vehicles.value = vehicleRes.data || []
+  parkOrders.value = orderRes.data || []
+  parkGeofences.value = fenceRes.data || []
+}
+
+async function refreshAll() {
+  await Promise.all([refreshOverviewPanel(), refreshMapData()])
+}
 
 onMounted(async () => {
   loading.value = true
   try {
-    const response = await getParkOverview()
-    overview.value = response.data || []
+    await refreshAll()
   } finally {
     loading.value = false
   }
+  pollTimer = setInterval(() => {
+    void refreshAll()
+  }, 3000)
+})
+
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
 })
 </script>
 
@@ -86,6 +141,22 @@ onMounted(async () => {
 .overview-map {
   width: 100%;
   height: 100%;
+}
+
+.route-anomaly-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 8px 16px;
+  border-radius: 6px;
+  background: rgba(255, 77, 109, 0.92);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+  max-width: min(92vw, 520px);
+  text-align: center;
 }
 
 .overview-fallback {
@@ -110,7 +181,7 @@ onMounted(async () => {
   position: absolute;
   top: 16px;
   right: 16px;
-  width: 280px;
+  width: 300px;
   padding: 16px;
   border-radius: 12px;
   background: rgba(13, 17, 23, 0.92);
@@ -123,10 +194,18 @@ onMounted(async () => {
   }
 
   .subtitle {
-    margin: 4px 0 12px;
+    margin: 4px 0 8px;
     font-size: 12px;
     color: rgba(255, 255, 255, 0.55);
   }
+}
+
+.fleet-stats {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  color: rgba(100, 149, 237, 0.9);
 }
 
 .park-card {
@@ -157,10 +236,21 @@ onMounted(async () => {
   color: rgba(255, 255, 255, 0.68);
 }
 
+.panel-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
 .tracking-link {
   display: inline-block;
-  margin-top: 12px;
   font-size: 13px;
   color: #58a6ff;
+  text-decoration: none;
+
+  &.secondary {
+    color: rgba(255, 255, 255, 0.55);
+  }
 }
 </style>

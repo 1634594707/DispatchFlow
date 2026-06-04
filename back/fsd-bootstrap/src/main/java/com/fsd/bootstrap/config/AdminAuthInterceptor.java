@@ -29,14 +29,13 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
         if (!path.startsWith("/api/admin/")) {
             return true;
         }
-        if (isPublicPath(path)) {
+        String token = resolveAdminToken(request);
+        if (isOptionalAuthPath(path, request)) {
+            // 移动页可无 token；管理端/验收脚本带 X-Admin-Token 时须绑定，供 requireAdminOrMobileOrderKey 识别
+            tryBindToken(request, token);
             return true;
         }
 
-        String token = request.getHeader("X-Admin-Token");
-        if (token == null || token.isBlank()) {
-            token = request.getParameter("token");
-        }
         boolean authEnabled = securityProperties.getAdmin().isEnabled();
 
         // Auth disabled: still bind user from token when present (supports frontend login + /auth/me)
@@ -77,8 +76,28 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
         return true;
     }
 
-    private boolean isPublicPath(String path) {
-        return "/api/admin/auth/login".equals(path);
+    /** 无需强制登录；凭证在 Controller 内校验（管理员 token 或 X-Mobile-Api-Key）。 */
+    private boolean isOptionalAuthPath(String path, HttpServletRequest request) {
+        if ("/api/admin/auth/login".equals(path)
+                || "/api/admin/fleet/telemetry/stream".equals(path)) {
+            return true;
+        }
+        if ("/api/admin/park/orders".equals(path)
+                && (HttpMethod.POST.matches(request.getMethod()) || HttpMethod.GET.matches(request.getMethod()))) {
+            return true;
+        }
+        if ("/api/admin/park/stations".equals(path) && HttpMethod.GET.matches(request.getMethod())) {
+            return true;
+        }
+        return "/api/admin/park/vehicles".equals(path) && HttpMethod.GET.matches(request.getMethod());
+    }
+
+    private static String resolveAdminToken(HttpServletRequest request) {
+        String token = request.getHeader("X-Admin-Token");
+        if (token == null || token.isBlank()) {
+            token = request.getParameter("token");
+        }
+        return token;
     }
 
     private boolean isViewerWritablePath(String path) {

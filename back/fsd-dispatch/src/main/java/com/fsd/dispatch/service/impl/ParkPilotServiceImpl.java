@@ -1,6 +1,7 @@
 package com.fsd.dispatch.service.impl;
 
 import com.fsd.common.enums.VehicleLinkMode;
+import com.fsd.dispatch.fleet.PilotFleetSupport;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.fleet.service.FleetSnapshotAssembler;
@@ -208,7 +209,9 @@ public class ParkPilotServiceImpl implements ParkPilotService {
 
     private boolean isMonitorVehicle(String vehicleCode) {
         return vehicleCode != null
-                && (vehicleCode.startsWith("PARK-") || vehicleCode.startsWith("REAL-") || vehicleCode.startsWith("VDA5050-"));
+                && (PilotFleetSupport.isPilotSimVehicleCode(vehicleCode)
+                || vehicleCode.startsWith("REAL-")
+                || vehicleCode.startsWith("VDA5050-"));
     }
 
     private boolean isSimulationVehicle(VehicleEntity vehicle) {
@@ -264,8 +267,8 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     }
 
     private boolean matchesParkOrder(OrderEntity order, Long defaultParkId, Set<Long> defaultParkStationIds) {
-        if (order.getParkId() != null) {
-            return defaultParkId.equals(order.getParkId());
+        if (order.getParkId() != null && !defaultParkId.equals(order.getParkId())) {
+            return false;
         }
         return defaultParkStationIds.contains(order.getPickupPointId())
                 && defaultParkStationIds.contains(order.getDropoffPointId());

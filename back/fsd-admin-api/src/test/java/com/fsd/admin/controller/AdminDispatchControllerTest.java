@@ -10,8 +10,11 @@ import com.fsd.admin.dto.AdminExceptionQueryRequest;
 import com.fsd.admin.dto.AdminOrderQueryRequest;
 import com.fsd.admin.dto.AdminTaskQueryRequest;
 import com.fsd.admin.dto.AdminVehicleQueryRequest;
+import com.fsd.admin.service.AdminAuthService;
 import com.fsd.admin.service.AdminDashboardService;
 import com.fsd.admin.service.AdminQueryFacadeService;
+import com.fsd.admin.service.OrderAdminDetailService;
+import com.fsd.admin.service.TaskAdminDetailService;
 import com.fsd.admin.vo.AdminDashboardSummaryResponse;
 import com.fsd.common.model.PageResponse;
 import com.fsd.common.model.ApiResponse;
@@ -55,6 +58,10 @@ class AdminDispatchControllerTest {
     @Mock
     private OrderQueryService orderQueryService;
     @Mock
+    private OrderAdminDetailService orderAdminDetailService;
+    @Mock
+    private TaskAdminDetailService taskAdminDetailService;
+    @Mock
     private DispatchAdminQueryService dispatchAdminQueryService;
     @Mock
     private DispatchTaskService dispatchTaskService;
@@ -72,6 +79,8 @@ class AdminDispatchControllerTest {
     private ParkPilotCommandService parkPilotCommandService;
     @Mock
     private MobileOrderAuthService mobileOrderAuthService;
+    @Mock
+    private AdminAuthService adminAuthService;
     @Mock
     private HttpServletRequest httpServletRequest;
 
@@ -100,7 +109,7 @@ class AdminDispatchControllerTest {
 
     @Test
     void shouldReturnTaskDetail() {
-        when(dispatchAdminQueryService.getTaskDetail(10L)).thenReturn(
+        when(taskAdminDetailService.getEnrichedDetail(10L)).thenReturn(
                 DispatchTaskDetailResponse.builder().taskId(10L).status("ASSIGNED").build()
         );
 
@@ -126,7 +135,7 @@ class AdminDispatchControllerTest {
 
     @Test
     void shouldReturnOrderDetail() {
-        when(orderQueryService.getOrderDetail(1L)).thenReturn(
+        when(orderAdminDetailService.getEnrichedDetail(1L)).thenReturn(
                 OrderDetailResponse.builder().orderId(1L).orderNo("ORD-1").status("DISPATCHED").build()
         );
 

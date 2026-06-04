@@ -25,6 +25,9 @@ public class ParkVehicleSnapshotResponse {
 
     private Integer batteryLevel;
 
+    /** NORMAL / LOW / CRITICAL / CHARGING */
+    private String batteryStatus;
+
     private BigDecimal x;
 
     private BigDecimal y;
@@ -32,6 +35,8 @@ public class ParkVehicleSnapshotResponse {
     private BigDecimal longitude;
 
     private BigDecimal latitude;
+
+    private Double heading;
 
     private String runtimeStage;
 
@@ -46,4 +51,12 @@ public class ParkVehicleSnapshotResponse {
     private String linkMode;
 
     private List<ParkPointResponse> trajectory;
+
+    private List<ParkPointResponse> geoTrajectory;
+
+    private List<ParkPointResponse> plannedRouteGeo;
+
+    private String routeSource;
+
+    private Boolean routeInvalid;
 }

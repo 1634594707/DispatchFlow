@@ -39,7 +39,10 @@ public class DispatchTaskStateServiceImpl implements DispatchTaskStateService {
 
     @Override
     public void assertCanAutoAssign(DispatchTaskEntity taskEntity) {
-        assertStatus(taskEntity, Set.of(DispatchTaskStatus.PENDING), "DISPATCH_TASK_STATUS_INVALID");
+        // MANUAL_PENDING：自动派单失败后重试；ASSIGNING：中断后允许再次触发
+        assertStatus(taskEntity,
+                Set.of(DispatchTaskStatus.PENDING, DispatchTaskStatus.MANUAL_PENDING, DispatchTaskStatus.ASSIGNING),
+                "DISPATCH_TASK_STATUS_INVALID");
     }
 
     @Override
@@ -62,7 +65,8 @@ public class DispatchTaskStateServiceImpl implements DispatchTaskStateService {
     @Override
     public void assertCanCancel(DispatchTaskEntity taskEntity) {
         assertStatus(taskEntity,
-                Set.of(DispatchTaskStatus.PENDING, DispatchTaskStatus.MANUAL_PENDING, DispatchTaskStatus.ASSIGNED),
+                Set.of(DispatchTaskStatus.PENDING, DispatchTaskStatus.MANUAL_PENDING,
+                        DispatchTaskStatus.ASSIGNED, DispatchTaskStatus.EXECUTING),
                 "DISPATCH_TASK_STATUS_INVALID");
     }
 
@@ -72,9 +76,17 @@ public class DispatchTaskStateServiceImpl implements DispatchTaskStateService {
     }
 
     private void assertStatus(DispatchTaskEntity taskEntity, Set<DispatchTaskStatus> allowed, String errorCode) {
-        DispatchTaskStatus current = DispatchTaskStatus.valueOf(taskEntity.getStatus());
+        DispatchTaskStatus current;
+        try {
+            current = DispatchTaskStatus.valueOf(taskEntity.getStatus());
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(errorCode,
+                    "未知任务状态: " + taskEntity.getStatus());
+        }
         if (!allowed.contains(current)) {
-            throw new BusinessException(errorCode, "Dispatch task status transition is not allowed");
+            throw new BusinessException(errorCode,
+                    "任务状态「" + current.name() + "」不允许此操作，允许的状态: "
+                            + allowed.stream().map(Enum::name).reduce((a, b) -> a + "/" + b).orElse(""));
         }
     }
 }

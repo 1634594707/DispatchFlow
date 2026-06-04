@@ -7,11 +7,19 @@ import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.entity.StationEntity;
+import com.fsd.dispatch.geo.GeoPolygonUtils;
+import com.fsd.dispatch.geo.ParkGeoTransformService;
+import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
+import com.fsd.dispatch.entity.ParkGeofenceEntity;
+import com.fsd.dispatch.mapper.ParkGeofenceMapper;
 import com.fsd.dispatch.mapper.ParkMapper;
 import com.fsd.dispatch.mapper.StationMapper;
 import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -20,16 +28,28 @@ import org.springframework.stereotype.Service;
 @Service
 public class ParkStationServiceImpl implements ParkStationService {
 
+    private static final String OUT_OF_ZONE_MESSAGE =
+            "该取送货点不在找家纺叠石桥试点送货区内，产业带20km外暂未开通";
+
     private final ParkMapper parkMapper;
     private final StationMapper stationMapper;
+    private final ParkGeofenceMapper geofenceMapper;
     private final ParkPilotProperties parkPilotProperties;
+    private final ParkGeoTransformService parkGeoTransformService;
+    private final ObjectMapper objectMapper;
 
     public ParkStationServiceImpl(ParkMapper parkMapper,
                                   StationMapper stationMapper,
-                                  ParkPilotProperties parkPilotProperties) {
+                                  ParkGeofenceMapper geofenceMapper,
+                                  ParkPilotProperties parkPilotProperties,
+                                  ParkGeoTransformService parkGeoTransformService,
+                                  ObjectMapper objectMapper) {
         this.parkMapper = parkMapper;
         this.stationMapper = stationMapper;
+        this.geofenceMapper = geofenceMapper;
         this.parkPilotProperties = parkPilotProperties;
+        this.parkGeoTransformService = parkGeoTransformService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -137,6 +157,58 @@ public class ParkStationServiceImpl implements ParkStationService {
     }
 
     @Override
+    public void assertStationWithinDeliveryZone(Long stationId, Long parkId) {
+        StationEntity stationEntity = requireStationEntity(stationId);
+        if (!isGeoDeliveryStation(stationEntity)) {
+            return;
+        }
+        assertStationInPark(stationId, parkId);
+        ParkStationResponse station = toStationResponse(requirePark(stationEntity.getParkId()), stationEntity);
+        GeoPoint geo = resolveStationGeo(station);
+        if (geo == null) {
+            return;
+        }
+        List<ParkGeofenceEntity> boundaries = geofenceMapper.selectList(
+                new LambdaQueryWrapper<ParkGeofenceEntity>()
+                        .eq(ParkGeofenceEntity::getParkId, parkId)
+                        .eq(ParkGeofenceEntity::getStatus, "ACTIVE")
+                        .eq(ParkGeofenceEntity::getFenceType, "BOUNDARY")
+                        .eq(ParkGeofenceEntity::getDeleted, 0));
+        if (boundaries.isEmpty()) {
+            return;
+        }
+        boolean inside = boundaries.stream()
+                .anyMatch(fence -> GeoPolygonUtils.contains(
+                        parseFenceVertices(fence.getPolygonJson()), geo.longitude(), geo.latitude()));
+        if (!inside) {
+            throw new BusinessException("ZJF_OUT_OF_DELIVERY_ZONE", OUT_OF_ZONE_MESSAGE);
+        }
+    }
+
+    private List<double[]> parseFenceVertices(String polygonJson) {
+        if (polygonJson == null || polygonJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<List<Number>> raw = objectMapper.readValue(polygonJson, new TypeReference<>() {
+            });
+            return raw.stream()
+                    .filter(point -> point != null && point.size() >= 2)
+                    .map(point -> new double[] {point.get(0).doubleValue(), point.get(1).doubleValue()})
+                    .toList();
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private GeoPoint resolveStationGeo(ParkStationResponse station) {
+        if (station.getCoordLng() != null && station.getCoordLat() != null) {
+            return new GeoPoint(station.getCoordLng(), station.getCoordLat());
+        }
+        return parkGeoTransformService.toGcj02(station.getX(), station.getY()).orElse(null);
+    }
+
+    @Override
     public ParkStationResponse toStationResponse(ParkEntity park, StationEntity station) {
         return ParkStationResponse.builder()
                 .parkId(park.getId())
@@ -151,6 +223,14 @@ public class ParkStationServiceImpl implements ParkStationService {
                 .coordLat(station.getCoordLat())
                 .area(station.getArea())
                 .build();
+    }
+
+    private boolean isGeoDeliveryStation(StationEntity station) {
+        if ("ZJF".equals(station.getArea())) {
+            return true;
+        }
+        String code = station.getStationCode();
+        return code != null && code.startsWith("ZJF-");
     }
 
     private StationEntity requireStationEntity(Long stationId) {

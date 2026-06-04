@@ -1,5 +1,5 @@
 <template>
-  <PageContainer title="地理围栏" subtitle="管理园区 GCJ-02 多边形边界与禁入区">
+  <PageContainer title="地理围栏" subtitle="找家纺网送货区 · 管理 GCJ-02 试点边界与禁入区">
     <template #actions>
       <a-space>
         <a-select
@@ -74,7 +74,10 @@
         <a-form-item label="多边形 JSON（[[lng,lat],...]）" required>
           <a-textarea v-model:value="form.polygonJson" :rows="6" placeholder="[[121.052,31.902],[121.072,31.902],...]" />
         </a-form-item>
-        <a-button size="small" @click="fillDefaultRectangle">从叠石桥中心生成 2km 矩形</a-button>
+        <a-space style="margin-bottom: 8px">
+          <a-button size="small" type="primary" @click="fillPilotRectangle">填充叠石桥试点（1570m×470m）</a-button>
+          <a-button size="small" @click="fillLegacyRectangle">旧版 2km 矩形</a-button>
+        </a-space>
         <a-form-item label="备注" style="margin-top: 12px">
           <a-input v-model:value="form.remark" />
         </a-form-item>
@@ -90,6 +93,7 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { createGeofence, deleteGeofence, fetchGeofences, fetchParks, updateGeofence } from '@/api/infrastructure'
 import type { AdminGeofence } from '@/types/infrastructure'
+import { ZJF_PILOT_GEO } from '@/maps/zjfPilotGeo'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -162,7 +166,7 @@ function resetForm() {
 function openCreate() {
   editing.value = null
   resetForm()
-  fillDefaultRectangle()
+  fillPilotRectangle()
   modalOpen.value = true
 }
 
@@ -177,7 +181,12 @@ function openEdit(record: AdminGeofence) {
   modalOpen.value = true
 }
 
-function fillDefaultRectangle() {
+function fillPilotRectangle() {
+  form.fenceName = form.fenceName || '找家纺网送货区（叠石桥试点）'
+  form.polygonJson = JSON.stringify(ZJF_PILOT_GEO.pilotPolygon)
+}
+
+function fillLegacyRectangle() {
   form.polygonJson = JSON.stringify([
     [121.05228, 31.90245],
     [121.07228, 31.90245],

@@ -228,15 +228,27 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
     public DispatchTaskAssignResponse autoAssignTask(Long taskId) {
 
-        String lockToken = dispatchLockService.acquireTaskLock(taskId);
+        final String lockToken;
+        try {
+            lockToken = dispatchLockService.acquireTaskLock(taskId);
+        } catch (BusinessException ex) {
+            if ("DISPATCH_TASK_LOCKED".equals(ex.getCode())) {
+                DispatchTaskEntity taskEntity = dispatchTaskStateService.getTask(taskId);
+                return buildAssignFailureResponse(taskEntity, "CONFLICT", "任务正在处理中，请稍后重试");
+            }
+            throw ex;
+        }
 
         try {
 
             DispatchTaskEntity taskEntity = dispatchTaskStateService.getTask(taskId);
 
-            dispatchTaskStateService.assertCanAutoAssign(taskEntity);
+            prepareStuckTaskForAutoAssignRetry(taskEntity);
 
-
+            DispatchTaskAssignResponse statusBlocked = validateAutoAssignStatus(taskEntity);
+            if (statusBlocked != null) {
+                return statusBlocked;
+            }
 
             String beforeStatus = taskEntity.getStatus();
 
@@ -747,9 +759,68 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
 
 
-    private DispatchTaskAssignResponse buildAssignFailureResponse(DispatchTaskEntity taskEntity, String failCode) {
+    /**
+     * 演示/恢复：已派单或执行中但车辆已空闲时，回退到人工待处理以便再次自动派车。
+     */
+    private void prepareStuckTaskForAutoAssignRetry(DispatchTaskEntity taskEntity) {
+        String status = taskEntity.getStatus();
+        if (!DispatchTaskStatus.ASSIGNED.name().equals(status)
+                && !DispatchTaskStatus.EXECUTING.name().equals(status)) {
+            return;
+        }
+        Long vehicleId = taskEntity.getVehicleId();
+        if (vehicleId != null) {
+            try {
+                vehicleService.releaseVehicle(vehicleId, VehicleDispatchStatus.IDLE.name());
+            } catch (BusinessException ignored) {
+                // 车辆可能已被释放
+            }
+            parkingFacilityService.releaseByVehicle(vehicleId);
+        }
+        taskEntity.setVehicleId(null);
+        taskEntity.setStatus(DispatchTaskStatus.MANUAL_PENDING.name());
+        taskEntity.setFailReasonCode(null);
+        taskEntity.setFailReasonMsg(null);
+        dispatchTaskMapper.updateById(taskEntity);
+        try {
+            orderStateService.revertToWaitingDispatch(taskEntity.getOrderId());
+        } catch (BusinessException ignored) {
+            // 订单可能已是待派状态
+        }
+        operateLogService.record(taskEntity.getId(), "RESET_FOR_AUTO_ASSIGN", status,
+                DispatchTaskStatus.MANUAL_PENDING.name(), "SYSTEM", "system", "system",
+                "Stuck task reset for auto-assign retry");
+    }
 
-        var explained = DispatchFailExplainSupport.explain(failCode, taskEntity.getFailReasonMsg());
+    private DispatchTaskAssignResponse validateAutoAssignStatus(DispatchTaskEntity taskEntity) {
+        try {
+            dispatchTaskStateService.assertCanAutoAssign(taskEntity);
+            return null;
+        } catch (BusinessException ex) {
+            if (!"DISPATCH_TASK_STATUS_INVALID".equals(ex.getCode())) {
+                throw ex;
+            }
+            String status = taskEntity.getStatus();
+            String hint = switch (status == null ? "" : status) {
+                case "ASSIGNED", "EXECUTING" ->
+                        "任务状态为「" + status + "」，请先取消任务或改派，不能再次自动派车";
+                case "CANCELLED", "FAILED", "SUCCESS" ->
+                        "任务已结束（" + status + "），请创建新订单或处理其他待派任务";
+                default ->
+                        "任务状态为「" + status + "」，当前不允许自动派车（仅支持待派单/人工待处理）";
+            };
+            return buildAssignFailureResponse(taskEntity, "INVALID_STATUS", hint);
+        }
+    }
+
+    private DispatchTaskAssignResponse buildAssignFailureResponse(DispatchTaskEntity taskEntity, String failCode) {
+        return buildAssignFailureResponse(taskEntity, failCode, taskEntity.getFailReasonMsg());
+    }
+
+    private DispatchTaskAssignResponse buildAssignFailureResponse(DispatchTaskEntity taskEntity, String failCode,
+                                                                  String messageOverride) {
+
+        var explained = DispatchFailExplainSupport.explain(failCode, messageOverride);
 
         return DispatchTaskAssignResponse.builder()
 

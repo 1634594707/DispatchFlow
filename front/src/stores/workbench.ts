@@ -168,6 +168,11 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     saveManualTaskOrder(taskIds)
   }
 
+  function clearManualTaskOrder() {
+    manualTaskOrder.value = []
+    localStorage.removeItem(TASK_ORDER_KEY)
+  }
+
   return {
     loading,
     poolTasks,
@@ -189,6 +194,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     interventionTotal,
     taskPool,
     taskFilter,
+    manualTaskOrder,
     selectedTaskId,
     selectedExceptionId,
     fetchQueue,
@@ -200,5 +206,6 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     selectTask,
     selectException,
     reorderTasks,
+    clearManualTaskOrder,
   }
 })

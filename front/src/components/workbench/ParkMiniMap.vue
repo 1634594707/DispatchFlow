@@ -2,16 +2,32 @@
   <div class="park-mini-map" ref="wrapRef">
     <canvas ref="canvasRef" class="map-canvas" />
     <div v-if="!layout" class="map-empty">地图加载中…</div>
+    <div class="map-legend">
+      <span class="legend-item"><i class="dot pickup" />取货</span>
+      <span class="legend-item"><i class="dot dropoff" />送货</span>
+      <span class="legend-item"><i class="dot express" />接驳</span>
+      <span class="legend-item"><i class="dot vehicle" />车辆</span>
+      <label v-if="hasChargingStations" class="legend-toggle">
+        <input v-model="showCharging" type="checkbox" />
+        充电站
+      </label>
+    </div>
     <div class="map-overlay">
-      <span class="map-stat">{{ vehicles.length }} 车在线</span>
+      <span class="map-stat">{{ ZJF_ORDERABLE_STATION_COUNT }} 个运营站点 · {{ vehicles.length }} 车在线</span>
       <router-link to="/vehicle-tracking" class="map-link">全屏监控 →</router-link>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { ParkLayout, ParkVehicleSnapshot } from '@/types/park'
+import {
+  filterWorkbenchSituationStations,
+  filterSchematicParkVehicles,
+  workbenchStationColor,
+  ZJF_ORDERABLE_STATION_COUNT,
+} from '@/maps/stationLayers'
 
 const props = defineProps<{
   layout: ParkLayout | null
@@ -21,7 +37,19 @@ const props = defineProps<{
 
 const wrapRef = ref<HTMLDivElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+const showCharging = ref(false)
 let resizeObserver: ResizeObserver | null = null
+
+const visibleStations = computed(() => {
+  if (!props.layout) return []
+  return filterWorkbenchSituationStations(props.layout.stations, {
+    showCharging: showCharging.value,
+  })
+})
+
+const hasChargingStations = computed(() =>
+  (props.layout?.stations ?? []).some(station => (station.stationCode ?? '').startsWith('ZJF-CHG-')),
+)
 
 function draw() {
   const wrap = wrapRef.value
@@ -73,14 +101,14 @@ function draw() {
     ctx.fillRect(tx(spot.x) - 4, ty(spot.y) - 4, 8, 8)
   }
 
-  for (const station of layout.stations) {
+  for (const station of visibleStations.value) {
     ctx.beginPath()
-    ctx.fillStyle = station.area === 'A' ? '#00b4d8' : '#ffb703'
+    ctx.fillStyle = workbenchStationColor(station)
     ctx.arc(tx(station.x), ty(station.y), 5, 0, Math.PI * 2)
     ctx.fill()
   }
 
-  for (const vehicle of props.vehicles) {
+  for (const vehicle of filterSchematicParkVehicles(props.vehicles)) {
     const linked = props.highlightTaskId != null && vehicle.currentTaskId === props.highlightTaskId
     const x = tx(vehicle.x)
     const y = ty(vehicle.y)
@@ -98,9 +126,9 @@ function draw() {
 }
 
 watch(
-  () => [props.layout, props.vehicles, props.highlightTaskId],
+  () => [props.layout, props.vehicles, props.highlightTaskId, showCharging.value],
   () => draw(),
-  { deep: true }
+  { deep: true },
 )
 
 onMounted(() => {
@@ -142,6 +170,65 @@ onUnmounted(() => {
   justify-content: center;
   color: var(--fsd-text-tertiary);
   font-size: 13px;
+}
+
+.map-legend {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(13, 17, 23, 0.82);
+  border: 1px solid rgba(48, 54, 61, 0.8);
+  backdrop-filter: blur(6px);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--fsd-text-secondary);
+}
+
+.legend-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fsd-text-secondary);
+  cursor: pointer;
+  user-select: none;
+
+  input {
+    accent-color: #9d4edd;
+  }
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+
+  &.pickup { background: #00b4d8; }
+  &.dropoff { background: #ffb703; }
+  &.express { background: #06d6a0; }
+  &.vehicle {
+    width: 0;
+    height: 0;
+    border-radius: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 7px solid #48cae4;
+    background: none;
+  }
 }
 
 .map-overlay {

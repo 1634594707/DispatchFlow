@@ -8,9 +8,13 @@
 
 | 文档 | 说明 |
 |------|------|
-| **[ROADMAP-V3.md](./ROADMAP-V3.md)** | **V3 产品路线图**（`- [ ]` 任务清单） |
+| **[ROADMAP-V4.md](./ROADMAP-V4.md)** | **当前产品路线图**（技术债 · OSM 站点 · 工作台态势 · 移动下单） |
+| [ROADMAP-V3.md](./ROADMAP-V3.md) | V3 已关闭 → 跳转 V4 |
+| [archive/ROADMAP-V3-closed.md](./archive/ROADMAP-V3-closed.md) | V3 完整归档快照 |
 | [REQUIREMENTS-DESIGN.md](./REQUIREMENTS-DESIGN.md) | 新需求设计模板 |
 | [v3/README.md](./v3/README.md) | V3 专题（地图 · MAPF） |
+| [v4/V4-R7-CLOSURE.md](./v4/V4-R7-CLOSURE.md) | V4-R7 贴路验收关闭 |
+| [v4/PARK-OVERVIEW-DEMO.md](./v4/PARK-OVERVIEW-DEMO.md) | 大屏官方演示链路（V4-O7） |
 | [archive/ROADMAP-V2-closed.md](./archive/ROADMAP-V2-closed.md) | V2 已交付摘要 |
 
 ---

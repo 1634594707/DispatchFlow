@@ -39,8 +39,21 @@ public class FleetRuntime {
     /** GCJ-02 latitude cached from telemetry or park x/y transform. */
     private BigDecimal latitude;
 
+    /** 车辆朝向（度，高德 Marker angle）。 */
+    private Double heading;
+
     private LocalDateTime lastTelemetryAt;
 
     @Builder.Default
     private List<FleetTrajectoryPoint> trajectory = new ArrayList<>();
+
+    @Builder.Default
+    private List<FleetTrajectoryPoint> geoTrajectory = new ArrayList<>();
+
+    @Builder.Default
+    private List<FleetTrajectoryPoint> plannedRouteGeo = new ArrayList<>();
+
+    private String routeSource;
+
+    private Boolean routeInvalid;
 }

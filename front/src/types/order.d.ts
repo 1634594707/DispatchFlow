@@ -29,6 +29,13 @@ export interface OrderDetailResponse {
   bizType: string
   pickupPointId: number
   dropoffPointId: number
+  pickupPointName?: string | null
+  pickupStationCode?: string | null
+  dropoffPointName?: string | null
+  dropoffStationCode?: string | null
+  vehicleId?: number | null
+  vehicleCode?: string | null
+  runtimeStage?: string | null
   priority: string
   status: OrderStatus
   dispatchTaskId: number | null

@@ -3,6 +3,7 @@ package com.fsd.dispatch.dispatch;
 import com.fsd.common.enums.DispatchAssignFailReason;
 import com.fsd.dispatch.config.DispatchScoringProperties;
 import com.fsd.dispatch.config.FleetEnergyProperties;
+import com.fsd.dispatch.fleet.PilotFleetSupport;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
@@ -125,6 +126,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         List<VehicleEntity> socEligible = idleOnline.stream()
                 .filter(vehicle -> normalizeSoc(vehicle.getBatteryLevel()) >= energy.getMinAssignableSoc())
                 .filter(vehicle -> matchesRequiredVehicleType(order, vehicle))
+                .filter(vehicle -> PilotFleetSupport.matchesOrderFleet(vehicle, pickup, dropoff))
                 .toList();
         if (socEligible.isEmpty()) {
             return DispatchAssignResult.failure(DispatchAssignFailReason.LOW_SOC,

@@ -12,6 +12,7 @@ import com.fsd.admin.service.TaskPriorityAdminService;
 import com.fsd.admin.auth.AdminAuthContext;
 import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.dto.AdminDispatchExceptionResolveRequest;
+import com.fsd.admin.service.AdminAuthService;
 import com.fsd.admin.service.AdminDashboardService;
 import com.fsd.admin.service.AdminQueryFacadeService;
 import com.fsd.admin.vo.AdminBatchTaskResultResponse;
@@ -44,6 +45,8 @@ import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
 import com.fsd.order.service.OrderAdminQueryService;
+import com.fsd.admin.service.OrderAdminDetailService;
+import com.fsd.admin.service.TaskAdminDetailService;
 import com.fsd.order.service.OrderQueryService;
 import com.fsd.order.vo.OrderAdminListItemResponse;
 import com.fsd.order.vo.OrderDetailResponse;
@@ -74,6 +77,9 @@ public class AdminDispatchController {
 
     private final OrderAdminQueryService orderAdminQueryService;
     private final OrderQueryService orderQueryService;
+
+    private final OrderAdminDetailService orderAdminDetailService;
+    private final TaskAdminDetailService taskAdminDetailService;
     private final DispatchAdminQueryService dispatchAdminQueryService;
     private final DispatchTaskService dispatchTaskService;
     private final DispatchExceptionService dispatchExceptionService;
@@ -85,10 +91,13 @@ public class AdminDispatchController {
     private final BatchTaskAdminService batchTaskAdminService;
     private final TaskPriorityAdminService taskPriorityAdminService;
     private final MobileOrderAuthService mobileOrderAuthService;
+    private final AdminAuthService adminAuthService;
     private final CoordinateTransformService coordinateTransformService;
 
     public AdminDispatchController(OrderAdminQueryService orderAdminQueryService,
                                    OrderQueryService orderQueryService,
+                                   OrderAdminDetailService orderAdminDetailService,
+                                   TaskAdminDetailService taskAdminDetailService,
                                    DispatchAdminQueryService dispatchAdminQueryService,
                                    DispatchTaskService dispatchTaskService,
                                    DispatchExceptionService dispatchExceptionService,
@@ -100,9 +109,12 @@ public class AdminDispatchController {
                                    BatchTaskAdminService batchTaskAdminService,
                                    TaskPriorityAdminService taskPriorityAdminService,
                                    MobileOrderAuthService mobileOrderAuthService,
+                                   AdminAuthService adminAuthService,
                                    CoordinateTransformService coordinateTransformService) {
         this.orderAdminQueryService = orderAdminQueryService;
         this.orderQueryService = orderQueryService;
+        this.orderAdminDetailService = orderAdminDetailService;
+        this.taskAdminDetailService = taskAdminDetailService;
         this.dispatchAdminQueryService = dispatchAdminQueryService;
         this.dispatchTaskService = dispatchTaskService;
         this.dispatchExceptionService = dispatchExceptionService;
@@ -114,6 +126,7 @@ public class AdminDispatchController {
         this.batchTaskAdminService = batchTaskAdminService;
         this.taskPriorityAdminService = taskPriorityAdminService;
         this.mobileOrderAuthService = mobileOrderAuthService;
+        this.adminAuthService = adminAuthService;
         this.coordinateTransformService = coordinateTransformService;
     }
 
@@ -138,7 +151,7 @@ public class AdminDispatchController {
     public ApiResponse<OrderDetailResponse> getOrderDetail(@PathVariable Long orderId,
                                                            HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
-        return ApiResponse.success(orderQueryService.getOrderDetail(orderId));
+        return ApiResponse.success(orderAdminDetailService.getEnrichedDetail(orderId));
     }
 
     @GetMapping("/tasks")
@@ -162,7 +175,7 @@ public class AdminDispatchController {
     public ApiResponse<DispatchTaskDetailResponse> getTaskDetail(@PathVariable Long taskId,
                                                                  HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
-        return ApiResponse.success(dispatchAdminQueryService.getTaskDetail(taskId));
+        return ApiResponse.success(taskAdminDetailService.getEnrichedDetail(taskId));
     }
 
     @PostMapping("/tasks/{taskId}/auto-assign")
@@ -433,10 +446,11 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/park/stations")
-    @Operation(summary = "List park stations")
+    @Operation(summary = "List park stations", description = "Admin token or X-Mobile-Api-Key for mobile order page")
+    @SecurityRequirement(name = "")
     public ApiResponse<List<ParkStationResponse>> listParkStations(@RequestParam(required = false) Long parkId,
                                                                    HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        requireAdminOrMobileOrderKey(request);
         if (parkId == null) {
             return ApiResponse.success(parkPilotService.listStations());
         }
@@ -445,8 +459,9 @@ public class AdminDispatchController {
 
     @GetMapping("/park/vehicles")
     @Operation(summary = "List park vehicle snapshots", description = "Live vehicle positions and status for the park map")
+    @SecurityRequirement(name = "")
     public ApiResponse<List<ParkVehicleSnapshotResponse>> listParkVehicles(HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        requireAdminOrMobileOrderKey(request);
         return ApiResponse.success(parkPilotService.listVehicleSnapshots());
     }
 
@@ -467,8 +482,9 @@ public class AdminDispatchController {
 
     @GetMapping("/park/orders")
     @Operation(summary = "List park order snapshots")
+    @SecurityRequirement(name = "")
     public ApiResponse<List<ParkOrderSnapshotResponse>> listParkOrders(HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        requireAdminOrMobileOrderKey(request);
         return ApiResponse.success(parkPilotService.listOrderSnapshots());
     }
 
@@ -481,12 +497,43 @@ public class AdminDispatchController {
     })
     public ApiResponse<ParkOrderCreateResponse> createParkOrder(@Valid @RequestBody ParkOrderCreateRequest request,
                                                                   jakarta.servlet.http.HttpServletRequest httpRequest) {
-        String mobileKey = httpRequest.getHeader("X-Mobile-Api-Key");
+        requireAdminOrMobileOrderKey(httpRequest);
+        return ApiResponse.success(parkPilotCommandService.createParkOrder(request));
+    }
+
+    private void requireAdminOrMobileOrderKey(HttpServletRequest request) {
+        bindAdminTokenIfPresent(request);
+        if (AdminAuthSupport.fromRequest(request) != null) {
+            AdminAuthSupport.requireAuth(request);
+            return;
+        }
+        String mobileKey = request.getHeader("X-Mobile-Api-Key");
         if (mobileKey == null || mobileKey.isBlank()) {
-            mobileKey = httpRequest.getParameter("mobileApiKey");
+            mobileKey = request.getParameter("mobileApiKey");
         }
         mobileOrderAuthService.validateMobileOrderKey(mobileKey);
-        return ApiResponse.success(parkPilotCommandService.createParkOrder(request));
+    }
+
+    /** 拦截器可选鉴权路径未绑定时，从 X-Admin-Token 补绑（M8-R7 / 工作台带 token 访问 park API）。 */
+    private void bindAdminTokenIfPresent(HttpServletRequest request) {
+        if (AdminAuthSupport.fromRequest(request) != null) {
+            return;
+        }
+        String token = request.getHeader("X-Admin-Token");
+        if (token == null || token.isBlank()) {
+            token = request.getParameter("token");
+        }
+        if (token == null || token.isBlank()) {
+            return;
+        }
+        AdminAuthContext context = adminAuthService.resolveToken(token);
+        if (context == null) {
+            return;
+        }
+        request.setAttribute(AdminAuthSupport.ADMIN_ROLE_ATTRIBUTE, context.getRole().name());
+        request.setAttribute(AdminAuthSupport.ADMIN_USER_ID_ATTRIBUTE, context.getUserId());
+        request.setAttribute(AdminAuthSupport.ADMIN_USERNAME_ATTRIBUTE, context.getUsername());
+        request.setAttribute(AdminAuthSupport.ADMIN_DISPLAY_NAME_ATTRIBUTE, context.getDisplayName());
     }
 
     private OperatorIdentity resolveOperator(HttpServletRequest request) {

@@ -42,6 +42,12 @@ public final class DispatchFailExplainSupport {
                     "CONFLICT",
                     rawMessage != null && !rawMessage.isBlank() ? rawMessage : "车辆占车或占桩冲突",
                     List.of("确认目标车辆未被其他任务占用", "检查充电桩/停车位释放状态", "尝试改派其他车辆"));
+            case "INVALID_STATUS" -> new ExplainResult(
+                    "INVALID_STATUS",
+                    rawMessage != null && !rawMessage.isBlank() ? rawMessage : "当前任务状态不允许自动派车",
+                    List.of("人工待处理：点「重新自动派车」或先「批量取消」清掉老任务",
+                            "已派车/执行中：到「调度任务」取消后再派",
+                            "重启后端后再试（需已部署最新派单状态修复）"));
             default -> new ExplainResult(
                     code,
                     rawMessage != null && !rawMessage.isBlank() ? rawMessage : "自动派车失败，需人工介入",

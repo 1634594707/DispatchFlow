@@ -1,7 +1,9 @@
 # 编译全部模块并启动 fsd-bootstrap（避免园区等新接口 404）
 Set-Location $PSScriptRoot
 Write-Host "Building modules (clean install)..." -ForegroundColor Cyan
-mvn -pl fsd-bootstrap -am clean install -DskipTests
+# -Dmaven.test.skip=true skips test-compile + surefire (dev startup only).
+# -DskipTests still compiles integration tests and can fail before spring-boot:run.
+mvn -pl fsd-bootstrap -am clean install "-Dmaven.test.skip=true"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build failed." -ForegroundColor Red
     exit $LASTEXITCODE
@@ -32,6 +34,47 @@ if ($mysqlRunning -eq "fsd-mysql") {
     }
 } else {
     Write-Host "  fsd-mysql not running — skip migrations (start docker compose first if needed)" -ForegroundColor Yellow
+}
+
+function Repair-FlywayV24Rename {
+    if ($mysqlRunning -ne "fsd-mysql") { return }
+    $v24Script = docker exec fsd-mysql mysql -uroot -proot -N -e `
+        "SELECT script FROM flyway_schema_history WHERE version='24' LIMIT 1;" fsd_core 2>$null
+    if (-not $v24Script) { return }
+    $needsRepair = $v24Script -match 'zjf_mobile_demo_api_key'
+    if (-not $needsRepair) {
+        $checksum = docker exec fsd-mysql mysql -uroot -proot -N -e `
+            "SELECT checksum FROM flyway_schema_history WHERE version='24' LIMIT 1;" fsd_core 2>$null
+        if ($checksum -eq '783071413') { $needsRepair = $true }
+    }
+    if (-not $needsRepair) { return }
+    Write-Host "Repairing Flyway V24/V25 (migration files were renamed)..." -ForegroundColor Yellow
+    docker exec fsd-mysql mysql -uroot -proot fsd_core -e `
+        "DELETE FROM flyway_schema_history WHERE version IN ('24','25');" 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Cleared flyway_schema_history for V24/V25 — startup will apply coordinate fix + demo API key" -ForegroundColor DarkGray
+    }
+}
+
+Repair-FlywayV24Rename
+
+$repoRoot = Split-Path $PSScriptRoot -Parent
+$dotEnv = Join-Path $repoRoot ".env"
+if (Test-Path $dotEnv) {
+    Get-Content $dotEnv | ForEach-Object {
+        if ($_ -match '^\s*#' -or $_ -notmatch '^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$') { return }
+        $name = $Matches[1]
+        $val = $Matches[2].Trim().Trim('"').Trim("'")
+        if ($name -eq 'FSD_AMAP_WEB_SERVICE_KEY' -and $val) {
+            $env:FSD_AMAP_WEB_SERVICE_KEY = $val
+            Write-Host "Loaded FSD_AMAP_WEB_SERVICE_KEY from .env" -ForegroundColor DarkGray
+        }
+    }
+}
+if ($env:FSD_AMAP_WEB_SERVICE_KEY) {
+    Write-Host "Amap driving: enabled (Web Service Key set)" -ForegroundColor DarkGray
+} else {
+    Write-Host "Amap driving: off (set FSD_AMAP_WEB_SERVICE_KEY in .env or env)" -ForegroundColor Yellow
 }
 
 Write-Host "Starting backend on http://localhost:8080 ..." -ForegroundColor Cyan

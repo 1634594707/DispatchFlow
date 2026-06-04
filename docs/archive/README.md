@@ -2,6 +2,11 @@
 
 本目录存放历史草稿与一次性笔记，**不参与日常验收与开发**。
 
+| 文件 | 内容 |
+|------|------|
+| [ROADMAP-V3-closed.md](./ROADMAP-V3-closed.md) | V3 产品路线图完整快照（2026-06-04 关闭） |
+| [ROADMAP-V2-closed.md](./ROADMAP-V2-closed.md) | V2 已交付摘要 |
+
 | 子目录 | 内容 |
 |--------|------|
 | `roadmap-closed-20260527/` | 已关闭的 Phase 1–2 路线图终稿 |

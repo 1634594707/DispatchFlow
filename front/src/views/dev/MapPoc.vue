@@ -2,9 +2,9 @@
   <div class="map-poc-page">
     <header class="map-poc-header">
       <div>
-        <h1>高德地图 · 叠石桥家纺片区</h1>
+        <h1>高德地图 · 找家纺叠石桥试点</h1>
         <p>
-          仿找家纺产业带短驳场景（电商 ERP 下单 + AI 无人快递车）·
+          L1 短驳演示区（{{ TEXTILE_PARK_GEO.parkWidthMeters }}m×{{ TEXTILE_PARK_GEO.parkHeightMeters }}m）·
           {{ TEXTILE_PARK_GEO.label }}
         </p>
       </div>
@@ -15,7 +15,12 @@
         </a-tag>
       </div>
     </header>
-    <AmapGeoMap class="map-poc-map" :markers="vehicleMarkers" :zoom="15" />
+    <AmapGeoMap
+      class="map-poc-map"
+      :markers="vehicleMarkers"
+      :polygons="pilotPolygon"
+      :zoom="15"
+    />
   </div>
 </template>
 
@@ -23,13 +28,21 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
 import { getParkVehicles } from '@/api/park'
-import { isAmapConfigured, parkXYToGcj02, TEXTILE_PARK_GEO } from '@/maps'
-import type { GeoMapMarker } from '@/maps'
+import { isAmapConfigured, parkXYToGcj02, TEXTILE_PARK_GEO, toAvGeoMarker } from '@/maps'
+import type { GeoMapMarker, GeoMapPolygon } from '@/maps'
 import type { ParkVehicleSnapshot } from '@/types/park'
 
 const configured = isAmapConfigured()
 const vehicleCount = ref(0)
 const vehicleMarkers = ref<GeoMapMarker[]>([])
+const pilotPolygon = ref<GeoMapPolygon[]>([
+  {
+    id: 'zjf-pilot',
+    path: TEXTILE_PARK_GEO.pilotPolygon.map((p) => [p[0], p[1]] as [number, number]),
+    strokeColor: '#00d4aa',
+    fillColor: 'rgba(0, 212, 170, 0.12)',
+  },
+])
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 function toMarker(vehicle: ParkVehicleSnapshot): GeoMapMarker {
@@ -37,11 +50,14 @@ function toMarker(vehicle: ParkVehicleSnapshot): GeoMapMarker {
     vehicle.longitude != null && vehicle.latitude != null
       ? [Number(vehicle.longitude), Number(vehicle.latitude)]
       : parkXYToGcj02(vehicle.x, vehicle.y)
-  return {
-    id: String(vehicle.vehicleId),
-    position,
+  return toAvGeoMarker(String(vehicle.vehicleId), position, {
+    onlineStatus: vehicle.onlineStatus,
+    dispatchStatus: vehicle.dispatchStatus,
+    charging: vehicle.charging,
+    lowBattery: vehicle.lowBattery,
+    heading: vehicle.heading ?? null,
     label: `${vehicle.vehicleCode} · ${vehicle.batteryLevel}%`,
-  }
+  })
 }
 
 async function refreshVehicles() {

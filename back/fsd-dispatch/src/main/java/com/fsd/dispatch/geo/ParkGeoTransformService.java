@@ -47,8 +47,30 @@ public class ParkGeoTransformService {
         return value == null || value <= 0 ? fallback : value;
     }
 
-    private static double metersPerDegreeLng(double latitudeDegrees) {
+    private double metersPerDegreeLng(double latitudeDegrees) {
         return METERS_PER_DEGREE_LAT * Math.cos(Math.toRadians(latitudeDegrees));
+    }
+
+    /** GCJ-02 → 园区 schematic x/y（与 {@link #toGcj02} 互逆）。 */
+    public Optional<ParkPoint> fromGcj02(BigDecimal longitude, BigDecimal latitude) {
+        if (!isEnabled() || longitude == null || latitude == null) {
+            return Optional.empty();
+        }
+        ParkPilotProperties.GeoConfig geo = parkPilotProperties.getGeo();
+        int mapWidth = safeDimension(parkPilotProperties.getWidth(), 1200);
+        int mapHeight = safeDimension(parkPilotProperties.getHeight(), 800);
+        int widthMeters = safeDimension(geo.getParkWidthMeters(), 2400);
+        int heightMeters = safeDimension(geo.getParkHeightMeters(), 1600);
+
+        double anchorLng = geo.getAnchorLng().doubleValue();
+        double anchorLat = geo.getAnchorLat().doubleValue();
+        double metersPerPxX = widthMeters / (double) mapWidth;
+        double metersPerPxY = heightMeters / (double) mapHeight;
+        double deltaEastMeters = (longitude.doubleValue() - anchorLng) * metersPerDegreeLng(anchorLat);
+        double deltaNorthMeters = (latitude.doubleValue() - anchorLat) * METERS_PER_DEGREE_LAT;
+        double parkX = mapWidth / 2d + deltaEastMeters / metersPerPxX;
+        double parkY = mapHeight / 2d - deltaNorthMeters / metersPerPxY;
+        return Optional.of(new ParkPoint(scale(parkX), scale(parkY)));
     }
 
     private static BigDecimal scale(double value) {
@@ -56,5 +78,8 @@ public class ParkGeoTransformService {
     }
 
     public record GeoPoint(BigDecimal longitude, BigDecimal latitude) {
+    }
+
+    public record ParkPoint(BigDecimal x, BigDecimal y) {
     }
 }

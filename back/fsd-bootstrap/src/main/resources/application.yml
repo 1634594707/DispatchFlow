@@ -84,11 +84,12 @@ fsd:
     vehicle-speed-px-per-second: ${FSD_PARK_VEHICLE_SPEED_PX_PER_SECOND:8}
     geo:
       enabled: ${FSD_PARK_GEO_ENABLED:true}
-      anchor-lng: ${FSD_PARK_GEO_ANCHOR_LNG:121.062280}
-      anchor-lat: ${FSD_PARK_GEO_ANCHOR_LAT:31.912450}
-      park-width-meters: ${FSD_PARK_GEO_WIDTH_M:2400}
-      park-height-meters: ${FSD_PARK_GEO_HEIGHT_M:1600}
-      scenario: TEXTILE_DIESHIQIAO
+      osm-geo-path: ${FSD_PILOT_OSM_GEO_PATH:../../data/pilot_osm_geo.json}
+      anchor-lng: ${FSD_PARK_GEO_ANCHOR_LNG:121.080354}
+      anchor-lat: ${FSD_PARK_GEO_ANCHOR_LAT:31.961977}
+      park-width-meters: ${FSD_PARK_GEO_WIDTH_M:1570}
+      park-height-meters: ${FSD_PARK_GEO_HEIGHT_M:470}
+      scenario: ${FSD_PARK_GEO_SCENARIO:ZJF_DIESHIQIAO_PILOT}
     x-field-alias: currentLongitude
     y-field-alias: currentLatitude
     parking-spots:
@@ -313,12 +314,13 @@ fsd:
         area: B
     simulation:
       enabled: ${FSD_PARK_SIMULATION_ENABLED:true}
-      vehicle-count: ${FSD_PARK_SIMULATION_VEHICLE_COUNT:4}
+      vehicle-count: ${FSD_PARK_SIMULATION_VEHICLE_COUNT:3}
+      geo-vehicle-count: ${FSD_PARK_SIMULATION_GEO_VEHICLE_COUNT:3}
       max-trail-size: ${FSD_PARK_SIMULATION_MAX_TRAIL_SIZE:30}
       offline-duration-seconds: ${FSD_PARK_SIMULATION_OFFLINE_DURATION_SECONDS:8}
       offline-probability: ${FSD_PARK_SIMULATION_OFFLINE_PROBABILITY:0.005}
       low-battery-threshold: ${FSD_PARK_SIMULATION_LOW_BATTERY_THRESHOLD:25}
-      min-assignable-battery: ${FSD_PARK_SIMULATION_MIN_ASSIGNABLE_BATTERY:30}
+      min-assignable-battery: ${FSD_PARK_SIMULATION_MIN_ASSIGNABLE_BATTERY:25}
       full-charge-level: ${FSD_PARK_SIMULATION_FULL_CHARGE_LEVEL:100}
       charge-rate-per-tick: ${FSD_PARK_SIMULATION_CHARGE_RATE_PER_TICK:4}
       reserve-battery-floor: ${FSD_PARK_SIMULATION_RESERVE_BATTERY_FLOOR:8}
@@ -329,11 +331,12 @@ fsd:
       scheduler-enabled: ${FSD_FLEET_TELEMETRY_SCHEDULER_ENABLED:true}
     energy:
       low-soc-threshold: ${FSD_FLEET_ENERGY_LOW_SOC_THRESHOLD:25}
-      min-assignable-soc: ${FSD_FLEET_ENERGY_MIN_ASSIGNABLE_SOC:30}
+      min-assignable-soc: ${FSD_FLEET_ENERGY_MIN_ASSIGNABLE_SOC:25}
       full-soc: ${FSD_FLEET_ENERGY_FULL_SOC:100}
       charge-rate-per-tick: ${FSD_FLEET_ENERGY_CHARGE_RATE_PER_TICK:4}
       reserve-soc-floor: ${FSD_FLEET_ENERGY_RESERVE_SOC_FLOOR:8}
-      busy-drain-interval-ticks: ${FSD_FLEET_ENERGY_BUSY_DRAIN_INTERVAL_TICKS:4}
+      busy-drain-interval-ticks: ${FSD_FLEET_ENERGY_BUSY_DRAIN_INTERVAL_TICKS:8}
+      busy-drain-meters-per-percent: ${FSD_FLEET_ENERGY_BUSY_DRAIN_METERS_PER_PERCENT:150}
       idle-drain-probability: ${FSD_FLEET_ENERGY_IDLE_DRAIN_PROBABILITY:0.06}
       plugged-standby-no-drain: ${FSD_FLEET_ENERGY_PLUGGED_STANDBY_NO_DRAIN:true}
       idle-charge-when-no-demand: ${FSD_FLEET_ENERGY_IDLE_CHARGE_WHEN_NO_DEMAND:true}
@@ -377,6 +380,11 @@ fsd:
       enabled: ${FSD_AMAP_LOGISTICS_ENABLED:false}
       blend-weight: ${FSD_AMAP_LOGISTICS_BLEND_WEIGHT:0.3}
       timeout-ms: ${FSD_AMAP_LOGISTICS_TIMEOUT_MS:3000}
+    driving:
+      enabled: ${FSD_AMAP_DRIVING_ENABLED:true}
+      timeout-ms: ${FSD_AMAP_DRIVING_TIMEOUT_MS:4000}
+      base-url: ${FSD_AMAP_DRIVING_BASE_URL:https://restapi.amap.com/v3/direction/driving}
+      cache-ttl-seconds: ${FSD_AMAP_DRIVING_CACHE_TTL:3600}
   mapf:
     enabled: ${FSD_MAPF_ENABLED:true}
     bucket-ms: ${FSD_MAPF_BUCKET_MS:500}

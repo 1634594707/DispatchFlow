@@ -48,15 +48,18 @@ public class ParkPilotProperties {
         /** Map park schematic x/y to GCJ-02 around 叠石桥家纺产业带. */
         private boolean enabled = true;
 
-        private BigDecimal anchorLng = new BigDecimal("121.062280");
+        private BigDecimal anchorLng = new BigDecimal("121.080354");
 
-        private BigDecimal anchorLat = new BigDecimal("31.912450");
+        private BigDecimal anchorLat = new BigDecimal("31.961977");
 
-        private Integer parkWidthMeters = 2400;
+        private Integer parkWidthMeters = 1570;
 
-        private Integer parkHeightMeters = 1600;
+        private Integer parkHeightMeters = 470;
 
-        private String scenario = "TEXTILE_DIESHIQIAO";
+        private String scenario = "ZJF_DIESHIQIAO_PILOT";
+
+        /** Path to pilot_osm_geo.json; empty = auto-detect data/pilot_osm_geo.json */
+        private String osmGeoPath = "";
     }
 
     @Data
@@ -90,7 +93,10 @@ public class ParkPilotProperties {
 
         private boolean enabled = true;
 
-        private int vehicleCount = 4;
+        private int vehicleCount = 3;
+
+        /** 叠石桥真实地图仿真车数量（ZJF-AV-*，与 PARK-* 分池）。 */
+        private int geoVehicleCount = 3;
 
         private int maxTrailSize = 30;
 

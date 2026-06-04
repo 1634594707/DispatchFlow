@@ -56,6 +56,8 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
         }
         parkStationService.assertStationInPark(request.getPickupStationId(), park.getId());
         parkStationService.assertStationInPark(request.getDropoffStationId(), park.getId());
+        parkStationService.assertStationWithinDeliveryZone(request.getPickupStationId(), park.getId());
+        parkStationService.assertStationWithinDeliveryZone(request.getDropoffStationId(), park.getId());
         parkStationService.assertStationsBelongToSamePark(request.getPickupStationId(), request.getDropoffStationId());
         if (Objects.equals(request.getPickupStationId(), request.getDropoffStationId())) {
             throw new BusinessException("PARK_ORDER_STATION_INVALID", "Pickup and dropoff station cannot be the same");

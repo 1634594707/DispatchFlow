@@ -1,6 +1,12 @@
 <template>
   <PageContainer :title="`订单详情：${store.detail?.orderNo || route.params.orderId}`">
     <template #actions>
+      <router-link
+        v-if="store.detail?.vehicleId"
+        :to="trackingLink"
+      >
+        <a-button type="primary">地图追踪</a-button>
+      </router-link>
       <a-button @click="router.back()">返回列表</a-button>
     </template>
 
@@ -12,10 +18,13 @@
               <span class="mono">{{ store.detail.orderNo }}</span>
             </a-descriptions-item>
             <a-descriptions-item label="外部单号">
-              {{ store.detail.externalOrderNo }}
+              {{ store.detail.externalOrderNo || '-' }}
             </a-descriptions-item>
             <a-descriptions-item label="状态">
               <StatusBadge :status="store.detail.status" type="order" />
+            </a-descriptions-item>
+            <a-descriptions-item label="配送阶段" v-if="store.detail.runtimeStage">
+              {{ parkDeliveryStageLabel(store.detail.runtimeStage) }}
             </a-descriptions-item>
             <a-descriptions-item label="来源类型">
               <a-tag>{{ store.detail.sourceType }}</a-tag>
@@ -28,11 +37,27 @@
                 {{ store.detail.priority }}
               </a-tag>
             </a-descriptions-item>
-            <a-descriptions-item label="起点ID">
-              {{ store.detail.pickupPointId }}
+            <a-descriptions-item label="取货点">
+              <span v-if="store.detail.pickupStationCode">
+                {{ store.detail.pickupStationCode }} · {{ store.detail.pickupPointName }}
+              </span>
+              <span v-else class="text-muted">ID {{ store.detail.pickupPointId }}</span>
             </a-descriptions-item>
-            <a-descriptions-item label="终点ID">
-              {{ store.detail.dropoffPointId }}
+            <a-descriptions-item label="送货点">
+              <span v-if="store.detail.dropoffStationCode">
+                {{ store.detail.dropoffStationCode }} · {{ store.detail.dropoffPointName }}
+              </span>
+              <span v-else class="text-muted">ID {{ store.detail.dropoffPointId }}</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="配送车辆">
+              <router-link
+                v-if="store.detail.vehicleId"
+                :to="`/vehicles/${store.detail.vehicleId}`"
+                class="link"
+              >
+                {{ store.detail.vehicleCode || store.detail.vehicleId }}
+              </router-link>
+              <span v-else class="text-muted">待分配</span>
             </a-descriptions-item>
             <a-descriptions-item label="关联任务">
               <router-link
@@ -56,7 +81,7 @@
           </a-descriptions>
         </a-card>
 
-        <a-card title="状态流转" size="small" style="margin-top: 16px;">
+        <a-card title="配送进度" size="small" style="margin-top: 16px;">
           <a-timeline>
             <a-timeline-item color="green">
               <p>订单创建</p>
@@ -64,6 +89,12 @@
             </a-timeline-item>
             <a-timeline-item v-if="store.detail.status !== 'CREATED'" color="blue">
               <p>进入调度</p>
+            </a-timeline-item>
+            <a-timeline-item
+              v-if="store.detail.runtimeStage && !['COMPLETED', 'FAILED'].includes(store.detail.runtimeStage)"
+              color="cyan"
+            >
+              <p>{{ parkDeliveryStageLabel(store.detail.runtimeStage) }}</p>
             </a-timeline-item>
             <a-timeline-item
               v-if="['COMPLETED', 'FAILED', 'CANCELLED'].includes(store.detail.status)"
@@ -86,11 +117,16 @@ import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useOrderStore } from '@/stores/order'
 import { orderStatusMap } from '@/constants/statusMap'
+import { buildGeoTrackingLink, parkDeliveryStageLabel } from '@/constants/parkDelivery'
 import dayjs from 'dayjs'
 
 const router = useRouter()
 const route = useRoute()
 const store = useOrderStore()
+
+const trackingLink = computed(() =>
+  buildGeoTrackingLink(store.detail?.orderId, store.detail?.vehicleId ?? undefined),
+)
 
 function priorityColor(p: string) {
   const map: Record<string, string> = { P0: 'red', P1: 'orange', P2: 'blue', P3: 'default' }
@@ -118,22 +154,13 @@ watch(() => route.params.orderId, fetchData)
 <style scoped lang="less">
 .link {
   color: var(--fsd-accent);
-  font-family: 'JetBrains Mono', monospace;
-
-  &:hover {
-    text-decoration: underline;
-  }
 }
-
-.mono {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-}
-
 .text-muted {
   color: var(--fsd-text-tertiary);
 }
-
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
 .text-secondary {
   color: var(--fsd-text-secondary);
   font-size: 12px;

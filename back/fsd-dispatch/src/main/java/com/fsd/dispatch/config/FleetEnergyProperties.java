@@ -9,17 +9,30 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "fsd.fleet.energy")
 public class FleetEnergyProperties {
 
-    private int lowSocThreshold = 25;
+    /** 地图低电量展示阈值（%） */
+    private int lowSocThreshold = 20;
 
-    private int minAssignableSoc = 30;
+    /** 自动回充触发阈值（%） */
+    private int returnToChargeThreshold = 15;
+
+    /** 危急电量驻车阈值（%） */
+    private int criticalSocThreshold = 5;
+
+    private int minAssignableSoc = 25;
 
     private int fullSoc = 100;
 
+    /** 充电结束并恢复派单阈值（%） */
+    private int chargeCompleteSoc = 90;
+
     private int chargeRatePerTick = 4;
 
-    private int reserveSocFloor = 8;
+    private int reserveSocFloor = 5;
 
-    private int busyDrainIntervalTicks = 4;
+    private int busyDrainIntervalTicks = 8;
+
+    /** 真实地图配送：每下降 1% SOC 约需行驶的米数（按 geo 弧长计）。 */
+    private double busyDrainMetersPerPercent = 150D;
 
     private double idleDrainProbability = 0.06D;
 

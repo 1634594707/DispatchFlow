@@ -40,10 +40,12 @@ public class FleetSnapshotAssembler {
                 .currentTaskId(vehicle.getCurrentTaskId())
                 .currentOrderId(vehicle.getCurrentOrderId())
                 .batteryLevel(vehicle.getBatteryLevel())
+                .batteryStatus(resolveBatteryStatus(vehicle, effectiveRuntime))
                 .x(x)
                 .y(y)
                 .longitude(geo != null ? geo.longitude() : null)
                 .latitude(geo != null ? geo.latitude() : null)
+                .heading(effectiveRuntime.getHeading())
                 .runtimeStage(effectiveRuntime.getRuntimeStage())
                 .targetCode(effectiveRuntime.getTargetCode())
                 .targetType(effectiveRuntime.getTargetType())
@@ -51,6 +53,10 @@ public class FleetSnapshotAssembler {
                 .lowBattery(fleetChargePolicy.isLowSoc(vehicle.getBatteryLevel()))
                 .linkMode(resolveLinkMode(vehicle))
                 .trajectory(toParkPoints(effectiveRuntime.getTrajectory()))
+                .geoTrajectory(toParkPoints(effectiveRuntime.getGeoTrajectory()))
+                .plannedRouteGeo(toParkPoints(effectiveRuntime.getPlannedRouteGeo()))
+                .routeSource(effectiveRuntime.getRouteSource())
+                .routeInvalid(effectiveRuntime.getRouteInvalid())
                 .build();
     }
 
@@ -68,6 +74,19 @@ public class FleetSnapshotAssembler {
                 .build();
     }
 
+    private String resolveBatteryStatus(VehicleEntity vehicle, FleetRuntime runtime) {
+        if (fleetChargePolicy.isActivelyCharging(runtime.getRuntimeStage())) {
+            return "CHARGING";
+        }
+        if (fleetChargePolicy.isCriticalSoc(vehicle.getBatteryLevel())) {
+            return "CRITICAL";
+        }
+        if (fleetChargePolicy.isLowSoc(vehicle.getBatteryLevel())) {
+            return "LOW";
+        }
+        return "NORMAL";
+    }
+
     private List<ParkPointResponse> toParkPoints(List<FleetTrajectoryPoint> trajectory) {
         if (trajectory == null || trajectory.isEmpty()) {
             return List.of();
@@ -77,6 +96,8 @@ public class FleetSnapshotAssembler {
                         .code(point.getCode())
                         .x(point.getX())
                         .y(point.getY())
+                        .longitude(point.getLongitude())
+                        .latitude(point.getLatitude())
                         .build())
                 .toList();
     }

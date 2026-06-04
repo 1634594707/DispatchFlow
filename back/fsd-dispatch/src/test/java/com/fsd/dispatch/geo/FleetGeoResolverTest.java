@@ -32,7 +32,7 @@ class FleetGeoResolverTest {
         var geo = resolver.resolve(BigDecimal.valueOf(600), BigDecimal.valueOf(400), null, null);
 
         assertTrue(geo.isPresent());
-        assertEquals(new BigDecimal("121.062280"), geo.get().longitude());
-        assertEquals(new BigDecimal("31.912450"), geo.get().latitude());
+        assertEquals(new BigDecimal("121.080354"), geo.get().longitude());
+        assertEquals(new BigDecimal("31.961977"), geo.get().latitude());
     }
 }

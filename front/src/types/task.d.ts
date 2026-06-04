@@ -45,6 +45,10 @@ export interface TaskDetailResponse {
   taskId: number
   taskNo: string
   orderId: number
+  pickupStationCode?: string | null
+  pickupPointName?: string | null
+  dropoffStationCode?: string | null
+  dropoffPointName?: string | null
   vehicleId: number | null
   dispatchType: string
   status: TaskStatus

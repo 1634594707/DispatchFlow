@@ -2,6 +2,8 @@ export interface ParkPoint {
   code: string
   x: number
   y: number
+  longitude?: number | null
+  latitude?: number | null
 }
 
 export interface ParkSummary {
@@ -22,6 +24,8 @@ export interface ParkStation {
   stationType?: string
   x: number
   y: number
+  coordLng?: number | null
+  coordLat?: number | null
   area: string
 }
 
@@ -66,10 +70,12 @@ export interface ParkVehicleSnapshot {
   currentTaskId: number | null
   currentOrderId: number | null
   batteryLevel: number
+  batteryStatus?: 'NORMAL' | 'LOW' | 'CRITICAL' | 'CHARGING'
   x: number
   y: number
   longitude?: number | null
   latitude?: number | null
+  heading?: number | null
   runtimeStage: string
   targetCode: string | null
   targetType: string | null
@@ -77,6 +83,10 @@ export interface ParkVehicleSnapshot {
   lowBattery: boolean
   linkMode: 'SIM' | 'REAL' | 'VDA5050'
   trajectory: ParkPoint[]
+  geoTrajectory?: ParkPoint[]
+  plannedRouteGeo?: ParkPoint[]
+  routeSource?: string | null
+  routeInvalid?: boolean | null
 }
 
 export interface ParkGeofence {

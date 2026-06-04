@@ -66,8 +66,8 @@ class Phase3AcceptanceTest {
         verify(fleetRuntimeService).save(captor.capture());
         assertEquals("STANDBY", captor.getValue().getRuntimeStage());
         assertEquals(95, captor.getValue().getSoc());
-        assertEquals(new BigDecimal("121.062280"), captor.getValue().getLongitude());
-        assertEquals(new BigDecimal("31.912450"), captor.getValue().getLatitude());
+        assertEquals(new BigDecimal("121.080354"), captor.getValue().getLongitude());
+        assertEquals(new BigDecimal("31.961977"), captor.getValue().getLatitude());
     }
 
     @Test

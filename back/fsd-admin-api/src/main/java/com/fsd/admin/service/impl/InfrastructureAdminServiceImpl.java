@@ -34,6 +34,7 @@ import com.fsd.dispatch.mapper.ParkMapper;
 import com.fsd.dispatch.mapper.ParkingSlotMapper;
 import com.fsd.dispatch.mapper.RoadNodeMapper;
 import com.fsd.dispatch.mapper.RoadSegmentMapper;
+import com.fsd.dispatch.geo.local.ZjfStationGeoAdminService;
 import com.fsd.dispatch.mapper.StationMapper;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +58,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
     private final RoadNodeMapper roadNodeMapper;
     private final RoadSegmentMapper roadSegmentMapper;
     private final com.fsd.dispatch.service.ParkGeofenceService parkGeofenceService;
+    private final ZjfStationGeoAdminService zjfStationGeoAdminService;
 
     public InfrastructureAdminServiceImpl(ParkMapper parkMapper,
                                           StationMapper stationMapper,
@@ -65,7 +67,8 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
                                           BatterySwapCabinetMapper batterySwapCabinetMapper,
                                           RoadNodeMapper roadNodeMapper,
                                           RoadSegmentMapper roadSegmentMapper,
-                                          com.fsd.dispatch.service.ParkGeofenceService parkGeofenceService) {
+                                          com.fsd.dispatch.service.ParkGeofenceService parkGeofenceService,
+                                          ZjfStationGeoAdminService zjfStationGeoAdminService) {
         this.parkMapper = parkMapper;
         this.stationMapper = stationMapper;
         this.parkingSlotMapper = parkingSlotMapper;
@@ -74,6 +77,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         this.roadNodeMapper = roadNodeMapper;
         this.roadSegmentMapper = roadSegmentMapper;
         this.parkGeofenceService = parkGeofenceService;
+        this.zjfStationGeoAdminService = zjfStationGeoAdminService;
     }
 
     @Override
@@ -162,6 +166,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         ensureUniqueStationCode(request.getParkId(), request.getStationCode(), null);
         StationEntity station = new StationEntity();
         applyStationFields(station, request);
+        zjfStationGeoAdminService.snapAndValidate(station);
         station.setStatus(resolveStationStatus(request.getStatus(), "ACTIVE"));
         station.setDeleted(0);
         station.setVersion(0);
@@ -176,6 +181,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         requirePark(request.getParkId());
         ensureUniqueStationCode(request.getParkId(), request.getStationCode(), stationId);
         applyStationFields(station, request);
+        zjfStationGeoAdminService.snapAndValidate(station);
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
             station.setStatus(resolveStationStatus(request.getStatus(), station.getStatus()));
         }

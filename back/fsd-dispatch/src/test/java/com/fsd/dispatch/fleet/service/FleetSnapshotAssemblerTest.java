@@ -54,7 +54,7 @@ class FleetSnapshotAssemblerTest {
 
         var snapshot = assembler.assemble(vehicle, null);
 
-        assertEquals(new BigDecimal("121.062280"), snapshot.getLongitude());
-        assertEquals(new BigDecimal("31.912450"), snapshot.getLatitude());
+        assertEquals(new BigDecimal("121.080354"), snapshot.getLongitude());
+        assertEquals(new BigDecimal("31.961977"), snapshot.getLatitude());
     }
 }

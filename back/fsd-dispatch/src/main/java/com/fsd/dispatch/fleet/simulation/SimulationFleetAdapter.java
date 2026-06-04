@@ -42,7 +42,7 @@ public class SimulationFleetAdapter implements FleetAdapter {
     public void publishTelemetry(VehicleEntity vehicle, SimulationMotionState motion) {
         BigDecimal x = vehicle.getCurrentLongitude();
         BigDecimal y = vehicle.getCurrentLatitude();
-        GeoPoint geo = fleetGeoResolver.resolve(x, y, null, null).orElse(null);
+        GeoPoint geo = resolveGeo(motion, x, y);
         FleetRuntime runtime = FleetRuntime.builder()
                 .vehicleId(vehicle.getId())
                 .runtimeStage(motion.stage)
@@ -54,13 +54,25 @@ public class SimulationFleetAdapter implements FleetAdapter {
                 .y(y)
                 .longitude(geo != null ? geo.longitude() : null)
                 .latitude(geo != null ? geo.latitude() : null)
+                .heading(motion != null ? Double.valueOf(motion.headingDegrees) : null)
                 .lastTelemetryAt(LocalDateTime.now())
-                .trajectory(toTrajectory(motion.trail))
+                .trajectory(toTrajectory(motion != null ? motion.trail : null))
+                .geoTrajectory(toGeoTrajectory(motion))
+                .plannedRouteGeo(toPlannedRoute(motion))
+                .routeSource(motion != null ? motion.routeSource : null)
+                .routeInvalid(motion != null && motion.routeInvalid)
                 .build();
         fleetRuntimeService.save(runtime);
         if (geo != null) {
             geofenceBreachService.evaluateVehiclePosition(defaultParkId, vehicle, geo.longitude(), geo.latitude());
         }
+    }
+
+    private GeoPoint resolveGeo(SimulationMotionState motion, BigDecimal parkX, BigDecimal parkY) {
+        if (motion != null && motion.geoLongitude != null && motion.geoLatitude != null) {
+            return new GeoPoint(motion.geoLongitude, motion.geoLatitude);
+        }
+        return fleetGeoResolver.resolve(parkX, parkY, null, null).orElse(null);
     }
 
     private List<FleetTrajectoryPoint> toTrajectory(Iterable<ParkPointResponse> trail) {
@@ -73,6 +85,36 @@ public class SimulationFleetAdapter implements FleetAdapter {
                     .code(point.getCode())
                     .x(point.getX())
                     .y(point.getY())
+                    .longitude(point.getLongitude())
+                    .latitude(point.getLatitude())
+                    .build());
+        }
+        return points;
+    }
+
+    private List<FleetTrajectoryPoint> toGeoTrajectory(SimulationMotionState motion) {
+        List<FleetTrajectoryPoint> points = new ArrayList<>();
+        if (motion == null || motion.geoTrail.isEmpty()) {
+            return points;
+        }
+        for (GeoPoint point : motion.geoTrail) {
+            points.add(FleetTrajectoryPoint.builder()
+                    .longitude(point.longitude())
+                    .latitude(point.latitude())
+                    .build());
+        }
+        return points;
+    }
+
+    private List<FleetTrajectoryPoint> toPlannedRoute(SimulationMotionState motion) {
+        List<FleetTrajectoryPoint> points = new ArrayList<>();
+        if (motion == null || motion.plannedGeoPolyline == null) {
+            return points;
+        }
+        for (GeoPoint point : motion.plannedGeoPolyline) {
+            points.add(FleetTrajectoryPoint.builder()
+                    .longitude(point.longitude())
+                    .latitude(point.latitude())
                     .build());
         }
         return points;

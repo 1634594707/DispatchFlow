@@ -22,6 +22,25 @@ public class OrderDetailResponse {
 
     private Long dropoffPointId;
 
+    /** 取货站名称（管理端富化） */
+    private String pickupPointName;
+
+    /** 取货站代码（管理端富化） */
+    private String pickupStationCode;
+
+    /** 送货站名称（管理端富化） */
+    private String dropoffPointName;
+
+    /** 送货站代码（管理端富化） */
+    private String dropoffStationCode;
+
+    private Long vehicleId;
+
+    private String vehicleCode;
+
+    /** 车辆运行阶段（短驳地理快照，管理端富化） */
+    private String runtimeStage;
+
     private String priority;
 
     private String status;

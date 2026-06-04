@@ -1,0 +1,63 @@
+{
+  "scenario": "ZJF_DIESHIQIAO_PILOT",
+  "label": "找家纺网 · 叠石桥短驳试点",
+  "source_osm": "data/map.osm",
+  "opendrive": "data/carla/zjf_pilot.xodr",
+  "net_xml": "data/carla/zjf_pilot.net.xml",
+  "origin": {
+    "wgs84": {
+      "lng": 121.07569,
+      "lat": 31.963782
+    },
+    "gcj02": {
+      "lng": 121.08035388333408,
+      "lat": 31.961976604376275
+    },
+    "utm51n": {
+      "easting": 318152.08214770805,
+      "northing": 3538038.180668132
+    },
+    "local": {
+      "x_m": 0.0,
+      "y_m": 0.0
+    }
+  },
+  "local_bounds_m": {
+    "min_x": -1225.21214771,
+    "max_x": 1093.55131756,
+    "min_y": -0.0,
+    "max_y": 1362.4606545
+  },
+  "pilot_polygon_wgs84": [
+    [
+      121.0674,
+      31.9617
+    ],
+    [
+      121.084,
+      31.9617
+    ],
+    [
+      121.084,
+      31.9659
+    ],
+    [
+      121.0674,
+      31.9659
+    ]
+  ],
+  "dispatchflow": {
+    "anchor_gcj02": [
+      121.08035388333408,
+      31.961976604376275
+    ],
+    "park_width_meters": 1570,
+    "park_height_meters": 470
+  },
+  "carla": {
+    "package_name": "ZjfDieshiqiaoPilot",
+    "map_name": "ZjfDieshiqiaoPilot",
+    "standalone_xodr": true,
+    "notes": "Use scripts/carla/load_in_carla.py for OpenDRIVE standalone mode, or make import if FBX mesh is added later."
+  }
+}

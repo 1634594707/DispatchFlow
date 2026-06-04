@@ -1,9 +1,14 @@
 export type MapProviderId = 'AMAP' | 'SCHEMATIC'
 
+export type GeoMapMarkerStatus = 'idle' | 'busy' | 'charging' | 'offline' | 'lowBattery'
+
 export interface GeoMapMarker {
   id: string
   position: [number, number]
   label?: string
+  iconUrl?: string
+  heading?: number
+  status?: GeoMapMarkerStatus | string
 }
 
 export interface GeoMapPolygon {
@@ -11,6 +16,30 @@ export interface GeoMapPolygon {
   path: [number, number][]
   strokeColor?: string
   fillColor?: string
+  strokeWeight?: number
+  fillOpacity?: number
+  zIndex?: number
+}
+
+export interface GeoMapPolyline {
+  id: string
+  path: [number, number][]
+  strokeColor?: string
+  strokeWeight?: number
+  strokeOpacity?: number
+  lineDash?: number[]
+  zIndex?: number
+}
+
+export interface GeoMapCircle {
+  id: string
+  center: [number, number]
+  radiusMeters: number
+  strokeColor?: string
+  fillColor?: string
+  strokeWeight?: number
+  fillOpacity?: number
+  zIndex?: number
 }
 
 export interface GeoMapInitOptions {
@@ -26,6 +55,10 @@ export interface GeoMapHandle {
   setZoom(zoom: number): void
   setMarkers(markers: GeoMapMarker[], options?: { fitView?: boolean }): void
   setPolygons(polygons: GeoMapPolygon[]): void
+  setPolylines(polylines: GeoMapPolyline[]): void
+  setCircles(circles: GeoMapCircle[]): void
+  /** Fit map viewport to GCJ-02 points (e.g. current route polyline). */
+  fitViewToPoints(points: [number, number][], padding?: number[]): void
 }
 
 export interface MapProvider {

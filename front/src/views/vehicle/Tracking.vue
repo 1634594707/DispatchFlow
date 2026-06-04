@@ -1,23 +1,32 @@
 <template>
   <div class="tracking-page">
     <div
-      v-show="mapViewMode === 'schematic' || (mapViewMode === 'geo' && !geoMapAvailable)"
+      v-show="showSchematicMap"
       ref="mapContainer"
       class="map-container"
     ></div>
     <AmapGeoMap
-      v-if="mapViewMode === 'geo' && geoMapAvailable"
+      v-if="showGeoMap"
       class="map-container geo-map-layer"
       :center="geoMapCenter"
       :markers="geoMarkers"
       :polygons="geoPolygons"
+      :polylines="geoPolylines"
+      :circles="geoCircles"
       :zoom="geoMapZoom"
+      :fit-view-points="geoFitViewPoints"
+      :fit-view-on-change="Boolean(selectedId)"
     />
 
     <div v-if="apiError" class="api-alert">
       <span class="api-alert-dot"></span>
       <span>{{ apiError }}</span>
       <button type="button" class="api-alert-retry" @click="bootstrapData">重试</button>
+    </div>
+
+    <div v-if="showGeoMap && roadRouteWarning" class="api-alert road-route-warning">
+      <span class="api-alert-dot warning"></span>
+      <span>{{ roadRouteWarning }}</span>
     </div>
 
     <aside class="side-panel" :class="{ collapsed: panelCollapsed }">
@@ -40,7 +49,7 @@
                 <span class="live-pulse"></span>
                 {{ streamConnected ? 'STREAM' : backendOnline ? 'LIVE' : 'OFFLINE' }}
               </span>
-              <h1 class="header-title">园区车辆监控</h1>
+              <h1 class="header-title">找家纺短驳监控</h1>
             </div>
             <div class="header-actions">
               <router-link class="mobile-entry" to="/mobile/order" title="移动下单">下单</router-link>
@@ -56,25 +65,12 @@
             </span>
           </p>
           <div class="header-controls">
-            <span class="map-mode-toggle">
-              <button
-                type="button"
-                class="map-mode-btn"
-                :class="{ active: mapViewMode === 'schematic' }"
-                @click="mapViewMode = 'schematic'"
-              >
-                调度图
-              </button>
-              <button
-                type="button"
-                class="map-mode-btn"
-                :class="{ active: mapViewMode === 'geo' }"
-                :title="geoMapAvailable ? '高德地理图' : '无 Key 时回退 Leaflet 调度图'"
-                @click="mapViewMode = 'geo'"
-              >
-                地理图
-              </button>
-            </span>
+            <p v-if="trackingScene === 'park'" class="map-scope-hint">
+              园区调度图：内部路网与 AGV 任务，供后台审查。
+            </p>
+            <p v-else class="map-scope-hint geo">
+              短驳地理图：叠石桥试点 L1 · 取送货与贴路轨迹。
+            </p>
             <span class="mode-toggle">
               模式：{{ peakModeLabel }}
               <a-switch
@@ -97,9 +93,25 @@
         </header>
 
         <div class="panel-toolbar">
-          <div class="toolbar-field toolbar-field-readonly">
+          <div class="toolbar-field">
+            <span class="toolbar-label">场景</span>
+            <a-segmented
+              v-model:value="trackingScene"
+              size="small"
+              class="scene-segment"
+              :options="trackingSceneOptions"
+            />
+          </div>
+          <div v-if="trackingScene === 'park'" class="toolbar-field">
             <span class="toolbar-label">园区</span>
-            <span class="park-scope-label">{{ activeParkName }}</span>
+            <a-select
+              v-model:value="trackingParkId"
+              class="park-select"
+              :options="trackingParkOptions"
+              :loading="parkScope.loading"
+              placeholder="选择园区"
+              @change="onTrackingParkChange"
+            />
           </div>
         </div>
 
@@ -177,7 +189,7 @@
                     <strong>{{ vehicle.vehicleCode }}</strong>
                     <span class="vehicle-name">{{ vehicle.vehicleName }}</span>
                     <span class="link-mode-pill" :class="linkModeClass(vehicle.linkMode)">
-                      {{ linkModeLabel(vehicle.linkMode) }}
+                      {{ linkModeLabel(vehicle.linkMode, vehicle.vehicleCode) }}
                     </span>
                   </div>
                   <span class="status-dot" :class="vehicle.onlineStatus === 'ONLINE' ? 'dot-online' : 'dot-offline'"></span>
@@ -329,6 +341,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { CloseOutlined, InboxOutlined, LeftOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons-vue'
@@ -337,9 +350,31 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
-import { getParkGeofences, getParkLayout, getParkOrders, getParkVehicles } from '@/api/park'
-import { defaultMapCenter, isAmapConfigured, parkXYToGcj02 } from '@/maps'
-import type { GeoMapMarker, GeoMapPolygon } from '@/maps'
+import { getParkGeofences, getParkLayout, getParkOrders, getParkVehicles, getRoadRouteHealth } from '@/api/park'
+import type { RoadRouteHealth } from '@/api/park'
+import {
+  collectRouteFitPoints,
+  defaultMapCenter,
+  isAmapConfigured,
+  parkXYToGcj02,
+  toAvGeoMarker,
+  buildGeoPolylines,
+  stationGeoPosition,
+} from '@/maps'
+import {
+  filterGeoDeliveryOrders,
+  filterSchematicOrders,
+  filterSchematicParkVehicles,
+  filterGeoDeliverySimVehicles,
+  filterSchematicStations,
+  isGeoDeliverySimVehicle,
+  isGeoDeliveryStation,
+  isSchematicParkStation,
+  isSchematicParkVehicle,
+} from '@/maps/stationLayers'
+import type { GeoMapMarker, GeoMapPolygon, GeoMapPolyline, GeoMapCircle } from '@/maps'
+import { ZJF_L0_COVERAGE } from '@/maps/zjfPilotGeo'
+import { routeAnomalyWarning } from '@/maps/routeValidation'
 import { getFleetTelemetryStreamUrl } from '@/api/dispatch'
 import { fetchPeakMode, updatePeakMode, fetchOpsSnapshot, type OpsSnapshot } from '@/api/vertical'
 import { useParkScopeStore } from '@/stores/parkScope'
@@ -358,6 +393,7 @@ import type {
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
+const route = useRoute()
 const parkScope = useParkScopeStore()
 const authStore = useAuthStore()
 const peakEnabled = ref(false)
@@ -365,9 +401,41 @@ const peakTemplateCode = ref('DAILY')
 const opsMode = ref(false)
 const opsSnapshot = ref<OpsSnapshot | null>(null)
 
-const mapViewMode = ref<'schematic' | 'geo'>('schematic')
+type TrackingScene = 'park' | 'delivery'
+const TRACKING_SCENE_KEY = 'fsd_tracking_scene'
+
+function loadTrackingScene(): TrackingScene {
+  if (route.query.mode === 'geo') return 'delivery'
+  const stored = localStorage.getItem(TRACKING_SCENE_KEY)
+  return stored === 'delivery' ? 'delivery' : 'park'
+}
+
+const trackingScene = ref<TrackingScene>(loadTrackingScene())
+const trackingSceneOptions = [
+  { label: '园区调度', value: 'park' as const },
+  { label: '短驳地理', value: 'delivery' as const },
+]
+
+const mapViewMode = ref<'schematic' | 'geo'>(trackingScene.value === 'delivery' && isAmapConfigured() ? 'geo' : 'schematic')
 const geoMapAvailable = isAmapConfigured()
 const geoMapZoom = 15
+
+const showSchematicMap = computed(() => trackingScene.value === 'park')
+const showGeoMap = computed(() => trackingScene.value === 'delivery' && geoMapAvailable)
+
+const trackingParkId = ref<number | undefined>()
+const trackingParkOptions = computed(() =>
+  parkScope.parks.map(park => ({
+    value: park.parkId,
+    label: park.parkName,
+  })),
+)
+
+const schematicOrdersOnMap = computed(() => filterSchematicOrders(parkOrders.value))
+
+const schematicVehiclesOnMap = computed(() => filterSchematicParkVehicles(filteredVehicles.value))
+
+const geoVehiclesOnMap = computed(() => filterGeoDeliverySimVehicles(filteredVehicles.value))
 
 const mapContainer = ref<HTMLElement>()
 const panelCollapsed = ref(false)
@@ -391,12 +459,48 @@ let fallbackPollTimer: ReturnType<typeof setInterval> | null = null
 const effectiveParkId = computed(() => parkScope.resolveLayoutParkId())
 
 const activeParkName = computed(() => {
-  if (parkScope.selectedParkId != null) {
-    return parkScope.selectedParkName
-  }
-  const park = parkScope.parks.find((item) => item.parkId === effectiveParkId.value)
+  if (trackingScene.value === 'delivery') return '叠石桥短驳试点'
+  const parkId = trackingParkId.value ?? effectiveParkId.value
+  const park = parkScope.parks.find((item) => item.parkId === parkId)
   return park?.parkName || parkLayout.value?.parkName || '默认园区'
 })
+
+function syncTrackingParkSelection() {
+  const resolved = parkScope.resolveLayoutParkId()
+  if (resolved != null) {
+    trackingParkId.value = resolved
+  } else if (parkScope.parks[0]) {
+    trackingParkId.value = parkScope.parks[0].parkId
+  }
+}
+
+function applyTrackingScene(scene: TrackingScene) {
+  localStorage.setItem(TRACKING_SCENE_KEY, scene)
+  if (scene === 'park') {
+    mapViewMode.value = 'schematic'
+    syncTrackingParkSelection()
+    if (trackingParkId.value != null) {
+      parkScope.setParkId(trackingParkId.value)
+    }
+    nextTick(() => {
+      if (!map && mapContainer.value) initMap()
+      if (map && parkLayout.value) {
+        loadParkImage()
+        drawStations()
+        updateVehicleMarkers()
+        drawOrderChains()
+      }
+    })
+  } else {
+    mapViewMode.value = geoMapAvailable ? 'geo' : 'schematic'
+  }
+}
+
+function onTrackingParkChange(parkId: number | undefined) {
+  if (parkId == null) return
+  trackingParkId.value = parkId
+  parkScope.setParkId(parkId)
+}
 
 const peakModeLabel = computed(() =>
   peakEnabled.value
@@ -494,7 +598,7 @@ const filteredVehicles = computed(() => {
     case 'LOW_BATTERY':
       return vehicles.value.filter(vehicle => vehicle.lowBattery)
     case 'SIM':
-      return vehicles.value.filter(vehicle => (vehicle.linkMode || 'SIM') === 'SIM')
+      return vehicles.value.filter(vehicle => isSchematicParkVehicle(vehicle) || isGeoDeliverySimVehicle(vehicle))
     case 'REAL':
       return vehicles.value.filter(vehicle => vehicle.linkMode === 'REAL')
     case 'VDA5050':
@@ -519,16 +623,33 @@ function vehicleGeoPosition(vehicle: ParkVehicleSnapshot): [number, number] {
   return parkXYToGcj02(vehicle.x, vehicle.y)
 }
 
-const geoMarkers = computed((): GeoMapMarker[] =>
-  filteredVehicles.value.map((vehicle) => ({
-    id: String(vehicle.vehicleId),
-    position: vehicleGeoPosition(vehicle),
-    label:
-      selectedId.value === vehicle.vehicleId
-        ? `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%`
-        : undefined,
-  })),
-)
+const geoMarkers = computed((): GeoMapMarker[] => {
+  const stationMarkers =
+    parkLayout.value?.stations
+      .filter(isGeoDeliveryStation)
+      .flatMap((station) => {
+        const position = stationGeoPosition(station)
+        if (!position) return []
+        return [{ id: `st-${station.stationId}`, position, label: station.stationCode }]
+      }) ?? []
+
+  return [
+    ...stationMarkers,
+    ...geoVehiclesOnMap.value.map((vehicle) =>
+      toAvGeoMarker(String(vehicle.vehicleId), vehicleGeoPosition(vehicle), {
+        onlineStatus: vehicle.onlineStatus,
+        dispatchStatus: vehicle.dispatchStatus,
+        charging: vehicle.charging,
+        lowBattery: vehicle.lowBattery,
+        heading: vehicle.heading ?? null,
+        label:
+          selectedId.value === vehicle.vehicleId
+            ? `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%`
+            : undefined,
+      }),
+    ),
+  ]
+})
 
 const geoPolygons = computed((): GeoMapPolygon[] =>
   parkGeofences.value
@@ -538,12 +659,72 @@ const geoPolygons = computed((): GeoMapPolygon[] =>
       path: fence.polygon.map((point) => [Number(point[0]), Number(point[1])] as [number, number]),
       strokeColor: fence.fenceType === 'RESTRICTED' ? '#ff6b6b' : '#00d4aa',
       fillColor: fence.fenceType === 'RESTRICTED' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(0, 212, 170, 0.12)',
+      zIndex: 10,
     })),
 )
+
+const geoPolylines = computed((): GeoMapPolyline[] =>
+  buildGeoPolylines(geoVehiclesOnMap.value, filterGeoDeliveryOrders(parkOrders.value), {
+    includeOrderLines: false,
+    focusVehicleId: selectedId.value,
+  }),
+)
+
+const geoCircles = computed((): GeoMapCircle[] => [
+  {
+    id: 'l0-chuanjiang',
+    center: ZJF_L0_COVERAGE.chuanjiang.center,
+    radiusMeters: ZJF_L0_COVERAGE.chuanjiang.radiusMeters,
+    strokeColor: 'rgba(100, 149, 237, 0.35)',
+    fillColor: 'rgba(100, 149, 237, 0.04)',
+    zIndex: 1,
+  },
+  {
+    id: 'l0-dieshiqiao',
+    center: ZJF_L0_COVERAGE.dieshiqiao.center,
+    radiusMeters: ZJF_L0_COVERAGE.dieshiqiao.radiusMeters,
+    strokeColor: 'rgba(147, 112, 219, 0.3)',
+    fillColor: 'rgba(147, 112, 219, 0.04)',
+    zIndex: 1,
+  },
+])
 
 const selectedVehicle = computed(() => {
   if (!selectedId.value) return null
   return vehicles.value.find(vehicle => vehicle.vehicleId === selectedId.value) || null
+})
+
+const roadRouteHealth = ref<RoadRouteHealth | null>(null)
+
+const geoFitViewPoints = computed((): [number, number][] => {
+  if (!showGeoMap.value) return []
+  const routePoints = collectRouteFitPoints(geoVehiclesOnMap.value, {
+    focusVehicleId: selectedId.value,
+  })
+  if (routePoints.length >= 2) return routePoints
+  return []
+})
+
+const roadRouteWarning = computed(() => {
+  const anomaly = routeAnomalyWarning(geoVehiclesOnMap.value)
+  if (anomaly) return anomaly
+  const health = roadRouteHealth.value
+  if (health && !health.amapDriving && !health.localGraph) {
+    return '道路路径不可用：请配置 FSD_AMAP_WEB_SERVICE_KEY 或检查本地路网。'
+  }
+  const busyVehicles = geoVehiclesOnMap.value.filter(v => v.dispatchStatus === 'BUSY')
+  const hasStraightLine = busyVehicles.some(
+    v => v.plannedRouteGeo && v.plannedRouteGeo.length === 2 && v.routeSource === 'STRAIGHT_LINE',
+  )
+  const hasLowVertices = busyVehicles.some(
+    v => v.plannedRouteGeo && v.plannedRouteGeo.length > 0 && v.plannedRouteGeo.length < 4,
+  )
+  if (hasStraightLine) return '当前为直线模式，请配置高德 Web 服务 Key 或本地路网。'
+  if (hasLowVertices) return '计划路径顶点不足（< 4），路线可能不贴路。'
+  if (health?.fallbackCount && health.fallbackCount > 0 && !health.amapDriving) {
+    return `本地路网兜底中（近 1h 直线降级 ${health.fallbackCount} 次）。`
+  }
+  return ''
 })
 
 function stageLabel(stage: string) {
@@ -581,10 +762,11 @@ function formatVehicleTarget(vehicle: ParkVehicleSnapshot) {
   return `${targetLabel(vehicle.targetType)} ${vehicle.targetCode}`
 }
 
-function linkModeLabel(mode?: string) {
+function linkModeLabel(mode?: string, vehicleCode?: string) {
   if (mode === 'REAL') return 'REAL'
   if (mode === 'VDA5050') return 'VDA5050'
-  return 'SIM'
+  if (vehicleCode?.startsWith('ZJF-AV-')) return '短驳仿真'
+  return '园区仿真'
 }
 
 function linkModeClass(mode?: string) {
@@ -803,7 +985,7 @@ function drawStations() {
   if (!stationLayer || !parkLayout.value) return
   stationLayer.clearLayers()
 
-  parkLayout.value.stations.forEach(station => {
+  filterSchematicStations(parkLayout.value.stations).forEach(station => {
     stationLayer!.addLayer(L.marker(toLatLng(station.x, station.y), { icon: createStationIcon(station), interactive: false }))
   })
 }
@@ -852,7 +1034,9 @@ function updateVehicleMarkers() {
   trajectoryLayer.clearLayers()
   const lineWeightScale = Math.max(0.72, Math.min(1.15, currentMarkerScale))
 
-  filteredVehicles.value.forEach(vehicle => {
+  const vehiclesOnMap = showSchematicMap.value ? schematicVehiclesOnMap.value : filteredVehicles.value
+
+  vehiclesOnMap.forEach(vehicle => {
     if (vehicle.trajectory.length > 1) {
       trajectoryLayer!.addLayer(
         L.polyline(
@@ -868,7 +1052,7 @@ function updateVehicleMarkers() {
     }
 
     const expanded = selectedId.value === vehicle.vehicleId
-    const slot = labelSlotForVehicle(vehicle, filteredVehicles.value)
+    const slot = labelSlotForVehicle(vehicle, vehiclesOnMap)
     const marker = L.marker(toLatLng(vehicle.x, vehicle.y), {
       icon: createVehicleIcon(vehicle, expanded, slot),
       zIndexOffset: expanded ? 1000 : 0,
@@ -891,7 +1075,7 @@ function drawOrderChains() {
   orderLayer.clearLayers()
   const lineWeightScale = Math.max(0.72, Math.min(1.15, currentMarkerScale))
 
-  parkOrders.value.forEach(order => {
+  schematicOrdersOnMap.value.forEach(order => {
     const color = orderColor(order.runtimeStage)
     orderLayer!.addLayer(
       L.polyline(
@@ -918,6 +1102,8 @@ function drawOrderChains() {
         ? order.dropoffStation
         : order.pickupStation
 
+    if (!isSchematicParkStation(target)) return
+
     orderLayer!.addLayer(
       L.polyline(
         [
@@ -936,8 +1122,31 @@ function drawOrderChains() {
 
 function focusVehicle(vehicle: ParkVehicleSnapshot) {
   selectedId.value = vehicle.vehicleId
-  if (mapViewMode.value === 'geo') return
+  if (trackingScene.value === 'delivery') return
   map?.flyTo(toLatLng(vehicle.x, vehicle.y), 2, { duration: 0.8 })
+}
+
+function applyRouteFocus() {
+  const vehicleIdRaw = route.query.vehicleId
+  const orderIdRaw = route.query.orderId
+  if (route.query.mode === 'geo') {
+    trackingScene.value = 'delivery'
+  }
+
+  let vehicleId = vehicleIdRaw != null ? Number(vehicleIdRaw) : null
+  if ((vehicleId == null || Number.isNaN(vehicleId)) && orderIdRaw != null) {
+    const orderId = Number(orderIdRaw)
+    const order = parkOrders.value.find(item => item.orderId === orderId)
+    vehicleId = order?.vehicleId ?? null
+  }
+  if (vehicleId == null || Number.isNaN(vehicleId)) return
+
+  const vehicle = vehicles.value.find(item => item.vehicleId === vehicleId)
+  if (vehicle) {
+    focusVehicle(vehicle)
+  } else {
+    selectedId.value = vehicleId
+  }
 }
 
 async function fetchLayout() {
@@ -1051,6 +1260,16 @@ async function fetchGeofences() {
   }
 }
 
+async function fetchRoadRouteHealth() {
+  if (!showGeoMap.value) return
+  try {
+    const response = await getRoadRouteHealth()
+    roadRouteHealth.value = response.data ?? null
+  } catch {
+    roadRouteHealth.value = null
+  }
+}
+
 async function bootstrapData() {
   apiError.value = ''
   try {
@@ -1058,8 +1277,12 @@ async function bootstrapData() {
       await parkScope.loadParks()
     }
     parkScope.ensureValidSelection()
+    syncTrackingParkSelection()
+    if (trackingScene.value === 'park' && trackingParkId.value != null) {
+      parkScope.setParkId(trackingParkId.value)
+    }
     await fetchLayout()
-    await Promise.all([fetchVehicles(), fetchOrders(), fetchGeofences(), loadPeakModeState()])
+    await Promise.all([fetchVehicles(), fetchOrders(), fetchGeofences(), loadPeakModeState(), fetchRoadRouteHealth()])
     backendOnline.value = true
   } catch {
     backendOnline.value = false
@@ -1103,14 +1326,27 @@ watch(selectedId, () => {
 watch(
   () => parkScope.scopeVersion,
   async () => {
+    syncTrackingParkSelection()
     await handleParkChange()
   },
 )
 
+watch(trackingScene, (scene, prev) => {
+  if (scene === prev) return
+  applyTrackingScene(scene)
+  if (scene === 'delivery') {
+    void fetchRoadRouteHealth()
+  }
+})
+
 watch(mapViewMode, (mode) => {
+  if (trackingScene.value !== 'park' && mode === 'schematic' && geoMapAvailable) {
+    mapViewMode.value = 'geo'
+    return
+  }
   if (mode === 'schematic' || (mode === 'geo' && !geoMapAvailable)) {
     nextTick(() => {
-      if (!map && mapContainer.value) initMap()
+      if (!map && mapContainer.value && showSchematicMap.value) initMap()
       if (map && parkLayout.value) {
         loadParkImage()
         drawStations()
@@ -1121,9 +1357,23 @@ watch(mapViewMode, (mode) => {
   }
 })
 
+watch(showSchematicMap, (visible) => {
+  if (!visible) return
+  nextTick(() => {
+    if (!map && mapContainer.value) initMap()
+    if (map && parkLayout.value) {
+      loadParkImage()
+      drawStations()
+      updateVehicleMarkers()
+      drawOrderChains()
+    }
+  })
+})
+
 onMounted(async () => {
-  initMap()
   await bootstrapData()
+  applyTrackingScene(trackingScene.value)
+  applyRouteFocus()
   initSSEStream()
   clockTimer = setInterval(() => {
     currentTime.value = dayjs().format('HH:mm:ss')
@@ -1533,6 +1783,18 @@ onUnmounted(() => {
   box-shadow: 0 0 12px #ff7a45;
 }
 
+.api-alert-dot.warning {
+  background: #ffb020;
+  box-shadow: 0 0 12px #ffb020;
+}
+
+.road-route-warning {
+  top: 60px;
+  border-color: rgba(255, 176, 32, 0.35);
+  background: rgba(40, 30, 10, 0.92);
+  color: #ffe2a8;
+}
+
 .api-alert-retry {
   padding: 4px 12px;
   border: 1px solid rgba(255, 176, 32, 0.4);
@@ -1576,10 +1838,22 @@ onUnmounted(() => {
 
 .header-controls {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   margin-top: 10px;
+}
+
+.map-scope-hint {
+  margin: 0;
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--track-warning);
+}
+
+.map-scope-hint.geo {
+  color: var(--track-accent);
 }
 
 .mode-toggle {
@@ -1632,6 +1906,9 @@ onUnmounted(() => {
   margin-top: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--track-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .toolbar-field {
@@ -1645,7 +1922,22 @@ onUnmounted(() => {
   color: var(--track-text-muted);
   font-size: 12px;
   flex-shrink: 0;
-  width: 32px;
+  width: 36px;
+}
+
+.scene-segment {
+  flex: 1;
+  min-width: 0;
+}
+
+:deep(.scene-segment.ant-segmented) {
+  background: rgba(22, 27, 34, 0.9);
+  border: 1px solid var(--track-border);
+}
+
+:deep(.scene-segment .ant-segmented-item-label) {
+  font-size: 12px;
+  padding: 0 10px;
 }
 
 .park-select {

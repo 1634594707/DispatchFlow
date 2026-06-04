@@ -1,325 +1,125 @@
 <template>
   <div class="mobile-order-page">
-    <div class="mobile-toolbar">
-      <router-link class="toolbar-link" to="/vehicle-tracking">返回大屏</router-link>
-      <div class="toolbar-title">
-        <span class="toolbar-eyebrow">DispatchFlow Mobile</span>
-        <strong>园区下单</strong>
+    <header class="mobile-header">
+      <router-link class="header-back" to="/vehicle-tracking">← 大屏</router-link>
+      <div class="header-brand">
+        <span class="header-eyebrow">找家纺网 · 叠石桥 L1 试点</span>
+        <h1>像看外卖一样看短驳配送</h1>
       </div>
-      <button class="toolbar-submit" :disabled="submitting" @click="submitOrder">
-        {{ submitting ? '提交中...' : '快速提交' }}
-      </button>
-    </div>
+      <div class="header-stats">
+        <span>{{ orderableStationCount }} 站</span>
+        <span>{{ activeOrders.length }} 单</span>
+        <span>{{ vehicles.length }} 车</span>
+      </div>
+    </header>
 
-    <div class="mobile-shell">
-      <header class="hero-card">
-        <div class="hero-copy">
-          <div class="hero-eyebrow">Smart Dispatch</div>
-          <h1>像看外卖一样看配送</h1>
-          <p>下单后直接在手机端查看车辆位置、订单阶段和当前目标点，不需要跳到管理大屏。</p>
-        </div>
-        <div class="hero-pills">
-          <span class="hero-pill blue">{{ stations.length }} 个站点</span>
-          <span class="hero-pill gold">{{ activeOrders.length }} 个进行中订单</span>
-          <span class="hero-pill green">{{ vehicles.length }} 台车辆</span>
-        </div>
-      </header>
+    <main class="mobile-main">
+      <OrderTrackingPanel
+        v-if="trackedOrder"
+        ref="trackingPanelRef"
+        :order="trackedOrder"
+        :active-orders="activeOrders"
+        :vehicle="trackedVehicle"
+        :park-layout="parkLayout"
+        :geo-map-available="geoMapAvailable"
+        :force-schematic-map="orderMode === 'schematic'"
+        :map-center="trackingMapCenter"
+        :geo-markers="trackingGeoMarkers"
+        :geo-polylines="trackingGeoPolylines"
+        :geo-polygons="trackingGeoPolygons"
+        :fit-view-points="trackingFitViewPoints"
+        :route-anomaly-text="routeAnomalyText"
+        :screen-link="trackingScreenLink"
+        :remaining-label="remainingDeliveryLabel"
+        @select-order="trackedOrderId = $event"
+        @order-again="scrollToQuickOrder"
+      />
 
-      <section v-if="trackedOrder" class="tracking-card">
-        <div class="section-head">
-          <span>实时配送图</span>
-          <span class="section-tip">{{ stageLabel(trackedOrder.runtimeStage) }}</span>
-        </div>
+      <QuickOrderPanel
+        ref="quickOrderPanelRef"
+        :stations="stations"
+        :submitting="submitting"
+        :park-locked="isSinglePark"
+        :park-name="lockedParkName"
+        :park-id="form.parkId"
+        :order-mode="orderMode"
+        :demo-routes="activeDemoRoutes"
+        :pickup-station-id="form.pickupStationId"
+        :dropoff-station-id="form.dropoffStationId"
+        :priority="form.priority || 'P1'"
+        :remark="form.remark || ''"
+        :loading-parks="loadingParks"
+        :loading-stations="loadingStations"
+        :park-options="parkOptions"
+        @update:park-id="handleParkIdUpdate"
+        @update:order-mode="handleOrderModeUpdate"
+        @update:pickup-station-id="form.pickupStationId = $event"
+        @update:dropoff-station-id="form.dropoffStationId = $event"
+        @update:priority="form.priority = $event"
+        @update:remark="form.remark = $event"
+        @submit-demo="submitDemoRoute"
+        @submit-custom="submitOrder"
+      />
 
-        <div v-if="activeOrders.length > 0" class="tracking-switch">
-          <button
-            v-for="order in activeOrders.slice(0, 5)"
-            :key="order.orderId"
-            type="button"
-            class="tracking-chip"
-            :class="{ active: trackedOrder.orderId === order.orderId }"
-            @click="trackedOrderId = order.orderId"
-          >
-            {{ order.orderNo }}
-          </button>
-        </div>
-
-        <div class="tracking-map-shell">
-          <div v-if="parkLayout" class="tracking-map-wrap">
-            <img src="/park-map.svg" alt="park map" class="tracking-map-image" />
-            <svg
-              class="tracking-map-overlay"
-              :viewBox="`0 0 ${parkLayout.width} ${parkLayout.height}`"
-              preserveAspectRatio="none"
-            >
-              <defs>
-                <linearGradient id="routeGradient" x1="0%" x2="100%" y1="0%" y2="0%">
-                  <stop offset="0%" stop-color="#3ea6ff" />
-                  <stop offset="100%" stop-color="#74c2ff" />
-                </linearGradient>
-                <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#3ea6ff" flood-opacity="0.22" />
-                </filter>
-              </defs>
-
-              <polyline
-                :points="routePolylinePoints"
-                class="map-main-route"
-                filter="url(#softShadow)"
-              />
-
-              <line
-                v-if="trackedVehicle && currentTarget"
-                :x1="trackedVehicle.x"
-                :y1="svgY(trackedVehicle.y)"
-                :x2="currentTarget.x"
-                :y2="svgY(currentTarget.y)"
-                class="map-vehicle-route"
-              />
-            </svg>
-
-            <div class="map-pin pickup" :style="markerStyle(trackedOrder.pickupStation.x, trackedOrder.pickupStation.y)">
-              <span>{{ trackedOrder.pickupStation.stationCode }}</span>
-            </div>
-            <div class="map-pin dropoff" :style="markerStyle(trackedOrder.dropoffStation.x, trackedOrder.dropoffStation.y)">
-              <span>{{ trackedOrder.dropoffStation.stationCode }}</span>
-            </div>
-            <div v-if="trackedVehicle" class="map-vehicle-badge" :style="markerStyle(trackedVehicle.x, trackedVehicle.y)">
-              <span class="vehicle-ring"></span>
-              <span class="vehicle-dot"></span>
-              <span class="vehicle-code">{{ trackedVehicle.vehicleCode }}</span>
-            </div>
-          </div>
-
-          <div class="tracking-legend">
-            <span><i class="legend-dot pickup"></i>取货点</span>
-            <span><i class="legend-dot dropoff"></i>送货点</span>
-            <span><i class="legend-dot vehicle"></i>车辆</span>
-          </div>
-        </div>
-
-        <div class="tracking-summary">
-          <div class="summary-item">
-            <label>订单号</label>
-            <strong>{{ trackedOrder.orderNo }}</strong>
-          </div>
-          <div class="summary-item">
-            <label>当前阶段</label>
-            <strong>{{ stageLabel(trackedOrder.runtimeStage) }}</strong>
-          </div>
-          <div class="summary-item">
-            <label>配送车辆</label>
-            <strong>{{ trackedOrder.vehicleCode || '待分配' }}</strong>
-          </div>
-          <div class="summary-item">
-            <label>当前目标</label>
-            <strong>{{ currentTargetLabel }}</strong>
-          </div>
-        </div>
-
-        <div class="tracking-timeline">
-          <div class="timeline-step" :class="{ active: timelineState >= 1 }">
-            <span class="step-dot"></span>
-            <span>已接单</span>
-          </div>
-          <div class="timeline-step" :class="{ active: timelineState >= 2 }">
-            <span class="step-dot"></span>
-            <span>前往取货</span>
-          </div>
-          <div class="timeline-step" :class="{ active: timelineState >= 3 }">
-            <span class="step-dot"></span>
-            <span>配送中</span>
-          </div>
-          <div class="timeline-step" :class="{ active: timelineState >= 4 }">
-            <span class="step-dot"></span>
-            <span>已送达</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="order-card">
-        <div class="section-head">
-          <span>创建订单</span>
-          <span class="section-tip">选择站点后直接下发到调度系统</span>
-        </div>
-
-        <a-form layout="vertical">
-          <a-form-item label="所属园区">
-            <a-select
-              v-model:value="form.parkId"
-              placeholder="选择园区"
-              size="large"
-              :loading="loadingParks"
-              :options="parkOptions"
-              @change="handleParkChange"
-            />
-          </a-form-item>
-
-          <a-form-item v-if="routeOptions.length > 0" label="线路模板（可选）">
-            <a-select
-              v-model:value="form.routeId"
-              allow-clear
-              placeholder="自动匹配或手动选择"
-              size="large"
-              :options="routeOptions"
-            />
-          </a-form-item>
-
-          <a-form-item label="取货站点">
-            <a-select
-              v-model:value="form.pickupStationId"
-              placeholder="选择取货站点"
-              size="large"
-              :loading="loadingStations"
-              show-search
-              option-filter-prop="label"
-              :options="pickupStationOptions"
-            />
-          </a-form-item>
-
-          <a-form-item label="送货站点">
-            <a-select
-              v-model:value="form.dropoffStationId"
-              placeholder="选择送货站点"
-              size="large"
-              :loading="loadingStations"
-              show-search
-              option-filter-prop="label"
-              :options="dropoffOptions"
-            />
-          </a-form-item>
-
-          <a-form-item label="优先级">
-            <div class="priority-grid">
-              <button
-                v-for="priority in priorities"
-                :key="priority.value"
-                type="button"
-                class="priority-card"
-                :class="{ active: form.priority === priority.value }"
-                @click="form.priority = priority.value"
-              >
-                <span class="priority-value">{{ priority.value }}</span>
-                <span class="priority-label">{{ priority.label }}</span>
-              </button>
-            </div>
-          </a-form-item>
-
-          <a-form-item label="外部单号">
-            <a-input
-              v-model:value="form.externalOrderNo"
-              size="large"
-              placeholder="可选，不填则后端自动生成"
-              allow-clear
-            />
-          </a-form-item>
-
-          <a-form-item label="备注">
-            <a-textarea
-              v-model:value="form.remark"
-              :rows="3"
-              :maxlength="120"
-              show-count
-              placeholder="例如：送到 B2 后联系仓管"
-            />
-          </a-form-item>
-
-          <div class="route-preview">
-            <div class="preview-label">路线预览</div>
-            <div class="preview-route">
-              <span>{{ selectedPickup?.stationCode || '--' }}</span>
-              <span class="preview-arrow">→</span>
-              <span>{{ selectedDropoff?.stationCode || '--' }}</span>
-            </div>
-            <div class="preview-meta">
-              <span>{{ selectedPickup?.stationName || '未选择取货点' }}</span>
-              <span>{{ selectedDropoff?.stationName || '未选择送货点' }}</span>
-            </div>
-          </div>
-
-          <button class="submit-btn" :disabled="submitting" @click.prevent="submitOrder">
-            <span v-if="!submitting">提交并自动派车</span>
-            <span v-else>提交中...</span>
-          </button>
-        </a-form>
-      </section>
-
-      <section v-if="lastCreatedOrder" class="result-card">
-        <div class="section-head">
-          <span>最近创建</span>
-          <span class="result-state">{{ lastCreatedOrder.taskStatus || lastCreatedOrder.orderStatus }}</span>
-        </div>
-        <div class="result-grid">
-          <div class="result-item">
-            <label>订单号</label>
-            <strong>{{ lastCreatedOrder.orderNo }}</strong>
-          </div>
-          <div class="result-item">
-            <label>任务号</label>
-            <strong>{{ lastCreatedOrder.taskNo || '--' }}</strong>
-          </div>
-          <div class="result-item">
-            <label>车辆</label>
-            <strong>{{ trackedVehicle?.vehicleCode || '--' }}</strong>
-          </div>
-          <div class="result-item">
-            <label>结果</label>
-            <strong>{{ lastCreatedOrder.message || '--' }}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section class="order-feed">
-        <div class="section-head">
-          <span>实时订单</span>
-          <span>{{ parkOrders.length }}</span>
-        </div>
-        <div class="feed-list">
-          <button
-            v-for="order in parkOrders.slice(0, 10)"
-            :key="order.orderId"
-            class="feed-card"
-            :class="{ active: trackedOrderId === order.orderId }"
-            @click="trackedOrderId = order.orderId"
-          >
-            <div class="feed-top">
-              <strong>{{ order.orderNo }}</strong>
-              <span class="feed-stage" :class="stageClass(order.runtimeStage)">
-                {{ stageLabel(order.runtimeStage) }}
-              </span>
-            </div>
-            <div class="feed-route">
-              <span>{{ order.pickupStation.stationCode }}</span>
-              <span>→</span>
-              <span>{{ order.dropoffStation.stationCode }}</span>
-            </div>
-            <div class="feed-meta">
-              <span>{{ order.vehicleCode || '待分配' }}</span>
-              <span>{{ formatTime(order.updatedAt) }}</span>
-            </div>
-          </button>
-          <div v-if="parkOrders.length === 0" class="feed-empty">暂无订单</div>
-        </div>
-      </section>
-    </div>
+      <details v-if="showApiKeySettings" class="settings-panel">
+        <summary>开发者设置 · API Key</summary>
+        <label class="api-key-field" for="mobile-api-key">
+          <span>X-Mobile-Api-Key</span>
+          <input
+            id="mobile-api-key"
+            v-model="mobileApiKey"
+            type="password"
+            autocomplete="off"
+            placeholder="留空则使用 VITE_MOBILE_API_KEY"
+            @change="persistMobileApiKey"
+          />
+        </label>
+        <p class="api-key-note">仅本地开发可见；生产环境请配置环境变量。</p>
+      </details>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import dayjs from 'dayjs'
+import OrderTrackingPanel from '@/components/mobile/OrderTrackingPanel.vue'
+import QuickOrderPanel from '@/components/mobile/QuickOrderPanel.vue'
+import { parkDeliveryDemoRoutes, parkSchematicDemoRoutes, loadMobileOrderMode, persistMobileOrderMode } from '@/constants/parkDelivery'
+import type { MobileOrderMode } from '@/constants/parkDelivery'
 import {
   createParkOrder,
+  getParkGeofences,
   getParkLayout,
   getParkOrders,
   getParkStations,
   getParkVehicles,
   listParks,
 } from '@/api/park'
-import { fetchRoutes } from '@/api/vertical'
-import type { DispatchRoute } from '@/api/vertical'
+import {
+  buildGeofencePolygons,
+  buildGeoPolylines,
+  buildStationGeoMarkers,
+  collectRouteFitPoints,
+  filterGeoDeliveryOrders,
+  filterGeoDeliverySimVehicles,
+  filterSchematicOrders,
+  filterSchematicParkVehicles,
+  findMobileOrderStation,
+  orderableStationsForMode,
+  syncDefaultOrderStations,
+  SCHEMATIC_ORDERABLE_STATION_COUNT,
+  ZJF_ORDERABLE_STATION_COUNT,
+  isAmapConfigured,
+  pilotMapCenter,
+  toAvGeoMarker,
+  vehicleGeoPosition,
+} from '@/maps'
+import { formatDeliveryEta, formatDistance, polylineLengthMeters } from '@/maps/geoDistance'
+import { buildGeoTrackingLink } from '@/constants/parkDelivery'
+import { routeAnomalyWarning } from '@/maps/routeValidation'
 import type {
+  ParkGeofence,
   ParkLayout,
   ParkOrderCreateRequest,
   ParkOrderCreateResponse,
@@ -334,13 +134,33 @@ const loadingStations = ref(false)
 const parks = ref<ParkSummary[]>([])
 const submitting = ref(false)
 const stations = ref<ParkStation[]>([])
-const routes = ref<DispatchRoute[]>([])
 const vehicles = ref<ParkVehicleSnapshot[]>([])
 const parkOrders = ref<ParkOrderSnapshot[]>([])
 const parkLayout = ref<ParkLayout | null>(null)
+const parkGeofences = ref<ParkGeofence[]>([])
 const lastCreatedOrder = ref<ParkOrderCreateResponse | null>(null)
 const trackedOrderId = ref<number | null>(null)
+const mobileApiKey = ref('')
+const orderMode = ref<MobileOrderMode>(loadMobileOrderMode())
+const geoMapAvailable = isAmapConfigured()
+const showApiKeySettings = import.meta.env.DEV
+const trackingPanelRef = ref<InstanceType<typeof OrderTrackingPanel> | null>(null)
+const quickOrderPanelRef = ref<InstanceType<typeof QuickOrderPanel> | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
+
+function resolveDefaultMobileApiKey() {
+  return (
+    localStorage.getItem('fsd_mobile_api_key')?.trim() ||
+    (import.meta.env.VITE_MOBILE_API_KEY as string | undefined)?.trim() ||
+    ''
+  )
+}
+
+function persistMobileApiKey() {
+  const trimmed = mobileApiKey.value.trim()
+  if (trimmed) localStorage.setItem('fsd_mobile_api_key', trimmed)
+  else localStorage.removeItem('fsd_mobile_api_key')
+}
 
 const form = reactive<ParkOrderCreateRequest>({
   parkId: undefined,
@@ -359,155 +179,225 @@ const parkOptions = computed(() =>
   })),
 )
 
-const priorities = [
-  { value: 'P0', label: '最高优先' },
-  { value: 'P1', label: '优先处理' },
-  { value: 'P2', label: '标准配送' },
-  { value: 'P3', label: '低优先级' },
-]
+const isSinglePark = computed(() => parks.value.length <= 1)
 
-const pickupStationOptions = computed(() =>
-  stations.value
-    .filter(station => !station.stationType || station.stationType === 'PICKUP' || station.stationType === 'GENERAL')
-    .map(station => ({
-      value: station.stationId,
-      label: `${station.stationCode} · ${station.stationName}`,
-    })),
+const lockedParkName = computed(() => {
+  const park = parks.value.find(item => item.parkId === form.parkId)
+  return park?.parkName || '叠石桥 L1 试点'
+})
+
+const orderableStations = computed(() => orderableStationsForMode(stations.value, orderMode.value))
+
+const activeDemoRoutes = computed(() =>
+  orderMode.value === 'schematic' ? parkSchematicDemoRoutes : parkDeliveryDemoRoutes,
 )
 
-const routeOptions = computed(() =>
-  routes.value.map(route => ({
-    value: route.id,
-    label: `${route.routeCode} · ${route.routeName}`,
-  })),
-)
+const orderableStationCount = computed(() => {
+  if (orderableStations.value.length > 0) return orderableStations.value.length
+  return orderMode.value === 'schematic' ? SCHEMATIC_ORDERABLE_STATION_COUNT : ZJF_ORDERABLE_STATION_COUNT
+})
 
-const dropoffOptions = computed(() =>
-  stations.value
-    .filter(station => !station.stationType || station.stationType === 'DROPOFF' || station.stationType === 'GENERAL')
-    .filter(station => station.stationId !== form.pickupStationId)
-    .map(station => ({
-      value: station.stationId,
-      label: `${station.stationCode} · ${station.stationName}`,
-    })),
-)
-
-const selectedPickup = computed(() =>
-  stations.value.find(station => station.stationId === form.pickupStationId) || null,
-)
-
-const selectedDropoff = computed(() =>
-  stations.value.find(station => station.stationId === form.dropoffStationId) || null,
+const visibleParkOrders = computed(() =>
+  orderMode.value === 'schematic'
+    ? filterSchematicOrders(parkOrders.value)
+    : filterGeoDeliveryOrders(parkOrders.value),
 )
 
 const activeOrders = computed(() =>
-  parkOrders.value.filter(order => !['COMPLETED', 'FAILED'].includes(order.runtimeStage)),
+  visibleParkOrders.value.filter(order => !['COMPLETED', 'FAILED'].includes(order.runtimeStage)),
+)
+
+const modeVehicles = computed(() =>
+  orderMode.value === 'schematic'
+    ? filterSchematicParkVehicles(vehicles.value)
+    : filterGeoDeliverySimVehicles(vehicles.value),
 )
 
 const trackedOrder = computed(() => {
   if (trackedOrderId.value) {
-    const matched = parkOrders.value.find(order => order.orderId === trackedOrderId.value)
+    const matched = visibleParkOrders.value.find(order => order.orderId === trackedOrderId.value)
     if (matched) return matched
   }
-  return activeOrders.value[0] || parkOrders.value[0] || null
+  return activeOrders.value[0] || visibleParkOrders.value[0] || null
 })
 
 const trackedVehicle = computed(() => {
   if (!trackedOrder.value?.vehicleId) return null
-  return vehicles.value.find(vehicle => vehicle.vehicleId === trackedOrder.value?.vehicleId) || null
+  return modeVehicles.value.find(vehicle => vehicle.vehicleId === trackedOrder.value?.vehicleId) || null
 })
 
-const currentTarget = computed(() => {
-  if (!trackedOrder.value) return null
-  const stage = trackedOrder.value.runtimeStage
-  if (['TO_DROPOFF', 'HEADING_TO_DROPOFF', 'UNLOADING', 'COMPLETED'].includes(stage)) {
-    return trackedOrder.value.dropoffStation
-  }
-  return trackedOrder.value.pickupStation
-})
-
-const currentTargetLabel = computed(() => {
-  if (!trackedOrder.value || !currentTarget.value) return '--'
-  const targetType = ['TO_DROPOFF', 'HEADING_TO_DROPOFF', 'UNLOADING', 'COMPLETED'].includes(trackedOrder.value.runtimeStage)
-    ? '送货点'
-    : '取货点'
-  return `${targetType} ${currentTarget.value.stationCode}`
-})
-
-const timelineState = computed(() => {
-  const stage = trackedOrder.value?.runtimeStage
-  if (!stage) return 0
-  if (stage === 'COMPLETED') return 4
-  if (['TO_DROPOFF', 'HEADING_TO_DROPOFF', 'UNLOADING'].includes(stage)) return 3
-  if (['TO_PICKUP', 'HEADING_TO_PICKUP', 'LOADING'].includes(stage)) return 2
-  return 1
-})
-
-const routePolylinePoints = computed(() => {
-  if (!trackedOrder.value) return ''
-  return [
-    `${trackedOrder.value.pickupStation.x},${svgY(trackedOrder.value.pickupStation.y)}`,
-    `${trackedOrder.value.dropoffStation.x},${svgY(trackedOrder.value.dropoffStation.y)}`,
-  ].join(' ')
-})
-
-const stageLabelMap: Record<string, string> = {
-  PENDING_ASSIGNMENT: '待分配',
-  HEADING_TO_PICKUP: '前往取货',
-  TO_PICKUP: '前往取货',
-  LOADING: '装货中',
-  HEADING_TO_DROPOFF: '配送中',
-  TO_DROPOFF: '配送中',
-  UNLOADING: '卸货中',
-  COMPLETED: '已完成',
-  FAILED: '失败',
-  MANUAL_PENDING: '人工介入',
-}
-
-function svgY(y: number) {
-  return parkLayout.value ? parkLayout.value.height - y : y
-}
-
-function markerStyle(x: number, y: number) {
-  if (!parkLayout.value) return {}
-  return {
-    left: `${(x / parkLayout.value.width) * 100}%`,
-    top: `${(1 - y / parkLayout.value.height) * 100}%`,
-  }
-}
-
-function stageLabel(stage: string) {
-  return stageLabelMap[stage] || stage
-}
-
-function stageClass(stage: string) {
-  if (stage === 'COMPLETED') return 'done'
-  if (stage === 'FAILED' || stage === 'MANUAL_PENDING') return 'risk'
-  if (stage === 'LOADING' || stage === 'UNLOADING') return 'hold'
-  return 'run'
-}
-
-function formatTime(value: string | null) {
-  if (!value) return '--'
-  return dayjs(value).format('HH:mm:ss')
-}
-
-function applyDefaultStations() {
-  const pickupCandidates = stations.value.filter(
-    station => !station.stationType || station.stationType === 'PICKUP' || station.stationType === 'GENERAL',
-  )
-  const dropoffCandidates = stations.value.filter(
-    station => !station.stationType || station.stationType === 'DROPOFF' || station.stationType === 'GENERAL',
-  )
-  if (!form.pickupStationId && pickupCandidates[0]) {
-    form.pickupStationId = pickupCandidates[0].stationId
-  }
-  if (!form.dropoffStationId) {
-    const dropoff = dropoffCandidates.find(station => station.stationId !== form.pickupStationId)
-    if (dropoff) {
-      form.dropoffStationId = dropoff.stationId
+const trackingMapCenter = computed((): [number, number] => {
+  if (trackedVehicle.value) return vehicleGeoPosition(trackedVehicle.value)
+  if (trackedOrder.value) {
+    const pickup = trackedOrder.value.pickupStation
+    if (pickup.coordLng != null && pickup.coordLat != null) {
+      return [Number(pickup.coordLng), Number(pickup.coordLat)]
     }
   }
+  if (parkLayout.value?.centerLng != null && parkLayout.value?.centerLat != null) {
+    return [Number(parkLayout.value.centerLng), Number(parkLayout.value.centerLat)]
+  }
+  return pilotMapCenter()
+})
+
+const trackingGeoMarkers = computed(() => {
+  const markers = []
+  if (trackedOrder.value) {
+    markers.push(
+      ...buildStationGeoMarkers([
+        {
+          id: 'pickup',
+          station: trackedOrder.value.pickupStation,
+          label: `取 ${trackedOrder.value.pickupStation.stationCode}`,
+        },
+        {
+          id: 'dropoff',
+          station: trackedOrder.value.dropoffStation,
+          label: `送 ${trackedOrder.value.dropoffStation.stationCode}`,
+        },
+      ]),
+    )
+  }
+  if (trackedVehicle.value) {
+    markers.push(
+      toAvGeoMarker(String(trackedVehicle.value.vehicleId), vehicleGeoPosition(trackedVehicle.value), {
+        onlineStatus: trackedVehicle.value.onlineStatus,
+        dispatchStatus: trackedVehicle.value.dispatchStatus,
+        charging: trackedVehicle.value.charging,
+        lowBattery: trackedVehicle.value.lowBattery,
+        heading: trackedVehicle.value.heading ?? null,
+        label: trackedVehicle.value.vehicleCode,
+      }),
+    )
+  }
+  return markers
+})
+
+const trackingGeoPolylines = computed(() => {
+  const focusVehicle = trackedVehicle.value ? [trackedVehicle.value] : []
+  return buildGeoPolylines(focusVehicle, trackedOrder.value ? [trackedOrder.value] : [], {
+    includeOrderLines: false,
+    focusVehicleId: trackedVehicle.value?.vehicleId ?? null,
+    focusOrderId: trackedOrder.value?.orderId ?? null,
+  })
+})
+
+const routeAnomalyText = computed(() => routeAnomalyWarning(modeVehicles.value))
+
+const trackingGeoPolygons = computed(() => buildGeofencePolygons(parkGeofences.value))
+
+const trackingFitViewPoints = computed((): [number, number][] => {
+  if (!trackedVehicle.value) return []
+  const points = collectRouteFitPoints([trackedVehicle.value], {
+    focusVehicleId: trackedVehicle.value.vehicleId,
+  })
+  if (points.length >= 2) return points
+  if (trackedOrder.value) {
+    const pickup = trackedOrder.value.pickupStation
+    const dropoff = trackedOrder.value.dropoffStation
+    if (pickup.coordLng != null && dropoff.coordLng != null) {
+      return [
+        [Number(pickup.coordLng), Number(pickup.coordLat)],
+        [Number(dropoff.coordLng), Number(dropoff.coordLat)],
+      ]
+    }
+  }
+  return points
+})
+
+const trackingScreenLink = computed(() =>
+  buildGeoTrackingLink(trackedOrder.value?.orderId, trackedOrder.value?.vehicleId),
+)
+
+const remainingDeliveryLabel = computed(() => {
+  const vehicle = trackedVehicle.value
+  if (!vehicle || trackedOrder.value?.runtimeStage === 'COMPLETED') return null
+
+  const planned = vehicle.plannedRouteGeo
+  if (planned && planned.length >= 2) {
+    const path = planned.map(
+      point => [Number(point.longitude ?? point.x), Number(point.latitude ?? point.y)] as [number, number],
+    )
+    const meters = polylineLengthMeters(path)
+    if (meters > 0) return `剩余 ${formatDistance(meters)} · ${formatDeliveryEta(meters)}`
+  }
+
+  const order = trackedOrder.value
+  if (order?.pickupStation.coordLng != null && order.dropoffStation.coordLng != null) {
+    const path: [number, number][] = [
+      [Number(order.pickupStation.coordLng), Number(order.pickupStation.coordLat)],
+      [Number(order.dropoffStation.coordLng), Number(order.dropoffStation.coordLat)],
+    ]
+    const meters = polylineLengthMeters(path)
+    return `全程约 ${formatDistance(meters)} · ${formatDeliveryEta(meters)}`
+  }
+
+  return null
+})
+
+const lastToastStage = ref<string | null>(null)
+
+watch(
+  () => trackedOrder.value?.runtimeStage,
+  (stage, previous) => {
+    if (!stage || stage === lastToastStage.value) return
+    if (stage === 'COMPLETED' && previous !== 'COMPLETED') {
+      message.success({ content: '货物已送达，无人车返回待命区', duration: 5 })
+    }
+    if (stage === 'HEADING_TO_DROPOFF' && previous === 'LOADING') {
+      message.info('已取货，正在沿道路配送至送货点')
+    }
+    lastToastStage.value = stage
+  },
+)
+
+function applyDefaultStations() {
+  const synced = syncDefaultOrderStations(stations.value, orderMode.value, {
+    pickupStationId: form.pickupStationId,
+    dropoffStationId: form.dropoffStationId,
+  })
+  if (synced.pickupStationId) form.pickupStationId = synced.pickupStationId
+  if (synced.dropoffStationId) form.dropoffStationId = synced.dropoffStationId
+}
+
+function resolveStationIds(pickupCode: string, dropoffCode: string) {
+  const orderable = orderableStationsForMode(stations.value, orderMode.value)
+  const pickup = findMobileOrderStation(stations.value, { stationCode: pickupCode }, orderable)
+  const dropoff = findMobileOrderStation(stations.value, { stationCode: dropoffCode }, orderable)
+  return { pickup, dropoff }
+}
+
+function ensureValidOrderStationIds(): boolean {
+  const orderable = orderableStationsForMode(stations.value, orderMode.value)
+  const pickup = findMobileOrderStation(stations.value, { stationId: form.pickupStationId }, orderable)
+  const dropoff = findMobileOrderStation(stations.value, { stationId: form.dropoffStationId }, orderable)
+  if (pickup && dropoff) return true
+
+  applyDefaultStations()
+  message.warning('站点列表已更新，请重新选择取送货点后再下单')
+  return false
+}
+
+function handleOrderModeUpdate(mode: MobileOrderMode) {
+  if (orderMode.value === mode) return
+  orderMode.value = mode
+  persistMobileOrderMode(mode)
+  form.pickupStationId = undefined as unknown as number
+  form.dropoffStationId = undefined as unknown as number
+  form.routeId = undefined
+  trackedOrderId.value = null
+  applyDefaultStations()
+}
+
+async function submitDemoRoute(route: (typeof parkDeliveryDemoRoutes)[number] | (typeof parkSchematicDemoRoutes)[number]) {
+  const { pickup, dropoff } = resolveStationIds(route.pickupCode, route.dropoffCode)
+  if (!pickup || !dropoff) {
+    message.warning('演示站点尚未加载，请稍后重试')
+    return
+  }
+  form.pickupStationId = pickup.stationId
+  form.dropoffStationId = dropoff.stationId
+  await submitOrder()
 }
 
 async function fetchParks() {
@@ -517,9 +407,7 @@ async function fetchParks() {
     parks.value = response.data || []
     if (!form.parkId) {
       const defaultPark = parks.value.find(park => park.defaultPark) || parks.value[0]
-      if (defaultPark) {
-        form.parkId = defaultPark.parkId
-      }
+      if (defaultPark) form.parkId = defaultPark.parkId
     }
   } finally {
     loadingParks.value = false
@@ -547,36 +435,46 @@ async function fetchLayout() {
   parkLayout.value = response.data
 }
 
-async function fetchRoutesForPark() {
+async function fetchGeofences() {
   if (!form.parkId) {
-    routes.value = []
+    parkGeofences.value = []
     return
   }
-  try {
-    routes.value = (await fetchRoutes(form.parkId)).data || []
-  } catch {
-    routes.value = []
-  }
+  const response = await getParkGeofences(form.parkId)
+  parkGeofences.value = response.data || []
 }
 
-async function handleParkChange() {
+async function handleParkIdUpdate(parkId: number) {
+  if (form.parkId === parkId) return
+  form.parkId = parkId
   form.pickupStationId = undefined as unknown as number
   form.dropoffStationId = undefined as unknown as number
   form.routeId = undefined
-  await Promise.all([fetchStations(), fetchLayout(), fetchRoutesForPark()])
+  await Promise.all([fetchStations(), fetchLayout(), fetchGeofences()])
 }
 
 async function fetchOrders() {
-  const response = await getParkOrders()
-  parkOrders.value = response.data || []
-  if (!trackedOrderId.value && parkOrders.value[0]) {
-    trackedOrderId.value = parkOrders.value[0].orderId
+  try {
+    const response = await getParkOrders({ silent: true })
+    parkOrders.value = response.data || []
+    if (trackedOrderId.value && !visibleParkOrders.value.some(order => order.orderId === trackedOrderId.value)) {
+      trackedOrderId.value = null
+    }
+    if (!trackedOrderId.value && visibleParkOrders.value[0]) {
+      trackedOrderId.value = visibleParkOrders.value[0].orderId
+    }
+  } catch {
+    // 轮询失败时不打断下单
   }
 }
 
 async function fetchVehicles() {
-  const response = await getParkVehicles()
-  vehicles.value = response.data || []
+  try {
+    const response = await getParkVehicles({ silent: true })
+    vehicles.value = response.data || []
+  } catch {
+    // 车辆列表失败时静默
+  }
 }
 
 function validateForm() {
@@ -597,31 +495,47 @@ function validateForm() {
 
 async function submitOrder() {
   if (!validateForm()) return
+  if (!ensureValidOrderStationIds()) return
   submitting.value = true
   try {
-    const response = await createParkOrder({
-      parkId: form.parkId,
-      externalOrderNo: form.externalOrderNo?.trim() || undefined,
-      pickupStationId: form.pickupStationId,
-      dropoffStationId: form.dropoffStationId,
-      routeId: form.routeId,
-      priority: form.priority || 'P1',
-      remark: form.remark?.trim() || undefined,
-    })
+    const response = await createParkOrder(
+      {
+        parkId: form.parkId,
+        externalOrderNo: form.externalOrderNo?.trim() || undefined,
+        pickupStationId: form.pickupStationId,
+        dropoffStationId: form.dropoffStationId,
+        routeId: form.routeId,
+        priority: form.priority || 'P1',
+        remark: form.remark?.trim() || undefined,
+      },
+      mobileApiKey.value,
+    )
     lastCreatedOrder.value = response.data
     trackedOrderId.value = response.data.orderId
     message.success('订单已创建，手机端将自动开始追踪配送')
     form.externalOrderNo = ''
     form.remark = ''
     await Promise.all([fetchOrders(), fetchVehicles()])
+    await nextTick()
+    trackingPanelRef.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } catch (err: unknown) {
+    const msg =
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+      (err instanceof Error ? err.message : '下单失败')
+    message.error(msg.includes('X-Mobile-Api-Key') ? `${msg}（请配置 VITE_MOBILE_API_KEY）` : msg)
   } finally {
     submitting.value = false
   }
 }
 
+function scrollToQuickOrder() {
+  quickOrderPanelRef.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 onMounted(async () => {
+  mobileApiKey.value = resolveDefaultMobileApiKey()
   await fetchParks()
-  await Promise.all([fetchStations(), fetchLayout(), fetchRoutesForPark(), fetchOrders(), fetchVehicles()])
+  await Promise.all([fetchStations(), fetchLayout(), fetchGeofences(), fetchOrders(), fetchVehicles()])
   pollTimer = setInterval(() => {
     fetchOrders()
     fetchVehicles()
@@ -635,717 +549,137 @@ onUnmounted(() => {
 
 <style scoped lang="less">
 .mobile-order-page {
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   background:
-    radial-gradient(circle at top left, rgba(62, 166, 255, 0.14), transparent 30%),
-    radial-gradient(circle at top right, rgba(0, 214, 143, 0.1), transparent 26%),
-    linear-gradient(180deg, #08111d 0%, #050913 100%);
+    radial-gradient(circle at 12% 0%, rgba(0, 180, 216, 0.12), transparent 34%),
+    radial-gradient(circle at 88% 8%, rgba(255, 183, 3, 0.08), transparent 28%),
+    linear-gradient(180deg, #07111f 0%, #04080f 100%);
   color: #d8e4f2;
 }
 
-.mobile-toolbar {
+.mobile-header {
   position: sticky;
   top: 0;
   z-index: 20;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  padding:
+    calc(12px + env(safe-area-inset-top, 0px))
+    16px
+    14px;
   border-bottom: 1px solid rgba(62, 166, 255, 0.1);
-  background: rgba(6, 12, 22, 0.9);
-  backdrop-filter: blur(14px);
+  background: rgba(4, 8, 16, 0.88);
+  backdrop-filter: blur(16px);
 }
 
-.toolbar-link {
+.header-back {
+  display: inline-block;
+  margin-bottom: 10px;
   color: #58b6ff;
-  text-decoration: none;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  text-decoration: none;
 }
 
-.toolbar-title {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.header-brand h1 {
+  margin: 6px 0 0;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: #f4f8fc;
 }
 
-.toolbar-eyebrow {
-  color: #5a7a9a;
-  font-size: 10px;
-  letter-spacing: 0.12em;
+.header-eyebrow {
+  color: #ffb703;
+  font-size: 11px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
-.toolbar-title strong {
-  color: #f4f8fc;
-  font-size: 15px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.header-stats {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
 }
 
-.toolbar-submit {
-  min-width: 88px;
-  height: 38px;
-  padding: 0 14px;
-  border: 1px solid rgba(62, 166, 255, 0.3);
+.header-stats span {
+  padding: 5px 10px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(62, 166, 255, 0.22), rgba(62, 166, 255, 0.08));
-  color: #b8dcff;
-  font-size: 13px;
+  background: rgba(62, 166, 255, 0.08);
+  border: 1px solid rgba(62, 166, 255, 0.14);
+  font-size: 11px;
   font-weight: 700;
-  box-shadow: 0 8px 20px rgba(62, 166, 255, 0.12);
+  color: #8fb4d9;
 }
 
-.toolbar-submit:disabled {
-  opacity: 0.5;
-}
-
-.mobile-shell {
+.mobile-main {
   width: min(100%, 560px);
   margin: 0 auto;
-  padding: 18px 16px 48px;
+  padding:
+    16px
+    16px
+    calc(24px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.hero-card,
-.tracking-card,
-.order-card,
-.result-card,
-.order-feed {
-  border: 1px solid rgba(62, 166, 255, 0.1);
-  border-radius: 24px;
-  background: rgba(6, 12, 22, 0.72);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-}
-
-.hero-card {
-  padding: 22px 18px;
-  background:
-    linear-gradient(135deg, rgba(62, 166, 255, 0.1), transparent 42%),
-    rgba(8, 14, 26, 0.8);
-}
-
-.hero-copy {
-  max-width: 420px;
-}
-
-.hero-eyebrow {
-  color: #58b6ff;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-size: 11px;
-}
-
-.hero-card h1 {
-  margin: 10px 0 8px;
-  font-size: 32px;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  color: #f4f8fc;
-}
-
-.hero-card p {
-  margin: 0;
-  color: #7d94aa;
-  line-height: 1.6;
-}
-
-.hero-pills {
-  display: flex;
-  gap: 10px;
-  margin-top: 16px;
-  flex-wrap: wrap;
-}
-
-.hero-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  border: 1px solid transparent;
-}
-
-.hero-pill.blue {
-  color: #74c2ff;
-  background: rgba(62, 166, 255, 0.12);
-  border-color: rgba(62, 166, 255, 0.22);
-}
-
-.hero-pill.gold {
-  color: #ffb020;
-  background: rgba(255, 176, 32, 0.1);
-  border-color: rgba(255, 176, 32, 0.2);
-}
-
-.hero-pill.green {
-  color: #00d68f;
-  background: rgba(0, 214, 143, 0.1);
-  border-color: rgba(0, 214, 143, 0.2);
-}
-
-.tracking-card,
-.order-card,
-.result-card,
-.order-feed {
-  padding: 18px;
-}
-
-.section-head,
-.feed-top,
-.feed-meta,
-.feed-route,
-.tracking-summary,
-.tracking-legend {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.section-head {
-  margin-bottom: 14px;
-  color: #eaf2fb;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.section-tip {
-  color: #6f88a2;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.tracking-switch {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  margin-bottom: 12px;
-}
-
-.tracking-chip {
-  flex: 0 0 auto;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(62, 166, 255, 0.12);
-  background: rgba(6, 12, 22, 0.6);
-  color: #7d94aa;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.tracking-chip.active {
-  border-color: rgba(62, 166, 255, 0.35);
-  background: rgba(62, 166, 255, 0.12);
-  color: #74c2ff;
-}
-
-.tracking-map-shell {
-  padding: 14px;
-  border-radius: 20px;
-  background: rgba(6, 12, 22, 0.5);
-  border: 1px solid rgba(62, 166, 255, 0.08);
-}
-
-.tracking-map-wrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
+.settings-panel {
+  padding: 12px 14px;
   border-radius: 16px;
-  overflow: hidden;
-  background: #09101b;
-}
-
-.tracking-map-image,
-.tracking-map-overlay {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.tracking-map-image {
-  object-fit: cover;
-  object-position: center;
-}
-
-.tracking-map-overlay {
-  pointer-events: none;
-}
-
-.map-main-route {
-  fill: none;
-  stroke: url(#routeGradient);
-  stroke-width: 14;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.92;
-}
-
-.map-vehicle-route {
-  stroke: rgba(30, 102, 255, 0.72);
-  stroke-width: 8;
-  stroke-linecap: round;
-  stroke-dasharray: 18 12;
-}
-
-.map-pin,
-.map-vehicle-badge {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.map-pin span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 40px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 2px solid rgba(5, 9, 19, 0.9);
-  color: #fff;
+  border: 1px dashed rgba(62, 166, 255, 0.18);
+  background: rgba(6, 12, 22, 0.45);
+  color: #6f88a2;
   font-size: 12px;
-  font-weight: 800;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+
+  summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: #8fb4d9;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
 }
 
-.map-pin.pickup span {
-  background: #00d68f;
-}
-
-.map-pin.dropoff span {
-  background: #ffb020;
-}
-
-.map-vehicle-badge {
+.api-key-field {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 6px;
+  margin-top: 12px;
+
+  span {
+    font-size: 11px;
+    color: #6f88a2;
+  }
+
+  input {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(62, 166, 255, 0.14);
+    background: rgba(4, 8, 16, 0.72);
+    color: #e8f2ff;
+    font-size: 13px;
+    outline: none;
+  }
 }
 
-.vehicle-ring {
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  background: rgba(62, 166, 255, 0.18);
-}
-
-.vehicle-dot {
-  position: relative;
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background: #3ea6ff;
-  border: 3px solid rgba(5, 9, 19, 0.9);
-  box-shadow: 0 6px 16px rgba(62, 166, 255, 0.35);
-}
-
-.vehicle-code {
-  position: relative;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(5, 9, 19, 0.88);
-  border: 1px solid rgba(62, 166, 255, 0.3);
-  color: #b8dcff;
+.api-key-note {
+  margin: 8px 0 0;
   font-size: 11px;
-  font-weight: 800;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
-}
-
-.tracking-legend {
-  justify-content: flex-start;
-  gap: 12px;
-  margin-top: 10px;
-  color: #6f88a2;
-  font-size: 11px;
-}
-
-.legend-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  margin-right: 5px;
-}
-
-.legend-dot.pickup { background: #00d68f; }
-.legend-dot.dropoff { background: #ffb020; }
-.legend-dot.vehicle { background: #3ea6ff; }
-
-.tracking-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.summary-item {
-  padding: 12px;
-  border-radius: 16px;
-  background: rgba(6, 12, 22, 0.5);
-  border: 1px solid rgba(62, 166, 255, 0.08);
-}
-
-.summary-item label {
-  display: block;
-  color: #6f88a2;
-  font-size: 11px;
-  margin-bottom: 6px;
-}
-
-.summary-item strong {
-  display: block;
-  color: #d8e4f2;
-  font-size: 13px;
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.tracking-timeline {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.timeline-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 6px;
-  border-radius: 16px;
-  background: rgba(6, 12, 22, 0.4);
   color: #5a7a9a;
-  font-size: 11px;
-  text-align: center;
-}
-
-.timeline-step.active {
-  color: #74c2ff;
-  background: rgba(62, 166, 255, 0.1);
-}
-
-.step-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.priority-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.priority-card {
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(62, 166, 255, 0.1);
-  background: rgba(6, 12, 22, 0.5);
-  color: #d8e4f2;
-  text-align: left;
-}
-
-.priority-card.active {
-  border-color: rgba(62, 166, 255, 0.4);
-  background: linear-gradient(180deg, rgba(62, 166, 255, 0.14), rgba(62, 166, 255, 0.04));
-}
-
-.priority-value {
-  display: block;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.priority-label {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-  color: #6f88a2;
-}
-
-.route-preview {
-  margin: 8px 0 18px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(6, 12, 22, 0.45);
-  border: 1px solid rgba(62, 166, 255, 0.08);
-}
-
-.preview-label {
-  color: #58b6ff;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.preview-route {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: #eaf2fb;
-}
-
-.preview-arrow {
-  color: #ffb020;
-}
-
-.preview-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
-  color: #6f88a2;
-  font-size: 12px;
-}
-
-.submit-btn {
-  width: 100%;
-  height: 52px;
-  border: 1px solid rgba(62, 166, 255, 0.3);
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(62, 166, 255, 0.2), rgba(62, 166, 255, 0.08));
-  color: #b8dcff;
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  box-shadow: 0 10px 24px rgba(62, 166, 255, 0.12);
-}
-
-.submit-btn:disabled {
-  opacity: 0.5;
-}
-
-.result-state,
-.feed-stage {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.feed-stage.run {
-  background: rgba(62, 166, 255, 0.12);
-  color: #74c2ff;
-}
-
-.feed-stage.hold {
-  background: rgba(255, 176, 32, 0.1);
-  color: #ffb020;
-}
-
-.feed-stage.done,
-.result-state {
-  background: rgba(0, 214, 143, 0.1);
-  color: #00d68f;
-}
-
-.feed-stage.risk {
-  background: rgba(255, 77, 109, 0.1);
-  color: #ff4d6d;
-}
-
-.result-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.result-item {
-  padding: 12px;
-  border-radius: 16px;
-  background: rgba(6, 12, 22, 0.5);
-  border: 1px solid rgba(62, 166, 255, 0.08);
-}
-
-.result-item label {
-  display: block;
-  color: #6f88a2;
-  font-size: 11px;
-  margin-bottom: 6px;
-}
-
-.result-item strong {
-  display: block;
-  color: #d8e4f2;
-  font-size: 13px;
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.feed-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.feed-card {
-  width: 100%;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(6, 12, 22, 0.45);
-  border: 1px solid rgba(62, 166, 255, 0.08);
-  text-align: left;
-}
-
-.feed-card.active {
-  border-color: rgba(62, 166, 255, 0.3);
-  box-shadow: inset 0 0 0 1px rgba(62, 166, 255, 0.1);
-}
-
-.feed-top strong {
-  font-family: 'JetBrains Mono', monospace;
-  color: #eaf2fb;
-  font-size: 13px;
-}
-
-.feed-route {
-  margin-top: 10px;
-  justify-content: flex-start;
-  gap: 8px;
-  font-size: 15px;
-  color: #9ab0c6;
-}
-
-.feed-meta {
-  margin-top: 10px;
-  color: #6f88a2;
-  font-size: 12px;
-}
-
-.feed-empty {
-  padding: 20px 12px;
-  text-align: center;
-  color: #5a7a9a;
-}
-
-:deep(.ant-form-item-label > label) {
-  color: #9ab0c6;
-}
-
-:deep(.ant-select-selector) {
-  background: rgba(6, 12, 22, 0.6) !important;
-  border-color: rgba(62, 166, 255, 0.14) !important;
-  color: #d8e4f2 !important;
-}
-
-:deep(.ant-select-selection-placeholder) {
-  color: #5a7a9a !important;
-}
-
-:deep(.ant-select-selection-item) {
-  color: #d8e4f2 !important;
-}
-
-:deep(.ant-select-arrow) {
-  color: #6f88a2;
-}
-
-:deep(.ant-input),
-:deep(.ant-input-affix-wrapper) {
-  background: rgba(6, 12, 22, 0.6);
-  border-color: rgba(62, 166, 255, 0.14);
-  color: #d8e4f2;
-}
-
-:deep(.ant-input::placeholder) {
-  color: #5a7a9a;
-}
-
-:deep(.ant-input-textarea) {
-  background: transparent;
-}
-
-:deep(.ant-input-textarea .ant-input) {
-  background: rgba(6, 12, 22, 0.6);
-  border-color: rgba(62, 166, 255, 0.14);
-  color: #d8e4f2;
-}
-
-:deep(.ant-input-textarea-show-count .ant-input-data-count) {
-  color: #5a7a9a;
-}
-
-:deep(.ant-input-clear-icon) {
-  color: #6f88a2;
-}
-
-:deep(.ant-select-dropdown) {
-  background: rgba(8, 17, 29, 0.96);
-  border: 1px solid rgba(62, 166, 255, 0.14);
-}
-
-:deep(.ant-select-item) {
-  color: #d8e4f2;
-}
-
-:deep(.ant-select-item-option-active) {
-  background: rgba(62, 166, 255, 0.1);
-}
-
-:deep(.ant-select-item-option-selected) {
-  background: rgba(62, 166, 255, 0.18);
-  color: #74c2ff;
 }
 
 @media (max-width: 420px) {
-  .mobile-toolbar {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      'title submit'
-      'back back';
-    align-items: start;
-  }
-
-  .toolbar-link {
-    grid-area: back;
-  }
-
-  .toolbar-title {
-    grid-area: title;
-  }
-
-  .toolbar-submit {
-    grid-area: submit;
-  }
-
-  .mobile-shell {
-    padding: 14px 12px 24px;
-  }
-
-  .hero-card h1 {
-    font-size: 28px;
-  }
-
-  .priority-grid,
-  .result-grid,
-  .tracking-summary,
-  .tracking-timeline {
-    grid-template-columns: 1fr;
-  }
-
-  .preview-meta {
-    flex-direction: column;
+  .header-brand h1 {
+    font-size: 20px;
   }
 }
 </style>
@@ -1370,11 +704,8 @@ onUnmounted(() => {
   color: #74c2ff !important;
 }
 
-.ant-select-item-option-selected .ant-select-item-option-state {
-  color: #74c2ff !important;
-}
-
-.ant-select-empty {
-  color: #5a7a9a;
+.ant-select-item-group {
+  color: #58b6ff !important;
+  font-weight: 700;
 }
 </style>

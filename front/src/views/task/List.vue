@@ -51,6 +51,9 @@
       :scroll="{ x: 'max-content' }"
       @change="handleTableChange"
     >
+      <template #emptyText>
+        <EmptyState description="暂无调度任务，可前往工作台处理待派单" />
+      </template>
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'taskNo'">
           <router-link :to="`/tasks/${record.taskId}`" class="link-cell">
@@ -181,11 +184,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useTaskStore } from '@/stores/task'
 import { useParkScopeStore } from '@/stores/parkScope'
@@ -211,6 +215,14 @@ const queryForm = reactive({
 
 const pageNo = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
+let silentRefreshTimer: ReturnType<typeof setInterval> | null = null
+
+const ACTIVE_TASK_STATUSES: TaskStatus[] = [
+  TaskStatus.PENDING,
+  TaskStatus.MANUAL_PENDING,
+  TaskStatus.ASSIGNED,
+  TaskStatus.EXECUTING,
+]
 
 const columns = [
   { title: '任务编号', dataIndex: 'taskNo', width: 200 },
@@ -245,7 +257,7 @@ function canReassign(status: TaskStatus) {
 }
 
 function canCancel(status: TaskStatus) {
-  return status !== TaskStatus.EXECUTING
+  return [TaskStatus.PENDING, TaskStatus.MANUAL_PENDING, TaskStatus.ASSIGNED, TaskStatus.EXECUTING].includes(status)
 }
 
 function filterOption(input: string, option: any) {
@@ -351,6 +363,22 @@ async function handleCancel(record: TaskAdminListItem) {
   fetchData()
 }
 
+function hasActiveTasksInList() {
+  return store.list.some(item => ACTIVE_TASK_STATUSES.includes(item.status))
+}
+
+function syncSilentRefresh() {
+  if (silentRefreshTimer) {
+    clearInterval(silentRefreshTimer)
+    silentRefreshTimer = null
+  }
+  if (hasActiveTasksInList()) {
+    silentRefreshTimer = setInterval(() => {
+      if (!store.loading) fetchData()
+    }, 10_000)
+  }
+}
+
 onMounted(() => {
   const statusParam = route.query.status as string
   if (statusParam && taskStatusMap[statusParam as TaskStatus]) {
@@ -358,6 +386,16 @@ onMounted(() => {
   }
   fetchData()
 })
+
+onUnmounted(() => {
+  if (silentRefreshTimer) clearInterval(silentRefreshTimer)
+})
+
+watch(
+  () => store.list,
+  () => syncSilentRefresh(),
+  { deep: true },
+)
 
 watch(
   () => parkScope.scopeVersion,

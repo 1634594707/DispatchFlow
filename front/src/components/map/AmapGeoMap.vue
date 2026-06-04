@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { getMapConfig, resolveGeoMapProvider } from '@/maps'
-import type { GeoMapHandle, GeoMapMarker, GeoMapPolygon } from '@/maps'
+import type { GeoMapCircle, GeoMapHandle, GeoMapMarker, GeoMapPolygon, GeoMapPolyline } from '@/maps'
 
 const props = withDefaults(
   defineProps<{
@@ -20,10 +20,20 @@ const props = withDefaults(
     zoom?: number
     markers?: GeoMapMarker[]
     polygons?: GeoMapPolygon[]
+    polylines?: GeoMapPolyline[]
+    circles?: GeoMapCircle[]
+    /** When set, fit viewport to these route points instead of marker bbox. */
+    fitViewPoints?: [number, number][]
+    /** Re-fit when fitViewPoints change (e.g. follow-car). */
+    fitViewOnChange?: boolean
   }>(),
   {
     markers: () => [],
     polygons: () => [],
+    polylines: () => [],
+    circles: () => [],
+    fitViewPoints: () => [],
+    fitViewOnChange: false,
   },
 )
 
@@ -52,8 +62,14 @@ async function mountMap() {
       center: props.center ?? config.defaultCenter,
       zoom: props.zoom ?? config.defaultZoom,
     })
-    handle.value.setMarkers(props.markers ?? [], { fitView: true })
+    handle.value.setCircles(props.circles ?? [])
     handle.value.setPolygons(props.polygons ?? [])
+    handle.value.setPolylines(props.polylines ?? [])
+    const initialFit = props.fitViewPoints?.length ? props.fitViewPoints : undefined
+    handle.value.setMarkers(props.markers ?? [], { fitView: !initialFit?.length })
+    if (initialFit?.length) {
+      handle.value.fitViewToPoints(initialFit)
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '高德地图加载失败'
   } finally {
@@ -86,10 +102,36 @@ watch(
   },
   { deep: true },
 )
+
 watch(
   () => props.polygons,
   (polygons) => {
     handle.value?.setPolygons(polygons ?? [])
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.polylines,
+  (polylines) => {
+    handle.value?.setPolylines(polylines ?? [])
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.circles,
+  (circles) => {
+    handle.value?.setCircles(circles ?? [])
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.fitViewPoints,
+  (points) => {
+    if (!props.fitViewOnChange || !handle.value || !points?.length) return
+    handle.value.fitViewToPoints(points)
   },
   { deep: true },
 )
@@ -118,23 +160,21 @@ watch(
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 24px;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.78);
   background: rgba(13, 17, 23, 0.92);
+  color: #e6edf3;
+  font-size: 14px;
+  z-index: 2;
 }
 
 .amap-geo-map__overlay--error {
-  color: #ffb4b4;
+  color: #ff8fa3;
 }
 
 .amap-geo-map__hint {
-  margin: 0;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
-
+  color: #8b949e;
   code {
-    color: #7ee787;
+    color: #79c0ff;
   }
 }
 </style>

@@ -20,8 +20,23 @@ public class FleetChargePolicyImpl implements FleetChargePolicy {
     }
 
     @Override
+    public boolean shouldReturnToCharge(Integer batteryLevel) {
+        return normalizeSoc(batteryLevel) <= fleetEnergyProperties.getReturnToChargeThreshold();
+    }
+
+    @Override
+    public boolean isCriticalSoc(Integer batteryLevel) {
+        return normalizeSoc(batteryLevel) <= fleetEnergyProperties.getCriticalSocThreshold();
+    }
+
+    @Override
     public boolean isFullyCharged(Integer batteryLevel) {
         return normalizeSoc(batteryLevel) >= fleetEnergyProperties.getFullSoc();
+    }
+
+    @Override
+    public boolean isChargeSessionComplete(Integer batteryLevel) {
+        return normalizeSoc(batteryLevel) >= fleetEnergyProperties.getChargeCompleteSoc();
     }
 
     @Override

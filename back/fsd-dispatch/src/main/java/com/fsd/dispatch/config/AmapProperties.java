@@ -17,6 +17,21 @@ public class AmapProperties {
 
     private LogisticsConfig logistics = new LogisticsConfig();
 
+    private DrivingConfig driving = new DrivingConfig();
+
+    @Data
+    public static class DrivingConfig {
+
+        /** 启用后仿真/地图使用高德驾车路径 polyline。 */
+        private boolean enabled = true;
+
+        private int timeoutMs = 4000;
+
+        private String baseUrl = "https://restapi.amap.com/v3/direction/driving";
+
+        private long cacheTtlSeconds = 3600;
+    }
+
     @Data
     public static class LogisticsConfig {
 

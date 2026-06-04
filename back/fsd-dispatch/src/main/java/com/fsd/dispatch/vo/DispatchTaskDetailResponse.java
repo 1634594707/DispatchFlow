@@ -15,6 +15,18 @@ public class DispatchTaskDetailResponse {
 
     private Long orderId;
 
+    /** 取货站代码（管理端富化） */
+    private String pickupStationCode;
+
+    /** 取货站名称（管理端富化） */
+    private String pickupPointName;
+
+    /** 送货站代码（管理端富化） */
+    private String dropoffStationCode;
+
+    /** 送货站名称（管理端富化） */
+    private String dropoffPointName;
+
     private Long vehicleId;
 
     private String dispatchType;

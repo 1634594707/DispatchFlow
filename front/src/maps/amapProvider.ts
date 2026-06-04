@@ -1,5 +1,13 @@
 import { getMapConfig } from './config'
-import type { GeoMapHandle, GeoMapInitOptions, GeoMapMarker, GeoMapPolygon, MapProvider } from './types'
+import type {
+  GeoMapCircle,
+  GeoMapHandle,
+  GeoMapInitOptions,
+  GeoMapMarker,
+  GeoMapPolygon,
+  GeoMapPolyline,
+  MapProvider,
+} from './types'
 
 declare global {
   interface Window {
@@ -7,7 +15,7 @@ declare global {
   }
 }
 
-type AMapMarker = { setMap: (map: unknown | null) => void }
+type AMapOverlay = { setMap: (map: unknown | null) => void }
 
 export class AmapProvider implements MapProvider {
   readonly id = 'AMAP' as const
@@ -38,15 +46,22 @@ export class AmapProvider implements MapProvider {
     })
     map.addControl(new AMap.Scale())
 
-    let markers: AMapMarker[] = []
-    let polygons: Array<{ setMap: (map: unknown | null) => void }> = []
+    let markers: AMapOverlay[] = []
+    let polygons: AMapOverlay[] = []
+    let polylines: AMapOverlay[] = []
+    let circles: AMapOverlay[] = []
+
+    const clear = (overlays: AMapOverlay[]) => {
+      overlays.forEach((overlay) => overlay.setMap(null))
+      overlays.length = 0
+    }
 
     return {
       destroy() {
-        markers.forEach((marker) => marker.setMap(null))
-        markers = []
-        polygons.forEach((polygon) => polygon.setMap(null))
-        polygons = []
+        clear(markers)
+        clear(polygons)
+        clear(polylines)
+        clear(circles)
         map.destroy()
       },
       setCenter(center) {
@@ -55,39 +70,104 @@ export class AmapProvider implements MapProvider {
       setZoom(zoom) {
         map.setZoom(zoom)
       },
-      setMarkers(nextMarkers: GeoMapMarker[], options?: { fitView?: boolean }) {
-        markers.forEach((marker) => marker.setMap(null))
+      setMarkers(nextMarkers: GeoMapMarker[], fitOptions?: { fitView?: boolean }) {
+        clear(markers)
         markers = nextMarkers.map((item) => {
-          const marker = new AMap.Marker({
+          const markerOptions: Record<string, unknown> = {
             position: item.position,
             title: item.label ?? item.id,
-            label: item.label
-              ? {
-                  content: item.label,
-                  direction: 'top',
-                }
-              : undefined,
-          })
+            angle: item.heading ?? 0,
+            offset: new AMap.Pixel(-18, -18),
+          }
+          if (item.iconUrl) {
+            markerOptions.icon = new AMap.Icon({
+              image: item.iconUrl,
+              size: new AMap.Size(36, 36),
+              imageSize: new AMap.Size(36, 36),
+            })
+          }
+          if (item.label) {
+            markerOptions.label = {
+              content: item.label,
+              direction: 'top',
+            }
+          }
+          const marker = new AMap.Marker(markerOptions)
           marker.setMap(map)
-          return marker as AMapMarker
+          return marker as AMapOverlay
         })
-        if (options?.fitView && markers.length > 0) {
+        if (fitOptions?.fitView && markers.length > 0) {
           map.setFitView(markers, false, [80, 80, 80, 80])
         }
       },
       setPolygons(nextPolygons: GeoMapPolygon[]) {
-        polygons.forEach((polygon) => polygon.setMap(null))
+        clear(polygons)
         polygons = nextPolygons.map((item) => {
           const polygon = new AMap.Polygon({
             path: item.path,
             strokeColor: item.strokeColor ?? '#00d4aa',
-            strokeWeight: 2,
+            strokeWeight: item.strokeWeight ?? 2,
             fillColor: item.fillColor ?? 'rgba(0, 212, 170, 0.12)',
-            fillOpacity: 0.35,
+            fillOpacity: item.fillOpacity ?? 0.35,
+            zIndex: item.zIndex ?? 10,
           })
           polygon.setMap(map)
-          return polygon
+          return polygon as AMapOverlay
         })
+      },
+      setPolylines(nextPolylines: GeoMapPolyline[]) {
+        clear(polylines)
+        polylines = nextPolylines.map((item) => {
+          const polyline = new AMap.Polyline({
+            path: item.path,
+            strokeColor: item.strokeColor ?? '#3ea6ff',
+            strokeWeight: item.strokeWeight ?? 4,
+            strokeOpacity: item.strokeOpacity ?? 0.85,
+            strokeStyle: item.lineDash?.length ? 'dashed' : 'solid',
+            strokeDasharray: item.lineDash,
+            zIndex: item.zIndex ?? 50,
+            showDir: true,
+          })
+          polyline.setMap(map)
+          return polyline as AMapOverlay
+        })
+      },
+      setCircles(nextCircles: GeoMapCircle[]) {
+        clear(circles)
+        circles = nextCircles.map((item) => {
+          const circle = new AMap.Circle({
+            center: item.center,
+            radius: item.radiusMeters,
+            strokeColor: item.strokeColor ?? 'rgba(100, 149, 237, 0.5)',
+            strokeWeight: item.strokeWeight ?? 1,
+            fillColor: item.fillColor ?? 'rgba(100, 149, 237, 0.06)',
+            fillOpacity: item.fillOpacity ?? 0.2,
+            zIndex: item.zIndex ?? 2,
+            bubble: true,
+          })
+          circle.setMap(map)
+          return circle as AMapOverlay
+        })
+      },
+      fitViewToPoints(points, padding = [72, 72, 72, 72]) {
+        if (!points.length) return
+        if (points.length === 1) {
+          map.setCenter(points[0])
+          map.setZoom(17)
+          return
+        }
+        let minLng = points[0][0]
+        let maxLng = points[0][0]
+        let minLat = points[0][1]
+        let maxLat = points[0][1]
+        for (const [lng, lat] of points) {
+          minLng = Math.min(minLng, lng)
+          maxLng = Math.max(maxLng, lng)
+          minLat = Math.min(minLat, lat)
+          maxLat = Math.max(maxLat, lat)
+        }
+        const bounds = new AMap.Bounds([minLng, minLat], [maxLng, maxLat])
+        map.setBounds(bounds, false, padding)
       },
     }
   }

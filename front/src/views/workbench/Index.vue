@@ -14,6 +14,13 @@
             un-checked-children="正常派单"
             @change="onDispatchPauseChange"
           />
+          <a-button
+            v-if="authStore.canWrite"
+            type="primary"
+            @click="createOrderModalOpen = true"
+          >
+            创建短驳订单
+          </a-button>
           <a-button :loading="store.loading" @click="refreshAll">
             <ReloadOutlined /> 刷新 <span class="kbd-hint">R</span>
           </a-button>
@@ -83,7 +90,16 @@
         <div class="panel-head">
           <div class="panel-head-title">
             <h2>任务池</h2>
-            <span class="panel-order-hint">拖动排序仅在本浏览器有效</span>
+            <span class="panel-order-hint">默认按优先级 · 拖动仅本机偏好</span>
+            <a-button
+              v-if="hasManualTaskOrder"
+              type="link"
+              size="small"
+              class="reset-order-link"
+              @click="resetTaskOrder"
+            >
+              恢复服务端排序
+            </a-button>
           </div>
           <div class="panel-head-toolbar">
             <div class="filter-tabs">
@@ -176,7 +192,7 @@
                   :loading="actionLoading === `auto-${task.taskId}`"
                   @click="handleAutoAssign(task)"
                 >
-                  自动派车
+                  {{ task.status === TaskStatus.MANUAL_PENDING ? '重新自动派车' : '自动派车' }}
                 </a-button>
                 <a-button size="small" @click="openManualModal(task)">手动派车</a-button>
                 <a-button size="small" @click="handleBumpPriority(task)">紧急插队</a-button>
@@ -358,6 +374,12 @@
         </template>
       </a-table>
     </a-modal>
+
+    <ParkDeliveryOrderModal
+      v-model:open="createOrderModalOpen"
+      :park-id="parkScope.selectedParkId"
+      @created="refreshAll"
+    />
   </div>
 </template>
 
@@ -372,6 +394,7 @@ import dayjs from 'dayjs'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ParkMiniMap from '@/components/workbench/ParkMiniMap.vue'
+import ParkDeliveryOrderModal from '@/components/park/ParkDeliveryOrderModal.vue'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
@@ -405,6 +428,8 @@ const workbenchShortcutsEnabled = computed(() => route.path === '/workbench')
 const trafficSummary = ref<TrafficSummary | null>(null)
 const dispatchPaused = ref(false)
 const draggingTaskId = ref<number | null>(null)
+const createOrderModalOpen = ref(false)
+const hasManualTaskOrder = computed(() => store.manualTaskOrder.length > 0)
 
 const parkLayout = computed(() => store.parkLayout)
 const parkVehicles = computed(() => store.parkVehicles)
@@ -743,6 +768,11 @@ async function handleBumpPriority(task: TaskAdminListItem) {
 
 function onTaskDragStart(taskId: number) {
   draggingTaskId.value = taskId
+}
+
+function resetTaskOrder() {
+  store.clearManualTaskOrder()
+  message.success('已恢复服务端默认排序')
 }
 
 function onTaskDrop(targetTaskId: number) {

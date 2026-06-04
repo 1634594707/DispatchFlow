@@ -1,0 +1,10 @@
+{
+  "maps": [
+    {
+      "name": "ZjfDieshiqiaoPilot",
+      "xodr": "./ZjfDieshiqiaoPilot/ZjfDieshiqiaoPilot.xodr",
+      "use_carla_materials": true
+    }
+  ],
+  "props": []
+}

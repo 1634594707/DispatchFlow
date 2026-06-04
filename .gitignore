@@ -16,6 +16,8 @@ docs/*
 !docs/README.md
 !docs/ROADMAP-V2.md
 !docs/ROADMAP-V3.md
+!docs/ROADMAP-V4.md
+!docs/v4/
 !docs/REQUIREMENTS-DESIGN.md
 !docs/SECURITY-AUDIT.md
 !docs/UPDATE-OPERATIONS.md

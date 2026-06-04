@@ -16,9 +16,12 @@ class FleetChargePolicyImplTest {
     @BeforeEach
     void setUp() {
         FleetEnergyProperties properties = new FleetEnergyProperties();
-        properties.setLowSocThreshold(25);
+        properties.setLowSocThreshold(20);
+        properties.setReturnToChargeThreshold(15);
+        properties.setCriticalSocThreshold(5);
         properties.setMinAssignableSoc(30);
         properties.setFullSoc(100);
+        properties.setChargeCompleteSoc(90);
         properties.setPluggedStandbyNoDrain(true);
         fleetChargePolicy = new FleetChargePolicyImpl(properties);
     }
@@ -43,6 +46,9 @@ class FleetChargePolicyImplTest {
         vehicle.setBatteryLevel(20);
 
         assertTrue(fleetChargePolicy.isLowSoc(20));
+        assertTrue(fleetChargePolicy.shouldReturnToCharge(15));
+        assertTrue(fleetChargePolicy.isCriticalSoc(5));
+        assertTrue(fleetChargePolicy.isChargeSessionComplete(90));
         assertFalse(fleetChargePolicy.isAssignable(vehicle));
     }
 

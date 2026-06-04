@@ -20,8 +20,8 @@
 | 项 | 值 |
 |----|-----|
 | 参考位置 | 南通市海门区 · 叠石桥国际家纺城片区 |
-| 地图中心 GCJ-02 | `121.062280, 31.912450` |
-| 园区 schematic | 1200×800 px ≈ 2.4km × 1.6km |
+| 地图中心 GCJ-02 | `121.080354, 31.961977` |
+| 园区 schematic | 1200×800 px ≈ 1570m × 470m |
 | 后端配置 | `fsd.park.geo.*` in `application.yml` |
 | 前端转换 | `front/src/maps/textileParkGeo.ts` |
 
@@ -40,7 +40,7 @@ cp .env.example .env.local
 VITE_MAP_PROVIDER=AMAP
 VITE_AMAP_KEY=你的Key
 VITE_AMAP_SECURITY_CODE=你的安全密钥
-VITE_AMAP_DEFAULT_CENTER=121.062280,31.912450
+VITE_AMAP_DEFAULT_CENTER=121.080354,31.961977
 VITE_AMAP_DEFAULT_ZOOM=15
 ```
 
@@ -72,13 +72,39 @@ cd back && docker compose up -d   # 或本地 mvn spring-boot:run
 - `Tracking.vue` 双模式 Tab「调度图 | 地理图」
 - REAL / VDA5050 经纬度统一落 Redis
 
-## 7. Web 服务 Key（M4）
+## 7. Web 服务 Key（M4 / M8-R 驾车路径）
 
-物流距离矩阵使用**独立 Web 服务 Key**，与 JS API Key 分离：
+**与前端 `VITE_AMAP_KEY`（JS API）不是同一个 Key。** 后端驾车导航、仿真贴路均依赖 Web 服务 Key。
 
 | 项 | 说明 |
 |----|------|
-| 控制台 | 另建 Key → 服务平台选 **Web 服务** |
+| 控制台 | [高德 Key 管理](https://console.amap.com/dev/key/app) → 新建 Key → 服务平台选 **Web 服务** |
 | 后端变量 | `FSD_AMAP_WEB_SERVICE_KEY` |
-| 启用 | `FSD_AMAP_LOGISTICS_ENABLED=true` |
-| 边界文档 | [`LOGISTICS-PATH.md`](./LOGISTICS-PATH.md) |
+| 驾车路径 | 默认已开：`fsd.amap.driving.enabled=true`（`FSD_AMAP_DRIVING_ENABLED`） |
+| 物流矩阵 | 可选：`FSD_AMAP_LOGISTICS_ENABLED=true`，见 [`LOGISTICS-PATH.md`](./LOGISTICS-PATH.md) |
+
+### 本地启用驾车路径
+
+项目根目录 `.env`（勿提交 Git）：
+
+```env
+FSD_AMAP_WEB_SERVICE_KEY=你的Web服务Key
+```
+
+或在 PowerShell 中：
+
+```powershell
+$env:FSD_AMAP_WEB_SERVICE_KEY = "你的Web服务Key"
+cd back
+.\run-dev.ps1
+```
+
+验证：
+
+```powershell
+.\scripts\dev\test_amap_route.ps1
+```
+
+期望：`health.amapDriving=True`，`validate` 的 `source=AMAP`，`vertexCount` ≥ 4。
+
+链路说明：`ChainedRoadRouteService` 优先调用高德 `v3/direction/driving`；若路径被 OSM 建筑碰撞检测拒绝，会降级到本地路网（`source=LOCAL_GRAPH`）。

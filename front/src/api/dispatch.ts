@@ -60,7 +60,11 @@ export function queryTaskPool(params: {
 export function getFleetTelemetryStreamUrl(parkId?: number): string {
   const base = import.meta.env.VITE_API_BASE_URL || ''
   const path = '/api/admin/fleet/telemetry/stream'
-  const query = parkId != null ? `?parkId=${parkId}` : ''
+  const params = new URLSearchParams()
+  if (parkId != null) params.set('parkId', String(parkId))
+  const token = localStorage.getItem('fsd_admin_token')
+  if (token) params.set('token', token)
+  const query = params.toString() ? `?${params.toString()}` : ''
   return base ? `${base}${path}${query}` : `${path}${query}`
 }
 

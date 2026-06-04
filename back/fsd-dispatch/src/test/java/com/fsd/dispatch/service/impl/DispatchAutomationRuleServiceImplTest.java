@@ -19,7 +19,9 @@ import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.fleet.real.RealFleetSwapCoordinator;
 import com.fsd.dispatch.fleet.simulation.SimulationMotionState;
 import com.fsd.dispatch.mapper.BatterySwapCabinetMapper;
+import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.mapper.DispatchAutomationRuleMapper;
+import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.BatterySwapSessionService;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
@@ -45,6 +47,8 @@ class DispatchAutomationRuleServiceImplTest {
     private PeakModeService peakModeService;
     @Mock
     private DispatchExceptionService dispatchExceptionService;
+    @Mock
+    private DispatchTaskMapper dispatchTaskMapper;
 
     private DispatchStrategyRuntimeService strategyRuntimeService;
     private RealFleetSwapCoordinator realFleetSwapCoordinator;
@@ -62,8 +66,10 @@ class DispatchAutomationRuleServiceImplTest {
                 mock(BatterySwapCabinetMapper.class),
                 mock(FleetChargePolicy.class),
                 strategyRuntimeService);
+        when(dispatchTaskMapper.selectCount(ArgumentMatchers.<LambdaQueryWrapper<DispatchTaskEntity>>any()))
+                .thenReturn(0L);
         service = new DispatchAutomationRuleServiceImpl(
-                ruleMapper, peakModeService, dispatchExceptionService, realFleetSwapCoordinator);
+                ruleMapper, dispatchTaskMapper, peakModeService, dispatchExceptionService, realFleetSwapCoordinator);
     }
 
     @Test
@@ -108,6 +114,22 @@ class DispatchAutomationRuleServiceImplTest {
         service.evaluateSimulationTick(1L, vehicle, state);
 
         assertEquals("WAIT_CHARGING", state.stage);
+    }
+
+    @Test
+    void evaluateSimulationTickShouldNotWaitChargeWhenDispatchBacklogExists() {
+        when(dispatchTaskMapper.selectCount(ArgumentMatchers.<LambdaQueryWrapper<DispatchTaskEntity>>any()))
+                .thenReturn(3L);
+        when(ruleMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<DispatchAutomationRuleEntity>>any()))
+                .thenReturn(List.of(chargeRule("仿真低电", "30")));
+
+        VehicleEntity vehicle = vehicle(4L, 25);
+        SimulationMotionState state = new SimulationMotionState();
+        state.stage = "STANDBY";
+
+        service.evaluateSimulationTick(1L, vehicle, state);
+
+        assertEquals("STANDBY", state.stage);
     }
 
     @Test
