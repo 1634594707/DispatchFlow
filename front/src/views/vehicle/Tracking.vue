@@ -66,10 +66,13 @@
           </p>
           <div class="header-controls">
             <p v-if="trackingScene === 'park'" class="map-scope-hint">
-              园区调度图：内部路网与 AGV 任务，供后台审查。
+              <a-tooltip title="内部路网示意，非真实道路；ZJF 短驳请切换「短驳地理」。">
+                <span>园区调度图：内部路网与 AGV 任务，供后台审查。</span>
+              </a-tooltip>
             </p>
             <p v-else class="map-scope-hint geo">
-              短驳地理图：叠石桥试点 L1 · 取送货与贴路轨迹。
+              <span class="pilot-badge">当前：叠石桥 L1 试点</span>
+              短驳地理图 · 取送货与贴路轨迹
             </p>
             <span class="mode-toggle">
               模式：{{ peakModeLabel }}
@@ -131,6 +134,14 @@
           <button class="stat-item charging" :class="{ active: activeFilter === 'CHARGING' }" @click="filterByStatus('CHARGING')">
             <span class="stat-value">{{ chargingCount }}</span>
             <span class="stat-label">充电</span>
+          </button>
+          <button
+            class="stat-item low-battery"
+            :class="{ active: activeFilter === 'LOW_BATTERY' }"
+            @click="filterByStatus('LOW_BATTERY')"
+          >
+            <span class="stat-value">{{ lowBatteryCount }}</span>
+            <span class="stat-label">低电量</span>
           </button>
         </div>
 
@@ -633,19 +644,36 @@ const geoMarkers = computed((): GeoMapMarker[] => {
         return [{ id: `st-${station.stationId}`, position, label: station.stationCode }]
       }) ?? []
 
+  const chargeMarkers =
+    showChargeLayer.value && trackingScene.value === 'delivery'
+      ? (parkLayout.value?.stations ?? [])
+          .filter(station => (station.stationCode ?? '').startsWith('ZJF-CHG-'))
+          .flatMap((station) => {
+            const position = stationGeoPosition(station)
+            if (!position) return []
+            const occupied = vehicles.value.filter(
+              v => v.charging && v.targetCode === station.stationCode,
+            ).length
+            return [{
+              id: `chg-${station.stationId}`,
+              position,
+              label: `⚡ ${station.stationCode}${occupied ? ' · 占用' : ''}`,
+            }]
+          })
+      : []
+
   return [
     ...stationMarkers,
+    ...chargeMarkers,
     ...geoVehiclesOnMap.value.map((vehicle) =>
       toAvGeoMarker(String(vehicle.vehicleId), vehicleGeoPosition(vehicle), {
         onlineStatus: vehicle.onlineStatus,
         dispatchStatus: vehicle.dispatchStatus,
         charging: vehicle.charging,
         lowBattery: vehicle.lowBattery,
+        batteryStatus: vehicle.batteryStatus,
         heading: vehicle.heading ?? null,
-        label:
-          selectedId.value === vehicle.vehicleId
-            ? `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%`
-            : undefined,
+        label: `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%`,
       }),
     ),
   ]
@@ -1852,6 +1880,18 @@ onUnmounted(() => {
   color: var(--track-warning);
 }
 
+.pilot-badge {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #7ee787;
+  background: rgba(0, 214, 170, 0.12);
+  border: 1px solid rgba(0, 214, 170, 0.35);
+}
+
 .map-scope-hint.geo {
   color: var(--track-accent);
 }
@@ -2044,6 +2084,11 @@ onUnmounted(() => {
   background: rgba(255, 176, 32, 0.08);
 }
 
+.stat-item.low-battery.active {
+  border-color: rgba(255, 122, 69, 0.4);
+  background: rgba(255, 122, 69, 0.08);
+}
+
 .stat-item .stat-value {
   font-size: 18px;
   font-weight: 700;
@@ -2061,6 +2106,10 @@ onUnmounted(() => {
 
 .stat-item.busy .stat-value {
   color: var(--track-busy);
+}
+
+.stat-item.low-battery .stat-value {
+  color: #ff7a45;
 }
 
 .stat-item.charging .stat-value {

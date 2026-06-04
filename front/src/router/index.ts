@@ -239,6 +239,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '运维快照', breadcrumb: ['产业运营', '运维快照'] },
       },
       {
+        path: 'system/config-check',
+        name: 'ConfigCheck',
+        component: () => import('@/views/system/ConfigCheck.vue'),
+        meta: { title: '试点配置自检', breadcrumb: ['系统管理', '试点配置自检'], requiresAdmin: true },
+      },
+      {
         path: 'system/health',
         name: 'SystemHealth',
         component: () => import('@/views/system/SystemHealth.vue'),

@@ -83,7 +83,9 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
     const delay = Math.min(baseDelay * Math.pow(2, retryCount), maxDelay)
     const jitter = delay * 0.1 * Math.random()
     const waitMs = delay + jitter
-    console.log(`[SSE] Reconnecting in ${Math.round(waitMs)}ms (attempt ${retryCount + 1}/${maxRetries})`)
+    if (import.meta.env.DEV) {
+      console.debug(`[SSE] Reconnecting in ${Math.round(waitMs)}ms (attempt ${retryCount + 1}/${maxRetries})`)
+    }
 
     retryTimer = setTimeout(() => {
       retryCount++

@@ -4,7 +4,10 @@
     <div v-if="loading" class="amap-geo-map__overlay">地图加载中…</div>
     <div v-else-if="error" class="amap-geo-map__overlay amap-geo-map__overlay--error">
       <p>{{ error }}</p>
-      <p class="amap-geo-map__hint">在 <code>front/.env.local</code> 配置 <code>VITE_AMAP_KEY</code> 与 <code>VITE_AMAP_SECURITY_CODE</code></p>
+      <p class="amap-geo-map__hint">
+        在 <code>front/.env.local</code> 配置 <code>VITE_AMAP_KEY</code> 与 <code>VITE_AMAP_SECURITY_CODE</code>
+      </p>
+      <router-link class="amap-geo-map__check-link" to="/system/config-check">打开试点配置自检 →</router-link>
     </div>
   </div>
 </template>
@@ -175,6 +178,16 @@ watch(
   color: #8b949e;
   code {
     color: #79c0ff;
+  }
+}
+
+.amap-geo-map__check-link {
+  font-size: 13px;
+  color: #58a6ff;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 </style>

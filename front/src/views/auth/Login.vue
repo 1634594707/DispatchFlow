@@ -12,7 +12,7 @@
           <DispatchFlowLogo :size="48" />
         </div>
         <h1>DispatchFlow</h1>
-        <p>无人车调度管理平台</p>
+        <p>找家纺网 · 叠石桥 L1 无人车短驳调度</p>
       </div>
 
       <a-form

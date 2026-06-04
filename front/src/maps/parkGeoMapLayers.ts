@@ -52,10 +52,9 @@ export function buildVehicleGeoMarkers(
       lowBattery: vehicle.lowBattery,
       batteryStatus: vehicle.batteryStatus,
       heading: vehicle.heading ?? null,
-      label:
-        focusId === vehicle.vehicleId
-          ? `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%`
-          : undefined,
+      label: `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%${
+        vehicle.batteryStatus === 'CRITICAL' ? ' ⚠' : vehicle.lowBattery ? ' ↓' : ''
+      }`,
     }),
   )
 }

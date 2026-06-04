@@ -122,6 +122,12 @@ function draw() {
     ctx.closePath()
     ctx.fill()
     ctx.stroke()
+    if (vehicle.onlineStatus === 'ONLINE') {
+      ctx.font = '9px JetBrains Mono, monospace'
+      ctx.fillStyle = vehicle.lowBattery ? '#ff7a45' : 'rgba(255,255,255,0.65)'
+      ctx.textAlign = 'center'
+      ctx.fillText(`${vehicle.batteryLevel}%`, x, y + 14)
+    }
   }
 }
 

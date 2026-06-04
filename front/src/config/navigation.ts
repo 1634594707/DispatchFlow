@@ -184,6 +184,7 @@ export const NAVIGATION_TREE: NavItem[] = [
         path: '/system/alert-settings',
         icon: 'alert',
       },
+      { key: 'system-config-check', label: '试点配置自检', path: '/system/config-check', icon: 'health' },
       { key: 'system-health', label: '系统健康', path: '/system/health', icon: 'health' },
     ],
   },

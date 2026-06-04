@@ -23,6 +23,8 @@ import com.fsd.dispatch.fleet.simulation.SimulationMotionState;
 import com.fsd.dispatch.fleet.simulation.SimulationMotionStore;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.ParkingFacilityService;
+import com.fsd.dispatch.fleet.model.FleetRuntime;
+import com.fsd.dispatch.geo.GeoPolygonUtils;
 import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
 import com.fsd.dispatch.geo.RoadRouteFollower;
@@ -53,6 +55,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -1079,10 +1082,49 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         if (!schematic) {
             List<ParkPointResponse> chargingSpots = listZjfChargingSpots();
             if (!chargingSpots.isEmpty()) {
-                return chargingSpots.get(index % chargingSpots.size());
+                return selectNearestChargingSpot(vehicle, chargingSpots)
+                        .orElseGet(() -> chargingSpots.get(index % chargingSpots.size()));
             }
         }
         return getStandbySpot(index);
+    }
+
+    private Optional<ParkPointResponse> selectNearestChargingSpot(VehicleEntity vehicle,
+                                                                  List<ParkPointResponse> chargingSpots) {
+        GeoPoint position = resolveVehicleGeoPoint(vehicle);
+        if (position == null) {
+            return Optional.empty();
+        }
+        ParkPointResponse nearest = null;
+        double bestMeters = Double.MAX_VALUE;
+        for (ParkPointResponse spot : chargingSpots) {
+            if (spot.getLongitude() == null || spot.getLatitude() == null) {
+                continue;
+            }
+            GeoPoint target = new GeoPoint(spot.getLongitude(), spot.getLatitude());
+            double meters = GeoPolygonUtils.haversineMeters(position, target);
+            if (meters < bestMeters) {
+                bestMeters = meters;
+                nearest = spot;
+            }
+        }
+        return Optional.ofNullable(nearest);
+    }
+
+    private GeoPoint resolveVehicleGeoPoint(VehicleEntity vehicle) {
+        Optional<FleetRuntime> runtime = fleetRuntimeService.get(vehicle.getId());
+        if (runtime.isPresent()
+                && runtime.get().getLongitude() != null
+                && runtime.get().getLatitude() != null) {
+            return new GeoPoint(runtime.get().getLongitude(), runtime.get().getLatitude());
+        }
+        SimulationMotionState state = simulationMotionStore.get(vehicle.getId());
+        if (state == null) {
+            return null;
+        }
+        BigDecimal parkX = state.lastX != null ? state.lastX : state.targetX;
+        BigDecimal parkY = state.lastY != null ? state.lastY : state.targetY;
+        return parkGeoTransformService.toGcj02(parkX, parkY).orElse(null);
     }
 
     private ParkPointResponse getGeoStandbySpot(int index) {
