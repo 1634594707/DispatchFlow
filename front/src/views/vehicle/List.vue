@@ -145,7 +145,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { createVehicle, updateVehicle, getVehicleDetail } from '@/api/vehicle'
 import { onlineStatusMap, dispatchStatusMap } from '@/constants/statusMap'
-import type { OnlineStatus, DispatchStatus } from '@/constants/enums'
+import { DispatchStatus } from '@/constants/enums'
+import type { OnlineStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -193,7 +194,6 @@ let silentRefreshTimer: ReturnType<typeof setInterval> | null = null
 
 const ACTIVE_DISPATCH_STATUSES: DispatchStatus[] = [
   DispatchStatus.BUSY,
-  DispatchStatus.CHARGING,
 ]
 
 const columns = [

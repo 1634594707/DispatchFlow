@@ -63,6 +63,14 @@ public class BatchTaskAdminServiceImpl implements BatchTaskAdminService {
         });
     }
 
+    @Override
+    public AdminBatchTaskResultResponse batchUnassign(AdminBatchTaskRequest request,
+                                                      String operatorId,
+                                                      String operatorName) {
+        return executeBatch(request.getTaskIds(), (taskId) ->
+                dispatchTaskService.cancelTask(taskId, operatorId, operatorName, request.getRemark()));
+    }
+
     private AdminBatchTaskResultResponse executeBatch(List<Long> taskIds,
                                                       TaskAction action) {
         List<AdminBatchTaskItemResult> results = new ArrayList<>();

@@ -11,6 +11,65 @@ export interface SystemHealthResponse {
   components: SystemComponentHealth[]
 }
 
+export interface MqQueueBacklog {
+  queueName: string
+  backlog: number
+  status: string
+}
+
+export interface DbConnectionPool {
+  active: number
+  idle: number
+  max: number
+  usagePercent: number
+  status: string
+}
+
+export interface RedisMemory {
+  usedBytes: number
+  maxBytes: number
+  usagePercent: number
+  status: string
+}
+
+export interface SseConnection {
+  activeConnections: number
+  status: string
+}
+
+export interface ApiLatencyHistoryPoint {
+  time: string
+  value: number
+}
+
+export interface ApiP99Latency {
+  currentMs: number
+  p50Ms: number
+  p95Ms: number
+  p99Ms: number
+  status: string
+  history: ApiLatencyHistoryPoint[]
+}
+
+export interface DetailedMetricsResponse {
+  mqBacklogs: MqQueueBacklog[]
+  dbConnectionPool: DbConnectionPool
+  redisMemory: RedisMemory
+  sseConnections: SseConnection
+  apiP99Latency: ApiP99Latency
+}
+
+export interface HealthTimelineItem {
+  component: string
+  status: string
+  message: string
+  time: string
+}
+
+export interface HealthTimelineResponse {
+  items: HealthTimelineItem[]
+}
+
 export interface GlobalSearchItem {
   type: 'ORDER' | 'TASK' | 'VEHICLE' | string
   id: number
