@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.common.enums.ExceptionSeverity;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.dto.DispatchExceptionResolveRequest;
+import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
 import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
 import com.fsd.dispatch.event.DispatchEventPublisher;
 import com.fsd.dispatch.event.DispatchEventType;
@@ -49,7 +50,12 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         if (ExceptionSeverity.INFO.name().equals(severity)) {
             return;
         }
-        if (hasOpenException(taskId, exceptionType)) {
+        DispatchExceptionRecordEntity existing = findOpenException(taskId, null, exceptionType);
+        if (existing != null) {
+            existing.setAggCount(existing.getAggCount() == null ? 2 : existing.getAggCount() + 1);
+            existing.setOccurTime(LocalDateTime.now());
+            existing.setExceptionMsg(exceptionMsg);
+            exceptionRecordMapper.updateById(existing);
             return;
         }
         DispatchExceptionRecordEntity entity = new DispatchExceptionRecordEntity();
@@ -61,6 +67,7 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         entity.setExceptionMsg(exceptionMsg);
         entity.setSeverity(severity);
         entity.setOccurTime(LocalDateTime.now());
+        entity.setAggCount(1);
         exceptionRecordMapper.insert(entity);
         eventPublisher.publish(DispatchEventType.EXCEPTION_OPEN, String.valueOf(entity.getId()), buildPayload(entity));
     }
@@ -68,7 +75,12 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
     @Override
     @Transactional
     public void recordVehicleException(Long vehicleId, String exceptionType, String exceptionMsg) {
-        if (hasOpenVehicleException(vehicleId, exceptionType)) {
+        DispatchExceptionRecordEntity existing = findOpenException(null, vehicleId, exceptionType);
+        if (existing != null) {
+            existing.setAggCount(existing.getAggCount() == null ? 2 : existing.getAggCount() + 1);
+            existing.setOccurTime(LocalDateTime.now());
+            existing.setExceptionMsg(exceptionMsg);
+            exceptionRecordMapper.updateById(existing);
             return;
         }
         DispatchExceptionRecordEntity entity = new DispatchExceptionRecordEntity();
@@ -78,6 +90,7 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         entity.setExceptionMsg(exceptionMsg);
         entity.setSeverity(ExceptionSeverity.WARN.name());
         entity.setOccurTime(LocalDateTime.now());
+        entity.setAggCount(1);
         exceptionRecordMapper.insert(entity);
         eventPublisher.publish(DispatchEventType.EXCEPTION_OPEN, String.valueOf(entity.getId()), buildPayload(entity));
     }
@@ -94,6 +107,15 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
             throw new BusinessException("DISPATCH_EXCEPTION_ALREADY_RESOLVED", "Dispatch exception already resolved");
         }
         markResolved(entity, request.getResolverId(), request.getAction(), request.getRemark());
+    }
+
+    @Override
+    public DispatchExceptionRecordEntity getException(Long exceptionId) {
+        DispatchExceptionRecordEntity entity = exceptionRecordMapper.selectById(exceptionId);
+        if (entity == null) {
+            throw new BusinessException("DISPATCH_EXCEPTION_NOT_FOUND", "Dispatch exception not found");
+        }
+        return entity;
     }
 
     @Override
@@ -143,26 +165,17 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         }
     }
 
-    private boolean hasOpenException(Long taskId, String exceptionType) {
-        if (taskId == null || exceptionType == null) {
-            return false;
+    private DispatchExceptionRecordEntity findOpenException(Long taskId, Long vehicleId, String exceptionType) {
+        LambdaQueryWrapper<DispatchExceptionRecordEntity> wrapper = new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
+                .eq(DispatchExceptionRecordEntity::getExceptionStatus, "OPEN")
+                .eq(DispatchExceptionRecordEntity::getExceptionType, exceptionType);
+        if (taskId != null) {
+            wrapper.eq(DispatchExceptionRecordEntity::getTaskId, taskId);
         }
-        Long count = exceptionRecordMapper.selectCount(new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
-                .eq(DispatchExceptionRecordEntity::getTaskId, taskId)
-                .eq(DispatchExceptionRecordEntity::getExceptionType, exceptionType)
-                .eq(DispatchExceptionRecordEntity::getExceptionStatus, "OPEN"));
-        return count != null && count > 0;
-    }
-
-    private boolean hasOpenVehicleException(Long vehicleId, String exceptionType) {
-        if (vehicleId == null || exceptionType == null) {
-            return false;
+        if (vehicleId != null) {
+            wrapper.eq(DispatchExceptionRecordEntity::getVehicleId, vehicleId);
         }
-        Long count = exceptionRecordMapper.selectCount(new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
-                .eq(DispatchExceptionRecordEntity::getVehicleId, vehicleId)
-                .eq(DispatchExceptionRecordEntity::getExceptionType, exceptionType)
-                .eq(DispatchExceptionRecordEntity::getExceptionStatus, "OPEN"));
-        return count != null && count > 0;
+        return exceptionRecordMapper.selectOne(wrapper);
     }
 
     private Map<String, Object> buildPayload(DispatchExceptionRecordEntity entity) {
@@ -175,6 +188,7 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         payload.put("exceptionStatus", entity.getExceptionStatus());
         payload.put("exceptionMsg", entity.getExceptionMsg());
         payload.put("severity", entity.getSeverity());
+        payload.put("aggCount", entity.getAggCount());
         payload.put("resolveAction", entity.getResolveAction());
         payload.put("occurTime", entity.getOccurTime());
         payload.put("resolvedTime", entity.getResolvedTime());

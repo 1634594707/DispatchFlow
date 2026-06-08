@@ -4,6 +4,9 @@
       <a-button @click="handleRefresh">
         <ReloadOutlined /> 刷新
       </a-button>
+      <a-button @click="handleExport">
+        <DownloadOutlined /> 导出
+      </a-button>
     </template>
 
     <div class="search-bar">
@@ -71,6 +74,10 @@
           <a-tooltip :title="record.exceptionMsg">
             <span class="msg-truncate">{{ record.exceptionMsg }}</span>
           </a-tooltip>
+        </template>
+        <template v-else-if="column.dataIndex === 'aggCount'">
+          <a-tag v-if="record.aggCount && record.aggCount > 1" color="orange">x{{ record.aggCount }}</a-tag>
+          <span v-else>-</span>
         </template>
         <template v-else-if="column.dataIndex === 'occurTime'">
           <span class="mono-text">{{ formatTime(record.occurTime) }}</span>
@@ -179,7 +186,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useExceptionStore } from '@/stores/exception'
@@ -212,6 +219,7 @@ const columns = [
   { title: '异常类型', dataIndex: 'exceptionType', width: 160 },
   { title: '关联任务', dataIndex: 'taskId', width: 100 },
   { title: '异常信息', dataIndex: 'exceptionMsg', width: 250, ellipsis: true },
+  { title: '聚合次数', dataIndex: 'aggCount', width: 80 },
   { title: '发生时间', dataIndex: 'occurTime', width: 180 },
   { title: '处理状态', dataIndex: 'exceptionStatus', width: 100 },
   { title: '处理人', dataIndex: 'resolverId', width: 100 },
@@ -243,7 +251,7 @@ function fetchData() {
     parkId: parkScope.selectedParkId,
     pageNo: pageNo.value,
     pageSize: pageSize.value,
-  })
+  }).then(() => openRouteException())
 }
 
 function handleSearch() {
@@ -262,6 +270,13 @@ function handleReset() {
 
 function handleRefresh() {
   fetchData()
+}
+
+function handleExport() {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  const params = new URLSearchParams({ dataset: 'exceptions', period: 'week' })
+  if (parkScope.selectedParkId) params.set('parkId', String(parkScope.selectedParkId))
+  window.open(`${base}/api/admin/analytics/export/csv?${params.toString()}`, '_blank')
 }
 
 function handleTableChange(pag: any) {
@@ -287,8 +302,19 @@ function openResolveDrawer(record: ExceptionAdminListItem) {
   drawerVisible.value = true
 }
 
+function openRouteException() {
+  const exceptionId = Number(route.query.exceptionId)
+  if (!exceptionId || currentException.value?.id === exceptionId) return
+  const item = store.list.find((record) => record.id === exceptionId)
+  if (item) openResolveDrawer(item)
+}
+
 async function handleResolve() {
   if (!currentException.value) return
+  if (resolveForm.action === 'REASSIGN' && !resolveForm.vehicleId) {
+    message.warning('请选择车辆')
+    return
+  }
   if (resolveForm.remark.length < 10) {
     message.warning('处理说明至少10个字符')
     return
@@ -300,6 +326,7 @@ async function handleResolve() {
       resolverName: '管理员',
       action: resolveForm.action,
       remark: resolveForm.remark,
+      vehicleId: resolveForm.action === 'REASSIGN' ? resolveForm.vehicleId : undefined,
     })
     message.success('异常已处理')
     drawerVisible.value = false

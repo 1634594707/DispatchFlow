@@ -2,7 +2,9 @@ package com.fsd.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.admin.metrics.ApiRequestMetrics;
+import com.fsd.admin.service.AdminDispatchStreamService;
 import com.fsd.admin.service.SystemHealthAdminService;
+import com.fsd.admin.vo.AdminDetailedMetricsResponse;
 import com.fsd.admin.vo.AdminSystemComponentHealth;
 import com.fsd.admin.vo.AdminSystemHealthResponse;
 import com.fsd.dispatch.config.DispatchMessagingConfig;
@@ -22,7 +24,9 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.stereotype.Service;
+import com.zaxxer.hikari.HikariDataSource;
 
 @Service
 public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
@@ -33,19 +37,22 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
     private final ObjectProvider<RabbitAdmin> rabbitAdminProvider;
     private final DispatchEventOutboxMapper outboxMapper;
     private final ApiRequestMetrics apiRequestMetrics;
+    private final AdminDispatchStreamService dispatchStreamService;
 
     public SystemHealthAdminServiceImpl(DataSource dataSource,
                                         ObjectProvider<RedisConnectionFactory> redisConnectionFactoryProvider,
                                         ObjectProvider<ConnectionFactory> rabbitConnectionFactoryProvider,
                                         ObjectProvider<RabbitAdmin> rabbitAdminProvider,
                                         DispatchEventOutboxMapper outboxMapper,
-                                        ApiRequestMetrics apiRequestMetrics) {
+                                        ApiRequestMetrics apiRequestMetrics,
+                                        AdminDispatchStreamService dispatchStreamService) {
         this.dataSource = dataSource;
         this.redisConnectionFactoryProvider = redisConnectionFactoryProvider;
         this.rabbitConnectionFactoryProvider = rabbitConnectionFactoryProvider;
         this.rabbitAdminProvider = rabbitAdminProvider;
         this.outboxMapper = outboxMapper;
         this.apiRequestMetrics = apiRequestMetrics;
+        this.dispatchStreamService = dispatchStreamService;
     }
 
     @Override
@@ -66,6 +73,115 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
                 .overallStatus(overall)
                 .checkedAt(LocalDateTime.now())
                 .components(components)
+                .build();
+    }
+
+    @Override
+    public AdminDetailedMetricsResponse getDetailedMetrics() {
+        return AdminDetailedMetricsResponse.builder()
+                .mqBacklogs(getMqBacklogs())
+                .dbConnectionPool(getDbConnectionPool())
+                .redisMemory(getRedisMemory())
+                .sseConnections(AdminDetailedMetricsResponse.SseConnection.builder()
+                        .activeConnections(dispatchStreamService.getActiveConnectionCount())
+                        .status("OK")
+                        .build())
+                .apiP99Latency(getApiLatency())
+                .build();
+    }
+
+    private List<AdminDetailedMetricsResponse.MqQueueBacklog> getMqBacklogs() {
+        RabbitAdmin rabbitAdmin = rabbitAdminProvider.getIfAvailable();
+        if (rabbitAdmin == null) {
+            return List.of(AdminDetailedMetricsResponse.MqQueueBacklog.builder()
+                    .queueName("RabbitMQ 未接入后端")
+                    .backlog(0)
+                    .status("WARNING")
+                    .build());
+        }
+        return List.of(
+                queueBacklog(rabbitAdmin, DispatchMessagingConfig.DISPATCH_AUDIT_QUEUE),
+                queueBacklog(rabbitAdmin, DispatchMessagingConfig.DISPATCH_STREAM_QUEUE),
+                queueBacklog(rabbitAdmin, DispatchMessagingConfig.DISPATCH_WEBHOOK_QUEUE));
+    }
+
+    private AdminDetailedMetricsResponse.MqQueueBacklog queueBacklog(RabbitAdmin rabbitAdmin, String queueName) {
+        int backlog = queueDepth(rabbitAdmin, queueName);
+        return AdminDetailedMetricsResponse.MqQueueBacklog.builder()
+                .queueName(queueName)
+                .backlog(backlog)
+                .status(backlog > 500 ? "CRITICAL" : backlog > 100 ? "WARNING" : "OK")
+                .build();
+    }
+
+    private AdminDetailedMetricsResponse.DbConnectionPool getDbConnectionPool() {
+        if (dataSource instanceof HikariDataSource hikariDataSource && hikariDataSource.getHikariPoolMXBean() != null) {
+            var pool = hikariDataSource.getHikariPoolMXBean();
+            int active = pool.getActiveConnections();
+            int idle = pool.getIdleConnections();
+            int max = hikariDataSource.getMaximumPoolSize();
+            double usagePercent = max <= 0 ? 0D : active * 100D / max;
+            return AdminDetailedMetricsResponse.DbConnectionPool.builder()
+                    .active(active)
+                    .idle(idle)
+                    .max(max)
+                    .usagePercent(usagePercent)
+                    .status(usagePercent > 90 ? "CRITICAL" : usagePercent > 75 ? "WARNING" : "OK")
+                    .build();
+        }
+        return AdminDetailedMetricsResponse.DbConnectionPool.builder()
+                .active(0)
+                .idle(0)
+                .max(0)
+                .usagePercent(0D)
+                .status("WARNING")
+                .build();
+    }
+
+    private AdminDetailedMetricsResponse.RedisMemory getRedisMemory() {
+        RedisConnectionFactory factory = redisConnectionFactoryProvider.getIfAvailable();
+        if (factory == null) {
+            return redisMemoryNotAvailable();
+        }
+        try (var connection = factory.getConnection()) {
+            Properties memory = connection.serverCommands().info("memory");
+            long used = Long.parseLong(memory.getProperty("used_memory", "0"));
+            long max = Long.parseLong(memory.getProperty("maxmemory", "0"));
+            double usagePercent = max <= 0 ? 0D : used * 100D / max;
+            return AdminDetailedMetricsResponse.RedisMemory.builder()
+                    .usedBytes(used)
+                    .maxBytes(max)
+                    .usagePercent(usagePercent)
+                    .status(max <= 0 ? "WARNING" : usagePercent > 90 ? "CRITICAL" : usagePercent > 75 ? "WARNING" : "OK")
+                    .build();
+        } catch (Exception ex) {
+            return redisMemoryNotAvailable();
+        }
+    }
+
+    private AdminDetailedMetricsResponse.RedisMemory redisMemoryNotAvailable() {
+        return AdminDetailedMetricsResponse.RedisMemory.builder()
+                .usedBytes(0L)
+                .maxBytes(0L)
+                .usagePercent(0D)
+                .status("WARNING")
+                .build();
+    }
+
+    private AdminDetailedMetricsResponse.ApiP99Latency getApiLatency() {
+        long p50 = apiRequestMetrics.getRecentPercentileDurationMs(0.50D);
+        long p95 = apiRequestMetrics.getRecentPercentileDurationMs(0.95D);
+        long p99 = apiRequestMetrics.getRecentPercentileDurationMs(0.99D);
+        return AdminDetailedMetricsResponse.ApiP99Latency.builder()
+                .currentMs(apiRequestMetrics.getRecentAverageDurationMs())
+                .p50Ms(p50)
+                .p95Ms(p95)
+                .p99Ms(p99)
+                .status(p99 > 2000 ? "CRITICAL" : p99 > 1000 ? "WARNING" : "OK")
+                .history(List.of(AdminDetailedMetricsResponse.ApiLatencyHistoryPoint.builder()
+                        .time(LocalDateTime.now().toString())
+                        .value(p99)
+                        .build()))
                 .build();
     }
 

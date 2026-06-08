@@ -9,4 +9,6 @@ public interface AdminDispatchStreamService {
     void broadcast(String eventName, Object payload);
 
     boolean hasClients();
+
+    int getActiveConnectionCount();
 }

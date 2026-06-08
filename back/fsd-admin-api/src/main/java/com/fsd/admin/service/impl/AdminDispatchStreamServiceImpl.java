@@ -52,6 +52,11 @@ public class AdminDispatchStreamServiceImpl implements AdminDispatchStreamServic
         return !emitters.isEmpty();
     }
 
+    @Override
+    public int getActiveConnectionCount() {
+        return emitters.size();
+    }
+
     private void removeEmitter(SseEmitter emitter) {
         emitters.remove(emitter);
     }

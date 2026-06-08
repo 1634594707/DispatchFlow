@@ -7,6 +7,9 @@
       <a-button @click="handleRefresh">
         <ReloadOutlined /> 刷新
       </a-button>
+      <a-button @click="handleExport">
+        <DownloadOutlined /> 导出
+      </a-button>
     </template>
 
     <div class="search-bar">
@@ -106,7 +109,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
@@ -117,6 +120,7 @@ import { useAuthStore } from '@/stores/auth'
 import { orderStatusMap } from '@/constants/statusMap'
 import { OrderStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
+import { cancelOrder } from '@/api/order'
 import dayjs from 'dayjs'
 import type { OrderAdminListItem } from '@/types/order'
 
@@ -206,9 +210,21 @@ function handleTableChange(pag: any) {
   fetchData()
 }
 
-function handleCancel(record: OrderAdminListItem) {
-  message.success('订单已取消')
-  fetchData()
+async function handleCancel(record: OrderAdminListItem) {
+  try {
+    await cancelOrder(record.orderId, '订单列表取消')
+    message.success('订单已取消')
+    fetchData()
+  } catch {
+    // handled by interceptor
+  }
+}
+
+function handleExport() {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  const params = new URLSearchParams({ dataset: 'orders', period: 'week' })
+  if (parkScope.selectedParkId) params.set('parkId', String(parkScope.selectedParkId))
+  window.open(`${base}/api/admin/analytics/export/csv?${params.toString()}`, '_blank')
 }
 
 function hasActiveOrdersInList() {
@@ -255,11 +271,22 @@ watch(
 </script>
 
 <style scoped lang="less">
+@mobile-break: 768px;
+
 .search-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+
+  @media (max-width: @mobile-break) {
+    flex-direction: column;
+    align-items: stretch;
+
+    > * {
+      width: 100% !important;
+    }
+  }
 }
 
 .link-cell {
@@ -286,5 +313,10 @@ watch(
   display: flex;
   align-items: center;
   gap: 0;
+
+  @media (max-width: @mobile-break) {
+    flex-direction: column;
+    gap: 4px;
+  }
 }
 </style>
