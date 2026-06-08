@@ -3,7 +3,7 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const AUTH_FILE = resolve(dirname(fileURLToPath(import.meta.url)), 'scripts/perf/.auth/admin.json')
-const isE2E = process.argv.some(arg => arg.includes('scripts/e2e'))
+const isE2E = process.argv.some(arg => arg.includes('scripts/e2e')) || process.env.npm_lifecycle_event === 'test:e2e'
 
 export default defineConfig({
   testDir: './scripts',
