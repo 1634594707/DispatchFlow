@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 
+import com.fsd.admin.service.AdminAuthService;
+import com.fsd.admin.service.AdminParkScopeService;
 import com.fsd.bootstrap.FsdCoreApplication;
 import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
 import com.fsd.dispatch.service.DispatchPauseControlService;
@@ -66,6 +68,10 @@ class DispatchFlowIntegrationTest {
     @MockBean(name = "rabbitDispatchEventPublisher")
     private DispatchEventPublisher dispatchEventPublisher;
     @MockBean
+    private AdminAuthService adminAuthService;
+    @MockBean
+    private AdminParkScopeService adminParkScopeService;
+    @MockBean
     private FleetRuntimeService fleetRuntimeService;
     @MockBean
     private DispatchPauseControlService dispatchPauseControlService;
@@ -87,7 +93,7 @@ class DispatchFlowIntegrationTest {
 
     @Test
     void shouldCompleteMainFlowFromOrderToTaskSuccess() {
-        insertVehicle("VH-001", "Vehicle 1", "ONLINE", "IDLE", 220.0, 170.0);
+        insertVehicle("PARK-001", "Vehicle 1", "ONLINE", "IDLE", 220.0, 170.0);
 
         OrderCreateRequest orderRequest = new OrderCreateRequest();
         orderRequest.setExternalOrderNo("EXT-001");
@@ -109,10 +115,10 @@ class DispatchFlowIntegrationTest {
         DispatchTaskAssignResponse assignResponse = dispatchTaskService.autoAssignTask(taskResponse.getTaskId());
         assertEquals("ASSIGNED", assignResponse.getStatus());
 
-        VehicleReportRequest startRequest = buildReport("VH-001", assignResponse.getTaskId(), orderResponse.getOrderId(), "START_EXECUTE");
+        VehicleReportRequest startRequest = buildReport("PARK-001", assignResponse.getTaskId(), orderResponse.getOrderId(), "START_EXECUTE");
         vehicleReportService.handleReport(startRequest);
 
-        VehicleReportRequest successRequest = buildReport("VH-001", assignResponse.getTaskId(), orderResponse.getOrderId(), "TASK_SUCCESS");
+        VehicleReportRequest successRequest = buildReport("PARK-001", assignResponse.getTaskId(), orderResponse.getOrderId(), "TASK_SUCCESS");
         vehicleReportService.handleReport(successRequest);
 
         assertEquals("COMPLETED", orderMapper.selectById(orderResponse.getOrderId()).getStatus());

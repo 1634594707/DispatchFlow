@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
+import com.fsd.admin.service.AdminAuthService;
+import com.fsd.admin.service.AdminParkScopeService;
 import com.fsd.bootstrap.FsdCoreApplication;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
@@ -63,6 +65,10 @@ class DispatchConcurrencyIntegrationTest {
     private DispatchEventPublisher dispatchEventPublisher;
     @MockBean
     private DispatchPauseControlService dispatchPauseControlService;
+    @MockBean
+    private AdminAuthService adminAuthService;
+    @MockBean
+    private AdminParkScopeService adminParkScopeService;
 
     private ExecutorService executorService;
 

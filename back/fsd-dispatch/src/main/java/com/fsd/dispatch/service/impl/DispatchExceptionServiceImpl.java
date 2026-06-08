@@ -179,21 +179,7 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         if (vehicleId != null) {
             wrapper.eq(DispatchExceptionRecordEntity::getVehicleId, vehicleId);
         }
-        Long count = exceptionRecordMapper.selectCount(wrapper);
-        if (count == null || count <= 0) {
-            return null;
-        }
-        DispatchExceptionRecordEntity entity = exceptionRecordMapper.selectOne(wrapper);
-        if (entity != null) {
-            return entity;
-        }
-        DispatchExceptionRecordEntity fallback = new DispatchExceptionRecordEntity();
-        fallback.setTaskId(taskId);
-        fallback.setVehicleId(vehicleId);
-        fallback.setExceptionType(exceptionType);
-        fallback.setExceptionStatus("OPEN");
-        fallback.setAggCount(1);
-        return fallback;
+        return exceptionRecordMapper.selectOne(wrapper.last("LIMIT 1"));
     }
 
     private Map<String, Object> buildPayload(DispatchExceptionRecordEntity entity) {

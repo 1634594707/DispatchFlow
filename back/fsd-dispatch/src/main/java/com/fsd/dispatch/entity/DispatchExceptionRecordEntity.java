@@ -41,8 +41,6 @@ public class DispatchExceptionRecordEntity {
 
     private String resolveRemark;
 
-    private Integer aggCount;
-
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
