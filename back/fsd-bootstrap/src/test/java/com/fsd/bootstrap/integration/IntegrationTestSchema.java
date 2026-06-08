@@ -225,6 +225,7 @@ final class IntegrationTestSchema {
                     exception_status VARCHAR(32) NOT NULL,
                     exception_msg VARCHAR(255),
                     severity VARCHAR(16) NOT NULL DEFAULT 'WARN',
+                    agg_count INT NOT NULL DEFAULT 1,
                     occur_time TIMESTAMP NOT NULL,
                     resolved_time TIMESTAMP,
                     escalated_at TIMESTAMP,
