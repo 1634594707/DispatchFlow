@@ -4,6 +4,9 @@
       <a-button @click="handleRefresh">
         <ReloadOutlined /> 刷新
       </a-button>
+      <a-button @click="handleExport">
+        <DownloadOutlined /> 导出
+      </a-button>
     </template>
 
     <div class="search-bar">
@@ -124,8 +127,9 @@
     <a-modal
       v-model:open="dispatchModalVisible"
       title="派单"
+      :confirm-loading="dispatchLoading"
+      :ok-button-props="{ disabled: assignableVehicles.length === 0 }"
       @ok="handleDispatch"
-      :confirmLoading="dispatchLoading"
     >
       <a-form layout="vertical">
         <a-form-item label="选择车辆" required>
@@ -134,9 +138,16 @@
             placeholder="请选择在线空闲车辆"
             show-search
             :filter-option="filterOption"
+            :loading="assignableVehiclesLoading"
+            :not-found-content="assignableVehiclesLoading ? '加载中...' : '暂无在线空闲车辆'"
           >
-            <a-select-option :value="100">VH-001 (在线·空闲)</a-select-option>
-            <a-select-option :value="101">VH-002 (在线·空闲)</a-select-option>
+            <a-select-option
+              v-for="vehicle in assignableVehicles"
+              :key="vehicle.vehicleId"
+              :value="vehicle.vehicleId"
+            >
+              {{ formatVehicleOption(vehicle) }}
+            </a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="备注">
@@ -148,8 +159,9 @@
     <a-modal
       v-model:open="reassignModalVisible"
       title="改派"
+      :confirm-loading="reassignLoading"
+      :ok-button-props="{ disabled: reassignableVehicles.length === 0 }"
       @ok="handleReassign"
-      :confirmLoading="reassignLoading"
     >
       <a-alert
         message="改派会导致当前车辆释放，请确认是否继续。"
@@ -167,8 +179,16 @@
             placeholder="请选择新车辆"
             show-search
             :filter-option="filterOption"
+            :loading="assignableVehiclesLoading"
+            :not-found-content="assignableVehiclesLoading ? '加载中...' : '暂无在线空闲车辆'"
           >
-            <a-select-option :value="101">VH-002 (在线·空闲)</a-select-option>
+            <a-select-option
+              v-for="vehicle in reassignableVehicles"
+              :key="vehicle.vehicleId"
+              :value="vehicle.vehicleId"
+            >
+              {{ formatVehicleOption(vehicle) }}
+            </a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="改派原因" required>
@@ -187,7 +207,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
@@ -197,8 +217,11 @@ import { useAuthStore } from '@/stores/auth'
 import { taskStatusMap } from '@/constants/statusMap'
 import { TaskStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
+import { manualAssignTask, reassignTask, cancelTask } from '@/api/task'
+import { getDispatchWorkbench } from '@/api/dispatch'
 import dayjs from 'dayjs'
 import type { TaskAdminListItem } from '@/types/task'
+import type { ParkVehicleSnapshot } from '@/types/park'
 
 const router = useRouter()
 const route = useRoute()
@@ -291,6 +314,13 @@ function handleRefresh() {
   fetchData()
 }
 
+function handleExport() {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  const params = new URLSearchParams({ dataset: 'tasks', period: 'week' })
+  if (parkScope.selectedParkId) params.set('parkId', String(parkScope.selectedParkId))
+  window.open(`${base}/api/admin/analytics/export/csv?${params.toString()}`, '_blank')
+}
+
 function handleTableChange(pag: any) {
   pageNo.value = pag.current
   pageSize.value = pag.pageSize
@@ -299,23 +329,55 @@ function handleTableChange(pag: any) {
 
 const dispatchModalVisible = ref(false)
 const dispatchLoading = ref(false)
+const assignableVehiclesLoading = ref(false)
 const currentTask = ref<TaskAdminListItem | null>(null)
 const dispatchForm = reactive({ vehicleId: undefined as number | undefined, remark: '' })
+const assignableVehicles = ref<ParkVehicleSnapshot[]>([])
+
+const reassignableVehicles = computed(() =>
+  assignableVehicles.value.filter(vehicle => vehicle.vehicleId !== currentTask.value?.vehicleId),
+)
+
+function isAssignableVehicle(vehicle: ParkVehicleSnapshot) {
+  return vehicle.onlineStatus === 'ONLINE' && vehicle.dispatchStatus === 'IDLE'
+}
+
+function formatVehicleOption(vehicle: ParkVehicleSnapshot) {
+  return `${vehicle.vehicleCode} (${vehicle.onlineStatus === 'ONLINE' ? '在线' : vehicle.onlineStatus}·${vehicle.dispatchStatus === 'IDLE' ? '空闲' : vehicle.dispatchStatus})`
+}
+
+async function loadAssignableVehicles() {
+  assignableVehiclesLoading.value = true
+  try {
+    const res = await getDispatchWorkbench(parkScope.selectedParkId)
+    assignableVehicles.value = (res.data.vehicles || []).filter(isAssignableVehicle)
+  } catch {
+    assignableVehicles.value = []
+  } finally {
+    assignableVehiclesLoading.value = false
+  }
+}
 
 function openDispatchModal(record: TaskAdminListItem) {
   currentTask.value = record
   dispatchForm.vehicleId = undefined
   dispatchForm.remark = ''
   dispatchModalVisible.value = true
+  loadAssignableVehicles()
 }
 
 async function handleDispatch() {
+  if (!currentTask.value) return
   if (!dispatchForm.vehicleId) {
     message.warning('请选择车辆')
     return
   }
   dispatchLoading.value = true
   try {
+    await manualAssignTask(currentTask.value.taskId, {
+      vehicleId: dispatchForm.vehicleId,
+      remark: dispatchForm.remark,
+    })
     message.success('派单成功')
     dispatchModalVisible.value = false
     fetchData()
@@ -335,9 +397,11 @@ function openReassignModal(record: TaskAdminListItem) {
   reassignForm.newVehicleId = undefined
   reassignForm.reason = ''
   reassignModalVisible.value = true
+  loadAssignableVehicles()
 }
 
 async function handleReassign() {
+  if (!currentTask.value) return
   if (!reassignForm.newVehicleId) {
     message.warning('请选择新车辆')
     return
@@ -348,6 +412,10 @@ async function handleReassign() {
   }
   reassignLoading.value = true
   try {
+    await reassignTask(currentTask.value.taskId, {
+      vehicleId: reassignForm.newVehicleId,
+      remark: reassignForm.reason,
+    })
     message.success('改派成功')
     reassignModalVisible.value = false
     fetchData()
@@ -359,8 +427,13 @@ async function handleReassign() {
 }
 
 async function handleCancel(record: TaskAdminListItem) {
-  message.success('任务已取消')
-  fetchData()
+  try {
+    await cancelTask(record.taskId, '任务列表取消')
+    message.success('任务已取消')
+    fetchData()
+  } catch {
+    // handled by interceptor
+  }
 }
 
 function hasActiveTasksInList() {
@@ -407,11 +480,22 @@ watch(
 </script>
 
 <style scoped lang="less">
+@mobile-break: 768px;
+
 .search-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+
+  @media (max-width: @mobile-break) {
+    flex-direction: column;
+    align-items: stretch;
+
+    > * {
+      width: 100% !important;
+    }
+  }
 }
 
 .link-cell {
@@ -438,5 +522,10 @@ watch(
   display: flex;
   align-items: center;
   gap: 0;
+
+  @media (max-width: @mobile-break) {
+    flex-direction: column;
+    gap: 4px;
+  }
 }
 </style>

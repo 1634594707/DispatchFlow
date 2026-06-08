@@ -1,5 +1,6 @@
 package com.fsd.admin.metrics;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import org.springframework.stereotype.Component;
@@ -49,5 +50,15 @@ public class ApiRequestMetrics {
             sum += recentSamples[i];
         }
         return sum / sampleSize;
+    }
+
+    public synchronized long getRecentPercentileDurationMs(double percentile) {
+        if (sampleSize == 0) {
+            return 0;
+        }
+        long[] samples = Arrays.copyOf(recentSamples, sampleSize);
+        Arrays.sort(samples);
+        int index = (int) Math.ceil(percentile * sampleSize) - 1;
+        return samples[Math.max(0, Math.min(index, sampleSize - 1))];
     }
 }

@@ -16,4 +16,6 @@ public class DispatchExceptionResolveRequest {
     private String action;
 
     private String remark;
+
+    private Long vehicleId;
 }

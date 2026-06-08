@@ -13,3 +13,7 @@ export function queryOrders(data: OrderQueryRequest) {
 export function getOrderDetail(orderId: number) {
   return request.get<any, ApiResponse<OrderDetailResponse>>(`/admin/orders/${orderId}`)
 }
+
+export function cancelOrder(orderId: number, remark?: string) {
+  return request.post<any, ApiResponse<null>>(`/admin/orders/${orderId}/cancel`, { remark })
+}

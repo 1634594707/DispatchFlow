@@ -18,12 +18,15 @@ public class AdminDispatchExceptionResolveRequest {
 
     private String remark;
 
+    private Long vehicleId;
+
     public DispatchExceptionResolveRequest toDispatchRequest() {
         DispatchExceptionResolveRequest request = new DispatchExceptionResolveRequest();
         request.setResolverId(resolverId);
         request.setResolverName(resolverName);
         request.setAction(action);
         request.setRemark(remark);
+        request.setVehicleId(vehicleId);
         return request;
     }
 }

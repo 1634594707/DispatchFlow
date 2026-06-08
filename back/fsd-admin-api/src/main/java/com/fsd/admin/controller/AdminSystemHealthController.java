@@ -2,6 +2,8 @@ package com.fsd.admin.controller;
 
 import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.service.SystemHealthAdminService;
+import com.fsd.admin.vo.AdminDetailedMetricsResponse;
+import com.fsd.admin.vo.AdminHealthTimelineResponse;
 import com.fsd.admin.vo.AdminSystemHealthResponse;
 import com.fsd.common.model.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,5 +37,21 @@ public class AdminSystemHealthController {
     public ApiResponse<AdminSystemHealthResponse> health(HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(systemHealthAdminService.getHealth());
+    }
+
+    @GetMapping("/health/metrics")
+    @Operation(summary = "System detailed metrics")
+    public ApiResponse<AdminDetailedMetricsResponse> metrics(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(systemHealthAdminService.getDetailedMetrics());
+    }
+
+    @GetMapping("/health/timeline")
+    @Operation(summary = "System health timeline")
+    public ApiResponse<AdminHealthTimelineResponse> timeline(HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(AdminHealthTimelineResponse.builder()
+                .items(List.of())
+                .build());
     }
 }

@@ -29,6 +29,7 @@ export interface ExceptionAdminListItem {
   resolvedTime: string | null
   resolverId: string | null
   resolveRemark: string | null
+  aggCount?: number
   createdAt: string
   updatedAt: string
 }
@@ -38,4 +39,5 @@ export interface ResolveExceptionRequest {
   resolverName: string
   action: string
   remark: string
+  vehicleId?: number
 }

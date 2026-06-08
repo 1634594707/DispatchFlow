@@ -17,6 +17,7 @@ import com.fsd.admin.service.AdminDashboardService;
 import com.fsd.admin.service.AdminQueryFacadeService;
 import com.fsd.admin.vo.AdminBatchTaskResultResponse;
 import com.fsd.admin.vo.AdminDashboardSummaryResponse;
+import com.fsd.common.exception.BusinessException;
 import com.fsd.common.model.PageResponse;
 import com.fsd.common.model.ApiResponse;
 import com.fsd.dispatch.vo.DispatchExceptionListItemResponse;
@@ -26,6 +27,7 @@ import com.fsd.dispatch.dto.ParkOrderCreateRequest;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
+import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
 import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
 import com.fsd.dispatch.service.MobileOrderAuthService;
@@ -45,6 +47,7 @@ import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
 import com.fsd.order.service.OrderAdminQueryService;
+import com.fsd.order.service.OrderStateService;
 import com.fsd.admin.service.OrderAdminDetailService;
 import com.fsd.admin.service.TaskAdminDetailService;
 import com.fsd.order.service.OrderQueryService;
@@ -77,6 +80,7 @@ public class AdminDispatchController {
 
     private final OrderAdminQueryService orderAdminQueryService;
     private final OrderQueryService orderQueryService;
+    private final OrderStateService orderStateService;
 
     private final OrderAdminDetailService orderAdminDetailService;
     private final TaskAdminDetailService taskAdminDetailService;
@@ -96,6 +100,7 @@ public class AdminDispatchController {
 
     public AdminDispatchController(OrderAdminQueryService orderAdminQueryService,
                                    OrderQueryService orderQueryService,
+                                   OrderStateService orderStateService,
                                    OrderAdminDetailService orderAdminDetailService,
                                    TaskAdminDetailService taskAdminDetailService,
                                    DispatchAdminQueryService dispatchAdminQueryService,
@@ -113,6 +118,7 @@ public class AdminDispatchController {
                                    CoordinateTransformService coordinateTransformService) {
         this.orderAdminQueryService = orderAdminQueryService;
         this.orderQueryService = orderQueryService;
+        this.orderStateService = orderStateService;
         this.orderAdminDetailService = orderAdminDetailService;
         this.taskAdminDetailService = taskAdminDetailService;
         this.dispatchAdminQueryService = dispatchAdminQueryService;
@@ -152,6 +158,20 @@ public class AdminDispatchController {
                                                            HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(orderAdminDetailService.getEnrichedDetail(orderId));
+    }
+
+    @PostMapping("/orders/{orderId}/cancel")
+    @Operation(summary = "Cancel order")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Order cancelled"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
+    public ApiResponse<Void> cancelOrder(@PathVariable Long orderId,
+                                         @RequestBody(required = false) AdminTaskCancelRequest body,
+                                         HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        orderStateService.markCancelled(orderId);
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/tasks")
@@ -301,6 +321,20 @@ public class AdminDispatchController {
         return ApiResponse.success(batchTaskAdminService.batchReassign(request, operator.id(), operator.name()));
     }
 
+    @PostMapping("/tasks/batch/unassign")
+    @Operation(summary = "Batch unassign tasks")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Batch result returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
+    public ApiResponse<AdminBatchTaskResultResponse> batchUnassign(@Valid @RequestBody AdminBatchTaskRequest request,
+                                                                   HttpServletRequest httpRequest) {
+        AdminAuthSupport.requireAuth(httpRequest);
+        OperatorIdentity operator = resolveOperator(httpRequest);
+        return ApiResponse.success(batchTaskAdminService.batchUnassign(request, operator.id(), operator.name()));
+    }
+
     @GetMapping("/exceptions")
     @Operation(summary = "List dispatch exceptions")
     public ApiResponse<List<DispatchExceptionListItemResponse>> listExceptions(HttpServletRequest request) {
@@ -355,6 +389,21 @@ public class AdminDispatchController {
                                               @Valid @RequestBody AdminDispatchExceptionResolveRequest request,
                                               HttpServletRequest httpRequest) {
         AdminAuthSupport.requireAuth(httpRequest);
+        DispatchExceptionRecordEntity exception = dispatchExceptionService.getException(exceptionId);
+        if ("RESOLVED".equals(exception.getExceptionStatus())) {
+            throw new BusinessException("DISPATCH_EXCEPTION_ALREADY_RESOLVED", "Dispatch exception already resolved");
+        }
+        if ("REASSIGN".equals(request.getAction())) {
+            if (request.getVehicleId() == null) {
+                throw new BusinessException("DISPATCH_EXCEPTION_VEHICLE_REQUIRED", "Reassign action requires vehicleId");
+            }
+            DispatchTaskManualAssignRequest assignRequest = new DispatchTaskManualAssignRequest();
+            assignRequest.setVehicleId(request.getVehicleId());
+            assignRequest.setOperatorId(request.getResolverId());
+            assignRequest.setOperatorName(request.getResolverName());
+            assignRequest.setRemark(request.getRemark());
+            dispatchTaskService.reassignTask(exception.getTaskId(), assignRequest);
+        }
         dispatchExceptionService.resolveException(exceptionId, request.toDispatchRequest());
         return ApiResponse.success(null);
     }
@@ -393,17 +442,19 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/parks")
-    @Operation(summary = "List parks")
+    @Operation(summary = "List parks", description = "Admin token or X-Mobile-Api-Key for mobile order page")
+    @SecurityRequirement(name = "")
     public ApiResponse<List<ParkResponse>> listParks(HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        requireAdminOrMobileOrderKey(request);
         return ApiResponse.success(parkPilotService.listParks());
     }
 
     @GetMapping("/park/layout")
     @Operation(summary = "Get park layout", description = "Map layout with stations, roads, and vehicle positions")
+    @SecurityRequirement(name = "")
     public ApiResponse<ParkLayoutResponse> getParkLayout(@RequestParam(required = false) Long parkId,
                                                          HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        requireAdminOrMobileOrderKey(request);
         if (parkId == null) {
             return ApiResponse.success(parkPilotService.getLayout());
         }
@@ -466,10 +517,11 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/park/geofences")
-    @Operation(summary = "List park geofences")
+    @Operation(summary = "List park geofences", description = "Admin token or X-Mobile-Api-Key for mobile order page")
+    @SecurityRequirement(name = "")
     public ApiResponse<List<ParkGeofenceResponse>> listParkGeofences(@RequestParam(required = false) Long parkId,
                                                                      HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        requireAdminOrMobileOrderKey(request);
         return ApiResponse.success(parkPilotService.listGeofences(parkId));
     }
 
