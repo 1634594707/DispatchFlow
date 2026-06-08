@@ -42,6 +42,8 @@ public class DispatchExceptionListItemResponse {
 
     private String resolveRemark;
 
+    private Integer aggCount;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

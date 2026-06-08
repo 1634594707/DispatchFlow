@@ -194,6 +194,19 @@ class DispatchVehicleAssignServiceImplTest {
         assertEquals("PARK-01", result.getVehicleCode());
     }
 
+    @Test
+    void shouldFailWhenParkIdNull() {
+        OrderEntity order = new OrderEntity();
+        order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
+        order.setParkId(null);
+
+        DispatchAssignResult result = assignService.selectBestVehicle(order);
+
+        assertFalse(result.isSuccess());
+        assertEquals(DispatchAssignFailReason.NO_VEHICLE, result.getFailReason());
+    }
+
     private static ParkStationResponse station(Long id, Long parkId) {
         return ParkStationResponse.builder()
                 .stationId(id)

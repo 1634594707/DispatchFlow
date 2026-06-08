@@ -31,6 +31,8 @@
         :route-anomaly-text="routeAnomalyText"
         :screen-link="trackingScreenLink"
         :remaining-label="remainingDeliveryLabel"
+        :last-updated-label="trackingLastUpdatedLabel"
+        :connection-stale="trackingConnectionStale"
         @select-order="trackedOrderId = $event"
         @order-again="scrollToQuickOrder"
       />
@@ -85,6 +87,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { message } from 'ant-design-vue'
 import OrderTrackingPanel from '@/components/mobile/OrderTrackingPanel.vue'
 import QuickOrderPanel from '@/components/mobile/QuickOrderPanel.vue'
+import type { DemoRoutePreset } from '@/components/mobile/QuickOrderPanel.vue'
 import { parkDeliveryDemoRoutes, parkSchematicDemoRoutes, loadMobileOrderMode, persistMobileOrderMode } from '@/constants/parkDelivery'
 import type { MobileOrderMode } from '@/constants/parkDelivery'
 import {
@@ -146,7 +149,10 @@ const geoMapAvailable = isAmapConfigured()
 const showApiKeySettings = import.meta.env.DEV
 const trackingPanelRef = ref<InstanceType<typeof OrderTrackingPanel> | null>(null)
 const quickOrderPanelRef = ref<InstanceType<typeof QuickOrderPanel> | null>(null)
-let pollTimer: ReturnType<typeof setInterval> | null = null
+const lastTrackingUpdatedAt = ref<Date | null>(null)
+const trackingFailureCount = ref(0)
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+let pollingStopped = false
 
 function resolveDefaultMobileApiKey() {
   return (
@@ -309,6 +315,17 @@ const trackingScreenLink = computed(() =>
   buildGeoTrackingLink(trackedOrder.value?.orderId, trackedOrder.value?.vehicleId),
 )
 
+const trackingLastUpdatedLabel = computed(() => {
+  if (!lastTrackingUpdatedAt.value) return null
+  return lastTrackingUpdatedAt.value.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+})
+
+const trackingConnectionStale = computed(() => trackingFailureCount.value >= 3)
+
 const remainingDeliveryLabel = computed(() => {
   const vehicle = trackedVehicle.value
   if (!vehicle || trackedOrder.value?.runtimeStage === 'COMPLETED') return null
@@ -389,7 +406,7 @@ function handleOrderModeUpdate(mode: MobileOrderMode) {
   applyDefaultStations()
 }
 
-async function submitDemoRoute(route: (typeof parkDeliveryDemoRoutes)[number] | (typeof parkSchematicDemoRoutes)[number]) {
+async function submitDemoRoute(route: { pickupCode: string; dropoffCode: string }) {
   const { pickup, dropoff } = resolveStationIds(route.pickupCode, route.dropoffCode)
   if (!pickup || !dropoff) {
     message.warning('演示站点尚未加载，请稍后重试')
@@ -454,26 +471,36 @@ async function handleParkIdUpdate(parkId: number) {
 }
 
 async function fetchOrders() {
-  try {
-    const response = await getParkOrders({ silent: true })
-    parkOrders.value = response.data || []
-    if (trackedOrderId.value && !visibleParkOrders.value.some(order => order.orderId === trackedOrderId.value)) {
-      trackedOrderId.value = null
-    }
-    if (!trackedOrderId.value && visibleParkOrders.value[0]) {
-      trackedOrderId.value = visibleParkOrders.value[0].orderId
-    }
-  } catch {
-    // 轮询失败时不打断下单
+  const response = await getParkOrders({ silent: true })
+  parkOrders.value = response.data || []
+  if (trackedOrderId.value && !visibleParkOrders.value.some(order => order.orderId === trackedOrderId.value)) {
+    trackedOrderId.value = null
+  }
+  if (!trackedOrderId.value && visibleParkOrders.value[0]) {
+    trackedOrderId.value = visibleParkOrders.value[0].orderId
   }
 }
 
 async function fetchVehicles() {
+  const response = await getParkVehicles({ silent: true })
+  vehicles.value = response.data || []
+}
+
+function scheduleTrackingRefresh() {
+  if (pollingStopped) return
+  const delay = Math.min(3000 * 2 ** trackingFailureCount.value, 30000)
+  pollTimer = setTimeout(refreshTrackingSnapshot, delay)
+}
+
+async function refreshTrackingSnapshot() {
   try {
-    const response = await getParkVehicles({ silent: true })
-    vehicles.value = response.data || []
+    await Promise.all([fetchOrders(), fetchVehicles()])
+    trackingFailureCount.value = 0
+    lastTrackingUpdatedAt.value = new Date()
   } catch {
-    // 车辆列表失败时静默
+    trackingFailureCount.value += 1
+  } finally {
+    scheduleTrackingRefresh()
   }
 }
 
@@ -515,7 +542,7 @@ async function submitOrder() {
     message.success('订单已创建，手机端将自动开始追踪配送')
     form.externalOrderNo = ''
     form.remark = ''
-    await Promise.all([fetchOrders(), fetchVehicles()])
+    void refreshTrackingSnapshot()
     await nextTick()
     trackingPanelRef.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   } catch (err: unknown) {
@@ -535,15 +562,13 @@ function scrollToQuickOrder() {
 onMounted(async () => {
   mobileApiKey.value = resolveDefaultMobileApiKey()
   await fetchParks()
-  await Promise.all([fetchStations(), fetchLayout(), fetchGeofences(), fetchOrders(), fetchVehicles()])
-  pollTimer = setInterval(() => {
-    fetchOrders()
-    fetchVehicles()
-  }, 3000)
+  await Promise.all([fetchStations(), fetchLayout(), fetchGeofences()])
+  await refreshTrackingSnapshot()
 })
 
 onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
+  pollingStopped = true
+  if (pollTimer) clearTimeout(pollTimer)
 })
 </script>
 
@@ -625,6 +650,21 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.tracking-connection-alert {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 183, 3, 0.26);
+  background: rgba(255, 183, 3, 0.1);
+  color: #ffd166;
+  font-size: 13px;
+}
+
+.tracking-connection-alert strong {
+  color: #ffb703;
 }
 
 .settings-panel {

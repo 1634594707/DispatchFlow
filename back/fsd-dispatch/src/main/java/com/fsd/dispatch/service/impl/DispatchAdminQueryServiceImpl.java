@@ -456,6 +456,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
                 .resolvedTime(exception.getResolvedTime())
                 .resolverId(exception.getResolverId())
                 .resolveRemark(exception.getResolveRemark())
+                .aggCount(exception.getAggCount())
                 .createdAt(exception.getCreatedAt())
                 .updatedAt(exception.getUpdatedAt())
                 .build();

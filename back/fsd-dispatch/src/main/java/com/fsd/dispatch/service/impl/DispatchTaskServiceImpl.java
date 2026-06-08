@@ -525,6 +525,65 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
     @Transactional
 
+    public DispatchTaskAssignResponse unassignTask(Long taskId, String operatorId, String operatorName, String remark) {
+
+        String lockToken = dispatchLockService.acquireTaskLock(taskId);
+
+        try {
+
+            DispatchTaskEntity taskEntity = dispatchTaskStateService.getTask(taskId);
+
+            dispatchTaskStateService.assertCanReassign(taskEntity);
+            String beforeStatus = taskEntity.getStatus();
+
+            if (taskEntity.getVehicleId() != null) {
+
+                vehicleService.releaseVehicle(taskEntity.getVehicleId(), VehicleDispatchStatus.IDLE.name());
+
+                parkingFacilityService.releaseByVehicle(taskEntity.getVehicleId());
+
+            }
+
+            taskEntity.setVehicleId(null);
+
+            taskEntity.setStatus(DispatchTaskStatus.PENDING.name());
+
+            taskEntity.setAssignTime(null);
+
+            taskEntity.setManualFlag(0);
+
+            dispatchTaskMapper.updateById(taskEntity);
+
+            operateLogService.record(taskEntity.getId(), "UNASSIGN_TASK", beforeStatus,
+
+                    DispatchTaskStatus.PENDING.name(), "DISPATCHER", operatorId, operatorName, remark);
+
+            eventPublisher.publish(DispatchEventType.TASK_CREATED, String.valueOf(taskEntity.getId()), buildTaskPayload(taskEntity));
+
+            return DispatchTaskAssignResponse.builder()
+
+                    .taskId(taskEntity.getId())
+
+                    .status(taskEntity.getStatus())
+
+                    .message("Task unassigned")
+
+                    .build();
+
+        } finally {
+
+            dispatchLockService.releaseTaskLock(taskId, lockToken);
+
+        }
+
+    }
+
+
+
+    @Override
+
+    @Transactional
+
     public DispatchTaskAssignResponse reassignTask(Long taskId, DispatchTaskManualAssignRequest request) {
 
         String lockToken = dispatchLockService.acquireTaskLock(taskId);

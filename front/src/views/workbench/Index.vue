@@ -40,6 +40,37 @@
           </router-link>
         </div>
       </div>
+      <!-- V5-T4: 全文搜索 -->
+      <div class="header-search">
+        <a-auto-complete
+          v-model:value="searchKeyword"
+          :options="searchOptions"
+          style="width: 320px"
+          placeholder="搜索订单号、站名、车号、备注…"
+          @search="onSearchInput"
+          @select="onSearchSelect"
+        >
+          <template #option="{ item }">
+            <div class="global-search-option">
+              <span class="search-option-group">{{ item.group }}</span>
+              <span class="search-option-label">{{ item.label }}</span>
+              <span v-if="item.hint" class="search-option-hint">{{ item.hint }}</span>
+            </div>
+          </template>
+        </a-auto-complete>
+        <a-tooltip title="Ctrl+K 打开命令面板">
+          <SearchOutlined class="search-panel-trigger" @click="toggleCommandPalette" />
+        </a-tooltip>
+      </div>
+      <!-- V5-N4: 派车预测风险指示器 -->
+      <div
+        v-if="dispatchPrediction.dispatchRiskLevel.value !== 'safe'"
+        class="dispatch-risk-bar"
+        :class="`risk-${dispatchPrediction.dispatchRiskLevel.value}`"
+      >
+        <span class="risk-dot"></span>
+        <span class="risk-text">{{ dispatchPrediction.dispatchPredictionAlert.value?.message }}</span>
+      </div>
       <div class="header-bottom">
         <div class="header-metrics">
           <div class="metric">
@@ -84,8 +115,22 @@
       message="当前为只读账号（VIEWER），无法执行派车、改派或异常处置操作"
     />
 
-    <div class="workbench-grid">
-      <!-- 左：任务池 -->
+    <!-- V5-E4: 全车队低电挂起提示 -->
+    <a-alert
+      v-if="fleetLowSocWarning"
+      type="warning"
+      show-icon
+      class="low-soc-banner"
+    >
+      <template #message>
+        <span>全车队低电告警：{{ lowSocCount }} 台车辆 SOC &lt; 30%（{{ lowSocVehicleCodes.join('、') }}），建议优先安排回充</span>
+      </template>
+    </a-alert>
+
+    <!-- V5-T3: 骨架屏（首次加载） + 分片加载 -->
+    <SkeletonLoader v-if="showSkeleton" preset="workbench" />
+    <div v-else class="workbench-grid">
+      <!-- 左：任务池（核心面板，优先渲染） -->
       <section class="panel panel-tasks">
         <div class="panel-head">
           <div class="panel-head-title">
@@ -125,14 +170,75 @@
             <router-link to="/vertical/hub" class="hub-link">母港分流</router-link>
           </div>
         </div>
+
+        <!-- V5-W6/W7: 筛选栏 + 视图模板 -->
+        <div class="filter-bar">
+          <div class="filter-row">
+            <a-select v-model:value="filterPriority" allow-clear placeholder="优先级" class="filter-select" size="small" @change="activeViewName = null">
+              <a-select-option value="P1">P1 紧急</a-select-option>
+              <a-select-option value="P2">P2 普通</a-select-option>
+              <a-select-option value="P3">P3 低优先级</a-select-option>
+            </a-select>
+            <a-select v-model:value="filterWaitMin" allow-clear placeholder="等待时间" class="filter-select" size="small" @change="activeViewName = null">
+              <a-select-option :value="5">≥ 5 分钟</a-select-option>
+              <a-select-option :value="10">≥ 10 分钟</a-select-option>
+              <a-select-option :value="30">≥ 30 分钟</a-select-option>
+            </a-select>
+            <a-select v-model:value="filterVehicleAssigned" allow-clear placeholder="派车状态" class="filter-select" size="small" @change="activeViewName = null">
+              <a-select-option value="unassigned">未派车</a-select-option>
+              <a-select-option value="assigned">已派车</a-select-option>
+            </a-select>
+            <label class="filter-check">
+              <input v-model="filterOpenExceptionOnly" type="checkbox" @change="activeViewName = null" />
+              仅异常
+            </label>
+            <a-button size="small" type="link" :disabled="!hasActiveFilters" @click="openSaveViewModal">保存视图</a-button>
+            <a-button size="small" type="link" :disabled="!hasActiveFilters" @click="clearAllFilters">清除筛选</a-button>
+          </div>
+          <div class="filter-templates">
+            <span class="filter-templates-label">模板：</span>
+            <button
+              v-for="tmpl in quickFilterTemplates"
+              :key="tmpl.name"
+              class="filter-chip"
+              :class="{ active: activeViewName === tmpl.name }"
+              @click="applySavedView(tmpl)"
+            >
+              {{ tmpl.name }}
+            </button>
+            <template v-for="view in savedViews" :key="view.name">
+              <button
+                class="filter-chip saved"
+                :class="{ active: activeViewName === view.name }"
+                @click="applySavedView(view)"
+              >
+                {{ view.name }}
+                <span class="filter-chip-del" @click.stop="deleteSavedView(view.name)">&times;</span>
+              </button>
+            </template>
+            <span v-if="savedViews.length === 0 && quickFilterTemplates.every(t => activeViewName !== t.name)" class="filter-templates-hint">暂无</span>
+          </div>
+        </div>
         <div v-if="authStore.canWrite && selectedTaskIds.length > 0" class="batch-toolbar">
           <span class="batch-hint">已选 {{ selectedTaskIds.length }} 项</span>
-          <a-button size="small" type="primary" :loading="batchLoading" @click="handleBatchAuto">
-            批量自动派车
-          </a-button>
-          <a-button size="small" :loading="batchLoading" @click="openBatchReassign">批量改派</a-button>
-          <a-button size="small" danger :loading="batchLoading" @click="handleBatchCancel">批量取消</a-button>
-          <a-button size="small" type="link" @click="clearSelection">清空</a-button>
+          <div class="batch-groups">
+            <span v-for="g in selectedRouteGroups" :key="g.routeCode" class="batch-group-tag route-tag">
+              {{ g.routeCode }} ×{{ g.count }}
+            </span>
+            <span v-for="g in selectedPriorityGroups" :key="g.priority" class="batch-group-tag priority-tag">
+              {{ g.priority }} ×{{ g.count }}
+            </span>
+          </div>
+          <div class="batch-actions">
+            <a-button size="small" type="primary" :loading="batchLoading" @click="handleBatchAutoPreConfirm">
+              批量自动派车
+            </a-button>
+            <a-button size="small" :loading="batchLoading" @click="openBatchReassign">批量改派</a-button>
+            <a-button size="small" danger :loading="batchLoading" @click="handleBatchCancelPreConfirm">批量取消</a-button>
+            <a-button size="small" type="link" @click="selectSameRoute">选同线路</a-button>
+            <a-button size="small" type="link" @click="selectSamePriority">选同优先级</a-button>
+            <a-button size="small" type="link" @click="clearSelection">清空</a-button>
+          </div>
         </div>
         <a-spin :spinning="store.loading || store.poolLoading">
           <div class="task-list">
@@ -211,8 +317,8 @@
         </a-spin>
       </section>
 
-      <!-- 中：地图缩略 -->
-      <section class="panel panel-map">
+      <!-- 中：地图缩略（延迟渲染） -->
+      <section v-if="deferredPanels" class="panel panel-map">
         <div class="panel-head">
           <h2>园区态势</h2>
           <span class="panel-hint">选中任务高亮关联车辆</span>
@@ -224,8 +330,8 @@
         />
       </section>
 
-      <!-- 右：异常队列 -->
-      <section class="panel panel-exceptions">
+      <!-- 右：异常队列（延迟渲染） -->
+      <section v-if="deferredPanels" class="panel panel-exceptions">
         <div class="panel-head">
           <h2>异常队列</h2>
           <span class="panel-hint">OPEN · 快捷处置</span>
@@ -299,6 +405,11 @@
         <a-form-item label="任务">
           <a-input :value="manualTask?.taskNo" disabled />
         </a-form-item>
+        <div v-if="manualTask?.orderPriority || manualTask?.routeCode" class="manual-task-scope">
+          <span class="batch-group-label">影响范围：</span>
+          <span v-if="manualTask?.orderPriority" class="batch-group-tag priority-tag">{{ manualTask.orderPriority }}</span>
+          <span v-if="manualTask?.routeCode" class="batch-group-tag route-tag">{{ manualTask.routeCode }}</span>
+        </div>
         <a-form-item label="选择车辆" required>
           <a-select
             v-model:value="manualForm.vehicleId"
@@ -312,7 +423,11 @@
               :key="v.vehicleId"
               :value="v.vehicleId"
             >
-              {{ v.vehicleCode }} · {{ v.batteryLevel }}% · {{ dispatchLabel(v.dispatchStatus) }}
+              <span class="vehicle-option">
+                <span>{{ v.vehicleCode }} · {{ v.batteryLevel }}% · {{ dispatchLabel(v.dispatchStatus) }}</span>
+                <span class="vehicle-soc" :class="socColorClass(v.batteryLevel)">{{ v.batteryLevel }}%</span>
+                <span v-if="(v.batteryLevel ?? 0) < 30" class="low-soc-badge">低电!</span>
+              </span>
             </a-select-option>
           </a-select>
         </a-form-item>
@@ -330,8 +445,14 @@
       @ok="submitBatchReassign"
     >
       <p class="batch-modal-hint">将对 {{ selectedTaskIds.length }} 个任务改派到同一车辆</p>
+      <div v-if="selectedVehicleGroups.length" class="batch-vehicle-groups">
+        <span class="batch-group-label">当前所属车辆：</span>
+        <span v-for="g in selectedVehicleGroups" :key="g.vehicleCode" class="batch-group-tag vehicle-tag">
+          {{ g.vehicleCode }} ×{{ g.count }}
+        </span>
+      </div>
       <a-form layout="vertical">
-        <a-form-item label="选择车辆" required>
+        <a-form-item label="选择目标车辆" required>
           <a-select
             v-model:value="batchReassignVehicleId"
             placeholder="在线且空闲的车辆"
@@ -340,6 +461,84 @@
           />
         </a-form-item>
       </a-form>
+    </a-modal>
+
+    <!-- V5-W3: 批量取消二次确认 -->
+    <a-modal
+      v-model:open="batchCancelConfirmVisible"
+      title="确认批量取消"
+      ok-text="确认取消"
+      cancel-text="再想想"
+      :confirm-loading="batchLoading"
+      @ok="executeBatchCancel"
+    >
+      <div class="confirm-body">
+        <a-alert type="warning" show-icon message="此操作不可撤回，取消后车辆将释放，关联异常自动关闭" class="confirm-alert" />
+        <p class="confirm-summary">将对以下 <strong>{{ selectedTaskIds.length }}</strong> 个任务执行批量取消：</p>
+        <div class="confirm-task-list">
+          <div v-for="task in selectedTaskPreview" :key="task.taskId" class="confirm-task-item">
+            <span class="confirm-task-no">{{ task.taskNo }}</span>
+            <StatusBadge :status="task.status" type="task" />
+            <span v-if="task.routeCode" class="route-badge">{{ task.routeCode }}</span>
+            <span v-if="task.orderPriority" class="priority-badge" :class="`priority-${task.orderPriority}`">{{ task.orderPriority }}</span>
+          </div>
+          <div v-if="selectedTaskIds.length > 10" class="confirm-task-more">等共 {{ selectedTaskIds.length }} 项</div>
+        </div>
+      </div>
+    </a-modal>
+
+    <!-- V5-W4: 批量自动派车二次确认 -->
+    <a-modal
+      v-model:open="batchAutoConfirmVisible"
+      title="确认批量自动派车"
+      ok-text="确认派车"
+      cancel-text="再想想"
+      :confirm-loading="batchLoading"
+      @ok="executeBatchAuto"
+    >
+      <div class="confirm-body">
+        <p class="confirm-summary">将为以下 <strong>{{ selectedTaskIds.length }}</strong> 个任务自动分配最优车辆：</p>
+        <div class="confirm-groups">
+          <span v-for="g in selectedRouteGroups" :key="g.routeCode" class="batch-group-tag route-tag">
+            {{ g.routeCode }} ×{{ g.count }}
+          </span>
+          <span v-for="g in selectedPriorityGroups" :key="g.priority" class="batch-group-tag priority-tag">
+            {{ g.priority }} ×{{ g.count }}
+          </span>
+        </div>
+        <div class="confirm-task-list">
+          <div v-for="task in selectedTaskPreview" :key="task.taskId" class="confirm-task-item">
+            <span class="confirm-task-no">{{ task.taskNo }}</span>
+            <span v-if="task.routeCode" class="route-badge">{{ task.routeCode }}</span>
+            <span v-if="task.orderPriority" class="priority-badge" :class="`priority-${task.orderPriority}`">{{ task.orderPriority }}</span>
+          </div>
+          <div v-if="selectedTaskIds.length > 10" class="confirm-task-more">等共 {{ selectedTaskIds.length }} 项</div>
+        </div>
+      </div>
+    </a-modal>
+
+    <!-- V5-W4: 批量改派二次确认 -->
+    <a-modal
+      v-model:open="batchReassignConfirmVisible"
+      title="确认批量改派"
+      ok-text="确认改派"
+      cancel-text="再想想"
+      :confirm-loading="batchLoading"
+      @ok="executeBatchReassign"
+    >
+      <div class="confirm-body">
+        <a-alert type="warning" show-icon message="改派后原车辆将释放" class="confirm-alert" />
+        <p class="confirm-summary">将 <strong>{{ selectedTaskIds.length }}</strong> 个任务改派至：</p>
+        <div class="confirm-target-vehicle">
+          <TagOutlined /> {{ targetVehicleLabel }}
+        </div>
+        <div v-if="selectedVehicleGroups.length" class="confirm-current-vehicles">
+          <span class="batch-group-label">当前所属车辆：</span>
+          <span v-for="g in selectedVehicleGroups" :key="g.vehicleCode" class="batch-group-tag vehicle-tag">
+            {{ g.vehicleCode }} ×{{ g.count }}
+          </span>
+        </div>
+      </div>
     </a-modal>
 
     <a-modal
@@ -375,36 +574,52 @@
       </a-table>
     </a-modal>
 
+    <!-- V5-W6: 保存筛选视图 -->
+    <a-modal
+      v-model:open="saveViewModalVisible"
+      title="保存筛选视图"
+      ok-text="保存"
+      @ok="confirmSaveView"
+    >
+      <a-input v-model:value="saveViewName" placeholder="输入视图名称，如「早高峰 P1」" @keyup.enter="confirmSaveView" />
+      <p class="save-view-hint">将保存当前筛选条件（优先级、等待时间、线路等），可在上方模板栏快速切换</p>
+    </a-modal>
+
     <ParkDeliveryOrderModal
       v-model:open="createOrderModalOpen"
       :park-id="parkScope.selectedParkId"
+      :prefill="pendingReorderData"
       @created="refreshAll"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useWorkbenchShortcuts } from '@/composables/useWorkbenchShortcuts'
-import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, SearchOutlined, TagOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ParkMiniMap from '@/components/workbench/ParkMiniMap.vue'
 import ParkDeliveryOrderModal from '@/components/park/ParkDeliveryOrderModal.vue'
+import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { queryVehicles } from '@/api/vehicle'
 import { fetchTrafficSummary } from '@/api/traffic'
 import { fetchDispatchPauseStatus, setDispatchPause } from '@/api/dispatchPause'
-import { batchAutoAssign, batchCancelTasks, batchReassignTasks, bumpTaskPriority } from '@/api/task'
+import { batchAutoAssign, batchCancelTasks, batchReassignTasks, batchUnassignTasks, bumpTaskPriority } from '@/api/task'
+import { globalSearch } from '@/api/search'
+import type { GlobalSearchItem } from '@/types/phase10'
 import { fetchRoutes } from '@/api/vertical'
 import { assignFieldOps } from '@/api/fieldOps'
 import { fetchUsers } from '@/api/auth'
+import { useChargingAwareness } from '@/composables/useChargingAwareness'
+import { useDispatchPrediction } from '@/composables/useDispatchPrediction'
 import type { DispatchRoute } from '@/api/vertical'
 import { exceptionTypeMap } from '@/constants/statusMap'
 import {
@@ -457,10 +672,307 @@ const batchResult = ref<BatchTaskResult | null>(null)
 const routeFilter = ref<number | undefined>()
 const routeOptions = ref<{ label: string; value: number }[]>([])
 
+// V5-E4: 充电感知
+const {
+  fleetLowSocWarning,
+  lowSocCount,
+  lowSocVehicleCodes,
+  checkVehicleSocBeforeAssign,
+} = useChargingAwareness(assignableVehicles)
+
+// V5-N4: 派车预测
+const dispatchPrediction = useDispatchPrediction()
+
+// 二次确认状态
+const batchCancelConfirmVisible = ref(false)
+const batchAutoConfirmVisible = ref(false)
+const batchReassignConfirmVisible = ref(false)
+
+// ── V5-W5 操作撤销 ──
+type BatchOpType = 'AUTO_ASSIGN' | 'CANCEL' | 'REASSIGN'
+interface LastBatchOp {
+  type: BatchOpType
+  taskIds: number[]
+  vehicleId?: number
+  originalVehicles?: Map<number, number | null> // taskId -> vehicleId (for reassign undo)
+  label: string
+  timestamp: number
+}
+const lastBatchOp = ref<LastBatchOp | null>(null)
+const undoTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
+
+function showUndoNotification(op: LastBatchOp) {
+  // Cancel operations cannot be undone - show plain success message without undo button
+  if (op.type === 'CANCEL') {
+    message.success(`${op.label} 成功`)
+    return
+  }
+  // Clear previous timeout
+  if (undoTimeout.value) clearTimeout(undoTimeout.value)
+  lastBatchOp.value = op
+  const key = `undo-${Date.now()}`
+  message.success({
+    content: () =>
+      h('div', { class: 'undo-notify' }, [
+        h('span', `${op.label} 成功`),
+        h('a-button', {
+          size: 'small',
+          type: 'primary',
+          style: 'margin-left: 12px',
+          onClick: () => executeUndo(key),
+        }, '撤销'),
+        h('span', { style: 'margin-left: 8px; font-size: 11px; color: #8c9bab' }, '30s'),
+      ]),
+    key,
+    duration: 30,
+  })
+  undoTimeout.value = setTimeout(() => {
+    if (lastBatchOp.value === op) lastBatchOp.value = null
+  }, 30000)
+}
+
+async function executeUndo(messageKey: string) {
+  const op = lastBatchOp.value
+  if (!op) {
+    message.warning('无可撤销的操作')
+    return
+  }
+  message.destroy(messageKey)
+  lastBatchOp.value = null
+  if (undoTimeout.value) clearTimeout(undoTimeout.value)
+
+  batchLoading.value = true
+  try {
+    if (op.type === 'AUTO_ASSIGN') {
+      // Undo auto assign = cancel the tasks
+      await batchCancelTasks([...op.taskIds], '撤销自动派车')
+      message.success(`已撤销自动派车（${op.taskIds.length} 项）`)
+    } else if (op.type === 'REASSIGN' && op.originalVehicles) {
+      const tasksByVehicle = new Map<number, number[]>()
+      const unassignedTaskIds: number[] = []
+      for (const taskId of op.taskIds) {
+        const originalVehicleId = op.originalVehicles.get(taskId)
+        if (originalVehicleId == null) {
+          unassignedTaskIds.push(taskId)
+        } else {
+          const taskIds = tasksByVehicle.get(originalVehicleId) || []
+          taskIds.push(taskId)
+          tasksByVehicle.set(originalVehicleId, taskIds)
+        }
+      }
+      for (const [vehicleId, taskIds] of tasksByVehicle.entries()) {
+        await batchReassignTasks(taskIds, vehicleId, '撤销改派')
+      }
+      if (unassignedTaskIds.length > 0) {
+        await batchUnassignTasks(unassignedTaskIds, '撤销改派')
+      }
+      message.success(`已撤销改派（${op.taskIds.length} 项）`)
+    } else if (op.type === 'CANCEL') {
+      message.warning('取消失败的操作无法撤销')
+      return
+    }
+    await refreshAll()
+  } catch {
+    // interceptor handles
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+// ── V5-W6/W7 筛选视图与模板 ──
+const filterPriority = ref<string | undefined>()
+const filterWaitMin = ref<number | undefined>()
+const filterHasException = ref<boolean | undefined>()
+const filterOpenExceptionOnly = ref(false)
+const filterVehicleAssigned = ref<string | undefined>() // 'assigned' | 'unassigned' | undefined
+
+// V5-T4: 全文搜索
+const searchKeyword = ref('')
+const searchResults = ref<GlobalSearchItem[]>([])
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+const searchOptions = computed(() =>
+  searchResults.value.map((item) => ({
+    value: `${item.type}-${item.id}`,
+    label: item.title,
+    hint: item.subtitle || item.code,
+    group: item.type,
+    item,
+  }))
+)
+
+async function onSearchInput(query: string) {
+  if (searchTimer) clearTimeout(searchTimer)
+  if (query.trim().length < 2) {
+    searchResults.value = []
+    return
+  }
+  searchTimer = setTimeout(async () => {
+    try {
+      const res = await globalSearch(query, 10)
+      searchResults.value = res.data.items || []
+    } catch {
+      searchResults.value = []
+    }
+  }, 280)
+}
+
+function onSearchSelect(_value: string, option: Record<string, unknown>) {
+  const hit = (option as { item: GlobalSearchItem }).item
+  if (hit?.routePath) {
+    router.push(hit.routePath)
+  }
+  searchKeyword.value = ''
+  searchResults.value = []
+}
+
+function toggleCommandPalette() {
+  const event = new KeyboardEvent('keydown', { metaKey: true, ctrlKey: true, key: 'k', bubbles: true })
+  window.dispatchEvent(event)
+}
+
+// V5-T5: 再来一单
+const pendingReorderData = ref<{ pickupStationId: number; dropoffStationId: number } | null>(null)
+
+// V5-T3: 骨架屏 + 分片加载
+const showSkeleton = computed(() => store.loading && store.poolTotal === 0)
+const deferredPanels = ref(false)
+
+// Saved views
+interface SavedView {
+  name: string
+  priority?: string
+  waitMin?: number
+  hasException?: boolean
+  openExceptionOnly?: boolean
+  vehicleAssigned?: string
+  routeId?: number
+  taskFilter?: string
+  builtin?: boolean
+}
+const SAVED_VIEWS_KEY = 'fsd_workbench_saved_views'
+const savedViews = ref<SavedView[]>(loadSavedViews())
+const activeViewName = ref<string | null>(null)
+const saveViewModalVisible = ref(false)
+const saveViewName = ref('')
+
+function loadSavedViews(): SavedView[] {
+  try {
+    const raw = localStorage.getItem(SAVED_VIEWS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+function persistSavedViews() {
+  localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(savedViews.value))
+}
+
+const quickFilterTemplates: SavedView[] = [
+  { name: '待处理紧急', builtin: true, priority: 'P1', waitMin: 10 },
+  { name: '等待充电', builtin: true, openExceptionOnly: true },
+  { name: '长超时', builtin: true, waitMin: 30 },
+]
+
+function applySavedView(view: SavedView) {
+  filterPriority.value = view.priority
+  filterWaitMin.value = view.waitMin
+  filterHasException.value = view.hasException
+  filterOpenExceptionOnly.value = view.openExceptionOnly ?? false
+  filterVehicleAssigned.value = view.vehicleAssigned
+  if (view.routeId !== undefined) routeFilter.value = view.routeId
+  if (view.taskFilter) {
+    const key = view.taskFilter as 'ALL' | 'PENDING' | 'MANUAL_PENDING'
+    if (key !== store.taskFilter) {
+      store.taskFilter = key
+      void store.fetchTaskPool()
+    }
+  }
+  activeViewName.value = view.name
+}
+
+function openSaveViewModal() {
+  saveViewName.value = ''
+  saveViewModalVisible.value = true
+}
+
+function confirmSaveView() {
+  const name = saveViewName.value.trim()
+  if (!name) { message.warning('请输入视图名称'); return }
+  const existing = savedViews.value.findIndex((v) => v.name === name)
+  const view: SavedView = {
+    name,
+    priority: filterPriority.value,
+    waitMin: filterWaitMin.value,
+    hasException: filterHasException.value,
+    openExceptionOnly: filterOpenExceptionOnly.value,
+    vehicleAssigned: filterVehicleAssigned.value,
+    routeId: routeFilter.value,
+    taskFilter: store.taskFilter === 'ALL' ? undefined : store.taskFilter,
+  }
+  if (existing >= 0) {
+    savedViews.value[existing] = view
+  } else {
+    savedViews.value.push(view)
+  }
+  persistSavedViews()
+  saveViewModalVisible.value = false
+  activeViewName.value = name
+  message.success(`视图「${name}」已保存`)
+}
+
+function deleteSavedView(name: string) {
+  savedViews.value = savedViews.value.filter((v) => v.name !== name)
+  persistSavedViews()
+  if (activeViewName.value === name) activeViewName.value = null
+}
+
+function clearAllFilters() {
+  filterPriority.value = undefined
+  filterWaitMin.value = undefined
+  filterHasException.value = undefined
+  filterOpenExceptionOnly.value = false
+  filterVehicleAssigned.value = undefined
+  routeFilter.value = undefined
+  activeViewName.value = null
+}
+
 const filteredTaskPool = computed(() => {
-  if (!routeFilter.value) return store.taskPool
-  return store.taskPool.filter((task) => task.routeId === routeFilter.value)
+  let tasks = store.taskPool
+  // Route filter
+  if (routeFilter.value) {
+    tasks = tasks.filter((t) => t.routeId === routeFilter.value)
+  }
+  // Priority filter
+  if (filterPriority.value) {
+    tasks = tasks.filter((t) => t.orderPriority === filterPriority.value)
+  }
+  // Wait time filter
+  if (filterWaitMin.value != null) {
+    tasks = tasks.filter((t) => (t.waitMinutes ?? 0) >= filterWaitMin.value!)
+  }
+  // Has exception filter
+  if (filterHasException.value !== undefined) {
+    tasks = tasks.filter((t) => filterHasException.value ? (t.openExceptionCount ?? 0) > 0 : (t.openExceptionCount ?? 0) === 0)
+  }
+  // Open exception only filter
+  if (filterOpenExceptionOnly.value) {
+    tasks = tasks.filter((t) => (t.openExceptionCount ?? 0) > 0)
+  }
+  // Vehicle assigned filter
+  if (filterVehicleAssigned.value === 'assigned') {
+    tasks = tasks.filter((t) => t.vehicleId != null)
+  } else if (filterVehicleAssigned.value === 'unassigned') {
+    tasks = tasks.filter((t) => t.vehicleId == null)
+  }
+  return tasks
 })
+
+const hasActiveFilters = computed(() =>
+  !!filterPriority.value ||
+  filterWaitMin.value != null ||
+  filterHasException.value !== undefined ||
+  filterOpenExceptionOnly.value ||
+  !!filterVehicleAssigned.value ||
+  !!routeFilter.value
+)
 
 const batchResultColumns = [
   { title: '任务', dataIndex: 'taskNo', key: 'taskNo', width: 120 },
@@ -468,6 +980,58 @@ const batchResultColumns = [
   { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
   { title: '说明', key: 'detail' },
 ]
+
+const selectedRouteGroups = computed(() => {
+  const groups: Record<string, { routeCode: string; count: number }> = {}
+  for (const id of selectedTaskIds.value) {
+    const task = store.taskPool.find((t) => t.taskId === id)
+    if (!task) continue
+    const key = task.routeCode || `route-${task.routeId}`
+    if (!groups[key]) {
+      groups[key] = { routeCode: task.routeCode || `线路#${task.routeId}`, count: 0 }
+    }
+    groups[key].count++
+  }
+  return Object.values(groups).sort((a, b) => b.count - a.count)
+})
+
+const selectedPriorityGroups = computed(() => {
+  const groups: Record<string, { priority: string; count: number }> = {}
+  for (const id of selectedTaskIds.value) {
+    const task = store.taskPool.find((t) => t.taskId === id)
+    if (!task) continue
+    const key = task.orderPriority || 'UNSET'
+    if (!groups[key]) {
+      groups[key] = { priority: task.orderPriority || '未设置', count: 0 }
+    }
+    groups[key].count++
+  }
+  return Object.values(groups).sort((a, b) => b.count - a.count)
+})
+
+const selectedVehicleGroups = computed(() => {
+  const groups: Record<string, { vehicleId: number | null; vehicleCode: string; count: number }> = {}
+  for (const id of selectedTaskIds.value) {
+    const task = store.taskPool.find((t) => t.taskId === id)
+    if (!task) continue
+    const key = task.vehicleId != null ? `v-${task.vehicleId}` : 'unassigned'
+    if (!groups[key]) {
+      const vehicle = store.parkVehicles.find((v) => v.vehicleId === task.vehicleId)
+      groups[key] = {
+        vehicleId: task.vehicleId,
+        vehicleCode: task.vehicleId != null ? (vehicle?.vehicleCode || `#${task.vehicleId}`) : '未派车',
+        count: 0,
+      }
+    }
+    groups[key].count++
+  }
+  return Object.values(groups).sort((a, b) => b.count - a.count)
+})
+
+const selectedTaskPreview = computed(() => {
+  const ids = selectedTaskIds.value.slice(0, 10)
+  return ids.map((id) => store.taskPool.find((t) => t.taskId === id)).filter(Boolean) as TaskAdminListItem[]
+})
 
 const congestionBarClass = computed(() => {
   const level = trafficSummary.value?.maxCongestionLevel ?? 0
@@ -482,6 +1046,12 @@ const assignableVehicleOptions = computed(() =>
     value: v.vehicleId,
   }))
 )
+
+const targetVehicleLabel = computed(() => {
+  if (!batchReassignVehicleId.value) return ''
+  const v = assignableVehicles.value.find((x) => x.vehicleId === batchReassignVehicleId.value)
+  return v ? `${v.vehicleCode} · ${v.batteryLevel}% · ${dispatchLabel(v.dispatchStatus)}` : ''
+})
 
 const taskTabs = computed(() => [
   { key: 'ALL' as const, label: '全部', count: store.interventionTotal },
@@ -506,6 +1076,12 @@ function dispatchLabel(status: string) {
   if (status === DispatchStatus.IDLE) return '空闲'
   if (status === DispatchStatus.BUSY) return '忙碌'
   return '不可用'
+}
+
+function socColorClass(soc: number): string {
+  if (soc < 20) return 'soc-critical'
+  if (soc < 50) return 'soc-warn'
+  return 'soc-ok'
 }
 
 function taskFailLabel(task: TaskAdminListItem) {
@@ -629,28 +1205,94 @@ function toggleTaskSelection(taskId: number) {
   }
 }
 
-async function handleBatchAuto() {
+function selectSameRoute() {
+  const routeCounts: Record<string, number> = {}
+  for (const id of selectedTaskIds.value) {
+    const task = store.taskPool.find((t) => t.taskId === id)
+    if (!task || !task.routeCode) continue
+    routeCounts[task.routeCode] = (routeCounts[task.routeCode] || 0) + 1
+  }
+  let bestRoute = ''
+  let bestCount = 0
+  for (const [route, count] of Object.entries(routeCounts)) {
+    if (count > bestCount) {
+      bestCount = count
+      bestRoute = route
+    }
+  }
+  if (!bestRoute) return
+  selectedTaskIds.value = store.taskPool
+    .filter((t) => t.routeCode === bestRoute)
+    .map((t) => t.taskId)
+}
+
+function selectSamePriority() {
+  const priorityCounts: Record<string, number> = {}
+  for (const id of selectedTaskIds.value) {
+    const task = store.taskPool.find((t) => t.taskId === id)
+    if (!task || !task.orderPriority) continue
+    priorityCounts[task.orderPriority] = (priorityCounts[task.orderPriority] || 0) + 1
+  }
+  let bestPriority = ''
+  let bestCount = 0
+  for (const [priority, count] of Object.entries(priorityCounts)) {
+    if (count > bestCount) {
+      bestCount = count
+      bestPriority = priority
+    }
+  }
+  if (!bestPriority) return
+  selectedTaskIds.value = store.taskPool
+    .filter((t) => t.orderPriority === bestPriority)
+    .map((t) => t.taskId)
+}
+
+function handleBatchAutoPreConfirm() {
   if (selectedTaskIds.value.length === 0) return
+  batchAutoConfirmVisible.value = true
+}
+
+async function executeBatchAuto() {
   batchLoading.value = true
+  batchAutoConfirmVisible.value = false
   try {
-    const res = await batchAutoAssign([...selectedTaskIds.value])
+    const taskIds = [...selectedTaskIds.value]
+    const res = await batchAutoAssign(taskIds)
     batchResult.value = res.data
     batchResultVisible.value = true
     clearSelection()
+    showUndoNotification({
+      type: 'AUTO_ASSIGN',
+      taskIds,
+      label: '批量自动派车',
+      timestamp: Date.now(),
+    })
     await refreshAll()
   } finally {
     batchLoading.value = false
   }
 }
 
-async function handleBatchCancel() {
+function handleBatchCancelPreConfirm() {
   if (selectedTaskIds.value.length === 0) return
+  batchCancelConfirmVisible.value = true
+}
+
+async function executeBatchCancel() {
   batchLoading.value = true
+  batchCancelConfirmVisible.value = false
   try {
-    const res = await batchCancelTasks([...selectedTaskIds.value])
+    const taskIds = [...selectedTaskIds.value]
+    const res = await batchCancelTasks(taskIds)
     batchResult.value = res.data
     batchResultVisible.value = true
     clearSelection()
+    showUndoNotification({
+      type: 'CANCEL',
+      taskIds,
+      label: '批量取消',
+      timestamp: Date.now(),
+    })
     await refreshAll()
   } finally {
     batchLoading.value = false
@@ -668,13 +1310,34 @@ async function submitBatchReassign() {
     message.warning('请选择车辆')
     return
   }
+  batchReassignVisible.value = false
+  batchReassignConfirmVisible.value = true
+}
+
+async function executeBatchReassign() {
+  if (!batchReassignVehicleId.value) return
   batchLoading.value = true
+  batchReassignConfirmVisible.value = false
   try {
-    const res = await batchReassignTasks([...selectedTaskIds.value], batchReassignVehicleId.value)
+    const taskIds = [...selectedTaskIds.value]
+    // Capture original vehicles for undo
+    const originalVehicles = new Map<number, number | null>()
+    for (const id of taskIds) {
+      const task = store.taskPool.find((t) => t.taskId === id)
+      originalVehicles.set(id, task?.vehicleId ?? null)
+    }
+    const res = await batchReassignTasks(taskIds, batchReassignVehicleId.value)
     batchResult.value = res.data
     batchResultVisible.value = true
-    batchReassignVisible.value = false
     clearSelection()
+    showUndoNotification({
+      type: 'REASSIGN',
+      taskIds,
+      vehicleId: batchReassignVehicleId.value,
+      originalVehicles,
+      label: '批量改派',
+      timestamp: Date.now(),
+    })
     await refreshAll()
   } finally {
     batchLoading.value = false
@@ -693,6 +1356,11 @@ async function submitManualAssign() {
   if (!manualTask.value || !manualForm.vehicleId) {
     message.warning('请选择车辆')
     return
+  }
+  // V5-E4: 低电派单警告
+  const socCheck = checkVehicleSocBeforeAssign(manualForm.vehicleId)
+  if (socCheck?.recommendReturnToCharge) {
+    message.warn(socCheck.message, 4)
   }
   manualLoading.value = true
   try {
@@ -845,6 +1513,12 @@ onMounted(() => {
   refreshAll()
   void loadDispatchPause()
   void loadRouteOptions()
+  // V5-T3: 次要面板延迟渲染
+  requestAnimationFrame(() => { deferredPanels.value = true })
+  // V5-T5: 再来一单 → 打开创建订单弹窗
+  if (route.query.reorder === '1') {
+    createOrderModalOpen.value = true
+  }
 })
 
 async function loadRouteOptions() {
@@ -919,6 +1593,52 @@ watch(() => parkScope.scopeVersion, () => {
   flex-wrap: wrap;
 }
 
+/* V5-T4: 全文搜索 */
+.header-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.global-search-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.search-option-group {
+  font-size: 10px;
+  color: #8c9bab;
+  background: rgba(140, 155, 171, 0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.search-option-label {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.search-option-hint {
+  font-size: 11px;
+  color: #8c9bab;
+  margin-left: auto;
+}
+
+.search-panel-trigger {
+  font-size: 16px;
+  color: #8c9bab;
+  cursor: pointer;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #eaf4ff;
+  }
+}
+
 .viewer-readonly-banner {
   margin-bottom: 16px;
 }
@@ -946,6 +1666,52 @@ watch(() => parkScope.scopeVersion, () => {
     color: #ff3d71;
     background: rgba(255, 61, 113, 0.12);
   }
+}
+
+/* V5-N4: 派车预测风险条 */
+.dispatch-risk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+
+  &.risk-warning {
+    background: rgba(255, 183, 3, 0.1);
+    border: 1px solid rgba(255, 183, 3, 0.25);
+    color: #ffb703;
+  }
+
+  &.risk-critical {
+    background: rgba(255, 61, 113, 0.12);
+    border: 1px solid rgba(255, 61, 113, 0.3);
+    color: #ff3d71;
+  }
+}
+
+.risk-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.risk-warning .risk-dot {
+  background: #ffb703;
+  box-shadow: 0 0 8px rgba(255, 183, 3, 0.4);
+}
+
+.risk-critical .risk-dot {
+  background: #ff3d71;
+  box-shadow: 0 0 8px rgba(255, 61, 113, 0.4);
+  animation: risk-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes risk-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
 }
 
 .panel-order-hint {
@@ -1234,10 +2000,9 @@ watch(() => parkScope.scopeVersion, () => {
 
 .batch-toolbar {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 0 12px 10px;
-  flex-wrap: wrap;
 }
 
 .batch-hint {
@@ -1245,10 +2010,293 @@ watch(() => parkScope.scopeVersion, () => {
   color: var(--fsd-text-secondary);
 }
 
+.batch-groups {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.batch-group-tag {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.route-tag {
+  background: rgba(0, 180, 216, 0.12);
+  color: #00b4d8;
+}
+
+.priority-tag {
+  background: rgba(255, 176, 32, 0.12);
+  color: #ffb020;
+}
+
+.vehicle-tag {
+  background: rgba(114, 46, 209, 0.12);
+  color: #722ed1;
+}
+
+.batch-vehicle-groups {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.batch-group-label {
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
+  white-space: nowrap;
+}
+
 .batch-modal-hint,
 .batch-result-summary {
   margin-bottom: 12px;
   color: var(--fsd-text-secondary);
+}
+
+/* 二次确认弹窗 */
+.confirm-body {
+  padding: 4px 0;
+}
+
+.confirm-alert {
+  margin-bottom: 14px;
+}
+
+.confirm-summary {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--fsd-text-primary);
+}
+
+.confirm-groups {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.confirm-target-vehicle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: rgba(0, 180, 216, 0.08);
+  border: 1px solid rgba(0, 180, 216, 0.2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fsd-accent);
+}
+
+.confirm-current-vehicles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.confirm-task-list {
+  max-height: 280px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.confirm-task-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(13, 17, 23, 0.3);
+  font-size: 12px;
+}
+
+.confirm-task-no {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  color: var(--fsd-text-primary);
+  min-width: 80px;
+}
+
+.confirm-task-more {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--fsd-text-tertiary);
+  text-align: center;
+}
+
+/* 手动派车影响范围 */
+.manual-task-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -8px 0 12px;
+  padding: 0 8px;
+}
+
+.vehicle-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vehicle-soc {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+
+.soc-critical { color: #ff3d71; }
+.soc-warn { color: #ffb020; }
+.soc-ok { color: #00e676; }
+
+/* V5-E4: 低电角标 */
+.low-soc-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: #ff3d71;
+  animation: pulse-soc 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-soc {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.low-soc-banner {
+  margin-bottom: 16px;
+}
+
+/* ── V5-W6/W7: 筛选栏与视图模板 ── */
+.filter-bar {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--fsd-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  width: 120px;
+}
+
+.filter-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
+  cursor: pointer;
+  user-select: none;
+
+  input { accent-color: var(--fsd-accent); }
+}
+
+.filter-templates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+
+  .filter-templates-label {
+    font-size: 11px;
+    color: var(--fsd-text-tertiary);
+    white-space: nowrap;
+  }
+
+  .filter-templates-hint {
+    font-size: 11px;
+    color: var(--fsd-text-tertiary);
+  }
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--fsd-border);
+  background: transparent;
+  color: var(--fsd-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: var(--fsd-accent);
+    color: var(--fsd-accent);
+    background: rgba(0, 119, 182, 0.06);
+  }
+
+  &.active {
+    border-color: var(--fsd-accent);
+    color: #fff;
+    background: var(--fsd-accent);
+  }
+
+  &.saved {
+    border-style: dashed;
+  }
+}
+
+.filter-chip-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--fsd-text-tertiary);
+
+  &:hover {
+    color: var(--fsd-error);
+    background: rgba(255, 61, 113, 0.1);
+  }
+}
+
+/* ── V5-W6: 保存视图弹窗 ── */
+.save-view-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--fsd-text-tertiary);
+}
+
+/* ── V5-W5: 撤销通知 ── */
+.undo-notify {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .task-card-head,

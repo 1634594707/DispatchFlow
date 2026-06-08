@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="85" fill="#0D1117"/>
+  <!-- Vehicle icon -->
+  <path d="M128 300 L148 236 L364 236 L384 300 L384 352 Q384 368 368 368 L356 368 Q340 368 340 352 L340 332 L172 332 L172 352 Q172 368 156 368 L144 368 Q128 368 128 352Z" fill="#00B4D8"/>
+  <!-- Windshield -->
+  <path d="M180 256 L200 214 L312 214 L332 256Z" fill="#0D1117" opacity="0.6"/>
+  <!-- Roof -->
+  <rect x="192" y="198" width="128" height="20" rx="10" fill="#00B4D8"/>
+  <!-- Headlights -->
+  <circle cx="160" cy="268" r="16" fill="#FFB020"/>
+  <circle cx="160" cy="268" r="8" fill="#FFF"/>
+  <!-- "D" letter -->
+  <path d="M248 432 L248 380 L280 380 Q310 380 310 406 Q310 432 280 432Z M266 398 L266 414 L278 414 Q290 414 290 406 Q290 398 278 398Z" fill="#00B4D8"/>
+</svg>

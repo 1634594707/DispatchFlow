@@ -61,6 +61,10 @@ export function batchReassignTasks(taskIds: number[], vehicleId: number, remark?
   return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/reassign', { taskIds, vehicleId, remark })
 }
 
+export function batchUnassignTasks(taskIds: number[], remark?: string) {
+  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/unassign', { taskIds, remark })
+}
+
 export function bumpTaskPriority(taskId: number) {
   return request.post<any, ApiResponse<null>>(`/admin/tasks/${taskId}/bump-priority`)
 }

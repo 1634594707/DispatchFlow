@@ -1,6 +1,8 @@
 <template>
-  <a-badge :count="count" :offset="[6, 0]" :overflow-count="99">
-    <slot />
+  <a-badge class="nav-menu-badge-icon" :count="count" :offset="[4, -2]" :overflow-count="99">
+    <span class="nav-menu-badge-icon__slot">
+      <slot />
+    </span>
   </a-badge>
 </template>
 
@@ -20,3 +22,34 @@ const count = computed(() => {
   return 0
 })
 </script>
+
+<style scoped lang="less">
+.nav-menu-badge-icon {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  line-height: 0;
+  vertical-align: middle;
+
+  :deep(.ant-badge-count) {
+    min-width: 14px;
+    height: 14px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 999px;
+    box-shadow: 0 0 0 1px rgba(13, 17, 23, 0.95);
+    font-size: 10px;
+    line-height: 14px;
+  }
+}
+
+.nav-menu-badge-icon__slot {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  line-height: 0;
+}
+</style>
+

@@ -29,6 +29,8 @@ async function fetchAdminSession(baseURL: string) {
 }
 
 async function globalSetup(_config: FullConfig) {
+  if (process.env.PLAYWRIGHT_SKIP_GLOBAL_AUTH === '1') return
+
   const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
   const session = await fetchAdminSession(baseURL)
   const browser = await chromium.launch({ channel: 'chrome' })

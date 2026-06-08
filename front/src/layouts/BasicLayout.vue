@@ -7,6 +7,7 @@
       :trigger="null"
       collapsible
       class="fsd-sider"
+      :class="collapsed ? 'fsd-sider--collapsed' : 'fsd-sider--expanded'"
     >
       <div class="sider-logo">
         <div class="logo-icon">
@@ -21,6 +22,7 @@
       </div>
 
       <a-menu
+        v-if="visibleNavItems.length > 0"
         v-model:selectedKeys="selectedKeys"
         v-model:openKeys="openKeys"
         theme="dark"
@@ -41,7 +43,7 @@
           <a-button
             type="text"
             class="trigger-btn"
-            @click="collapsed = !collapsed"
+            @click="toggleCollapsed"
           >
             <MenuFoldOutlined v-if="!collapsed" />
             <MenuUnfoldOutlined v-else />
@@ -86,6 +88,7 @@
           <a-tooltip :title="realtimeStore.connected ? '实时连接正常' : '实时连接断开'">
             <span class="stream-indicator" :class="{ online: realtimeStore.connected }" />
           </a-tooltip>
+          <ApiErrorBadge />
           <a-popover trigger="click" placement="bottomRight" @openChange="handleNotificationOpen">
             <template #content>
               <div class="notification-panel">
@@ -119,7 +122,7 @@
                       :key="item.id"
                       type="button"
                       class="notification-item"
-                      @click="goException"
+                      @click="goException(item)"
                     >
                       <span class="notification-type">{{ item.exceptionType }}</span>
                       <span class="notification-msg">{{ item.exceptionMsg || '调度异常' }}</span>
@@ -213,6 +216,7 @@ import DispatchFlowLogo from '@/components/brand/DispatchFlowLogo.vue'
 import UserAvatar from '@/components/brand/UserAvatar.vue'
 import CommandPalette from '@/components/command/CommandPalette.vue'
 import DispatchAssistantDrawer from '@/components/assistant/DispatchAssistantDrawer.vue'
+import ApiErrorBadge from '@/components/error/ApiErrorBadge.vue'
 import { useCommandPalette, type CommandPaletteItem } from '@/composables/useCommandPalette'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { useParkScopeStore } from '@/stores/parkScope'
@@ -301,8 +305,12 @@ function formatNotificationTime(value: string) {
   return dayjs(value).fromNow()
 }
 
-function goException() {
-  router.push('/workbench')
+function goException(item: ExceptionAdminListItem) {
+  if (item.taskId) {
+    router.push(`/tasks/${item.taskId}`)
+    return
+  }
+  router.push({ path: '/exceptions', query: { status: 'OPEN', exceptionId: String(item.id) } })
 }
 
 function handleMenuClick({ key }: { key: string }) {
@@ -310,6 +318,22 @@ function handleMenuClick({ key }: { key: string }) {
   if (path) {
     router.push(path)
   }
+}
+
+function syncOpenKeysByPath(path = route.path) {
+  const menuKey = resolveMenuKeyFromPath(path)
+  if (!menuKey) return
+  const parentKey = NAV_PARENT_KEY_MAP[menuKey]
+  openKeys.value = !collapsed.value && parentKey ? [parentKey] : []
+}
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value
+  if (collapsed.value) {
+    openKeys.value = []
+    return
+  }
+  syncOpenKeysByPath()
 }
 
 async function onPaletteRun(item: CommandPaletteItem) {
@@ -353,8 +377,7 @@ watch(
     const menuKey = resolveMenuKeyFromPath(path)
     if (menuKey) {
       selectedKeys.value = [menuKey]
-      const parentKey = NAV_PARENT_KEY_MAP[menuKey]
-      openKeys.value = parentKey ? [parentKey] : []
+      syncOpenKeysByPath(path)
     }
   },
   { immediate: true }
@@ -419,6 +442,183 @@ onUnmounted(() => {
     font-size: 11px;
     color: var(--fsd-text-tertiary);
     letter-spacing: 0.04em;
+  }
+
+  :deep(.ant-menu-root) {
+    border-inline-end: 0;
+    background: #0b1118 !important;
+  }
+
+  :deep(.ant-menu-sub) {
+    background: #0b1118 !important;
+  }
+
+  :deep(.ant-menu-root > .ant-menu-item),
+  :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title) {
+    display: flex !important;
+    align-items: center;
+    height: 42px;
+    margin-block: 4px;
+    line-height: 42px;
+  }
+
+  &.fsd-sider--expanded {
+    :deep(.ant-menu-root > .ant-menu-item),
+    :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title) {
+      padding-inline: 36px 16px !important;
+    }
+
+    :deep(.ant-menu-root > .ant-menu-item .ant-menu-title-content),
+    :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title .ant-menu-title-content) {
+      display: flex;
+      align-items: center;
+      flex: 1 1 auto;
+      min-width: 0;
+      margin-inline-start: 0 !important;
+      line-height: 1;
+    }
+
+    :deep(.ant-menu-sub .ant-menu-item) {
+      display: flex !important;
+      align-items: center;
+      height: 38px;
+      margin-block: 2px;
+      padding-inline: 76px 16px !important;
+      line-height: 38px;
+    }
+
+    :deep(.ant-menu-sub .ant-menu-title-content) {
+      margin-inline-start: 0 !important;
+    }
+  }
+
+  &.fsd-sider--collapsed {
+    :deep(.ant-menu-root > .ant-menu-item),
+    :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title) {
+      display: grid !important;
+      width: 56px;
+      height: 42px;
+      margin-inline: 4px;
+      padding-inline: 0 !important;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    :deep(.ant-menu-root > .ant-menu-item:hover),
+    :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title:hover),
+    :deep(.ant-menu-root > .ant-menu-item-selected),
+    :deep(.ant-menu-root > .ant-menu-submenu-selected > .ant-menu-submenu-title) {
+      background: var(--fsd-bg-active) !important;
+      color: var(--fsd-accent) !important;
+      opacity: 1 !important;
+    }
+
+    :deep(.ant-menu-title-content) {
+      display: grid !important;
+      width: 20px;
+      height: 20px;
+      margin: 0 !important;
+      padding: 0 !important;
+      place-items: center;
+      opacity: 1 !important;
+      overflow: hidden;
+    }
+
+    :deep(.nav-menu-entry) {
+      display: grid;
+      grid-template-columns: 20px;
+      width: 20px;
+      height: 20px;
+      place-items: center;
+    }
+
+    :deep(.nav-menu-entry__icon),
+    :deep(.nav-menu-icon),
+    :deep(.nav-menu-icon .anticon),
+    :deep(.nav-menu-icon svg),
+    :deep(.nav-menu-badge-icon),
+    :deep(.nav-menu-badge-icon__slot) {
+      display: grid !important;
+      width: 20px;
+      height: 20px;
+      place-items: center;
+      opacity: 1 !important;
+    }
+
+    :deep(.nav-menu-entry__label),
+    :deep(.ant-menu-sub),
+    :deep(.ant-menu-submenu-arrow) {
+      display: none !important;
+    }
+  }
+
+  :deep(.ant-menu-item:hover),
+  :deep(.ant-menu-submenu-title:hover),
+  :deep(.ant-menu-item-selected),
+  :deep(.ant-menu-submenu-selected > .ant-menu-submenu-title) {
+    color: var(--fsd-text-primary) !important;
+    opacity: 1 !important;
+  }
+
+  :deep(.ant-menu-item:hover .nav-menu-entry),
+  :deep(.ant-menu-submenu-title:hover .nav-menu-entry),
+  :deep(.ant-menu-item-selected .nav-menu-entry),
+  :deep(.ant-menu-submenu-selected > .ant-menu-submenu-title .nav-menu-entry) {
+    color: inherit;
+    opacity: 1 !important;
+  }
+}
+
+:global(.nav-menu-popup) {
+  background: #0b1118 !important;
+
+  .ant-menu {
+    min-width: 160px;
+    padding: 6px;
+    border: 1px solid #233042;
+    border-radius: 12px;
+    background: #0b1118 !important;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.44);
+  }
+
+  .ant-menu-item {
+    display: flex !important;
+    height: 36px;
+    margin-block: 2px;
+    padding-inline: 12px !important;
+    align-items: center;
+    border-radius: 8px;
+    color: var(--fsd-text-secondary) !important;
+    line-height: 36px;
+  }
+
+  .ant-menu-item:hover,
+  .ant-menu-item-selected {
+    background: var(--fsd-bg-active) !important;
+    color: var(--fsd-text-primary) !important;
+  }
+
+  .ant-menu-title-content {
+    margin-inline-start: 0 !important;
+  }
+
+  .nav-menu-entry {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    column-gap: 12px;
+    width: 100%;
+    align-items: center;
+  }
+
+  .nav-menu-entry__icon {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+  }
+
+  .nav-menu-entry__label {
+    display: block;
   }
 }
 

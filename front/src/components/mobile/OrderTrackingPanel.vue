@@ -129,6 +129,8 @@ const props = defineProps<{
   routeAnomalyText: string | null
   screenLink: { path: string; query: Record<string, string> }
   remainingLabel?: string | null
+  lastUpdatedLabel?: string | null
+  connectionStale?: boolean
 }>()
 
 defineEmits<{
@@ -266,6 +268,28 @@ function stageClass(stage: string) {
 .stage-badge.risk {
   color: #ff6b8a;
   background: rgba(255, 107, 138, 0.12);
+}
+
+.tracking-freshness {
+  margin: -4px 0 12px;
+  font-size: 11px;
+  color: #6f88a2;
+}
+
+.connection-alert {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 183, 3, 0.26);
+  background: rgba(255, 183, 3, 0.1);
+  color: #ffd166;
+  font-size: 12px;
+}
+
+.connection-alert strong {
+  color: #ffb703;
 }
 
 .order-switch {

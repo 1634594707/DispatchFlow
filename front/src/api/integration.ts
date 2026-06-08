@@ -1,6 +1,12 @@
 import request from '@/utils/request'
 import type { ApiResponse } from '@/types/api'
-import type { ExternalApiKey, WebhookSubscription, WebhookUpsertPayload } from '@/types/integration'
+import type {
+  ExternalApiKey,
+  ApiCallStatsResponse,
+  SandboxApiKey,
+  WebhookSubscription,
+  WebhookUpsertPayload,
+} from '@/types/integration'
 
 export function fetchWebhooks() {
   return request.get<any, ApiResponse<WebhookSubscription[]>>('/admin/integration/webhooks')
@@ -49,6 +55,10 @@ export function fetchWebhookDeliveries(subscriptionId: number, limit = 50) {
   )
 }
 
+export function testWebhook(id: number) {
+  return request.post<any, ApiResponse<void>>(`/admin/integration/webhooks/${id}/test`)
+}
+
 export const DISPATCH_EVENT_OPTIONS = [
   { label: '任务创建', value: 'dispatch.task.created' },
   { label: '任务已派车', value: 'dispatch.task.assigned' },
@@ -65,4 +75,42 @@ export const DISPATCH_EVENT_OPTIONS = [
 export const WEBHOOK_PRESETS = {
   wms: ['dispatch.task.created', 'dispatch.task.success', 'dispatch.task.failed'],
   mes: ['dispatch.task.executing', 'dispatch.exception.open', 'dispatch.exception.resolved'],
+}
+
+// V5-I1: API 调用统计
+export function fetchApiCallStats(days: 7 | 30 = 7) {
+  return request.get<any, ApiResponse<ApiCallStatsResponse>>('/admin/integration/api-stats', {
+    params: { days },
+  })
+}
+
+// V5-I2: Webhook 投递日志全量查询
+export function fetchAllDeliveryLogs(params?: {
+  subscriptionId?: number
+  eventType?: string
+  success?: boolean
+  limit?: number
+}) {
+  return request.get<any, ApiResponse<WebhookDeliveryLog[]>>('/admin/integration/deliveries', {
+    params,
+  })
+}
+
+export function retryWebhookDelivery(deliveryId: number) {
+  return request.post<any, ApiResponse<void>>(`/admin/integration/deliveries/${deliveryId}/retry`)
+}
+
+// V5-I3: API 沙箱
+export function fetchSandboxKeys() {
+  return request.get<any, ApiResponse<SandboxApiKey[]>>('/admin/integration/sandbox/keys')
+}
+
+export function createSandboxKey(keyName: string) {
+  return request.post<any, ApiResponse<SandboxApiKey>>('/admin/integration/sandbox/keys', {
+    keyName,
+  })
+}
+
+export function disableSandboxKey(id: number) {
+  return request.post<any, ApiResponse<void>>(`/admin/integration/sandbox/keys/${id}/disable`)
 }

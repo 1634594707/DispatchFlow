@@ -25,6 +25,8 @@ withDefaults(defineProps<{
 </script>
 
 <style scoped lang="less">
+@mobile-break: 768px;
+
 .page-container {
   display: flex;
   flex-direction: column;
@@ -35,6 +37,12 @@ withDefaults(defineProps<{
   display: flex;
   align-items: center;
   justify-content: space-between;
+
+  @media (max-width: @mobile-break) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
 }
 
 .page-title-area {
@@ -49,6 +57,10 @@ withDefaults(defineProps<{
   color: var(--fsd-text-primary);
   letter-spacing: -0.02em;
   margin: 0;
+
+  @media (max-width: @mobile-break) {
+    font-size: 18px;
+  }
 }
 
 .page-subtitle {
@@ -60,6 +72,11 @@ withDefaults(defineProps<{
   display: flex;
   align-items: center;
   gap: 8px;
+
+  @media (max-width: @mobile-break) {
+    flex-wrap: wrap;
+    width: 100%;
+  }
 }
 
 .page-body {

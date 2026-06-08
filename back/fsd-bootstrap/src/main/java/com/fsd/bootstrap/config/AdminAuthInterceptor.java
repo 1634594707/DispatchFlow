@@ -86,10 +86,15 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
                 && (HttpMethod.POST.matches(request.getMethod()) || HttpMethod.GET.matches(request.getMethod()))) {
             return true;
         }
-        if ("/api/admin/park/stations".equals(path) && HttpMethod.GET.matches(request.getMethod())) {
+        if (("/api/admin/parks".equals(path)
+                || "/api/admin/park/layout".equals(path)
+                || "/api/admin/park/geofences".equals(path)
+                || "/api/admin/park/stations".equals(path)
+                || "/api/admin/park/vehicles".equals(path))
+                && HttpMethod.GET.matches(request.getMethod())) {
             return true;
         }
-        return "/api/admin/park/vehicles".equals(path) && HttpMethod.GET.matches(request.getMethod());
+        return false;
     }
 
     private static String resolveAdminToken(HttpServletRequest request) {

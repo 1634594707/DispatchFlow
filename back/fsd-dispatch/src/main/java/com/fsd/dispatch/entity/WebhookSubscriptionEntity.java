@@ -17,6 +17,8 @@ public class WebhookSubscriptionEntity {
 
     private String callbackUrl;
 
+    private String channelType;
+
     private String secretToken;
 
     private String eventTypes;

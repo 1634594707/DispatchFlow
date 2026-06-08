@@ -90,6 +90,7 @@ export class AmapProvider implements MapProvider {
             markerOptions.label = {
               content: item.label,
               direction: 'top',
+              offset: new AMap.Pixel(0, -8),
             }
           }
           const marker = new AMap.Marker(markerOptions)

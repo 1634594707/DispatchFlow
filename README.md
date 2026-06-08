@@ -45,7 +45,7 @@
 |------|------|------|
 | **v2.0.0** | ✅ | Phase 10–11：园区一致、交通管控、命令面板 |
 | **v3.0.0**（当前） | ✅ | Phase 12–15：垂直/开放协议/规模化 MVP · [Release Notes](docs/releases/v3.0.0.md) |
-| **V3 规划** | 进行中 | 真实地图 · MAPF · 质量/可观测 · [ROADMAP-V3](docs/ROADMAP-V3.md) |
+| **V5 路线图** | 进行中 | 调度效率 · 通知告警 · 运营分析 · [ROADMAP-V5](docs/ROADMAP-V5.md) |
 
 VDA5050 评估见 **[docs/archive/phase15/VDA5050-EVALUATION.md](docs/archive/phase15/VDA5050-EVALUATION.md)**。
 

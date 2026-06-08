@@ -19,6 +19,8 @@ public interface DispatchTaskService {
 
     DispatchTaskAssignResponse cancelTask(Long taskId, String operatorId, String operatorName, String remark);
 
+    DispatchTaskAssignResponse unassignTask(Long taskId, String operatorId, String operatorName, String remark);
+
     DispatchTaskAssignResponse reassignTask(Long taskId, DispatchTaskManualAssignRequest request);
 
     DispatchTaskDetailResponse getTaskDetail(Long taskId);

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="32" fill="#0D1117"/>
+  <!-- Vehicle icon -->
+  <path d="M48 112 L56 88 L136 88 L144 112 L144 132 Q144 138 138 138 L134 138 Q128 138 128 132 L128 124 L64 124 L64 132 Q64 138 58 138 L54 138 Q48 138 48 132Z" fill="#00B4D8"/>
+  <!-- Windshield -->
+  <path d="M68 96 L76 80 L116 80 L124 96Z" fill="#0D1117" opacity="0.6"/>
+  <!-- Roof -->
+  <rect x="72" y="74" width="48" height="8" rx="4" fill="#00B4D8"/>
+  <!-- Headlights -->
+  <circle cx="60" cy="100" r="6" fill="#FFB020"/>
+  <circle cx="60" cy="100" r="3" fill="#FFF"/>
+  <!-- "D" letter -->
+  <text x="96" y="162" font-family="'Plus Jakarta Sans', sans-serif" font-size="40" font-weight="700" fill="#00B4D8" text-anchor="middle">D</text>
+</svg>

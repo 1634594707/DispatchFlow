@@ -199,7 +199,13 @@ class Phase1AcceptanceTest {
 
         @Test
         void duplicateOpenExceptionShouldNotBeInserted() {
-            when(exceptionRecordMapper.selectCount(any())).thenReturn(0L, 1L);
+            DispatchExceptionRecordEntity existing = new DispatchExceptionRecordEntity();
+            existing.setId(1L);
+            existing.setTaskId(10L);
+            existing.setExceptionType("AUTO_ASSIGN_NO_VEHICLE");
+            existing.setExceptionStatus("OPEN");
+            existing.setAggCount(1);
+            when(exceptionRecordMapper.selectOne(any())).thenReturn(null, existing);
             when(exceptionRecordMapper.insert(any(DispatchExceptionRecordEntity.class))).thenReturn(1);
 
             DispatchExceptionService service = new DispatchExceptionServiceImpl(

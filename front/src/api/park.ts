@@ -24,12 +24,15 @@ function mobileApiHeaders(): Record<string, string> | undefined {
 }
 
 export function listParks() {
-  return request.get<any, ApiResponse<ParkSummary[]>>('/admin/parks')
+  return request.get<any, ApiResponse<ParkSummary[]>>('/admin/parks', {
+    headers: mobileApiHeaders(),
+  })
 }
 
 export function getParkLayout(parkId?: number) {
   return request.get<any, ApiResponse<ParkLayout>>('/admin/park/layout', {
     params: parkId != null ? { parkId } : undefined,
+    headers: mobileApiHeaders(),
   })
 }
 
@@ -50,6 +53,7 @@ export function getParkVehicles(options?: { silent?: boolean }) {
 export function getParkGeofences(parkId?: number) {
   return request.get<any, ApiResponse<import('@/types/park').ParkGeofence[]>>('/admin/park/geofences', {
     params: parkId != null ? { parkId } : undefined,
+    headers: mobileApiHeaders(),
   })
 }
 

@@ -47,6 +47,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '充电报表', breadcrumb: ['分析监控', '充电报表'] },
       },
       {
+        path: 'analytics/custom-report',
+        name: 'AnalyticsCustomReport',
+        component: () => import('@/views/analytics/CustomReport.vue'),
+        meta: { title: '自定义报表', breadcrumb: ['分析监控', '自定义报表'] },
+      },
+      {
+        path: 'analytics/report-history',
+        name: 'AnalyticsReportHistory',
+        component: () => import('@/views/analytics/ReportHistory.vue'),
+        meta: { title: '历史报表', breadcrumb: ['分析监控', '历史报表'] },
+      },
+      {
         path: 'orders',
         name: 'OrderList',
         component: () => import('@/views/order/List.vue'),

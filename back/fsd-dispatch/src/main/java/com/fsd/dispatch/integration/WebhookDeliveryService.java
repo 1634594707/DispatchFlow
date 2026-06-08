@@ -28,16 +28,19 @@ public class WebhookDeliveryService {
     private final WebhookSubscriptionMapper subscriptionMapper;
     private final WebhookDeliveryLogMapper deliveryLogMapper;
     private final FieldEncryptionService fieldEncryptionService;
+    private final RobotMessageFormatter messageFormatter;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3))
             .build();
 
     public WebhookDeliveryService(WebhookSubscriptionMapper subscriptionMapper,
                                   WebhookDeliveryLogMapper deliveryLogMapper,
-                                  FieldEncryptionService fieldEncryptionService) {
+                                  FieldEncryptionService fieldEncryptionService,
+                                  RobotMessageFormatter messageFormatter) {
         this.subscriptionMapper = subscriptionMapper;
         this.deliveryLogMapper = deliveryLogMapper;
         this.fieldEncryptionService = fieldEncryptionService;
+        this.messageFormatter = messageFormatter;
     }
 
     public void deliver(DispatchDomainEvent event) {
@@ -49,8 +52,8 @@ public class WebhookDeliveryService {
             if (!matches(sub.getEventTypes(), event.getEventType())) {
                 continue;
             }
-            String body = "{\"eventType\":\"" + event.getEventType() + "\",\"businessKey\":\""
-                    + event.getBusinessKey() + "\",\"eventTime\":\"" + event.getEventTime() + "\"}";
+            String channelType = sub.getChannelType() != null ? sub.getChannelType() : "GENERIC";
+            String body = messageFormatter.format(channelType, event);
             String summary = truncate(body, 480);
             int attempt = (sub.getFailureCount() == null ? 0 : sub.getFailureCount()) + 1;
             try {

@@ -145,7 +145,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { createVehicle, updateVehicle, getVehicleDetail } from '@/api/vehicle'
 import { onlineStatusMap, dispatchStatusMap } from '@/constants/statusMap'
-import type { OnlineStatus, DispatchStatus } from '@/constants/enums'
+import { DispatchStatus } from '@/constants/enums'
+import type { OnlineStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -193,7 +194,6 @@ let silentRefreshTimer: ReturnType<typeof setInterval> | null = null
 
 const ACTIVE_DISPATCH_STATUSES: DispatchStatus[] = [
   DispatchStatus.BUSY,
-  DispatchStatus.CHARGING,
 ]
 
 const columns = [
@@ -371,11 +371,22 @@ watch(
 </script>
 
 <style scoped lang="less">
+@mobile-break: 768px;
+
 .search-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+
+  @media (max-width: @mobile-break) {
+    flex-direction: column;
+    align-items: stretch;
+
+    > * {
+      width: 100% !important;
+    }
+  }
 }
 
 .link-cell {

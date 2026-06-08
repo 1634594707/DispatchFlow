@@ -10,4 +10,6 @@ public interface BatchTaskAdminService {
     AdminBatchTaskResultResponse batchCancel(AdminBatchTaskRequest request, String operatorId, String operatorName);
 
     AdminBatchTaskResultResponse batchReassign(AdminBatchTaskRequest request, String operatorId, String operatorName);
+
+    AdminBatchTaskResultResponse batchUnassign(AdminBatchTaskRequest request, String operatorId, String operatorName);
 }

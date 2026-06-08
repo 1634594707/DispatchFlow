@@ -5,6 +5,7 @@ import { getActivePinia } from 'pinia'
 import { API_BASE, REQUEST_TIMEOUT } from '@/config'
 import type { ApiResponse } from '@/types/api'
 import { useParkScopeStore } from '@/stores/parkScope'
+import { useApiErrorsStore } from '@/stores/apiErrors'
 
 const TOKEN_KEY = 'fsd_admin_token'
 
@@ -43,6 +44,17 @@ instance.interceptors.response.use(
       return data as any
     }
     const errMsg = friendlyApiMessage(data.code, data.message)
+    const pinia = getActivePinia()
+    if (pinia) {
+      useApiErrorsStore(pinia).push({
+        code: data.code || 'UNKNOWN',
+        message: errMsg,
+        rawMessage: data.message || '',
+        url: response.config.url || '',
+        method: (response.config.method || 'GET').toUpperCase(),
+        status: response.status,
+      })
+    }
     if (data.code === 'PARK_NOT_FOUND') {
       localStorage.removeItem('fsd_selected_park_id')
       const pinia = getActivePinia()
@@ -67,31 +79,20 @@ instance.interceptors.response.use(
     const skipToast = error.config?.skipErrorToast
     if (error.response) {
       const { status, data } = error.response
-      switch (status) {
-        case 401:
-          if (!skipToast) message.error('未授权，请重新登录')
-          break
-        case 403:
-          if (!skipToast) message.error('无权限访问')
-          break
-        case 404:
-          if (!skipToast) message.error('数据不存在或已被删除')
-          break
-        case 409:
-          if (!skipToast) message.error('数据已被修改，请刷新后重试')
-          break
-        case 422:
-          if (!skipToast) message.error(data?.message || '参数校验失败')
-          break
-        case 500:
-          if (!skipToast) message.error('服务器繁忙，请稍后重试')
-          break
-        default:
-          if (!skipToast) {
-            message.error(
-              friendlyApiMessage(data?.code, data?.message) || data?.message || `请求失败 (${status})`
-            )
-          }
+      const httpFriendlyMsg = friendlyHttpErrorMessage(status, data)
+      if (!skipToast) {
+        message.error(httpFriendlyMsg)
+      }
+      const pinia = getActivePinia()
+      if (pinia && !skipToast) {
+        useApiErrorsStore(pinia).push({
+          code: data?.code || `HTTP_${status}`,
+          message: httpFriendlyMsg,
+          rawMessage: data?.message || error.message || '',
+          url: error.config?.url || '',
+          method: (error.config?.method || 'GET').toUpperCase(),
+          status,
+        })
       }
     } else if (error.code === 'ECONNABORTED') {
       if (!error.config?.skipErrorToast) message.error('网络超时，请检查网络后重试')
@@ -119,6 +120,25 @@ function friendlyApiMessage(code?: string, raw?: string): string {
     return '后端接口未找到，请在 back/fsd-bootstrap 目录执行 mvn spring-boot:run 并重启后端'
   }
   return raw
+}
+
+function friendlyHttpErrorMessage(status: number, data?: { code?: string; message?: string }): string {
+  switch (status) {
+    case 401:
+      return '未授权，请重新登录'
+    case 403:
+      return '无权限访问'
+    case 404:
+      return '数据不存在或已被删除'
+    case 409:
+      return '数据已被修改，请刷新后重试'
+    case 422:
+      return data?.message || '参数校验失败'
+    case 500:
+      return '服务器繁忙，请稍后重试'
+    default:
+      return friendlyApiMessage(data?.code, data?.message) || data?.message || `请求失败 (${status})`
+  }
 }
 
 export default instance

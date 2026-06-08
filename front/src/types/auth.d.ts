@@ -32,3 +32,17 @@ export interface ChangePasswordPayload {
   oldPassword: string
   newPassword: string
 }
+
+/** V5-S2: 角色模板定义 */
+export interface RoleTemplate {
+  role: AdminUser['role']
+  label: string
+  permissions: string[]
+  description?: string
+}
+
+/** V5-S2: 角色权限复制请求 */
+export interface CopyRolePermissionsPayload {
+  sourceUserId: number
+  targetUserId: number
+}

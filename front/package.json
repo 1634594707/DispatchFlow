@@ -15,7 +15,8 @@
     "format": "prettier --write \"src/**/*.{ts,vue,less,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,vue,less,json}\"",
     "perf:lighthouse": "node scripts/perf/lighthouse-routes.mjs",
-    "perf:nav": "playwright test",
+    "perf:nav": "playwright test scripts/perf",
+    "test:e2e": "playwright test scripts/e2e",
     "perf:all": "npm run build && npm run perf:lighthouse && npm run perf:nav"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "dayjs": "^1.11.13",
     "leaflet": "^1.9.4",
     "pinia": "^2.3.0",
+    "vite-plugin-pwa": "^0.21.1",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },

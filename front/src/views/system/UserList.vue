@@ -28,6 +28,7 @@
         <template v-else-if="column.key === 'actions'">
           <a-space>
             <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+            <a-button v-if="roleTemplatesReady && !editingUser" type="link" size="small" @click="openRoleCopy(record)">复制角色</a-button>
             <a-popconfirm
               v-if="record.status === 'ACTIVE' && record.username !== 'admin'"
               title="确定禁用该用户？"
@@ -40,10 +41,12 @@
       </template>
     </a-table>
 
+    <!-- 编辑 / 新建用户弹窗 -->
     <a-modal
       v-model:open="modalOpen"
       :title="editingUser ? '编辑用户' : '新建用户'"
       :confirm-loading="saving"
+      width="600px"
       @ok="handleSave"
     >
       <a-form layout="vertical">
@@ -57,10 +60,79 @@
           <a-input v-model:value="form.displayName" />
         </a-form-item>
         <a-form-item label="角色" required>
-          <a-select v-model:value="form.role" :options="roleOptions" />
+          <a-select v-model:value="form.role" :options="roleOptions" @change="onRoleChange" />
         </a-form-item>
+
+        <!-- V5-S2: 基于已有角色复制 -->
+        <a-form-item v-if="!editingUser && roleTemplatesReady" label="基于已有角色复制（可选）">
+          <a-select
+            v-model:value="copySourceUserId"
+            placeholder="选择源用户"
+            allow-clear
+            :options="userCopyOptions"
+            @change="onCopySourceChange"
+          />
+        </a-form-item>
+
+        <!-- 角色模板可视化 -->
+        <a-form-item v-if="!editingUser && roleSummary.length > 0" label="角色权限概览">
+          <div class="role-template-grid">
+            <div
+              v-for="tmpl in roleSummary"
+              :key="tmpl.role"
+              class="role-template-card"
+              :class="{ active: tmpl.role === form.role }"
+            >
+              <div class="role-template-header">
+                <a-tag :color="roleColor(tmpl.role)">{{ tmpl.label }}</a-tag>
+                <small>{{ tmpl.permissionCount }} 项权限</small>
+              </div>
+              <p class="role-template-desc">{{ tmpl.description }}</p>
+            </div>
+          </div>
+        </a-form-item>
+
         <a-form-item v-if="editingUser" label="状态">
           <a-select v-model:value="form.status" :options="statusOptions" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- V5-S2: 角色复制弹窗 -->
+    <a-modal
+      v-model:open="roleCopyModalOpen"
+      title="复制角色权限"
+      :confirm-loading="roleCopying"
+      @ok="handleRoleCopyConfirm"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="目标用户">
+          <strong>{{ roleCopyTargetUser?.displayName }} ({{ roleCopyTargetUser?.username }})</strong>
+        </a-form-item>
+        <a-form-item label="从以下用户复制" required>
+          <a-select
+            v-model:value="roleCopySourceUserId"
+            placeholder="选择源用户"
+            :options="roleCopyUserOptions"
+          />
+        </a-form-item>
+        <a-form-item v-if="selectedSourceRole" label="源用户角色">
+          <a-tag :color="roleColor(selectedSourceRole)">{{ roleLabel(selectedSourceRole) }}</a-tag>
+        </a-form-item>
+        <a-form-item label="角色模板参考">
+          <div class="role-template-grid">
+            <div
+              v-for="tmpl in roleSummary"
+              :key="tmpl.role"
+              class="role-template-card"
+            >
+              <div class="role-template-header">
+                <a-tag :color="roleColor(tmpl.role)">{{ tmpl.label }}</a-tag>
+                <small>{{ tmpl.permissionCount }} 项权限</small>
+              </div>
+              <p class="role-template-desc">{{ tmpl.description }}</p>
+            </div>
+          </div>
         </a-form-item>
       </a-form>
     </a-modal>
@@ -68,13 +140,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import PageContainer from '@/components/common/PageContainer.vue'
 import * as authApi from '@/api/auth'
 import type { AdminUser } from '@/types/auth'
+import { useRoleCopy } from '@/composables/useRoleCopy'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -90,13 +163,55 @@ const form = reactive({
   status: 'ACTIVE' as AdminUser['status'],
 })
 
+/* ---- V5-S2: 角色复制 ---- */
+const {
+  copying: roleCopying,
+  loadRoleTemplates,
+  loadRolePermissions,
+  applyRoleCopy,
+  roleSummary,
+  roleTemplatesReady,
+} = useRoleCopy()
+
+const copySourceUserId = ref<number | undefined>(undefined)
+const roleCopyModalOpen = ref(false)
+const roleCopyTargetUser = ref<AdminUser | null>(null)
+const roleCopySourceUserId = ref<number | undefined>(undefined)
+
+/** 新建时，作为复制来源的用户列表 */
+const userCopyOptions = computed(() => {
+  return users.value
+    .filter((u) => u.status === 'ACTIVE')
+    .map((u) => ({
+      label: `${u.displayName} (${u.username}) - ${roleLabel(u.role)}`,
+      value: u.id,
+    }))
+})
+
+/** 角色复制弹窗中的源用户列表（排除目标用户自己） */
+const roleCopyUserOptions = computed(() => {
+  return users.value
+    .filter((u) => u.id !== roleCopyTargetUser.value?.id && u.status === 'ACTIVE')
+    .map((u) => ({
+      label: `${u.displayName} (${u.username}) - ${roleLabel(u.role)}`,
+      value: u.id,
+    }))
+})
+
+/** 选中源用户后，获取其角色 */
+const selectedSourceRole = computed(() => {
+  if (!roleCopySourceUserId.value) return null
+  const user = users.value.find((u) => u.id === roleCopySourceUserId.value)
+  return user?.role ?? null
+})
+
 const columns = [
   { title: '用户名', dataIndex: 'username', key: 'username' },
   { title: '显示名称', dataIndex: 'displayName', key: 'displayName' },
   { title: '角色', key: 'role', width: 120 },
   { title: '状态', key: 'status', width: 100 },
   { title: '最后登录', key: 'lastLoginAt', width: 180 },
-  { title: '操作', key: 'actions', width: 140 },
+  { title: '操作', key: 'actions', width: 200 },
 ]
 
 const roleOptions = [
@@ -151,6 +266,7 @@ function openCreate() {
   form.displayName = ''
   form.role = 'OPERATOR'
   form.status = 'ACTIVE'
+  copySourceUserId.value = undefined
   modalOpen.value = true
 }
 
@@ -160,6 +276,43 @@ function openEdit(user: AdminUser) {
   form.role = user.role
   form.status = user.status
   modalOpen.value = true
+}
+
+/** V5-S2: 打开角色复制弹窗 */
+function openRoleCopy(user: AdminUser) {
+  roleCopyTargetUser.value = user
+  roleCopySourceUserId.value = undefined
+  roleCopyModalOpen.value = true
+}
+
+/** V5-S2: 确认执行角色复制 */
+async function handleRoleCopyConfirm() {
+  if (!roleCopyTargetUser.value || !roleCopySourceUserId.value) {
+    message.warning('请选择源用户')
+    return
+  }
+  const ok = await applyRoleCopy(roleCopySourceUserId.value, roleCopyTargetUser.value.id)
+  if (ok) {
+    message.success(`已将角色权限复制到 ${roleCopyTargetUser.value.displayName}`)
+  }
+  roleCopyModalOpen.value = false
+  await loadUsers()
+}
+
+/** V5-S2: 当表单中的角色改变时，更新角色模板高亮 */
+function onRoleChange(role: AdminUser['role']) {
+  loadRolePermissions(role)
+}
+
+/** V5-S2: 当选择复制来源用户时，填充角色 */
+function onCopySourceChange(userId: number | undefined) {
+  if (!userId) return
+  const user = users.value.find((u) => u.id === userId)
+  if (user) {
+    form.role = user.role
+    loadRolePermissions(user.role)
+    message.info(`已加载 ${user.displayName} 的角色：${roleLabel(user.role)}`)
+  }
 }
 
 async function handleSave() {
@@ -198,5 +351,55 @@ async function handleDisable(userId: number) {
   await loadUsers()
 }
 
-onMounted(loadUsers)
+onMounted(() => {
+  loadUsers()
+  loadRoleTemplates()
+})
 </script>
+
+<style scoped lang="less">
+.role-template-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.role-template-card {
+  flex: 1;
+  min-width: 140px;
+  padding: 10px 12px;
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-bg-elevated);
+  transition: border-color 0.2s;
+}
+
+.role-template-card.active {
+  border-color: var(--fsd-accent);
+  box-shadow: 0 0 0 1px var(--fsd-accent);
+}
+
+.role-template-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+
+  small {
+    color: var(--fsd-text-tertiary);
+    font-size: 12px;
+  }
+}
+
+.role-template-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
+}
+
+@media (max-width: 768px) {
+  .role-template-grid {
+    flex-direction: column;
+  }
+}
+</style>

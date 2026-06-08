@@ -3,6 +3,7 @@ package com.fsd.dispatch.service.impl;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,12 +32,19 @@ class DispatchExceptionServiceImplTest {
     private DispatchExceptionServiceImpl dispatchExceptionService;
 
     @Test
-    void recordExceptionShouldSkipDuplicateOpenRecord() {
-        when(exceptionRecordMapper.selectCount(any())).thenReturn(1L);
+    void recordExceptionShouldAggregateDuplicateOpenRecord() {
+        DispatchExceptionRecordEntity existing = new DispatchExceptionRecordEntity();
+        existing.setId(1L);
+        existing.setTaskId(10L);
+        existing.setExceptionType("AUTO_ASSIGN_NO_VEHICLE");
+        existing.setExceptionStatus("OPEN");
+        existing.setAggCount(1);
+        when(exceptionRecordMapper.selectOne(any())).thenReturn(existing);
 
         dispatchExceptionService.recordException(10L, 20L, 30L, "AUTO_ASSIGN_NO_VEHICLE", "duplicate");
 
         verify(exceptionRecordMapper, never()).insert(any(DispatchExceptionRecordEntity.class));
+        verify(exceptionRecordMapper, times(1)).updateById(any(DispatchExceptionRecordEntity.class));
         verify(eventPublisher, never()).publish(any(), any(), any());
     }
 

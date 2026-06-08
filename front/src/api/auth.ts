@@ -6,6 +6,8 @@ import type {
   AdminUserCreatePayload,
   AdminUserUpdatePayload,
   ChangePasswordPayload,
+  RoleTemplate,
+  CopyRolePermissionsPayload,
 } from '@/types/auth'
 
 export function login(username: string, password: string, totpCode?: string) {
@@ -54,4 +56,14 @@ export function updateUser(userId: number, payload: AdminUserUpdatePayload) {
 
 export function disableUser(userId: number) {
   return request.post<any, ApiResponse<void>>(`/admin/users/${userId}/disable`)
+}
+
+/** V5-S2: 获取角色模板 */
+export function fetchRoleTemplates(): Promise<ApiResponse<RoleTemplate[]>> {
+  return request.get<any, ApiResponse<RoleTemplate[]>>('/admin/auth/role-templates')
+}
+
+/** V5-S2: 复制角色权限 */
+export function copyRolePermissions(payload: CopyRolePermissionsPayload): Promise<ApiResponse<void>> {
+  return request.post<any, ApiResponse<void>>('/admin/auth/copy-role-permissions', payload)
 }

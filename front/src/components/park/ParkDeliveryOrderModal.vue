@@ -3,6 +3,8 @@
     :open="open"
     title="创建短驳订单"
     width="640px"
+    draggable
+    root-class-name="park-delivery-modal"
     :confirm-loading="submitting"
     ok-text="提交并自动派车"
     cancel-text="取消"
@@ -71,6 +73,7 @@ import type { ParkOrderCreateRequest, ParkStation } from '@/types/park'
 const props = defineProps<{
   open: boolean
   parkId?: number
+  prefill?: { pickupStationId: number; dropoffStationId: number } | null
 }>()
 
 const emit = defineEmits<{
@@ -90,6 +93,18 @@ const form = reactive<ParkOrderCreateRequest>({
   priority: 'P1',
   remark: '',
 })
+
+watch(
+  () => props.open,
+  (opening) => {
+    if (opening && props.prefill) {
+      form.pickupStationId = props.prefill.pickupStationId
+      form.dropoffStationId = props.prefill.dropoffStationId
+    } else if (!opening) {
+      // 关闭时重置表单，但不重置 prefill
+    }
+  },
+)
 
 const priorityOptions = [
   { value: 'P0', label: 'P0 · 最高' },
@@ -190,3 +205,45 @@ watch(
   },
 )
 </script>
+
+<style scoped>
+/* V5-M3: 移动端下单弹窗自适应 — 底部抽屉可拖拽 */
+@media (max-width: 768px) {
+  .park-delivery-modal :deep(.ant-modal) {
+    max-width: 100vw;
+    margin: 0;
+    top: auto;
+    bottom: 0;
+    padding-bottom: 0;
+    transform-origin: bottom center;
+  }
+  .park-delivery-modal :deep(.ant-modal-content) {
+    border-radius: 16px 16px 0 0;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+  }
+  .park-delivery-modal :deep(.ant-modal-header) {
+    cursor: grab;
+    padding: 14px 16px 8px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  .park-delivery-modal :deep(.ant-modal-header)::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d9d9d9;
+    margin: 0 auto 10px;
+  }
+  .park-delivery-modal :deep(.ant-modal-body) {
+    padding: 8px 16px 24px;
+  }
+  .park-delivery-modal :deep(.ant-select) {
+    width: 100% !important;
+  }
+}
+</style>

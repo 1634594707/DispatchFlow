@@ -104,8 +104,13 @@ body {
   border-radius: var(--fsd-radius-lg) !important;
 }
 
-.ant-table {
-  background: transparent !important;
+.ant-table,
+.ant-table-container,
+.ant-table-content,
+.ant-table-body,
+.ant-table-tbody,
+.ant-table-placeholder {
+  background: var(--fsd-bg-base) !important;
 }
 
 .ant-table-thead > tr > th {
@@ -118,13 +123,29 @@ body {
   letter-spacing: 0.05em !important;
 }
 
-.ant-table-tbody > tr > td {
+.ant-table-tbody > tr,
+.ant-table-tbody > tr.ant-table-row {
+  background: var(--fsd-bg-base) !important;
+}
+
+.ant-table-tbody > tr > td,
+.ant-table-tbody > tr > td.ant-table-cell,
+.ant-table-tbody > tr > td.ant-table-cell-fix-left,
+.ant-table-tbody > tr > td.ant-table-cell-fix-right {
+  background: var(--fsd-bg-base) !important;
   border-bottom: 1px solid var(--fsd-border) !important;
   color: var(--fsd-text-primary) !important;
 }
 
-.ant-table-tbody > tr:hover > td {
+.ant-table-tbody > tr.ant-table-row:hover > td,
+.ant-table-tbody > tr > td.ant-table-cell-row-hover,
+.ant-table-tbody > tr:hover > td.ant-table-cell-fix-left,
+.ant-table-tbody > tr:hover > td.ant-table-cell-fix-right {
   background: var(--fsd-bg-hover) !important;
+}
+
+.ant-table-tbody > tr.ant-table-expanded-row > td {
+  background: var(--fsd-bg-elevated) !important;
 }
 
 .ant-pagination .ant-pagination-item {
@@ -303,3 +324,37 @@ body {
 .stagger-2 { animation-delay: 0.1s; }
 .stagger-3 { animation-delay: 0.15s; }
 .stagger-4 { animation-delay: 0.2s; }
+
+// ── Mobile Responsive ─────────────────────────────────────────
+
+@fsd-mobile-break: 768px;
+
+@media (max-width: @fsd-mobile-break) {
+  .ant-table {
+    font-size: 12px;
+  }
+
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    padding: 6px 8px !important;
+  }
+
+  .page-container .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .page-container .page-title {
+    font-size: 18px;
+  }
+
+  .page-container .search-bar {
+    flex-direction: column;
+    align-items: stretch;
+
+    > * {
+      width: 100% !important;
+    }
+  }
+}

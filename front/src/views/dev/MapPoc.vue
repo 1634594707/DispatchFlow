@@ -27,6 +27,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
+// V5-D3: Shared geo logic also available via useDeliveryGeo composable (front/src/composables/useDeliveryGeo.ts)
 import { getParkVehicles } from '@/api/park'
 import { isAmapConfigured, parkXYToGcj02, TEXTILE_PARK_GEO, toAvGeoMarker } from '@/maps'
 import type { GeoMapMarker, GeoMapPolygon } from '@/maps'

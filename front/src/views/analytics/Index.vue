@@ -8,6 +8,8 @@
       </a-radio-group>
       <a-space>
         <a-button @click="router.push('/analytics/charging')">充电报表</a-button>
+        <a-button @click="router.push('/analytics/custom-report')">自定义报表</a-button>
+        <a-button @click="router.push('/analytics/report-history')">历史报表</a-button>
         <a-button :loading="loading" @click="loadAll">刷新</a-button>
         <a-button @click="exportPdf">导出 PDF</a-button>
         <a-dropdown>
@@ -28,7 +30,12 @@
       <div class="analytics-grid">
         <section class="panel">
           <h3>订单完成率趋势</h3>
-          <TrendBarChart v-if="efficiency" :points="efficiency.orderCompletionTrend" />
+          <TrendBarChart
+            v-if="efficiency"
+            :points="efficiency.orderCompletionTrend"
+            clickable
+            @bar-click="drillDownOrders"
+          />
         </section>
 
         <section class="panel">
@@ -44,21 +51,21 @@
         </section>
 
         <section v-if="chainKpi" class="panel metrics-panel">
-          <h3>链路 KPI</h3>
+          <h3>链路 KPI <a-button type="link" size="small" @click="drillDownTasks(chainKpi)">查看任务 →</a-button></h3>
           <div class="metric-cards">
-            <div class="metric-card">
+            <div class="metric-card clickable" @click="drillDownTasks(chainKpi)">
               <span class="metric-label">完成均时</span>
               <span class="metric-value">{{ chainKpi.avgCompletionMinutes }}<small>分</small></span>
             </div>
-            <div class="metric-card">
+            <div class="metric-card clickable" @click="drillDownTasks(chainKpi)">
               <span class="metric-label">等待 P50</span>
               <span class="metric-value">{{ chainKpi.waitP50Minutes }}<small>分</small></span>
             </div>
-            <div class="metric-card">
+            <div class="metric-card clickable" @click="drillDownTasks(chainKpi)">
               <span class="metric-label">等待 P90</span>
               <span class="metric-value">{{ chainKpi.waitP90Minutes }}<small>分</small></span>
             </div>
-            <div class="metric-card">
+            <div class="metric-card clickable" @click="drillDownTasks(chainKpi)">
               <span class="metric-label">单车日均任务</span>
               <span class="metric-value">{{ chainKpi.tasksPerVehiclePerDay }}</span>
             </div>
@@ -68,12 +75,12 @@
         <section v-if="peakCompare" class="panel metrics-panel">
           <h3>高峰 vs 平日对比</h3>
           <div class="peak-compare-grid">
-            <div>
+            <div class="clickable" @click="drillDownTasks(peakCompare.normalMode)">
               <h4>平日 NORMAL</h4>
               <p>完成均时 {{ peakCompare.normalMode.avgCompletionMinutes }} 分</p>
               <p>单车日均 {{ peakCompare.normalMode.tasksPerVehiclePerDay }}</p>
             </div>
-            <div>
+            <div class="clickable" @click="drillDownTasks(peakCompare.peakMode)">
               <h4>高峰 PEAK</h4>
               <p>完成均时 {{ peakCompare.peakMode.avgCompletionMinutes }} 分</p>
               <p>单车日均 {{ peakCompare.peakMode.tasksPerVehiclePerDay }}</p>
@@ -85,15 +92,15 @@
         <section class="panel metrics-panel">
           <h3>效率指标</h3>
           <div class="metric-cards">
-            <div class="metric-card">
+            <div class="metric-card clickable" @click="drillDownEfficiency('duration')">
               <span class="metric-label">平均任务时长</span>
               <span class="metric-value">{{ efficiency?.avgTaskDurationMinutes ?? '-' }}<small>分</small></span>
             </div>
-            <div class="metric-card">
+            <div class="metric-card clickable" @click="drillDownEfficiency('utilization')">
               <span class="metric-label">车辆利用率</span>
               <span class="metric-value">{{ efficiency?.vehicleUtilizationRate ?? '-' }}<small>%</small></span>
             </div>
-            <div class="metric-card">
+            <div class="metric-card" @click="router.push('/exceptions')">
               <span class="metric-label">异常处理时长</span>
               <span class="metric-value">{{ exceptionAnalysis?.avgResolutionMinutes ?? '-' }}<small>分</small></span>
             </div>
@@ -258,6 +265,24 @@ function drillDownException(point: AnalyticsTrendPoint) {
   void router.push({ path: '/exceptions', query: { status: 'OPEN', trendLabel: point.label } })
 }
 
+function drillDownOrders(point: AnalyticsTrendPoint) {
+  void router.push({ path: '/orders', query: { status: 'COMPLETED', dateLabel: point.label } })
+}
+
+function drillDownEfficiency(type: 'duration' | 'utilization') {
+  const query: Record<string, string> = {}
+  if (type === 'utilization') {
+    query['status'] = 'EXECUTING'
+  } else {
+    query['status'] = 'SUCCESS'
+  }
+  void router.push({ path: '/tasks', query })
+}
+
+function drillDownTasks(_kpi?: AnalyticsChainKpi) {
+  void router.push({ path: '/tasks', query: { status: 'SUCCESS' } })
+}
+
 function exportPdf() {
   const url = getAnalyticsPdfUrl(dailySummary.value?.date, parkScope.selectedParkId)
   const tokenQuery =
@@ -324,6 +349,16 @@ watch(
   border: 1px solid var(--fsd-border);
   border-radius: var(--fsd-radius);
   background: rgba(22, 27, 34, 0.45);
+}
+
+.clickable {
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.clickable:hover {
+  border-color: var(--fsd-accent);
+  box-shadow: 0 0 0 1px rgba(0, 180, 216, 0.15);
 }
 
 .metric-label {

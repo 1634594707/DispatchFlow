@@ -9,3 +9,6 @@ export const REQUEST_TIMEOUT = 10000
 
 /** 默认开启；本地免登录开发可设 VITE_ADMIN_AUTH_ENABLED=false */
 export const ADMIN_AUTH_ENABLED = import.meta.env.VITE_ADMIN_AUTH_ENABLED !== 'false'
+
+/** 默认车辆追踪场景：'park' 园区调度 | 'delivery' 短驳地理 */
+export const DEFAULT_TRACKING_SCENE = 'park'

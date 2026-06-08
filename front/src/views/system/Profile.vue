@@ -30,6 +30,33 @@
           </a-button>
         </a-form>
       </a-card>
+
+      <a-card title="通知偏好" class="profile-card">
+        <a-form layout="vertical">
+          <a-form-item label="桌面推送通知">
+            <div class="notification-control">
+              <a-switch
+                :checked="pushEnabled"
+                :disabled="!pushSupported"
+                @change="togglePushNotification"
+              />
+              <span class="notification-status">
+                <template v-if="!pushSupported">浏览器不支持推送功能</template>
+                <template v-else-if="pushPermission === 'denied'">已拒绝，请在浏览器设置中重新允许</template>
+                <template v-else-if="pushEnabled">已开启</template>
+                <template v-else>关闭</template>
+              </span>
+            </div>
+            <div class="notification-desc">
+              配送完成、车辆到达取货点等关键节点将通过桌面通知推送
+            </div>
+          </a-form-item>
+          <a-divider style="margin: 8px 0" />
+          <a-form-item label="通知事件">
+            <a-checkbox-group v-model:value="selectedEvents" :options="eventOptions" />
+          </a-form-item>
+        </a-form>
+      </a-card>
     </div>
   </PageContainer>
 </template>
@@ -41,6 +68,7 @@ import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { useAuthStore } from '@/stores/auth'
+import { usePushNotification } from '@/composables/usePushNotification'
 import * as authApi from '@/api/auth'
 
 const router = useRouter()
@@ -52,6 +80,45 @@ const pwdForm = reactive({
   newPassword: '',
   confirmPassword: '',
 })
+
+// ── Push Notification ──────────────────────────────────────────
+
+const { supported: pushSupported, permission: pushPermission, requestPermission, subscribe, unsubscribe } = usePushNotification()
+
+const pushEnabled = ref(false)
+const selectedEvents = ref<string[]>(['dropoff', 'arrive'])
+
+const eventOptions = [
+  { label: '车辆已到达取货点', value: 'arrive' },
+  { label: '配送完成', value: 'dropoff' },
+  { label: '任务异常', value: 'exception' },
+  { label: '车辆低电告警', value: 'low_soc' },
+]
+
+async function togglePushNotification(checked: boolean) {
+  if (checked) {
+    const perm = await requestPermission()
+    if (perm === 'granted') {
+      const sub = await subscribe()
+      pushEnabled.value = !!sub
+      if (sub) {
+        message.success('桌面推送已开启')
+      } else {
+        message.error('订阅推送失败')
+      }
+    } else {
+      message.warning('请允许通知权限后重试')
+    }
+  } else {
+    const ok = await unsubscribe()
+    if (ok) {
+      pushEnabled.value = false
+      message.info('桌面推送已关闭')
+    }
+  }
+}
+
+// ── Password ───────────────────────────────────────────────────
 
 const roleLabel = computed(() => {
   const map: Record<string, string> = {
@@ -130,5 +197,23 @@ onMounted(() => {
   :deep(.ant-descriptions-bordered .ant-descriptions-view) {
     border-color: var(--fsd-border);
   }
+}
+
+.notification-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.notification-status {
+  font-size: 13px;
+  color: var(--fsd-text-secondary, #8B949E);
+}
+
+.notification-desc {
+  font-size: 12px;
+  color: var(--fsd-text-tertiary, #484F58);
+  margin-top: 4px;
+  line-height: 1.5;
 }
 </style>

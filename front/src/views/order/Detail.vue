@@ -1,6 +1,9 @@
 <template>
   <PageContainer :title="`订单详情：${store.detail?.orderNo || route.params.orderId}`">
     <template #actions>
+      <a-button v-if="canReorder" type="primary" ghost @click="handleReorder">
+        <ReloadOutlined /> 再来一单
+      </a-button>
       <router-link
         v-if="store.detail?.vehicleId"
         :to="trackingLink"
@@ -82,28 +85,9 @@
         </a-card>
 
         <a-card title="配送进度" size="small" style="margin-top: 16px;">
-          <a-timeline>
-            <a-timeline-item color="green">
-              <p>订单创建</p>
-              <span class="mono text-secondary">{{ formatTime(store.detail.createdAt) }}</span>
-            </a-timeline-item>
-            <a-timeline-item v-if="store.detail.status !== 'CREATED'" color="blue">
-              <p>进入调度</p>
-            </a-timeline-item>
-            <a-timeline-item
-              v-if="store.detail.runtimeStage && !['COMPLETED', 'FAILED'].includes(store.detail.runtimeStage)"
-              color="cyan"
-            >
-              <p>{{ parkDeliveryStageLabel(store.detail.runtimeStage) }}</p>
-            </a-timeline-item>
-            <a-timeline-item
-              v-if="['COMPLETED', 'FAILED', 'CANCELLED'].includes(store.detail.status)"
-              :color="store.detail.status === 'COMPLETED' ? 'green' : 'red'"
-            >
-              <p>{{ statusLabel }}</p>
-              <span class="mono text-secondary">{{ formatTime(store.detail.updatedAt) }}</span>
-            </a-timeline-item>
-          </a-timeline>
+          <a-spin :spinning="timelineLoading">
+            <OrderTimeline :events="timelineEvents" />
+          </a-spin>
         </a-card>
       </template>
     </a-spin>
@@ -111,22 +95,37 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { ReloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import OrderTimeline from '@/components/analytics/OrderTimeline.vue'
 import { useOrderStore } from '@/stores/order'
 import { orderStatusMap } from '@/constants/statusMap'
 import { buildGeoTrackingLink, parkDeliveryStageLabel } from '@/constants/parkDelivery'
+import { getOrderTimeline, type TimelineEvent } from '@/api/analytics'
 import dayjs from 'dayjs'
 
 const router = useRouter()
 const route = useRoute()
 const store = useOrderStore()
+const timelineLoading = ref(false)
+const timelineEvents = ref<TimelineEvent[]>([])
 
 const trackingLink = computed(() =>
   buildGeoTrackingLink(store.detail?.orderId, store.detail?.vehicleId ?? undefined),
 )
+
+const canReorder = computed(() => Boolean(store.detail?.orderId))
+
+const REORDER_KEY = 'fsd_reorder_source'
+
+function handleReorder() {
+  if (!store.detail) return
+  sessionStorage.setItem(REORDER_KEY, 'order-detail')
+  router.push('/workbench?reorder=1')
+}
 
 function priorityColor(p: string) {
   const map: Record<string, string> = { P0: 'red', P1: 'orange', P2: 'blue', P3: 'default' }
@@ -144,7 +143,20 @@ const statusLabel = computed(() => {
 
 function fetchData() {
   const id = Number(route.params.orderId)
-  if (id) store.fetchDetail(id)
+  if (id) {
+    store.fetchDetail(id)
+    loadTimeline(id)
+  }
+}
+
+async function loadTimeline(orderId: number) {
+  timelineLoading.value = true
+  try {
+    const res = await getOrderTimeline(orderId)
+    timelineEvents.value = res.data?.events ?? []
+  } finally {
+    timelineLoading.value = false
+  }
 }
 
 onMounted(fetchData)

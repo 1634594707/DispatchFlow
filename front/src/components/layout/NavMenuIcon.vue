@@ -1,5 +1,7 @@
 <template>
-  <component :is="iconComponent" />
+  <span class="nav-menu-icon">
+    <component :is="iconComponent" />
+  </span>
 </template>
 
 <script setup lang="ts">
@@ -68,3 +70,29 @@ const iconComponent = computed(() => {
   return ICON_MAP[props.icon] ?? DashboardOutlined
 })
 </script>
+
+<style scoped lang="less">
+.nav-menu-icon {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  line-height: 0;
+}
+
+.nav-menu-icon :deep(.anticon) {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  line-height: 0;
+}
+
+.nav-menu-icon :deep(svg) {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  overflow: visible;
+}
+</style>

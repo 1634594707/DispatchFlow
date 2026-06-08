@@ -1,5 +1,14 @@
 <template>
   <div class="tracking-page">
+    <!-- V5-T2: SSE 连接状态指示器 -->
+    <div class="sse-status-bar" :class="`sse-${sseStatus}`">
+      <span class="sse-status-dot"></span>
+      <span class="sse-status-text">{{ sseStatusLabel }}</span>
+      <span v-if="sseStatus === 'reconnecting'" class="sse-status-retry">自动重连中...</span>
+    </div>
+
+    <SkeletonLoader v-if="showSkeleton" preset="tracking" />
+    <template v-else>
     <div
       v-show="showSchematicMap"
       ref="mapContainer"
@@ -93,10 +102,28 @@
               />
             </span>
           </div>
+          <DemoModePanel
+            class="demo-mode-header"
+            :demo-mode="demoMode"
+            :remaining-label="demoRemainingLabel"
+            @start="demo.startDemo()"
+            @stop="demo.stopDemo()"
+            @next="demo.nextDemoOrder()"
+          />
         </header>
 
         <div class="panel-toolbar">
-          <div class="toolbar-field">
+          <!-- V5-N3: 预测性告警 SOC 区域 -->
+        <div class="toolbar-field">
+          <span class="toolbar-label">预警</span>
+          <a-badge :count="predictiveLowSocVehicles.length" :overflow-count="99" size="small">
+            <a-button size="small" :type="predictiveLowSocVehicles.length > 0 ? 'primary' : 'default'" :danger="predictiveLowSocVehicles.length > 0" @click="predictiveDrawerVisible = true">
+              <template #icon><BellOutlined /></template>
+              SOC 预测
+            </a-button>
+          </a-badge>
+        </div>
+        <div class="toolbar-field">
             <span class="toolbar-label">场景</span>
             <a-segmented
               v-model:value="trackingScene"
@@ -157,6 +184,9 @@
           </button>
           <button class="filter-chip filter-chip-layer" :class="{ active: showChargeLayer }" @click="toggleChargeLayer">
             充电图层
+          </button>
+          <button class="filter-chip filter-chip-layer" :class="{ active: showL0Circles }" @click="toggleL0Circles">
+            L0 双圈
           </button>
         </div>
 
@@ -347,7 +377,60 @@
         </div>
       </div>
     </div>
-  </div>
+  </template>
+
+  <!-- V5-N3: SOC 预测告警抽屉 -->
+  <a-drawer
+    v-model:open="predictiveDrawerVisible"
+    title="SOC 趋势预测"
+    placement="right"
+    width="360"
+  >
+    <template v-if="predictiveLowSocVehicles.length === 0">
+      <div class="empty-state">
+        <InboxOutlined />
+        <span>暂无预测告警</span>
+      </div>
+    </template>
+    <template v-else>
+      <div class="predictive-list">
+        <div
+          v-for="alert in predictiveLowSocVehicles"
+          :key="alert.vehicleId"
+          class="predictive-card"
+          :class="`trend-${alert.trend}`"
+          @click="selectedPredictiveVehicleId = alert.vehicleId"
+        >
+          <div class="predictive-head">
+            <strong>{{ alert.vehicleCode }}</strong>
+            <span class="predictive-soc">{{ alert.currentSoc }}%</span>
+          </div>
+          <div class="predictive-meta">
+            <span class="predictive-minutes">预计 {{ alert.predictedMinutes }} 分钟后低于 30%</span>
+            <span class="trend-indicator">
+              <ArrowUpOutlined v-if="alert.trend === 'stable'" style="color: #52c41a" />
+              <ArrowRightOutlined v-else-if="alert.trend === 'slight_decline'" style="color: #faad14" />
+              <ArrowDownOutlined v-else style="color: #ff4d4f" />
+              {{ alert.trend === 'stable' ? '稳定' : alert.trend === 'slight_decline' ? '缓慢下降' : '快速下降' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </template>
+    <template v-if="selectedPredictiveVehicleId != null">
+      <a-divider>趋势详情</a-divider>
+      <div class="trend-detail">
+        <p>车辆 {{ selectedPredictiveVehicleId }}</p>
+        <p>趋势方向：
+          <ArrowUpOutlined v-if="getVehicleTrend(selectedPredictiveVehicleId) === 'stable'" style="color: #52c41a" />
+          <ArrowRightOutlined v-else-if="getVehicleTrend(selectedPredictiveVehicleId) === 'slight_decline'" style="color: #faad14" />
+          <ArrowDownOutlined v-else style="color: #ff4d4f" />
+          {{ getVehicleTrend(selectedPredictiveVehicleId) === 'stable' ? '稳定 ↑' : getVehicleTrend(selectedPredictiveVehicleId) === 'slight_decline' ? '缓慢下降 →' : '快速下降 ↓' }}
+        </p>
+      </div>
+    </template>
+  </a-drawer>
+</div>
 </template>
 
 <script setup lang="ts">
@@ -355,19 +438,20 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { CloseOutlined, InboxOutlined, LeftOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons-vue'
+import { CloseOutlined, InboxOutlined, LeftOutlined, ReloadOutlined, RightOutlined, BellOutlined, ArrowUpOutlined, ArrowRightOutlined, ArrowDownOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
+import DemoModePanel from '@/components/demo/DemoModePanel.vue'
 import { getParkGeofences, getParkLayout, getParkOrders, getParkVehicles, getRoadRouteHealth } from '@/api/park'
 import type { RoadRouteHealth } from '@/api/park'
 import {
   collectRouteFitPoints,
   defaultMapCenter,
   isAmapConfigured,
-  parkXYToGcj02,
   toAvGeoMarker,
   buildGeoPolylines,
   stationGeoPosition,
@@ -384,19 +468,22 @@ import {
   isSchematicParkVehicle,
 } from '@/maps/stationLayers'
 import type { GeoMapMarker, GeoMapPolygon, GeoMapPolyline, GeoMapCircle } from '@/maps'
-import { ZJF_L0_COVERAGE } from '@/maps/zjfPilotGeo'
+// V5-D3: Uses shared vehicleToGeoPosition from @/composables/useDeliveryGeo
+import { L0_COVERAGE_CIRCLES, vehicleToGeoPosition } from '@/composables/useDeliveryGeo'
 import { routeAnomalyWarning } from '@/maps/routeValidation'
 import { getFleetTelemetryStreamUrl } from '@/api/dispatch'
 import { fetchPeakMode, updatePeakMode, fetchOpsSnapshot, type OpsSnapshot } from '@/api/vertical'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useAuthStore } from '@/stores/auth'
+import { DEFAULT_TRACKING_SCENE } from '@/config'
+import { useDemoMode } from '@/composables/useDemoMode'
 import { createSSEClient } from '@/utils/sseClient'
 import type { SSEClient } from '@/types/stream'
+import { usePredictiveAlert } from '@/composables/usePredictiveAlert'
 import type {
   ParkGeofence,
   ParkLayout,
   ParkOrderSnapshot,
-  ParkPoint,
   ParkStation,
   ParkVehicleSnapshot,
 } from '@/types/park'
@@ -412,13 +499,31 @@ const peakTemplateCode = ref('DAILY')
 const opsMode = ref(false)
 const opsSnapshot = ref<OpsSnapshot | null>(null)
 
+const demo = useDemoMode()
+const demoMode = computed(() => demo.demoMode.value)
+const demoRemainingLabel = computed(() => demo.remainingLabel.value)
+
+// V5-N3: 预测性告警
+const predictiveAlertStore = usePredictiveAlert()
+const predictiveLowSocVehicles = computed(() => predictiveAlertStore.predictLowSocVehicles.value)
+const predictiveDrawerVisible = ref(false)
+const selectedPredictiveVehicleId = ref<number | null>(null)
+
+function getVehicleTrend(vehicleId: number) {
+  return predictiveAlertStore.getVehicleTrend(vehicleId)
+}
+
 type TrackingScene = 'park' | 'delivery'
 const TRACKING_SCENE_KEY = 'fsd_tracking_scene'
 
 function loadTrackingScene(): TrackingScene {
+  const sceneParam = route.query.scene
+  if (sceneParam === 'park') return 'park'
+  if (sceneParam === 'delivery') return 'delivery'
   if (route.query.mode === 'geo') return 'delivery'
   const stored = localStorage.getItem(TRACKING_SCENE_KEY)
-  return stored === 'delivery' ? 'delivery' : 'park'
+  if (stored === 'delivery' || stored === 'park') return stored
+  return DEFAULT_TRACKING_SCENE
 }
 
 const trackingScene = ref<TrackingScene>(loadTrackingScene())
@@ -454,6 +559,9 @@ const activeFilter = ref('all')
 const selectedId = ref<number | null>(null)
 const refreshing = ref(false)
 const showChargeLayer = ref(false)
+const showL0Circles = ref(
+  route.query.l0 === '1' || route.query.l0circles === '1' || localStorage.getItem('fsd_tracking_l0_circles') === 'true',
+)
 const currentTime = ref(dayjs().format('HH:mm:ss'))
 const vehicles = ref<ParkVehicleSnapshot[]>([])
 const parkOrders = ref<ParkOrderSnapshot[]>([])
@@ -462,6 +570,18 @@ const parkGeofences = ref<ParkGeofence[]>([])
 const apiError = ref('')
 const backendOnline = ref(false)
 const streamConnected = ref(false)
+const sseReconnecting = ref(false)
+const sseStatus = computed(() => {
+  if (streamConnected.value) return 'connected'
+  if (sseReconnecting.value) return 'reconnecting'
+  return 'disconnected'
+})
+const sseStatusLabel = computed(() => {
+  if (streamConnected.value) return '已连接'
+  if (sseReconnecting.value) return '重连中'
+  return '已断连'
+})
+const showSkeleton = computed(() => vehicles.value.length === 0 && apiError.value === '')
 const lastStreamAt = ref<string | null>(null)
 const lastStreamLatencyMs = ref<number | null>(null)
 let sseClient: SSEClient | null = null
@@ -627,11 +747,9 @@ const geoMapCenter = computed((): [number, number] => {
   return defaultMapCenter()
 })
 
+/** @deprecated Use vehicleToGeoPosition from @/composables/useDeliveryGeo instead */
 function vehicleGeoPosition(vehicle: ParkVehicleSnapshot): [number, number] {
-  if (vehicle.longitude != null && vehicle.latitude != null) {
-    return [Number(vehicle.longitude), Number(vehicle.latitude)]
-  }
-  return parkXYToGcj02(vehicle.x, vehicle.y)
+  return vehicleToGeoPosition(vehicle)
 }
 
 const geoMarkers = computed((): GeoMapMarker[] => {
@@ -698,24 +816,9 @@ const geoPolylines = computed((): GeoMapPolyline[] =>
   }),
 )
 
-const geoCircles = computed((): GeoMapCircle[] => [
-  {
-    id: 'l0-chuanjiang',
-    center: ZJF_L0_COVERAGE.chuanjiang.center,
-    radiusMeters: ZJF_L0_COVERAGE.chuanjiang.radiusMeters,
-    strokeColor: 'rgba(100, 149, 237, 0.35)',
-    fillColor: 'rgba(100, 149, 237, 0.04)',
-    zIndex: 1,
-  },
-  {
-    id: 'l0-dieshiqiao',
-    center: ZJF_L0_COVERAGE.dieshiqiao.center,
-    radiusMeters: ZJF_L0_COVERAGE.dieshiqiao.radiusMeters,
-    strokeColor: 'rgba(147, 112, 219, 0.3)',
-    fillColor: 'rgba(147, 112, 219, 0.04)',
-    zIndex: 1,
-  },
-])
+const geoCircles = computed((): GeoMapCircle[] =>
+  showL0Circles.value ? L0_COVERAGE_CIRCLES : [],
+)
 
 const selectedVehicle = computed(() => {
   if (!selectedId.value) return null
@@ -822,6 +925,11 @@ function formatOrderTime(value: string | null) {
 function toggleChargeLayer() {
   showChargeLayer.value = !showChargeLayer.value
   drawChargeLayer()
+}
+
+function toggleL0Circles() {
+  showL0Circles.value = !showL0Circles.value
+  localStorage.setItem('fsd_tracking_l0_circles', String(showL0Circles.value))
 }
 
 function markerColor(vehicle: ParkVehicleSnapshot) {
@@ -1216,6 +1324,7 @@ function applyStreamPayload(data: { ts?: string; vehicles?: ParkVehicleSnapshot[
     updateVehicleMarkers()
     drawOrderChains()
     streamConnected.value = true
+    sseReconnecting.value = false
     backendOnline.value = true
     apiError.value = ''
   }
@@ -1234,15 +1343,18 @@ function initSSEStream() {
     onMessage: applyStreamPayload,
     onOpen: () => {
       streamConnected.value = true
+      sseReconnecting.value = false
       backendOnline.value = true
       apiError.value = ''
       stopFallbackPoll()
     },
     onError: () => {
       streamConnected.value = false
+      sseReconnecting.value = true
     },
     onClose: () => {
       streamConnected.value = false
+      sseReconnecting.value = true
       startFallbackPoll()
     },
     maxRetries: 10,
@@ -1457,6 +1569,22 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   z-index: 1;
+
+  :deep(.amap-marker-label) {
+    padding: 5px 9px;
+    border: 1px solid rgba(0, 180, 216, 0.38);
+    border-radius: 999px;
+    background: rgba(6, 9, 15, 0.88);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    color: var(--track-text);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    transform: translateY(-4px);
+    white-space: nowrap;
+    backdrop-filter: blur(10px);
+  }
 }
 
 .map-mode-toggle {
@@ -1870,6 +1998,11 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: 8px;
   margin-top: 10px;
+}
+
+.demo-mode-header {
+  margin-top: 10px;
+  width: 100%;
 }
 
 .map-scope-hint {
@@ -2593,5 +2726,159 @@ onUnmounted(() => {
   font-size: 12px;
   color: #8b949e;
   padding: 2px 0;
+}
+
+/* V5-T2: SSE 连接状态指示器 */
+.sse-status-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px;
+  font-size: 12px;
+  transition: background 0.3s, color 0.3s;
+}
+
+.sse-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sse-status-text {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sse-status-retry {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.sse-connected {
+  background: rgba(0, 230, 118, 0.08);
+  color: #00e676;
+}
+
+.sse-connected .sse-status-dot {
+  background: #00e676;
+  box-shadow: 0 0 8px rgba(0, 230, 118, 0.6);
+}
+
+.sse-reconnecting {
+  background: rgba(255, 202, 40, 0.08);
+  color: #ffca28;
+}
+
+.sse-reconnecting .sse-status-dot {
+  background: #ffca28;
+  box-shadow: 0 0 8px rgba(255, 202, 40, 0.4);
+  animation: sse-pulse 1.2s ease-in-out infinite;
+}
+
+.sse-disconnected {
+  background: rgba(255, 61, 113, 0.08);
+  color: #ff3d71;
+}
+
+.sse-disconnected .sse-status-dot {
+  background: #ff3d71;
+}
+
+@keyframes sse-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* V5-N3: 预测性告警 */
+.predictive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.predictive-card {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--track-border);
+  background: rgba(22, 27, 34, 0.45);
+  cursor: pointer;
+  transition: border-color 0.2s;
+
+  &:hover {
+    border-color: var(--track-border-accent);
+  }
+
+  &.trend-rapid_decline {
+    border-left: 3px solid #ff4d4f;
+  }
+
+  &.trend-slight_decline {
+    border-left: 3px solid #faad14;
+  }
+
+  &.trend-stable {
+    border-left: 3px solid #52c41a;
+  }
+}
+
+.predictive-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+
+  strong {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--track-text);
+  }
+}
+
+.predictive-soc {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #faad14;
+}
+
+.predictive-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.predictive-minutes {
+  font-size: 12px;
+  color: var(--track-text-muted);
+}
+
+.trend-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--track-text-muted);
+}
+
+.trend-detail {
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(22, 27, 34, 0.45);
+  font-size: 13px;
+  color: var(--track-text-muted);
+
+  p {
+    margin: 4px 0;
+  }
 }
 </style>

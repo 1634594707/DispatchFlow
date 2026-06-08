@@ -360,6 +360,8 @@ watch(() => route.params.taskId, fetchData)
 </script>
 
 <style scoped lang="less">
+@mobile-break: 768px;
+
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -369,12 +371,44 @@ watch(() => route.params.taskId, fetchData)
   > :last-child {
     grid-column: 1 / -1;
   }
+
+  @media (max-width: @mobile-break) {
+    grid-template-columns: 1fr;
+
+    > :last-child {
+      grid-column: 1;
+    }
+
+    :deep(.ant-descriptions) {
+      .ant-descriptions-item {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .ant-descriptions-item-label {
+        width: 100% !important;
+        padding-bottom: 0;
+      }
+
+      .ant-descriptions-item-content {
+        width: 100% !important;
+      }
+    }
+  }
 }
 
 .detail-actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+
+  @media (max-width: @mobile-break) {
+    flex-direction: column;
+
+    > * {
+      width: 100%;
+    }
+  }
 }
 
 .link {

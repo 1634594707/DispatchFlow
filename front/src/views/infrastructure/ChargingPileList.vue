@@ -16,6 +16,29 @@
       </a-space>
     </template>
 
+    <!-- V5-E5: 充电桩角标「空闲/总数」 -->
+    <div class="pile-summary-bar">
+      <div class="pile-summary-item">
+        <span class="pile-summary-label">充电桩总数</span>
+        <strong class="pile-summary-value total">{{ piles.length }}</strong>
+      </div>
+      <div class="pile-summary-divider"></div>
+      <div class="pile-summary-item">
+        <span class="pile-summary-label">空闲</span>
+        <strong class="pile-summary-value free">{{ freePileCount }}</strong>
+      </div>
+      <div class="pile-summary-divider"></div>
+      <div class="pile-summary-item">
+        <span class="pile-summary-label">占用 / 充电中</span>
+        <strong class="pile-summary-value occupied">{{ occupiedPileCount }}</strong>
+      </div>
+      <div class="pile-summary-divider"></div>
+      <div class="pile-summary-item">
+        <span class="pile-summary-label">故障</span>
+        <strong class="pile-summary-value fault">{{ faultPileCount }}</strong>
+      </div>
+    </div>
+
     <a-table
       :columns="columns"
       :data-source="piles"
@@ -91,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
@@ -108,6 +131,11 @@ const slotOptions = ref<{ label: string; value: number }[]>([])
 const filterParkId = ref<number | undefined>()
 const modalOpen = ref(false)
 const editing = ref<AdminChargingPile | null>(null)
+
+// V5-E5: 充电桩统计
+const freePileCount = computed(() => piles.value.filter((p) => p.status === 'FREE').length)
+const occupiedPileCount = computed(() => piles.value.filter((p) => p.status === 'OCCUPIED' || p.status === 'CHARGING' || p.status === 'RESERVED').length)
+const faultPileCount = computed(() => piles.value.filter((p) => p.status === 'FAULT').length)
 
 const form = reactive({
   parkId: undefined as number | undefined,
@@ -240,3 +268,56 @@ async function handleSave() {
 
 onMounted(loadData)
 </script>
+
+<style scoped lang="less">
+/* V5-E5: 充电桩角标 */
+.pile-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: var(--fsd-radius-lg);
+  border: 1px solid var(--fsd-border);
+  background: linear-gradient(135deg, rgba(0, 119, 182, 0.08) 0%, rgba(13, 17, 23, 0.6) 100%);
+}
+
+.pile-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pile-summary-label {
+  font-size: 12px;
+  color: var(--fsd-text-tertiary);
+}
+
+.pile-summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+
+  &.total {
+    color: var(--fsd-accent);
+  }
+
+  &.free {
+    color: #00e676;
+  }
+
+  &.occupied {
+    color: #ffb020;
+  }
+
+  &.fault {
+    color: #ff3d71;
+  }
+}
+
+.pile-summary-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--fsd-border);
+}
+</style>

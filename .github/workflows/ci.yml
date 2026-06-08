@@ -56,3 +56,22 @@ jobs:
       - name: Typecheck and build
         working-directory: front
         run: npm run build
+
+      - name: Install Playwright browser
+        working-directory: front
+        run: npx playwright install --with-deps chrome
+
+      - name: Start backend
+        working-directory: back
+        run: nohup mvn -pl fsd-bootstrap -am spring-boot:run -DskipTests > ../backend.log 2>&1 &
+
+      - name: Start frontend
+        working-directory: front
+        run: nohup npm run dev -- --host 127.0.0.1 > ../frontend.log 2>&1 &
+
+      - name: Run V6 E2E gates
+        working-directory: front
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+          PERF_API_BASE: http://127.0.0.1:8080/api
+        run: npm run test:e2e
