@@ -15,7 +15,7 @@ export interface SystemHealthResponse {
 export interface MqQueueBacklog {
   queueName: string
   backlog: number
-  status: 'OK' | 'WARNING' | 'CRITICAL'
+  status: 'OK' | 'WARNING' | 'CRITICAL' | string
 }
 
 /** V5-S3: 扩展指标 - 数据库连接池 */
@@ -24,7 +24,7 @@ export interface DbConnectionPool {
   idle: number
   max: number
   usagePercent: number
-  status: 'OK' | 'WARNING' | 'CRITICAL'
+  status: 'OK' | 'WARNING' | 'CRITICAL' | string
 }
 
 /** V5-S3: 扩展指标 - Redis 内存 */
@@ -32,13 +32,18 @@ export interface RedisMemory {
   usedBytes: number
   maxBytes: number
   usagePercent: number
-  status: 'OK' | 'WARNING' | 'CRITICAL'
+  status: 'OK' | 'WARNING' | 'CRITICAL' | string
 }
 
 /** V5-S3: 扩展指标 - SSE 连接 */
 export interface SseConnection {
   activeConnections: number
-  status: 'OK' | 'WARNING' | 'CRITICAL'
+  status: 'OK' | 'WARNING' | 'CRITICAL' | string
+}
+
+export interface ApiLatencyHistoryPoint {
+  time: string
+  value: number
 }
 
 /** V5-S3: 扩展指标 - API P99 延迟 */
@@ -47,8 +52,8 @@ export interface ApiP99Latency {
   p50Ms: number
   p95Ms: number
   p99Ms: number
-  status: 'OK' | 'WARNING' | 'CRITICAL'
-  history?: { time: string; value: number }[]
+  status: 'OK' | 'WARNING' | 'CRITICAL' | string
+  history: ApiLatencyHistoryPoint[]
 }
 
 /** V5-S3: 详细指标响应 */

@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 import type { ApiResponse } from '@/types/api'
-import type { SystemHealthResponse, DetailedMetricsResponse, HealthTimelineResponse } from '@/types/phase10'
+import type { DetailedMetricsResponse, HealthTimelineResponse, SystemHealthResponse } from '@/types/phase10'
 
 export function getSystemHealth() {
   return request.get<any, ApiResponse<SystemHealthResponse>>('/admin/system/health')

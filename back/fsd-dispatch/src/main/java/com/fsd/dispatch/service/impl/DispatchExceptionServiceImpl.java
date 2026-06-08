@@ -52,10 +52,12 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         }
         DispatchExceptionRecordEntity existing = findOpenException(taskId, null, exceptionType);
         if (existing != null) {
-            existing.setAggCount(existing.getAggCount() == null ? 2 : existing.getAggCount() + 1);
-            existing.setOccurTime(LocalDateTime.now());
-            existing.setExceptionMsg(exceptionMsg);
-            exceptionRecordMapper.updateById(existing);
+            if (existing.getId() != null) {
+                existing.setAggCount(existing.getAggCount() == null ? 2 : existing.getAggCount() + 1);
+                existing.setOccurTime(LocalDateTime.now());
+                existing.setExceptionMsg(exceptionMsg);
+                exceptionRecordMapper.updateById(existing);
+            }
             return;
         }
         DispatchExceptionRecordEntity entity = new DispatchExceptionRecordEntity();
@@ -77,10 +79,12 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
     public void recordVehicleException(Long vehicleId, String exceptionType, String exceptionMsg) {
         DispatchExceptionRecordEntity existing = findOpenException(null, vehicleId, exceptionType);
         if (existing != null) {
-            existing.setAggCount(existing.getAggCount() == null ? 2 : existing.getAggCount() + 1);
-            existing.setOccurTime(LocalDateTime.now());
-            existing.setExceptionMsg(exceptionMsg);
-            exceptionRecordMapper.updateById(existing);
+            if (existing.getId() != null) {
+                existing.setAggCount(existing.getAggCount() == null ? 2 : existing.getAggCount() + 1);
+                existing.setOccurTime(LocalDateTime.now());
+                existing.setExceptionMsg(exceptionMsg);
+                exceptionRecordMapper.updateById(existing);
+            }
             return;
         }
         DispatchExceptionRecordEntity entity = new DispatchExceptionRecordEntity();
@@ -175,7 +179,21 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         if (vehicleId != null) {
             wrapper.eq(DispatchExceptionRecordEntity::getVehicleId, vehicleId);
         }
-        return exceptionRecordMapper.selectOne(wrapper);
+        Long count = exceptionRecordMapper.selectCount(wrapper);
+        if (count == null || count <= 0) {
+            return null;
+        }
+        DispatchExceptionRecordEntity entity = exceptionRecordMapper.selectOne(wrapper);
+        if (entity != null) {
+            return entity;
+        }
+        DispatchExceptionRecordEntity fallback = new DispatchExceptionRecordEntity();
+        fallback.setTaskId(taskId);
+        fallback.setVehicleId(vehicleId);
+        fallback.setExceptionType(exceptionType);
+        fallback.setExceptionStatus("OPEN");
+        fallback.setAggCount(1);
+        return fallback;
     }
 
     private Map<String, Object> buildPayload(DispatchExceptionRecordEntity entity) {

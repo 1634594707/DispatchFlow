@@ -390,10 +390,13 @@ public class AdminDispatchController {
                                               HttpServletRequest httpRequest) {
         AdminAuthSupport.requireAuth(httpRequest);
         DispatchExceptionRecordEntity exception = dispatchExceptionService.getException(exceptionId);
-        if ("RESOLVED".equals(exception.getExceptionStatus())) {
+        if (exception != null && "RESOLVED".equals(exception.getExceptionStatus())) {
             throw new BusinessException("DISPATCH_EXCEPTION_ALREADY_RESOLVED", "Dispatch exception already resolved");
         }
         if ("REASSIGN".equals(request.getAction())) {
+            if (exception == null) {
+                throw new BusinessException("DISPATCH_EXCEPTION_NOT_FOUND", "Dispatch exception not found");
+            }
             if (request.getVehicleId() == null) {
                 throw new BusinessException("DISPATCH_EXCEPTION_VEHICLE_REQUIRED", "Reassign action requires vehicleId");
             }

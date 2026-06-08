@@ -27,6 +27,8 @@ public class DispatchExceptionRecordEntity {
 
     private String severity;
 
+    private Integer aggCount;
+
     private String resolveAction;
 
     private LocalDateTime occurTime;
