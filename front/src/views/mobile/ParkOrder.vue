@@ -389,7 +389,7 @@ function handleOrderModeUpdate(mode: MobileOrderMode) {
   applyDefaultStations()
 }
 
-async function submitDemoRoute(route: (typeof parkDeliveryDemoRoutes)[number] | (typeof parkSchematicDemoRoutes)[number]) {
+async function submitDemoRoute(route: { pickupCode: string; dropoffCode: string }) {
   const { pickup, dropoff } = resolveStationIds(route.pickupCode, route.dropoffCode)
   if (!pickup || !dropoff) {
     message.warning('演示站点尚未加载，请稍后重试')
