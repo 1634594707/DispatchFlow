@@ -10,6 +10,7 @@ import com.fsd.admin.vo.AdminSystemHealthResponse;
 import com.fsd.dispatch.config.DispatchMessagingConfig;
 import com.fsd.dispatch.entity.DispatchEventOutboxEntity;
 import com.fsd.dispatch.mapper.DispatchEventOutboxMapper;
+import com.fsd.dispatch.metrics.DispatchLockMetrics;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
@@ -38,6 +39,7 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
     private final DispatchEventOutboxMapper outboxMapper;
     private final ApiRequestMetrics apiRequestMetrics;
     private final AdminDispatchStreamService dispatchStreamService;
+    private final DispatchLockMetrics dispatchLockMetrics;
 
     public SystemHealthAdminServiceImpl(DataSource dataSource,
                                         ObjectProvider<RedisConnectionFactory> redisConnectionFactoryProvider,
@@ -45,7 +47,8 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
                                         ObjectProvider<RabbitAdmin> rabbitAdminProvider,
                                         DispatchEventOutboxMapper outboxMapper,
                                         ApiRequestMetrics apiRequestMetrics,
-                                        AdminDispatchStreamService dispatchStreamService) {
+                                        AdminDispatchStreamService dispatchStreamService,
+                                        DispatchLockMetrics dispatchLockMetrics) {
         this.dataSource = dataSource;
         this.redisConnectionFactoryProvider = redisConnectionFactoryProvider;
         this.rabbitConnectionFactoryProvider = rabbitConnectionFactoryProvider;
@@ -53,6 +56,7 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
         this.outboxMapper = outboxMapper;
         this.apiRequestMetrics = apiRequestMetrics;
         this.dispatchStreamService = dispatchStreamService;
+        this.dispatchLockMetrics = dispatchLockMetrics;
     }
 
     @Override
@@ -86,6 +90,7 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
                         .activeConnections(dispatchStreamService.getActiveConnectionCount())
                         .status("OK")
                         .build())
+                .dispatchLock(getDispatchLockMetric())
                 .apiP99Latency(getApiLatency())
                 .build();
     }
@@ -165,6 +170,17 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
                 .maxBytes(0L)
                 .usagePercent(0D)
                 .status("WARNING")
+                .build();
+    }
+
+    private AdminDetailedMetricsResponse.DispatchLockMetric getDispatchLockMetric() {
+        long maxHeldMs = dispatchLockMetrics.getMaxHeldDurationMs();
+        return AdminDetailedMetricsResponse.DispatchLockMetric.builder()
+                .acquireFailureCount(dispatchLockMetrics.getAcquireFailureCount())
+                .heldDurationCount(dispatchLockMetrics.getHeldDurationCount())
+                .averageHeldDurationMs(dispatchLockMetrics.getAverageHeldDurationMs())
+                .maxHeldDurationMs(maxHeldMs)
+                .status(maxHeldMs > 8000 ? "WARNING" : "OK")
                 .build();
     }
 

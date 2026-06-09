@@ -24,7 +24,7 @@ public class OpenApiConfig {
                         .description("""
                                 Autonomous vehicle dispatch platform — admin console, core dispatch, fleet gateway, and open integration APIs.
                                 Admin endpoints (except `/api/admin/auth/login`) require header `X-Admin-Token` from login response.
-                                SSE streams accept the same token as query param `token`.
+                                SSE streams require a short-lived ticket issued with `X-Admin-Token`; do not put long-lived admin tokens in URLs.
                                 """)
                         .version("0.3.0")
                         .contact(new Contact().name("DispatchFlow").url("https://github.com/1634594707/DispatchFlow"))

@@ -344,6 +344,7 @@ fsd:
     sse:
       timeout-ms: ${FSD_ADMIN_SSE_TIMEOUT_MS:300000}
       max-connections: ${FSD_ADMIN_SSE_MAX_CONNECTIONS:100}
+      ticket-ttl-seconds: ${FSD_ADMIN_SSE_TICKET_TTL_SECONDS:60}
   dispatch:
     scoring:
       weight-distance: ${FSD_DISPATCH_SCORING_WEIGHT_DISTANCE:1.0}

@@ -58,10 +58,8 @@ export function useSseConnection(options?: {
       sseClient.stop()
     }
 
-    const streamUrl = getFleetTelemetryStreamUrl(effectiveParkId.value ?? undefined)
-
     sseClient = createSSEClient({
-      url: streamUrl,
+      url: () => getFleetTelemetryStreamUrl(effectiveParkId.value ?? undefined),
       eventName: 'telemetry',
       onMessage: applyStreamPayload,
       onOpen: () => {

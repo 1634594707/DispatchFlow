@@ -7,7 +7,7 @@ export interface FleetTelemetryPayload {
 }
 
 export interface SSEClientOptions {
-  url: string
+  url: string | (() => string | Promise<string>)
   /** Server SSE event name; backend uses `telemetry`. */
   eventName?: string
   onMessage: (data: FleetTelemetryPayload) => void

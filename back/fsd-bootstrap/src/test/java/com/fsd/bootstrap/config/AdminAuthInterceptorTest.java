@@ -59,4 +59,15 @@ class AdminAuthInterceptorTest {
         assertEquals(true, allowed);
         assertNull(request.getAttribute(AdminAuthSupport.ADMIN_ROLE_ATTRIBUTE));
     }
+
+    @Test
+    void requiredAdminPathShouldIgnoreQueryToken() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/tasks");
+        request.setParameter("token", "token-abc");
+
+        com.fsd.common.exception.BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.fsd.common.exception.BusinessException.class,
+                () -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()));
+        assertEquals("ADMIN_AUTH_REQUIRED", ex.getCode());
+    }
 }

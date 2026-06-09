@@ -3,81 +3,142 @@
 [![CI](https://github.com/1634594707/DispatchFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/1634594707/DispatchFlow/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](back/)
-[![Vue](https://img.shields.io/badge/Vue-3-green.svg)](front/)
-[![zread](https://img.shields.io/badge/Ask_Zread-_.svg?style=flat&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/1634594707/DispatchFlow)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.12-6DB33F.svg)](back/pom.xml)
+[![Vue](https://img.shields.io/badge/Vue-3.5-42B883.svg)](front/package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6.svg)](front/package.json)
 
-**DispatchFlow** 是一套面向园区短驳配送场景的**无人车智能调度平台（FMS 调度中台）**，覆盖移动端下单、调度工作台、自动/手动派车、车辆状态机执行、Fleet 运行态监控、充电/换电能量策略、异常处置、运营分析与 RabbitMQ 事件驱动，形成完整可运营的业务闭环。
+DispatchFlow 是面向园区短驳配送场景的无人车调度平台。项目采用前后端分离架构：前端提供调度工作台、车辆监控、移动下单、运营分析与系统管理界面；后端基于 Spring Boot 多模块组织订单、车辆、调度、管理 API 与启动入口。
 
-**在线演示**：[aplicity.online](https://www.aplicity.online)
+在线演示：[aplicity.online](https://www.aplicity.online)
 
-```text
-下单 → 订单 → 调度任务 → 派车 → 车辆执行 → 回报联动 → 完成/失败 → 待命/充电/换电
-```
+## 目录
 
----
+- [功能范围](#功能范围)
+- [技术栈](#技术栈)
+- [系统架构](#系统架构)
+- [项目结构](#项目结构)
+- [快速启动](#快速启动)
+- [开发命令](#开发命令)
+- [质量门禁](#质量门禁)
+- [接口与入口](#接口与入口)
+- [文档与治理](#文档与治理)
 
-## 核心能力
+## 功能范围
 
-| 能力 | 说明 |
-|------|------|
-| 多园区调度 | 顶栏统一园区上下文（Park Scope 2.0），车辆/异常/分析/监控/孪生全站一致 |
-| Fleet 运行态 | Redis 持久化位置、电量、阶段、插枪状态；SSE 实时推送监控大屏 |
-| 智能派车 | 路网可达性 + SOC/距离评分；失败可解释（`reasonCode` / 建议 / 快捷跳转） |
-| 调度工作台 | 任务池拖拽排序、批量派/改派/取消、异常队列、园区态势小地图 |
-| 充电 / 换电 | 满电插枪待命、低电返充/换电（CHARGE / SWAP / AUTO）；换电柜 CRUD；REAL 遥测驱动换电会话 |
-| 异常闭环 | 分级、去重、人工处置、派车成功自动 resolve；OPEN 超时升级 |
-| 交通管制 | 地图框选区域暂停派车、路段降权/禁用、拥堵摘要条 |
-| 运营分析 | 效率/异常趋势、每日摘要、跨园区对比、链路 KPI、高峰对比、PDF/定时邮件 |
-| 开放集成 | Open API、Webhook、API Key、调用统计与投递日志 |
-| 数字孪生 | 园区态势估算可视化 + 场景仿真预评估（标注非引擎回放） |
-| 权限体系 | ADMIN / OPERATOR / VIEWER / FIELD_OPS；写操作 UI 与后端对齐；TOTP 2FA |
-| 命令面板 | `Ctrl+K` 全局搜索导航；规则型「调度快捷指令」 |
-| 家纺垂直 | 线路 CRUD、枢纽分流、高峰预案（含 cron 自动切换）、自动化 IF-THEN 规则、运维快照 |
-| 现场运维 | FIELD_OPS 工单、大屏运维视图 |
-| 事件驱动 | Outbox + RabbitMQ，保证关键业务事件可靠投递 |
-| Fleet 适配 | `FleetAdapterRegistry`：SIM / REAL / **VDA5050 MQTT** |
-
----
-
-## 版本与路线图
-
-| 版本 | 状态 | 说明 |
-|------|------|------|
-| **v2.0.0** | ✅ | Phase 10–11：园区一致、交通管控、命令面板 |
-| **v3.0.0**（当前） | ✅ | Phase 12–15：垂直/开放协议/规模化 MVP · [Release Notes](docs/releases/v3.0.0.md) |
-| **V5 路线图** | 进行中 | 调度效率 · 通知告警 · 运营分析 · [ROADMAP-V5](docs/ROADMAP-V5.md) |
-
-VDA5050 评估见 **[docs/archive/phase15/VDA5050-EVALUATION.md](docs/archive/phase15/VDA5050-EVALUATION.md)**。
-
----
+| 模块 | 说明 |
+| --- | --- |
+| 订单与任务 | 移动端下单、订单查询、调度任务创建、任务列表与详情 |
+| 调度工作台 | 任务池、自动派车、手动派车、改派、取消、异常重新派单 |
+| 车辆管理 | 车辆列表、车辆详情、车辆回报、车辆运行态监控 |
+| 园区基础设施 | 园区、站点、路网、地理围栏、停车位、充电桩、换电柜 |
+| 能源与异常 | 充电会话、换电会话、异常记录、异常处置、告警聚合 |
+| 运营分析 | 运营概览、充电报表、自定义报表、报表历史 |
+| 系统管理 | 登录认证、用户管理、系统健康、集成配置、操作日志、通知设置 |
+| 现场与垂直场景 | 现场工单、线路、枢纽、高峰预案、自动化规则、运营快照 |
+| Fleet 集成 | SIM / REAL 车辆链路、VDA5050 MQTT 配置与模拟脚本 |
 
 ## 技术栈
 
 | 层级 | 技术 |
-|------|------|
-| 前端 | Vue 3 · TypeScript · Vite · Ant Design Vue · Leaflet · Pinia · SSE |
-| 后端 | Java 21 · Spring Boot 3.3 · MyBatis-Plus |
-| 存储 | MySQL 8 · Redis 7 |
-| 消息 | RabbitMQ 3.13 |
-| 部署 | Docker Compose · GitHub Actions CI |
+| --- | --- |
+| 前端 | Vue 3.5、TypeScript 5.7、Vite 6、Ant Design Vue、Pinia、Vue Router、Leaflet、Axios |
+| 后端 | Java 21、Spring Boot 3.3.12、MyBatis-Plus、SpringDoc OpenAPI、Lombok、MapStruct |
+| 数据与消息 | MySQL、Redis、RabbitMQ、H2 测试数据库 |
+| 工程化 | Maven 多模块、ESLint、Prettier、vue-tsc、Playwright、JaCoCo、Checkstyle、SpotBugs |
+| 部署与运维 | Docker Compose、GitHub Actions、Prometheus、Filebeat、Mosquitto |
 
----
+## 系统架构
 
-## 快速开始
+```text
+┌──────────────────────┐
+│ front Vue SPA        │
+│ 管理端 / 监控 / 移动端 │
+└──────────┬───────────┘
+           │ HTTP / SSE
+┌──────────▼───────────┐
+│ fsd-admin-api        │
+│ 管理端聚合 API        │
+└──────────┬───────────┘
+           │
+┌──────────▼────────────────────────────────────────────┐
+│ back Maven modules                                     │
+│ fsd-order / fsd-vehicle / fsd-dispatch / fsd-common    │
+└──────────┬──────────────────────┬─────────────────────┘
+           │                      │
+┌──────────▼───────────┐  ┌───────▼────────┐
+│ MySQL                │  │ Redis          │
+│ 业务状态与迁移脚本     │  │ Fleet 运行态    │
+└──────────────────────┘  └───────┬────────┘
+                                  │
+                         ┌────────▼────────┐
+                         │ RabbitMQ / MQTT │
+                         │ 事件与车辆集成    │
+                         └─────────────────┘
+```
+
+后端入口模块为 `fsd-bootstrap`。业务模块通过 Maven Reactor 一起构建，启动和测试命令必须使用 `-pl fsd-bootstrap -am`，确保依赖模块按当前源码参与构建。
+
+## 项目结构
+
+```text
+DispatchFlow/
+├── back/                         后端 Maven 多模块工程
+│   ├── fsd-common/               公共枚举、异常、响应模型、安全配置
+│   ├── fsd-order/                订单域
+│   ├── fsd-vehicle/              车辆域
+│   ├── fsd-dispatch/             调度、Fleet、园区设施、事件、地理与 MAPF
+│   ├── fsd-admin-api/            管理端聚合 API
+│   ├── fsd-bootstrap/            Spring Boot 启动模块
+│   ├── sql/init/                 数据库初始化入口
+│   ├── sql/migrations/           数据库迁移脚本
+│   ├── mqtt/                     Mosquitto 配置
+│   ├── observability/            Prometheus / Filebeat 配置
+│   └── scripts/                  后端模拟与辅助脚本
+├── front/                        Vue 管理端与监控前端
+│   ├── src/api/                  前端 API 封装
+│   ├── src/components/           通用与业务组件
+│   ├── src/views/                页面视图
+│   ├── src/stores/               Pinia 状态管理
+│   ├── src/router/               路由配置
+│   ├── scripts/e2e/              Playwright 端到端测试
+│   └── scripts/perf/             性能与导航测试脚本
+├── data/                         OSM、CARLA 与园区地理数据
+├── docs/                         项目路线图与文档
+├── scripts/                      根级开发、验收、CARLA 与发布脚本
+├── .github/workflows/            CI、镜像发布、Release 工作流
+├── docker-compose.yml            根级本地编排入口
+├── CHANGELOG.md                  版本变更记录
+├── CONTRIBUTING.md               贡献说明
+├── SECURITY.md                   安全说明
+└── LICENSE                       MIT License
+```
+
+## 快速启动
 
 ### 环境要求
 
-JDK 21 · Maven 3.9+ · Node.js 18+ · Docker 24+（推荐）
+| 依赖 | 版本 |
+| --- | --- |
+| JDK | 21 |
+| Maven | 3.9+ |
+| Node.js | 20（CI 使用版本） |
+| Docker | 24+ |
 
-### 1. 克隆并启动后端与中间件
+### 1. 启动后端与基础设施
 
 ```bash
-git clone git@github.com:1634594707/DispatchFlow.git
-cd DispatchFlow
 docker compose up -d
 ```
 
-启动 MySQL、Redis、RabbitMQ 及后端 API（默认 `http://localhost:8080`）。
+默认后端 API 地址为 `http://localhost:8080`。
+
+如需本地源码方式启动后端：
+
+```bash
+cd back
+mvn -pl fsd-bootstrap -am clean install -DskipTests
+mvn -pl fsd-bootstrap spring-boot:run
+```
 
 ### 2. 启动前端
 
@@ -87,180 +148,87 @@ npm install
 npm run dev
 ```
 
-访问 `http://localhost:3000`。
+默认前端地址为 `http://localhost:3000`，开发代理将 `/api` 转发到后端服务。
 
-### 3. 常用入口
-
-| 页面 | 地址 |
-|------|------|
-| 调度工作台 | http://localhost:3000/workbench |
-| 调度看板 | http://localhost:3000/dashboard |
-| 车辆监控大屏 | http://localhost:3000/vehicle-tracking |
-| 运营分析 | http://localhost:3000/analytics |
-| 交通态势 | http://localhost:3000/infrastructure/traffic |
-| 线路管理 | http://localhost:3000/vertical/routes |
-| 高峰预案 | http://localhost:3000/vertical/peak-mode |
-| 换电柜管理 | http://localhost:3000/infrastructure/swap-cabinets |
-| 现场工单 | http://localhost:3000/field-ops/tickets |
-| 数字孪生 | http://localhost:3000/digital-twin |
-| 移动下单 | http://localhost:3000/mobile/order |
-| API 文档 | http://localhost:8080/swagger-ui.html |
-
-本地开发（不构建 Docker 后端镜像）详见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
-
----
-
-## 架构概览
-
-```text
-┌──────────────┐     ┌─────────────────┐     ┌──────────────────┐
-│  Vue 管理端   │────▶│  fsd-admin-api  │────▶│   fsd-dispatch   │
-│  工作台/监控  │     │  REST 聚合层     │     │  调度 · Fleet    │
-└──────────────┘     └─────────────────┘     └────────┬─────────┘
-                                                      │
-          ┌───────────────────────────────────────────┼───────────────────────────┐
-          ▼                     ▼                     ▼                           ▼
-   FleetRuntimeService   DispatchTaskService   DispatchExceptionService    Event Outbox
-   (Redis 运行态)         (自动/手动派车)        (分级 / 去重 / resolve)      (RabbitMQ)
-          ▲
-          │
-   FleetAdapterRegistry ── SIM: SimulationFleetAdapter
-                        └── REAL: RealFleetAdapter (+ RealFleetSwapCoordinator)
-```
-
-**设计原则：** 业务状态（MySQL）与 Fleet 运行态（Redis）分离；仿真与 REAL 均通过 `FleetAdapter` 注册，便于对接 VDA5050 MQTT（Phase 15）。
-
-详细设计见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
-
----
-
-## 项目结构
-
-```text
-DispatchFlow/
-├── front/                 前端 SPA（管理端 + 监控 + 移动下单 + 垂直产业运营）
-├── back/                  后端 Maven 多模块
-│   ├── fsd-common             公共模型与枚举
-│   ├── fsd-order              订单域
-│   ├── fsd-dispatch           调度、Fleet、仿真、异常、事件、交通管制
-│   ├── fsd-vehicle            车辆占用与回报
-│   ├── fsd-admin-api          管理端 API
-│   ├── fsd-bootstrap          启动模块
-│   └── sql/migrations/        数据库迁移脚本 (V01–V18)
-├── docs/                  文档（验收、架构、路线图、Phase 15 评估）
-├── docker-compose.yml     一键启动基础设施与后端
-├── .github/workflows/     CI 流水线
-├── CHANGELOG.md
-├── CONTRIBUTING.md
-└── LICENSE
-```
-
----
-
-## 文档
-
-| 文档 | 内容 |
-|------|------|
-| **[docs/acceptance/README.md](docs/acceptance/README.md)** | **验收总方案**（环境、顺序、勾选表） |
-| **[docs/ROADMAP-V3.md](docs/ROADMAP-V3.md)** | **V3 产品路线图**（`- [ ]` 任务清单） |
-| [docs/archive/phase15/VDA5050-EVALUATION.md](docs/archive/phase15/VDA5050-EVALUATION.md) | VDA5050 MQTT 适配评估 |
-| [docs/perf/navigation-baseline.md](docs/perf/navigation-baseline.md) | 导航重构性能基线 |
-| [docs/README.md](docs/README.md) | 文档索引 |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 模块划分、领域边界、Fleet 模型、事件流 |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker / 本地部署、迁移、故障排查 |
-| **[docs/UPDATE-OPERATIONS.md](docs/UPDATE-OPERATIONS.md)** | **云服务器 Docker 更新操作手册** |
-| [back/README.md](back/README.md) | 后端模块与测试说明 |
-| [front/README.md](front/README.md) | 前端页面与开发说明 |
-| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
-
----
-
-## 开发
+## 开发命令
 
 ### 后端
 
-```bash
-cd back
-mvn -pl fsd-bootstrap -am clean install -DskipTests
-mvn -pl fsd-bootstrap spring-boot:run
-```
-
-> 必须使用 `-pl fsd-bootstrap -am`，否则可能加载旧模块 JAR 导致园区接口 404。
+| 命令 | 说明 |
+| --- | --- |
+| `mvn -pl fsd-bootstrap -am test` | 运行后端测试 |
+| `mvn -pl fsd-bootstrap -am verify -Pquality` | 运行后端质量门禁 |
+| `mvn -pl fsd-bootstrap spring-boot:run` | 启动后端应用 |
 
 ### 前端
 
+| 命令 | 说明 |
+| --- | --- |
+| `npm run dev` | 启动 Vite 开发服务 |
+| `npm run build` | TypeScript 检查并构建生产包 |
+| `npm run typecheck` | 仅运行 TypeScript 检查 |
+| `npm run lint` | 运行 ESLint |
+| `npm run format:check` | 检查 Prettier 格式 |
+| `npm run test:e2e` | 运行 Playwright 端到端测试 |
+| `npm run perf:nav` | 运行导航性能测试 |
+| `npm run perf:lighthouse` | 运行 Lighthouse 路由性能脚本 |
+
+## 质量门禁
+
+GitHub Actions 已配置两条主要流水线：
+
+| Job | 关键步骤 |
+| --- | --- |
+| Backend Tests | JDK 21、`mvn -pl fsd-bootstrap -am test -B`、`mvn -pl fsd-bootstrap -am verify -Pquality -B`、上传 JaCoCo 报告 |
+| Frontend Build | Node.js 20、`npm ci`、`npm run lint -- --max-warnings 50`、`npm run build`、安装 Playwright Chrome、运行 `npm run test:e2e` |
+
+本地提交前建议至少运行：
+
 ```bash
 cd front
-npm run dev        # 开发
-npm run build      # 生产构建（含 vue-tsc）
-```
+npm run lint -- --max-warnings 50
+npm run typecheck
 
-### 测试
-
-```bash
-cd back
+cd ../back
 mvn -pl fsd-bootstrap -am test
 ```
 
-CI 在每次 push / PR 时自动运行后端测试与前端构建。
+## 接口与入口
 
----
+| 类型 | 地址 |
+| --- | --- |
+| 前端首页 | `http://localhost:3000` |
+| 调度工作台 | `http://localhost:3000/workbench` |
+| 调度看板 | `http://localhost:3000/dashboard` |
+| 车辆监控 | `http://localhost:3000/vehicle-tracking` |
+| 移动下单 | `http://localhost:3000/mobile/order` |
+| API 文档 | `http://localhost:8080/swagger-ui.html` |
+| OpenAPI JSON | `http://localhost:8080/api-docs` |
 
-## 核心 API 示例
+## 配置说明
 
-**园区下单** — `POST /api/admin/park/orders`
+| 文件 | 说明 |
+| --- | --- |
+| `.env.example` | 根级环境变量示例 |
+| `front/.env.example` | 前端环境变量示例 |
+| `back/fsd-bootstrap/src/main/resources/application.yml` | 后端主配置 |
+| `back/docker-compose.yml` | 后端目录内 Docker Compose 配置 |
+| `back/docker-compose.mqtt.yml` | MQTT 相关 Compose 配置 |
+| `back/docker-compose.observability.yml` | 可观测性相关 Compose 配置 |
+| `back/docker-compose.ghcr.yml` | 镜像发布部署相关 Compose 配置 |
 
-```json
-{
-  "parkId": 1,
-  "externalOrderNo": "ORDER-20260525-001",
-  "pickupStationId": 101,
-  "dropoffStationId": 201,
-  "priority": "P1",
-  "remark": "园区配送"
-}
-```
+不要提交真实密钥、账号密码或本地 `.env` 文件。
 
-**自动派车失败响应**（Phase 11.3）— 含可解释字段：
+## 文档与治理
 
-```json
-{
-  "taskId": 12,
-  "status": "MANUAL_PENDING",
-  "reasonCode": "NO_IDLE_VEHICLE",
-  "reasonMessage": "当前无在线空闲车辆可派",
-  "suggestions": ["打开车辆列表，确认在线且空闲车辆数量", "可对任务执行手动派车"]
-}
-```
-
-**REAL 车队遥测** — `POST /api/open/vehicle/telemetry`（需 API Key，车辆 `linkMode=REAL`）
-
-```json
-{
-  "vehicleCode": "REAL-001",
-  "runtimeStage": "SWAPPING",
-  "targetCode": "SWAP-01",
-  "soc": 18,
-  "x": 600.0,
-  "y": 500.0,
-  "reportTime": "2026-05-31T10:00:00",
-  "eventSeq": 1001
-}
-```
-
-**监控快照** — `GET /api/admin/park/vehicles?parkId=1`
-
-完整接口列表见 Swagger UI。
-
----
-
-## 贡献
-
-欢迎提交 Issue 与 Pull Request。请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
-
----
+| 文件 | 说明 |
+| --- | --- |
+| [docs/ROADMAP-V7.md](docs/ROADMAP-V7.md) | V7 路线图与阶段任务 |
+| [back/README.md](back/README.md) | 后端模块、启动、测试与 Docker 说明 |
+| [front/README.md](front/README.md) | 前端页面、开发、构建与环境说明 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献流程 |
+| [SECURITY.md](SECURITY.md) | 安全问题报告方式 |
 
 ## License
 

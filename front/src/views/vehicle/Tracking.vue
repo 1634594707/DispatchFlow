@@ -1335,10 +1335,8 @@ function initSSEStream() {
     sseClient.stop()
   }
 
-  const streamUrl = getFleetTelemetryStreamUrl(effectiveParkId.value)
-
   sseClient = createSSEClient({
-    url: streamUrl,
+    url: () => getFleetTelemetryStreamUrl(effectiveParkId.value),
     eventName: 'telemetry',
     onMessage: applyStreamPayload,
     onOpen: () => {

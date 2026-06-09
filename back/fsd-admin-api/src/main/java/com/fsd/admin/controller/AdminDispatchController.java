@@ -576,9 +576,6 @@ public class AdminDispatchController {
         }
         String token = request.getHeader("X-Admin-Token");
         if (token == null || token.isBlank()) {
-            token = request.getParameter("token");
-        }
-        if (token == null || token.isBlank()) {
             return;
         }
         AdminAuthContext context = adminAuthService.resolveToken(token);

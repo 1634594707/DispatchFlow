@@ -79,6 +79,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
     /** 无需强制登录；凭证在 Controller 内校验（管理员 token 或 X-Mobile-Api-Key）。 */
     private boolean isOptionalAuthPath(String path, HttpServletRequest request) {
         if ("/api/admin/auth/login".equals(path)
+                || "/api/admin/dispatch/stream".equals(path)
                 || "/api/admin/fleet/telemetry/stream".equals(path)) {
             return true;
         }

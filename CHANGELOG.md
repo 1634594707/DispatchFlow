@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Phase 12–14: trajectory replay, engine simulation, vertical (routes/hub/peak/automation rules), swap cabinets, field ops, 2FA
 - Phase 15: VDA5050 MQTT adapter, REAL swap sessions, task pool server pagination (V20), Redis fleet batch read
 - Flyway migration baseline, Swagger OpenAPI tags, ESLint/Prettier, JaCoCo, Prometheus metrics
-- Cloud update guide (`docs/UPDATE-OPERATIONS.md`), MAPF architecture evaluation
+- MAPF architecture evaluation and VDA5050 delivery documentation
 
 ### Changed
 

@@ -26,6 +26,8 @@ import org.springframework.stereotype.Service;
 public class WebhookDeliveryService {
 
     private static final Logger log = LoggerFactory.getLogger(WebhookDeliveryService.class);
+    private static final int CIRCUIT_BREAKER_FAILURES = 5;
+    private static final int MAX_RETRY_ATTEMPTS = 3;
 
     private final WebhookSubscriptionMapper subscriptionMapper;
     private final WebhookDeliveryLogMapper deliveryLogMapper;
@@ -55,6 +57,11 @@ public class WebhookDeliveryService {
             if (!matches(sub.getEventTypes(), event.getEventType())) {
                 continue;
             }
+            if (isCircuitOpen(sub)) {
+                persistLog(sub.getId(), event, "Webhook delivery skipped by circuit breaker", null,
+                        false, sub.getFailureCount(), "WEBHOOK_CIRCUIT_OPEN");
+                continue;
+            }
             deliveryExecutor.execute(() -> deliverToSubscription(sub, event));
         }
     }
@@ -63,33 +70,48 @@ public class WebhookDeliveryService {
         String channelType = sub.getChannelType() != null ? sub.getChannelType() : "GENERIC";
         String body = messageFormatter.format(channelType, event);
         String summary = truncate(body, 480);
-        int attempt = (sub.getFailureCount() == null ? 0 : sub.getFailureCount()) + 1;
-        try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(sub.getCallbackUrl()))
-                    .timeout(Duration.ofSeconds(5))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
-            if (sub.getSecretToken() != null && !sub.getSecretToken().isBlank()) {
-                String secret = fieldEncryptionService.decrypt(sub.getSecretToken());
-                if (secret != null && !secret.isBlank()) {
-                    builder.header("X-Webhook-Secret", secret);
+        int baseAttempt = sub.getFailureCount() == null ? 0 : sub.getFailureCount();
+        for (int retryIndex = 0; retryIndex < MAX_RETRY_ATTEMPTS; retryIndex++) {
+            int attempt = baseAttempt + retryIndex + 1;
+            try {
+                if (retryIndex > 0) {
+                    Thread.sleep(backoffMs(retryIndex));
+                }
+                HttpRequest.Builder builder = HttpRequest.newBuilder()
+                        .uri(URI.create(sub.getCallbackUrl()))
+                        .timeout(Duration.ofSeconds(5))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+                if (sub.getSecretToken() != null && !sub.getSecretToken().isBlank()) {
+                    String secret = fieldEncryptionService.decrypt(sub.getSecretToken());
+                    if (secret != null && !secret.isBlank()) {
+                        builder.header("X-Webhook-Secret", secret);
+                    }
+                }
+                HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+                boolean success = response.statusCode() >= 200 && response.statusCode() < 300;
+                persistLog(sub.getId(), event, summary, response.statusCode(), success, attempt, null);
+                if (success) {
+                    sub.setFailureCount(0);
+                    sub.setLastDeliveryAt(LocalDateTime.now());
+                    subscriptionMapper.updateById(sub);
+                    return;
+                }
+                if (retryIndex == MAX_RETRY_ATTEMPTS - 1) {
+                    markFailure(sub);
+                }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                persistLog(sub.getId(), event, summary, null, false, attempt, "WEBHOOK_RETRY_INTERRUPTED");
+                markFailure(sub);
+                return;
+            } catch (Exception ex) {
+                log.warn("Webhook delivery failed for {}: {}", sub.getCallbackUrl(), ex.getMessage());
+                persistLog(sub.getId(), event, summary, null, false, attempt, truncate(ex.getMessage(), 480));
+                if (retryIndex == MAX_RETRY_ATTEMPTS - 1) {
+                    markFailure(sub);
                 }
             }
-            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            boolean success = response.statusCode() >= 200 && response.statusCode() < 300;
-            persistLog(sub.getId(), event, summary, response.statusCode(), success, attempt, null);
-            if (success) {
-                sub.setFailureCount(0);
-                sub.setLastDeliveryAt(LocalDateTime.now());
-                subscriptionMapper.updateById(sub);
-            } else {
-                markFailure(sub);
-            }
-        } catch (Exception ex) {
-            log.warn("Webhook delivery failed for {}: {}", sub.getCallbackUrl(), ex.getMessage());
-            persistLog(sub.getId(), event, summary, null, false, attempt, truncate(ex.getMessage(), 480));
-            markFailure(sub);
         }
     }
 
@@ -120,6 +142,14 @@ public class WebhookDeliveryService {
     private void markFailure(WebhookSubscriptionEntity sub) {
         sub.setFailureCount((sub.getFailureCount() == null ? 0 : sub.getFailureCount()) + 1);
         subscriptionMapper.updateById(sub);
+    }
+
+    private boolean isCircuitOpen(WebhookSubscriptionEntity sub) {
+        return sub.getFailureCount() != null && sub.getFailureCount() >= CIRCUIT_BREAKER_FAILURES;
+    }
+
+    private long backoffMs(int retryIndex) {
+        return 500L * (1L << (retryIndex - 1));
     }
 
     private static String truncate(String value, int max) {

@@ -12,4 +12,6 @@ public class AdminSseProperties {
     private long timeoutMs = 300000L;
 
     private int maxConnections = 100;
+
+    private long ticketTtlSeconds = 60L;
 }

@@ -27,7 +27,7 @@ Thank you for your interest in contributing to DispatchFlow.
    npm run dev
    ```
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for full environment details.
+See [README.md](README.md) for environment, startup, and quality gate details.
 
 ## Branch workflow
 

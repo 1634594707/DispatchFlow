@@ -28,6 +28,11 @@ export interface WorkbenchResponse {
   vehicles: ParkVehicleSnapshot[]
 }
 
+export interface AdminSseTicketResponse {
+  ticket: string
+  expiresInSeconds: number
+}
+
 export function getInterventionQueue() {
   return request.get<any, ApiResponse<InterventionQueueResponse>>('/admin/dispatch/intervention-queue')
 }
@@ -57,19 +62,24 @@ export function queryTaskPool(params: {
   )
 }
 
-export function getFleetTelemetryStreamUrl(parkId?: number): string {
+export function issueAdminSseTicket() {
+  return request.post<any, ApiResponse<AdminSseTicketResponse>>('/admin/sse-ticket')
+}
+
+export async function getFleetTelemetryStreamUrl(parkId?: number): Promise<string> {
   const base = import.meta.env.VITE_API_BASE_URL || ''
   const path = '/api/admin/fleet/telemetry/stream'
   const params = new URLSearchParams()
   if (parkId != null) params.set('parkId', String(parkId))
-  const token = localStorage.getItem('fsd_admin_token')
-  if (token) params.set('token', token)
+  params.set('ticket', (await issueAdminSseTicket()).data.ticket)
   const query = params.toString() ? `?${params.toString()}` : ''
   return base ? `${base}${path}${query}` : `${path}${query}`
 }
 
-export function getDispatchStreamUrl(): string {
+export async function getDispatchStreamUrl(): Promise<string> {
   const base = import.meta.env.VITE_API_BASE_URL || ''
   const path = '/api/admin/dispatch/stream'
-  return base ? `${base}${path}` : path
+  const ticket = (await issueAdminSseTicket()).data.ticket
+  const query = `?ticket=${encodeURIComponent(ticket)}`
+  return base ? `${base}${path}${query}` : `${path}${query}`
 }

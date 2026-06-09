@@ -41,13 +41,17 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
     eventSource = null
   }
 
-  function connect() {
+  async function resolveUrl() {
+    return typeof url === 'function' ? await url() : url
+  }
+
+  async function connect() {
     if (stopped) return
 
     teardownEventSource()
 
     try {
-      eventSource = new EventSource(url)
+      eventSource = new EventSource(await resolveUrl())
 
       eventSource.onopen = () => {
         retryCount = 0
@@ -89,7 +93,7 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
 
     retryTimer = setTimeout(() => {
       retryCount++
-      connect()
+      void connect()
     }, waitMs)
   }
 
@@ -98,7 +102,7 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
     retryCount = 0
     unregister?.()
     unregister = registerSSEConnection(stop)
-    connect()
+    void connect()
   }
 
   function stop() {

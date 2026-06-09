@@ -1,16 +1,9 @@
 import { getDispatchStreamUrl as buildDispatchStreamPath } from '@/api/dispatch'
 import type { DispatchStreamClient, DispatchStreamHandlers } from '@/types/realtime'
-import { useAuthStore } from '@/stores/auth'
-import { ADMIN_AUTH_ENABLED } from '@/config'
 import { registerSSEConnection } from '@/utils/sseConnectionRegistry'
 
-function getDispatchStreamUrl(): string {
-  const authStore = useAuthStore()
-  const tokenQuery =
-    ADMIN_AUTH_ENABLED && authStore.token
-      ? `?token=${encodeURIComponent(authStore.token)}`
-      : ''
-  return `${buildDispatchStreamPath()}${tokenQuery}`
+function getDispatchStreamUrl(): Promise<string> {
+  return buildDispatchStreamPath()
 }
 
 export function createDispatchStreamClient(handlers: DispatchStreamHandlers): DispatchStreamClient {
@@ -65,14 +58,14 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers): Di
     const delay = Math.min(baseDelay * Math.pow(2, retryCount), maxDelay)
     retryTimer = setTimeout(() => {
       retryCount++
-      connect()
+      void connect()
     }, delay)
   }
 
-  function connect() {
+  async function connect() {
     if (stopped) return
     teardownEventSource()
-    eventSource = new EventSource(getDispatchStreamUrl())
+    eventSource = new EventSource(await getDispatchStreamUrl())
 
     eventSource.onopen = () => {
       retryCount = 0
@@ -101,7 +94,7 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers): Di
     retryCount = 0
     unregister?.()
     unregister = registerSSEConnection(stop)
-    connect()
+    void connect()
   }
 
   function stop() {

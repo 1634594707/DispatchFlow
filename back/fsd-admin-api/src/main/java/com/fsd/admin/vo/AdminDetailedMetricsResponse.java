@@ -16,6 +16,8 @@ public class AdminDetailedMetricsResponse {
 
     private SseConnection sseConnections;
 
+    private DispatchLockMetric dispatchLock;
+
     private ApiP99Latency apiP99Latency;
 
     @Data
@@ -49,6 +51,16 @@ public class AdminDetailedMetricsResponse {
     @Builder
     public static class SseConnection {
         private Integer activeConnections;
+        private String status;
+    }
+
+    @Data
+    @Builder
+    public static class DispatchLockMetric {
+        private Long acquireFailureCount;
+        private Long heldDurationCount;
+        private Long averageHeldDurationMs;
+        private Long maxHeldDurationMs;
         private String status;
     }
 

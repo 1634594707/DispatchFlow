@@ -46,6 +46,7 @@ back/boot.err.log
 *.log
 
 # Env / temp
+.env
 *.tmp
 *.temp
 
