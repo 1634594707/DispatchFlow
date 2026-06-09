@@ -40,9 +40,8 @@ class MapfRoutePlannerServiceTest {
         parkPilotProperties.setWidth(1200);
         parkPilotProperties.setHeight(800);
         reservationService = new MapfSimulationAcceptanceTest.InMemoryReservationService(mapfProperties);
-        MapfZonePartitioner zonePartitioner = new MapfZonePartitioner(mapfProperties, parkPilotProperties);
         mapfRoutePlannerService = new MapfRoutePlannerService(
-                mapfProperties, parkPilotProperties, parkRoutePlannerService, reservationService, zonePartitioner);
+                mapfProperties, parkPilotProperties, parkRoutePlannerService, reservationService);
     }
 
     @Test

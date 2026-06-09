@@ -396,12 +396,6 @@ public class LocalPilotRoadGraphService implements RoadRouteService {
         return min;
     }
 
-    private static RoadRouteResult createStraightLine(GeoPoint origin, GeoPoint destination) {
-        List<GeoPoint> line = List.of(origin, destination);
-        double meters = haversineMeters(origin, destination);
-        return new RoadRouteResult(line, meters, RoadRouteSource.STRAIGHT_LINE);
-    }
-
     static double haversinePath(List<GeoPoint> points) {
         double total = 0;
         for (int i = 1; i < points.size(); i++) {

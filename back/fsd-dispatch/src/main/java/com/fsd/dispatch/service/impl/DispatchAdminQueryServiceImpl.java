@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -218,7 +219,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
         if (poolStatus == null || poolStatus.isBlank()) {
             return;
         }
-        switch (poolStatus.toUpperCase()) {
+        switch (poolStatus.toUpperCase(Locale.ROOT)) {
             case "PENDING" -> wrapper.eq(DispatchTaskEntity::getStatus, DispatchTaskStatus.PENDING.name());
             case "MANUAL_PENDING" -> wrapper.eq(DispatchTaskEntity::getStatus, DispatchTaskStatus.MANUAL_PENDING.name());
             case "ALL_POOL" -> wrapper.in(DispatchTaskEntity::getStatus,
@@ -399,7 +400,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
         return tasks.stream()
                 .sorted(Comparator
                         .comparingInt((DispatchTaskListItemResponse task) -> priorityWeight(task.getOrderPriority()))
-                        .thenComparing(task -> task.getWaitMinutes() == null ? 0L : task.getWaitMinutes(), Comparator.reverseOrder())
+                        .thenComparingLong(task -> -(task.getWaitMinutes() == null ? 0L : task.getWaitMinutes()))
                         .thenComparing(DispatchTaskListItemResponse::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
     }
@@ -408,7 +409,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
         if (priority == null) {
             return 9;
         }
-        return switch (priority.toUpperCase()) {
+        return switch (priority.toUpperCase(Locale.ROOT)) {
             case "P0" -> 0;
             case "P1" -> 1;
             case "P2" -> 2;

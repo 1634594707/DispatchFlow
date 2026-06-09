@@ -80,7 +80,7 @@ class DispatchVehicleAssignServiceImplTest {
     };
 
     private final MapfRoutePlannerService mapfRoutePlannerService = new MapfRoutePlannerService(
-            null, null, null, null, null) {
+            null, null, null, null) {
         @Override
         public boolean isEnabled() {
             return false;

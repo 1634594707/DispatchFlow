@@ -5,6 +5,7 @@ import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -48,7 +49,7 @@ public class StationCoordinateValidator {
         }
         double roadDist = nearestRoadDistance(point);
         if (roadDist > ROAD_SNAP_DISTANCE_METERS) {
-            warnings.add(String.format("坐标距最近道路顶点约 %.0f 米（阈值 %.0f 米），可能不在道路上",
+            warnings.add(String.format(Locale.ROOT, "坐标距最近道路顶点约 %.0f 米（阈值 %.0f 米），可能不在道路上",
                     roadDist, ROAD_SNAP_DISTANCE_METERS));
             pass = false;
         }

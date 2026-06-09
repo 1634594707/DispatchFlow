@@ -86,13 +86,27 @@ public final class GeoPolygonUtils {
         double o2 = orientation(ax, ay, bx, by, dx, dy);
         double o3 = orientation(cx, cy, dx, dy, ax, ay);
         double o4 = orientation(cx, cy, dx, dy, bx, by);
-        if (o1 != o2 && o3 != o4) {
+        if (!sameOrientation(o1, o2) && !sameOrientation(o3, o4)) {
             return true;
         }
-        if (o1 == 0 && onSegment(ax, ay, bx, by, cx, cy)) return true;
-        if (o2 == 0 && onSegment(ax, ay, bx, by, dx, dy)) return true;
-        if (o3 == 0 && onSegment(cx, cy, dx, dy, ax, ay)) return true;
-        return o4 == 0 && onSegment(cx, cy, dx, dy, bx, by);
+        if (isCollinear(o1) && onSegment(ax, ay, bx, by, cx, cy)) {
+            return true;
+        }
+        if (isCollinear(o2) && onSegment(ax, ay, bx, by, dx, dy)) {
+            return true;
+        }
+        if (isCollinear(o3) && onSegment(cx, cy, dx, dy, ax, ay)) {
+            return true;
+        }
+        return isCollinear(o4) && onSegment(cx, cy, dx, dy, bx, by);
+    }
+
+    private static boolean sameOrientation(double left, double right) {
+        return Math.abs(left - right) < 1e-12;
+    }
+
+    private static boolean isCollinear(double value) {
+        return Math.abs(value) < 1e-12;
     }
 
     public static double distancePointToSegmentMeters(GeoPoint point, GeoPoint segStart, GeoPoint segEnd) {
@@ -130,7 +144,9 @@ public final class GeoPolygonUtils {
 
     private static double orientation(double ax, double ay, double bx, double by, double cx, double cy) {
         double value = (by - ay) * (cx - bx) - (bx - ax) * (cy - by);
-        if (Math.abs(value) < 1e-12) return 0;
+        if (Math.abs(value) < 1e-12) {
+            return 0;
+        }
         return value > 0 ? 1 : 2;
     }
 

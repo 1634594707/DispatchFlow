@@ -57,7 +57,7 @@ public class MobileOrderAuthServiceImpl implements MobileOrderAuthService {
             rateWindows.put(key, window);
         }
         if (window.count.incrementAndGet() > limit) {
-            Long hits = entity.getRateLimitHits() == null ? 0L : entity.getRateLimitHits();
+            long hits = entity.getRateLimitHits() == null ? 0L : entity.getRateLimitHits().longValue();
             entity.setRateLimitHits(hits + 1);
             apiKeyMapper.updateById(entity);
             throw new BusinessException("MOBILE_ORDER_RATE_LIMIT", "移动下单超过限流");

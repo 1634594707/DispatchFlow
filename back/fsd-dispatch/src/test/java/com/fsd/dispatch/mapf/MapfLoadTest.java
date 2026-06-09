@@ -43,9 +43,8 @@ class MapfLoadTest {
         parkPilotProperties.setHeight(800);
         MapfSimulationAcceptanceTest.InMemoryReservationService reservationService =
                 new MapfSimulationAcceptanceTest.InMemoryReservationService(mapfProperties);
-        MapfZonePartitioner zonePartitioner = new MapfZonePartitioner(mapfProperties, parkPilotProperties);
         mapfRoutePlannerService = new MapfRoutePlannerService(
-                mapfProperties, parkPilotProperties, parkRoutePlannerService, reservationService, zonePartitioner);
+                mapfProperties, parkPilotProperties, parkRoutePlannerService, reservationService);
         graph = buildGridGraph();
         org.mockito.Mockito.when(parkRoutePlannerService.loadGraph(1L)).thenReturn(graph);
         org.mockito.Mockito.when(parkRoutePlannerService.shortestNodePathWithPenalties(

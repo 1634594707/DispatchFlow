@@ -19,6 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DispatchEventOutboxServiceImpl implements DispatchEventOutboxService {
 
+    private static final TypeReference<LinkedHashMap<String, Object>> PAYLOAD_TYPE = new TypeReference<>() {
+    };
+
     private final DispatchEventOutboxMapper outboxMapper;
     private final ObjectMapper objectMapper;
 
@@ -103,8 +106,7 @@ public class DispatchEventOutboxServiceImpl implements DispatchEventOutboxServic
 
     private Map<String, Object> readPayload(String payload) {
         try {
-            return objectMapper.readValue(payload, new TypeReference<LinkedHashMap<String, Object>>() {
-            });
+            return objectMapper.readValue(payload, PAYLOAD_TYPE);
         } catch (JsonProcessingException ex) {
             throw new BusinessException("DISPATCH_EVENT_DESERIALIZE_FAILED", ex.getMessage());
         }

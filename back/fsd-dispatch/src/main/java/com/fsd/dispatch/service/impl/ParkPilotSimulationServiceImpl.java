@@ -12,7 +12,6 @@ import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.fleet.service.FleetSnapshotAssembler;
 import com.fsd.dispatch.entity.BatterySwapCabinetEntity;
-import com.fsd.dispatch.fleet.FleetAdapterRegistry;
 import com.fsd.dispatch.fleet.PilotFleetSupport;
 import com.fsd.dispatch.fleet.simulation.SimulationFleetAdapter;
 import com.fsd.dispatch.mapper.BatterySwapCabinetMapper;
@@ -54,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
@@ -87,7 +87,6 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private final ParkStationService parkStationService;
     private final ParkingFacilityService parkingFacilityService;
     private final SimulationMotionStore simulationMotionStore;
-    private final FleetAdapterRegistry fleetAdapterRegistry;
     private final SimulationFleetAdapter simulationFleetAdapter;
     private final FleetSnapshotAssembler fleetSnapshotAssembler;
     private final FleetRuntimeService fleetRuntimeService;
@@ -115,7 +114,6 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                                           ParkStationService parkStationService,
                                           ParkingFacilityService parkingFacilityService,
                                           SimulationMotionStore simulationMotionStore,
-                                          FleetAdapterRegistry fleetAdapterRegistry,
                                           SimulationFleetAdapter simulationFleetAdapter,
                                           FleetSnapshotAssembler fleetSnapshotAssembler,
                                           FleetRuntimeService fleetRuntimeService,
@@ -139,7 +137,6 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         this.parkStationService = parkStationService;
         this.parkingFacilityService = parkingFacilityService;
         this.simulationMotionStore = simulationMotionStore;
-        this.fleetAdapterRegistry = fleetAdapterRegistry;
         this.simulationFleetAdapter = simulationFleetAdapter;
         this.fleetSnapshotAssembler = fleetSnapshotAssembler;
         this.fleetRuntimeService = fleetRuntimeService;
@@ -174,7 +171,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         for (int i = existing.size(); i < targetCount; i++) {
             ParkPointResponse spawn = schematic ? getStandbySpot(i) : getGeoStandbySpot(i);
             VehicleEntity vehicle = new VehicleEntity();
-            vehicle.setVehicleCode(prefix + String.format("%02d", i + 1));
+            vehicle.setVehicleCode(prefix + String.format(Locale.ROOT, "%02d", i + 1));
             vehicle.setVehicleName((schematic ? "园区仿真车 " : "短驳仿真车 ") + (i + 1));
             vehicle.setVehicleType("L4_DELIVERY");
             vehicle.setLinkMode(VehicleLinkMode.SIM.name());
@@ -752,10 +749,6 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.targetType = "STANDBY";
         state.targetX = state.chargingPoint.getX();
         state.targetY = state.chargingPoint.getY();
-    }
-
-    private boolean isActivelyCharging(SimulationMotionState state) {
-        return fleetChargePolicy.isActivelyCharging(state.stage);
     }
 
     private boolean shouldReturnToCharge(VehicleEntity vehicle) {

@@ -6,6 +6,7 @@ import com.fsd.dispatch.config.AmapProperties;
 import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
 import java.math.BigDecimal;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -81,7 +82,10 @@ public class AmapLogisticsDistanceService {
                 return Optional.empty();
             }
             return parseDistances(response.body(), origins.size());
-        } catch (Exception ex) {
+        } catch (IOException | InterruptedException ex) {
+            if (ex instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             log.warn("Amap distance matrix call failed: {}", ex.getMessage());
             return Optional.empty();
         }
@@ -128,7 +132,7 @@ public class AmapLogisticsDistanceService {
         return meters / 2.0;
     }
 
-    private Optional<List<Double>> parseDistances(String body, int expectedSize) throws Exception {
+    private Optional<List<Double>> parseDistances(String body, int expectedSize) throws IOException {
         JsonNode root = objectMapper.readTree(body);
         if (!"1".equals(root.path("status").asText())) {
             log.warn("Amap distance matrix status={} info={}", root.path("status").asText(), root.path("info").asText());

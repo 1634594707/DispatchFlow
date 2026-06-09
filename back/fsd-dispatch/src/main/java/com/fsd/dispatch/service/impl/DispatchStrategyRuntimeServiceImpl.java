@@ -39,7 +39,7 @@ public class DispatchStrategyRuntimeServiceImpl implements DispatchStrategyRunti
         try {
             cachedProfiles = profileMapper.selectList(new LambdaQueryWrapper<DispatchStrategyProfileEntity>()
                     .eq(DispatchStrategyProfileEntity::getDeleted, 0));
-        } catch (Exception ex) {
+        } catch (RuntimeException ex) {
             cachedProfiles = List.of();
         }
     }

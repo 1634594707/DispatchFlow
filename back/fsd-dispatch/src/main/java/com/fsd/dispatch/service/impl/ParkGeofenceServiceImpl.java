@@ -14,6 +14,7 @@ import com.fsd.dispatch.vo.ParkGeofenceResponse;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -111,7 +112,7 @@ public class ParkGeofenceServiceImpl implements ParkGeofenceService {
             entity.setPolygonJson(polygonJson);
         }
         if (status != null && !status.isBlank()) {
-            entity.setStatus(status.trim().toUpperCase());
+            entity.setStatus(status.trim().toUpperCase(Locale.ROOT));
         }
         if (remark != null) {
             entity.setRemark(remark);
@@ -175,7 +176,7 @@ public class ParkGeofenceServiceImpl implements ParkGeofenceService {
     }
 
     private static String normalizeFenceType(String fenceType) {
-        return fenceType == null ? "BOUNDARY" : fenceType.trim().toUpperCase();
+        return fenceType == null ? "BOUNDARY" : fenceType.trim().toUpperCase(Locale.ROOT);
     }
 
     private void validatePolygonJson(String polygonJson) {

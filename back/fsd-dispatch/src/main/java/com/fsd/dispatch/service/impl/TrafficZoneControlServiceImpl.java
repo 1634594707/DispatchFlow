@@ -39,7 +39,7 @@ public class TrafficZoneControlServiceImpl implements TrafficZoneControlService 
                 }
                 return objectMapper.readValue(raw, new TypeReference<List<PauseZone>>() {
                 });
-            } catch (Exception ignored) {
+            } catch (java.io.IOException ignored) {
                 return List.of();
             }
         }

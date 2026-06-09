@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -68,7 +69,7 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
     }
 
     private static String resolveBreachType(String fenceType, boolean inside) {
-        String normalized = fenceType == null ? "BOUNDARY" : fenceType.trim().toUpperCase();
+        String normalized = fenceType == null ? "BOUNDARY" : fenceType.trim().toUpperCase(Locale.ROOT);
         if ("RESTRICTED".equals(normalized)) {
             return inside ? "GEOFENCE_ENTER" : null;
         }
@@ -100,7 +101,7 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
                     vertices.add(new double[] {point.get(0).doubleValue(), point.get(1).doubleValue()});
                 }
             }
-        } catch (Exception ignored) {
+        } catch (java.io.IOException ignored) {
             return List.of();
         }
         return vertices;

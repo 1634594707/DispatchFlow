@@ -74,16 +74,6 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
                 && equalsLong(order.getParkId(), request.getParkId());
     }
 
-    private Predicate<DispatchTaskListItemResponse> matchTask(AdminTaskQueryRequest request) {
-        return task -> contains(task.getTaskNo(), request.getTaskNo())
-                && equalsLong(task.getOrderId(), request.getOrderId())
-                && equalsLong(task.getVehicleId(), request.getVehicleId())
-                && equalsValue(task.getStatus(), request.getStatus())
-                && adminParkScopeService.matchesOrder(task.getOrderId(), request.getParkId())
-                && matchesManualFlag(task, request.getManualFlag())
-                && matchesOpenExceptionOnly(task, request.getWithOpenExceptionOnly());
-    }
-
     private Predicate<DispatchExceptionListItemResponse> matchException(AdminExceptionQueryRequest request) {
         return exception -> equalsValue(exception.getExceptionType(), request.getExceptionType())
                 && equalsValue(exception.getExceptionStatus(), request.getExceptionStatus())
@@ -100,21 +90,6 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
                 && equalsValue(vehicle.getOnlineStatus(), request.getOnlineStatus())
                 && equalsValue(vehicle.getDispatchStatus(), request.getDispatchStatus())
                 && adminParkScopeService.matchesVehicle(vehicle, request.getParkId());
-    }
-
-    private boolean matchesManualFlag(DispatchTaskListItemResponse task, Boolean manualFlag) {
-        if (manualFlag == null) {
-            return true;
-        }
-        boolean isManualPending = DispatchTaskStatus.MANUAL_PENDING.name().equals(task.getStatus());
-        return manualFlag ? isManualPending : !isManualPending;
-    }
-
-    private boolean matchesOpenExceptionOnly(DispatchTaskListItemResponse task, Boolean withOpenExceptionOnly) {
-        if (withOpenExceptionOnly == null || !withOpenExceptionOnly) {
-            return true;
-        }
-        return task.getOpenExceptionCount() != null && task.getOpenExceptionCount() > 0;
     }
 
     private boolean matchesOnlyManualPendingTask(DispatchExceptionListItemResponse exception, Boolean onlyManualPendingTask) {

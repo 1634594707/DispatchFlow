@@ -58,7 +58,7 @@ public class OpenApiAuthInterceptor implements HandlerInterceptor {
             rateWindows.put(key, window);
         }
         if (window.count.incrementAndGet() > limit) {
-            Long hits = entity.getRateLimitHits() == null ? 0L : entity.getRateLimitHits();
+            long hits = entity.getRateLimitHits() == null ? 0L : entity.getRateLimitHits().longValue();
             entity.setRateLimitHits(hits + 1);
             apiKeyMapper.updateById(entity);
             throw new BusinessException("OPEN_API_RATE_LIMIT", "API 调用超过限流");

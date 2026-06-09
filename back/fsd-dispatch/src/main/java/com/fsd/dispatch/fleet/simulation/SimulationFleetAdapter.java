@@ -54,13 +54,13 @@ public class SimulationFleetAdapter implements FleetAdapter {
                 .y(y)
                 .longitude(geo != null ? geo.longitude() : null)
                 .latitude(geo != null ? geo.latitude() : null)
-                .heading(motion != null ? Double.valueOf(motion.headingDegrees) : null)
+                .heading(Double.valueOf(motion.headingDegrees))
                 .lastTelemetryAt(LocalDateTime.now())
-                .trajectory(toTrajectory(motion != null ? motion.trail : null))
+                .trajectory(toTrajectory(motion.trail))
                 .geoTrajectory(toGeoTrajectory(motion))
                 .plannedRouteGeo(toPlannedRoute(motion))
-                .routeSource(motion != null ? motion.routeSource : null)
-                .routeInvalid(motion != null && motion.routeInvalid)
+                .routeSource(motion.routeSource)
+                .routeInvalid(motion.routeInvalid)
                 .build();
         fleetRuntimeService.save(runtime);
         if (geo != null) {

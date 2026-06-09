@@ -47,9 +47,8 @@ class MapfSimulationAcceptanceTest {
         parkPilotProperties.setWidth(1200);
         parkPilotProperties.setHeight(800);
         reservationService = new InMemoryReservationService(mapfProperties);
-        MapfZonePartitioner zonePartitioner = new MapfZonePartitioner(mapfProperties, parkPilotProperties);
         mapfRoutePlannerService = new MapfRoutePlannerService(
-                mapfProperties, parkPilotProperties, parkRoutePlannerService, reservationService, zonePartitioner);
+                mapfProperties, parkPilotProperties, parkRoutePlannerService, reservationService);
         graph = buildBidirectionalCorridorGraph();
         org.mockito.Mockito.when(parkRoutePlannerService.loadGraph(1L)).thenReturn(graph);
         org.mockito.Mockito.when(parkRoutePlannerService.shortestNodePathWithPenalties(

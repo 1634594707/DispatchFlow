@@ -3,6 +3,7 @@ package com.fsd.dispatch.integration;
 import com.fsd.dispatch.event.DispatchDomainEvent;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import org.springframework.stereotype.Component;
 
 /**
@@ -72,9 +73,10 @@ public class RobotMessageFormatter {
 
     private String feishuBotPayload(String title, String content) {
         String mdContent = content.replace("\"", "\\\"");
-        return """
-                {"msg_type":"interactive","card":{"header":{"title":{"tag":"plain_text","content":"%s"}},"elements":[{"tag":"markdown","content":"%s"}]}}
-                """.formatted(escapeJson(title), escapeJson(mdContent)).strip();
+        return String.format(Locale.ROOT,
+                "{\"msg_type\":\"interactive\",\"card\":{\"header\":{\"title\":{\"tag\":\"plain_text\",\"content\":\"%s\"}},\"elements\":[{\"tag\":\"markdown\",\"content\":\"%s\"}]}}",
+                escapeJson(title),
+                escapeJson(mdContent));
     }
 
     private String genericPayload(DispatchDomainEvent event) {

@@ -1,7 +1,6 @@
 package com.fsd.dispatch.fleet;
 
 import com.fsd.dispatch.vo.ParkStationResponse;
-import com.fsd.order.entity.OrderEntity;
 import com.fsd.vehicle.entity.VehicleEntity;
 
 /** 园区示意仿真（PARK-*）与叠石桥地理仿真（ZJF-AV-*）分池，避免混派与状态冲突。 */
@@ -46,13 +45,6 @@ public final class PilotFleetSupport {
 
     public static boolean isSchematicDeliveryStation(ParkStationResponse station) {
         return station != null && !isGeoDeliveryStation(station);
-    }
-
-    public static boolean isGeoDeliveryOrder(OrderEntity order, ParkStationResponse pickup, ParkStationResponse dropoff) {
-        if (order != null && order.getParkId() != null) {
-            // 移动下单 / ZJF 站点点位优先按站点区域判定
-        }
-        return isGeoDeliveryStation(pickup) || isGeoDeliveryStation(dropoff);
     }
 
     public static boolean matchesOrderFleet(VehicleEntity vehicle,

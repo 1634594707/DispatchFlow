@@ -79,7 +79,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminDispatchController {
 
     private final OrderAdminQueryService orderAdminQueryService;
-    private final OrderQueryService orderQueryService;
     private final OrderStateService orderStateService;
 
     private final OrderAdminDetailService orderAdminDetailService;
@@ -117,7 +116,6 @@ public class AdminDispatchController {
                                    AdminAuthService adminAuthService,
                                    CoordinateTransformService coordinateTransformService) {
         this.orderAdminQueryService = orderAdminQueryService;
-        this.orderQueryService = orderQueryService;
         this.orderStateService = orderStateService;
         this.orderAdminDetailService = orderAdminDetailService;
         this.taskAdminDetailService = taskAdminDetailService;

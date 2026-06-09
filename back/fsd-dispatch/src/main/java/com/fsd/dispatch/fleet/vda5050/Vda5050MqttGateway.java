@@ -11,7 +11,6 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -26,11 +25,6 @@ public class Vda5050MqttGateway implements MqttCallback {
     public Vda5050MqttGateway(Vda5050MqttProperties properties, Vda5050StateIngestService stateIngestService) {
         this.properties = properties;
         this.stateIngestService = stateIngestService;
-        if (properties.isEnabled()) {
-            connect();
-        } else {
-            log.info("VDA5050 MQTT integration disabled (fsd.vda5050.mqtt.enabled=false)");
-        }
     }
 
     public boolean isConnected() {
@@ -79,6 +73,15 @@ public class Vda5050MqttGateway implements MqttCallback {
             client.close();
         } catch (MqttException ex) {
             log.debug("VDA5050 MQTT shutdown: {}", ex.getMessage());
+        }
+    }
+
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void start() {
+        if (properties.isEnabled()) {
+            connect();
+        } else {
+            log.info("VDA5050 MQTT integration disabled (fsd.vda5050.mqtt.enabled=false)");
         }
     }
 

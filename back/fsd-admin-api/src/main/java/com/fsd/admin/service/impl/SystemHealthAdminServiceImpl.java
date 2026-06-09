@@ -149,7 +149,11 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
             return redisMemoryNotAvailable();
         }
         try (var connection = factory.getConnection()) {
-            Properties memory = connection.serverCommands().info("memory");
+            RedisServerCommands serverCommands = connection.serverCommands();
+            Properties memory = serverCommands.info("memory");
+            if (memory == null) {
+                return redisMemoryNotAvailable();
+            }
             long used = Long.parseLong(memory.getProperty("used_memory", "0"));
             long max = Long.parseLong(memory.getProperty("maxmemory", "0"));
             double usagePercent = max <= 0 ? 0D : used * 100D / max;
@@ -159,7 +163,7 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
                     .usagePercent(usagePercent)
                     .status(max <= 0 ? "WARNING" : usagePercent > 90 ? "CRITICAL" : usagePercent > 75 ? "WARNING" : "OK")
                     .build();
-        } catch (Exception ex) {
+        } catch (RuntimeException ex) {
             return redisMemoryNotAvailable();
         }
     }

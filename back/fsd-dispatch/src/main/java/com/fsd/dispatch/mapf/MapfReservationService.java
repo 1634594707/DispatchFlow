@@ -65,13 +65,6 @@ public class MapfReservationService {
         return true;
     }
 
-    public void releaseVehicleReservations(Long parkId, Long vehicleId) {
-        if (!isEnabled() || parkId == null || vehicleId == null) {
-            return;
-        }
-        // 扫描释放成本较高；MVP 依赖 TTL 自动过期。显式释放留给后续迭代。
-    }
-
     private void rollback(List<String> keys) {
         if (keys.isEmpty()) {
             return;

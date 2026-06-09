@@ -29,6 +29,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 
@@ -162,7 +163,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         }
         String geoNote = dispatchGeoDistanceService.isGeoBlendEnabled() ? ", geoBlend=on" : "";
         String mapfNote = mapfRoutePlannerService.isEnabled() ? ", mapf=on" : "";
-        String explanation = String.format(
+        String explanation = String.format(Locale.ROOT,
                 "Selected %s: distance=%.1f, socPenalty=%.1f, pluggedBonus=%.1f, total=%.1f%s%s",
                 best.vehicle().getVehicleCode(),
                 best.distanceScore(),

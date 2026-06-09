@@ -196,7 +196,7 @@ public class ParkStationServiceImpl implements ParkStationService {
                     .filter(point -> point != null && point.size() >= 2)
                     .map(point -> new double[] {point.get(0).doubleValue(), point.get(1).doubleValue()})
                     .toList();
-        } catch (Exception ex) {
+        } catch (java.io.IOException ex) {
             return List.of();
         }
     }

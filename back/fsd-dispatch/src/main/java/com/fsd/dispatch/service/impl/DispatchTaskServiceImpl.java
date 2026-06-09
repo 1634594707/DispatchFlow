@@ -254,7 +254,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
             taskEntity.setStatus(DispatchTaskStatus.ASSIGNING.name());
 
-            taskEntity.setRetryCount(taskEntity.getRetryCount() == null ? 0 : taskEntity.getRetryCount());
+            taskEntity.setRetryCount(java.util.Objects.requireNonNullElse(taskEntity.getRetryCount(), 0));
 
             dispatchTaskMapper.updateById(taskEntity);
 

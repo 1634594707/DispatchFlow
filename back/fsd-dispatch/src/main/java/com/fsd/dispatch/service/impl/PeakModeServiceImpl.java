@@ -5,6 +5,7 @@ import com.fsd.dispatch.entity.PeakModeStateEntity;
 import com.fsd.dispatch.mapper.PeakModeStateMapper;
 import com.fsd.dispatch.service.PeakModeService;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,7 +48,7 @@ public class PeakModeServiceImpl implements PeakModeService {
     public PeakModeStateEntity setMode(Long parkId, String mode, String templateCode,
                                        String scheduleCron, String scheduleEndCron) {
         PeakModeStateEntity state = getState(parkId);
-        state.setMode(mode == null || mode.isBlank() ? "NORMAL" : mode.toUpperCase());
+        state.setMode(mode == null || mode.isBlank() ? "NORMAL" : mode.toUpperCase(Locale.ROOT));
         if (templateCode != null && !templateCode.isBlank()) {
             state.setTemplateCode(templateCode);
         }

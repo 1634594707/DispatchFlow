@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -193,7 +194,7 @@ public class OsmPilotGeoRepository {
                 log.debug("Failed reading OSM geo from {}: {}", candidate, ex.getMessage());
             }
         }
-        try (InputStream stream = getClass().getResourceAsStream("/pilot_osm_geo.json")) {
+        try (InputStream stream = OsmPilotGeoRepository.class.getResourceAsStream("/pilot_osm_geo.json")) {
             if (stream != null) {
                 return objectMapper.readTree(stream);
             }
@@ -348,7 +349,7 @@ public class OsmPilotGeoRepository {
     }
 
     private static String nodeKey(GeoPoint point) {
-        return String.format("%.6f,%.6f",
+        return String.format(Locale.ROOT, "%.6f,%.6f",
                 point.longitude().doubleValue(), point.latitude().doubleValue());
     }
 

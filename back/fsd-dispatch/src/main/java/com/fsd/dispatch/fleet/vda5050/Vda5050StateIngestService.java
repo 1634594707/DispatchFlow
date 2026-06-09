@@ -64,7 +64,7 @@ public class Vda5050StateIngestService {
             snapshot.setReportTime(request.getReportTime());
             snapshot.setReportType("VDA5050_STATE");
             vehicleService.updateSnapshot(snapshot);
-        } catch (Exception ex) {
+        } catch (java.io.IOException ex) {
             log.warn("Failed to ingest VDA5050 state for {}: {}", vehicle.getVehicleCode(), ex.getMessage());
         }
     }

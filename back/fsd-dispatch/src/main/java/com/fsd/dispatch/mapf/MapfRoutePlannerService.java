@@ -6,13 +6,9 @@ import com.fsd.dispatch.road.ParkRoadGraph;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /**
@@ -25,18 +21,15 @@ public class MapfRoutePlannerService {
     private final ParkPilotProperties parkPilotProperties;
     private final ParkRoutePlannerService parkRoutePlannerService;
     private final MapfReservationService reservationService;
-    private final MapfZonePartitioner zonePartitioner;
 
     public MapfRoutePlannerService(MapfProperties mapfProperties,
                                    ParkPilotProperties parkPilotProperties,
                                    ParkRoutePlannerService parkRoutePlannerService,
-                                   MapfReservationService reservationService,
-                                   MapfZonePartitioner zonePartitioner) {
+                                   MapfReservationService reservationService) {
         this.mapfProperties = mapfProperties;
         this.parkPilotProperties = parkPilotProperties;
         this.parkRoutePlannerService = parkRoutePlannerService;
         this.reservationService = reservationService;
-        this.zonePartitioner = zonePartitioner;
     }
 
     public boolean isEnabled() {
@@ -57,18 +50,16 @@ public class MapfRoutePlannerService {
                     .build();
         }
         ParkRoadGraph graph = parkRoutePlannerService.loadGraph(parkId);
-        Map<String, String> nodeZones = zonePartitioner.partition(graph);
         Map<String, Double> penalties = new HashMap<>();
         int attempts = 0;
         int maxAttempts = Math.max(1, mapfProperties.getMaxReplanAttempts());
-        List<String> nodePath = List.of();
         while (attempts < maxAttempts) {
             attempts++;
-            nodePath = parkRoutePlannerService.shortestNodePathWithPenalties(graph, startX, startY, endX, endY, penalties);
+            List<String> nodePath = parkRoutePlannerService.shortestNodePathWithPenalties(graph, startX, startY, endX, endY, penalties);
             if (nodePath.isEmpty()) {
                 break;
             }
-            if (tryReserveNodePath(parkId, vehicleId, graph, nodePath, nodeZones)) {
+            if (tryReserveNodePath(parkId, vehicleId, graph, nodePath)) {
                 List<ParkPointResponse> route = parkRoutePlannerService.buildRouteFromNodePath(
                         graph, startX, startY, endX, endY, nodePath);
                 return MapfRoutePlanResult.builder()
@@ -90,7 +81,7 @@ public class MapfRoutePlannerService {
     }
 
     private boolean tryReserveNodePath(Long parkId, Long vehicleId, ParkRoadGraph graph,
-                                       List<String> nodePath, Map<String, String> nodeZones) {
+                                       List<String> nodePath) {
         if (nodePath.size() < 2) {
             return true;
         }
@@ -100,11 +91,9 @@ public class MapfRoutePlannerService {
             speed = parkPilotProperties.getVehicleSpeedPxPerSecond().doubleValue();
         }
         long cursor = bucket;
-        Set<String> visitedZones = new HashSet<>();
         for (int i = 0; i < nodePath.size() - 1; i++) {
             String from = nodePath.get(i);
             String to = nodePath.get(i + 1);
-            visitedZones.add(zonePartitioner.zoneOfNode(nodeZones, from));
             if (!reservationService.tryReserveEdge(parkId, vehicleId, from, to, cursor)) {
                 return false;
             }

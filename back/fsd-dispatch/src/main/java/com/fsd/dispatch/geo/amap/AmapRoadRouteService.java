@@ -10,6 +10,7 @@ import com.fsd.dispatch.geo.RoadRouteService;
 import com.fsd.dispatch.geo.RoadRouteSource;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -83,7 +84,10 @@ public class AmapRoadRouteService implements RoadRouteService {
                 cache.put(cacheKey, new CacheEntry(result, Instant.now().plusSeconds(Math.max(60, ttl))));
                 return result;
             }
-        } catch (Exception ex) {
+        } catch (IOException | InterruptedException ex) {
+            if (ex instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             log.warn("Amap driving route failed: {}", ex.getMessage());
         }
         RoadRouteResult fallback = fallbackStraightLine(origin, destination);
@@ -99,7 +103,7 @@ public class AmapRoadRouteService implements RoadRouteService {
         return amapSuccessCount.get();
     }
 
-    private Optional<RoadRouteResult> fetchFromAmap(GeoPoint origin, GeoPoint destination) throws Exception {
+    private Optional<RoadRouteResult> fetchFromAmap(GeoPoint origin, GeoPoint destination) throws IOException, InterruptedException {
         AmapProperties.DrivingConfig cfg = amapProperties.getDriving();
         String originParam = formatCoord(origin);
         String destParam = formatCoord(destination);
@@ -121,7 +125,7 @@ public class AmapRoadRouteService implements RoadRouteService {
         return parseDrivingResponse(response.body());
     }
 
-    private Optional<RoadRouteResult> parseDrivingResponse(String body) throws Exception {
+    private Optional<RoadRouteResult> parseDrivingResponse(String body) throws IOException {
         JsonNode root = objectMapper.readTree(body);
         if (!"1".equals(root.path("status").asText())) {
             log.warn("Amap driving status={} info={}", root.path("status").asText(), root.path("info").asText());

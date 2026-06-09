@@ -15,6 +15,7 @@ import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.PeakModeService;
 import com.fsd.vehicle.entity.VehicleEntity;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -84,11 +85,6 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
                     state.stage = "WAIT_CHARGING";
                 }
             }
-            if ("PEAK_MODE".equalsIgnoreCase(rule.getConditionType())
-                    && peakModeService.isPeakMode(parkId)
-                    && "SET_PEAK_MODE".equalsIgnoreCase(rule.getActionType())) {
-                // Peak already active; no-op marker for audit trail compatibility
-            }
         }
     }
 
@@ -131,7 +127,7 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
             if (!geofenceCode.equalsIgnoreCase(rule.getConditionValue())) {
                 continue;
             }
-            String condition = rule.getConditionType() == null ? "" : rule.getConditionType().toUpperCase();
+            String condition = rule.getConditionType() == null ? "" : rule.getConditionType().toUpperCase(Locale.ROOT);
             if (!condition.equals(breachType) && !"GEOFENCE_BREACH".equals(condition)) {
                 continue;
             }
@@ -148,7 +144,7 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
         return ruleMapper.selectList(new LambdaQueryWrapper<DispatchAutomationRuleEntity>()
                 .eq(DispatchAutomationRuleEntity::getDeleted, 0)
                 .eq(DispatchAutomationRuleEntity::getEnabled, 1)
-                .eq(DispatchAutomationRuleEntity::getParkId, parkId == null ? 1L : parkId)
+                .eq(DispatchAutomationRuleEntity::getParkId, parkId != null ? parkId.longValue() : 1L)
                 .orderByAsc(DispatchAutomationRuleEntity::getId));
     }
 
@@ -161,7 +157,7 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
             if (node.has(key)) {
                 return node.get(key).asDouble(fallback);
             }
-        } catch (Exception ignored) {
+        } catch (java.io.IOException ignored) {
             // use fallback
         }
         return fallback;
