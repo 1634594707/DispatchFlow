@@ -131,7 +131,7 @@
                     <configuration>
                         <configLocation>config/checkstyle/checkstyle.xml</configLocation>
                         <consoleOutput>true</consoleOutput>
-                        <failOnViolation>false</failOnViolation>
+                        <failOnViolation>true</failOnViolation>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -142,7 +142,7 @@
                         <effort>Max</effort>
                         <threshold>Low</threshold>
                         <excludeFilterFile>config/spotbugs/excludeFilter.xml</excludeFilterFile>
-                        <failOnError>false</failOnError>
+                        <failOnError>true</failOnError>
                     </configuration>
                 </plugin>
                 <plugin>
