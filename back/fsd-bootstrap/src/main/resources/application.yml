@@ -340,6 +340,10 @@ fsd:
       idle-drain-probability: ${FSD_FLEET_ENERGY_IDLE_DRAIN_PROBABILITY:0.06}
       plugged-standby-no-drain: ${FSD_FLEET_ENERGY_PLUGGED_STANDBY_NO_DRAIN:true}
       idle-charge-when-no-demand: ${FSD_FLEET_ENERGY_IDLE_CHARGE_WHEN_NO_DEMAND:true}
+  admin:
+    sse:
+      timeout-ms: ${FSD_ADMIN_SSE_TIMEOUT_MS:300000}
+      max-connections: ${FSD_ADMIN_SSE_MAX_CONNECTIONS:100}
   dispatch:
     scoring:
       weight-distance: ${FSD_DISPATCH_SCORING_WEIGHT_DISTANCE:1.0}
@@ -348,6 +352,8 @@ fsd:
     outbox:
       retry-delay-ms: ${FSD_DISPATCH_OUTBOX_RETRY_DELAY_MS:30000}
       retry-enabled: ${FSD_DISPATCH_OUTBOX_RETRY_ENABLED:true}
+    lock:
+      ttl: ${FSD_DISPATCH_LOCK_TTL:10s}
   alert:
     open-timeout-minutes: ${FSD_ALERT_OPEN_TIMEOUT_MINUTES:30}
     escalation-check-ms: ${FSD_ALERT_ESCALATION_CHECK_MS:60000}

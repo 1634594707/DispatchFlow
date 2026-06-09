@@ -1,6 +1,8 @@
 package com.fsd.admin.service.impl;
 
+import com.fsd.admin.config.AdminSseProperties;
 import com.fsd.admin.service.AdminDispatchStreamService;
+import com.fsd.common.exception.BusinessException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,13 +16,20 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class AdminDispatchStreamServiceImpl implements AdminDispatchStreamService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminDispatchStreamServiceImpl.class);
-    private static final Long DEFAULT_TIMEOUT = 0L;
 
+    private final AdminSseProperties properties;
     private final CopyOnWriteArrayList<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+
+    public AdminDispatchStreamServiceImpl(AdminSseProperties properties) {
+        this.properties = properties;
+    }
 
     @Override
     public SseEmitter createStream() {
-        SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT);
+        if (emitters.size() >= properties.getMaxConnections()) {
+            throw new BusinessException("SSE_CONNECTION_LIMIT_EXCEEDED", "SSE 连接数已达上限");
+        }
+        SseEmitter emitter = new SseEmitter(properties.getTimeoutMs());
         emitters.add(emitter);
 
         emitter.onCompletion(() -> removeEmitter(emitter));
