@@ -98,11 +98,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
     }
 
     private static String resolveAdminToken(HttpServletRequest request) {
-        String token = request.getHeader("X-Admin-Token");
-        if (token == null || token.isBlank()) {
-            token = request.getParameter("token");
-        }
-        return token;
+        return request.getHeader("X-Admin-Token");
     }
 
     private boolean isViewerWritablePath(String path) {

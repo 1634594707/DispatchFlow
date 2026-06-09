@@ -175,6 +175,7 @@ import {
   type AnalyticsPeakCompare,
   getAnalyticsExportUrl,
   getAnalyticsPdfUrl,
+  downloadAnalyticsFile,
   getAnalyticsParkComparison,
 } from '@/api/analytics'
 import type { AnalyticsChainKpi } from '@/api/analytics'
@@ -185,12 +186,9 @@ import type {
   AnalyticsParkCompareItem,
   AnalyticsTrendPoint,
 } from '@/types/analytics'
-import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
-import { ADMIN_AUTH_ENABLED } from '@/config'
 
 const router = useRouter()
-const authStore = useAuthStore()
 const parkScope = useParkScopeStore()
 const period = ref<'day' | 'week' | 'month'>('week')
 const loading = ref(false)
@@ -283,18 +281,12 @@ function drillDownTasks(_kpi?: AnalyticsChainKpi) {
   void router.push({ path: '/tasks', query: { status: 'SUCCESS' } })
 }
 
-function exportPdf() {
-  const url = getAnalyticsPdfUrl(dailySummary.value?.date, parkScope.selectedParkId)
-  const tokenQuery =
-    ADMIN_AUTH_ENABLED && authStore.token ? `${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(authStore.token)}` : ''
-  window.open(`${url}${tokenQuery}`, '_blank')
+async function exportPdf() {
+  await downloadAnalyticsFile(getAnalyticsPdfUrl(dailySummary.value?.date, parkScope.selectedParkId))
 }
 
-function handleExport({ key }: { key: string }) {
-  const url = getAnalyticsExportUrl(key, period.value, parkScope.selectedParkId)
-  const tokenQuery =
-    ADMIN_AUTH_ENABLED && authStore.token ? `${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(authStore.token)}` : ''
-  window.open(`${url}${tokenQuery}`, '_blank')
+async function handleExport({ key }: { key: string }) {
+  await downloadAnalyticsFile(getAnalyticsExportUrl(key, period.value, parkScope.selectedParkId))
 }
 
 onMounted(loadAll)

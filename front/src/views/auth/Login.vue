@@ -71,7 +71,7 @@
         </a-button>
       </a-form>
 
-      <div class="login-hint">
+      <div v-if="showDefaultAccountHint" class="login-hint">
         <span>默认账号：admin / admin123</span>
       </div>
     </div>
@@ -97,6 +97,7 @@ const form = reactive({
 })
 
 const needsTotp = ref(false)
+const showDefaultAccountHint = import.meta.env.DEV
 
 async function handleLogin() {
   try {

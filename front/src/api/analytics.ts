@@ -67,18 +67,29 @@ export function getAnalyticsPeakCompare(period: 'day' | 'week' | 'month' = 'week
 }
 
 export function getAnalyticsPdfUrl(date?: string, parkId?: number | null) {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
   const params = new URLSearchParams()
   if (date) params.set('date', date)
   if (parkId != null && Number.isFinite(parkId) && parkId > 0) params.set('parkId', String(parkId))
   const qs = params.toString()
-  return `${base}/api/admin/analytics/export/pdf${qs ? `?${qs}` : ''}`
+  return `/admin/analytics/export/pdf${qs ? `?${qs}` : ''}`
 }
 
 export function getAnalyticsExportUrl(dataset: string, period = 'week', parkId?: number | null) {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  const parkQuery = parkId != null && Number.isFinite(parkId) && parkId > 0 ? `&parkId=${parkId}` : ''
-  return `${base}/api/admin/analytics/export/csv?dataset=${encodeURIComponent(dataset)}&period=${encodeURIComponent(period)}${parkQuery}`
+  const params = new URLSearchParams({ dataset, period })
+  if (parkId != null && Number.isFinite(parkId) && parkId > 0) params.set('parkId', String(parkId))
+  return `/admin/analytics/export/csv?${params.toString()}`
+}
+
+export async function downloadAnalyticsFile(url: string) {
+  const response = await request.get<any, Blob>(url, { responseType: 'blob' })
+  const blobUrl = URL.createObjectURL(response)
+  const link = document.createElement('a')
+  link.href = blobUrl
+  link.download = ''
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(blobUrl)
 }
 
 export interface CustomReportRequest {

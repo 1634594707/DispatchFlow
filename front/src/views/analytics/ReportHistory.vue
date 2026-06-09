@@ -48,14 +48,11 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageContainer from '@/components/common/PageContainer.vue'
-import { getAnalyticsPdfUrl, getAnalyticsExportUrl, getReportHistory } from '@/api/analytics'
+import { getAnalyticsPdfUrl, getAnalyticsExportUrl, getReportHistory, downloadAnalyticsFile } from '@/api/analytics'
 import type { ReportHistoryItem } from '@/api/analytics'
-import { useAuthStore } from '@/stores/auth'
-import { ADMIN_AUTH_ENABLED } from '@/config'
 import dayjs from 'dayjs'
 
 const router = useRouter()
-const authStore = useAuthStore()
 const loading = ref(false)
 const list = ref<ReportHistoryItem[]>([])
 const filterType = ref<string | undefined>(undefined)
@@ -78,17 +75,14 @@ function formatFileSize(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function handleDownload(record: any) {
+async function handleDownload(record: any) {
   let url: string
   if (record.reportType === 'PDF') {
     url = getAnalyticsPdfUrl(record.date, record.parkId)
   } else {
     url = getAnalyticsExportUrl(record.dataset || 'orders', record.period || 'week', record.parkId)
   }
-  const tokenQuery = ADMIN_AUTH_ENABLED && authStore.token
-    ? `${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(authStore.token)}`
-    : ''
-  window.open(`${url}${tokenQuery}`, '_blank')
+  await downloadAnalyticsFile(url)
 }
 
 async function loadHistory() {

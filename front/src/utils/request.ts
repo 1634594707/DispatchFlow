@@ -39,6 +39,9 @@ instance.interceptors.request.use(
 
 instance.interceptors.response.use(
   (response: AxiosResponse<ApiResponse<any>>) => {
+    if (response.config.responseType === 'blob') {
+      return response.data as any
+    }
     const { data } = response
     if (data.success) {
       return data as any
