@@ -68,7 +68,7 @@ public class VehicleReportServiceImpl implements VehicleReportService {
 
         try {
             return processReport(request);
-        } catch (com.fsd.common.exception.BusinessException ex) {
+        } catch (Exception ex) {
             reportIdempotencyService.releaseReport(request);
             throw ex;
         }

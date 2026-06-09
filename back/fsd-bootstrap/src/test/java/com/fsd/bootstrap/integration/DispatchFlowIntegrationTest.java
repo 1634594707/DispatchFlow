@@ -15,6 +15,7 @@ import com.fsd.dispatch.dto.DispatchTaskCreateRequest;
 import com.fsd.dispatch.service.DispatchPauseControlService;
 import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.dispatch.service.PeakModeService;
+import com.fsd.dispatch.service.TrafficZoneControlService;
 import com.fsd.dispatch.infra.DispatchLockService;
 import com.fsd.dispatch.infra.DispatchReportIdempotencyService;
 import com.fsd.dispatch.event.DispatchEventPublisher;
@@ -77,6 +78,8 @@ class DispatchFlowIntegrationTest {
     private DispatchPauseControlService dispatchPauseControlService;
     @MockBean
     private PeakModeService peakModeService;
+    @MockBean
+    private TrafficZoneControlService trafficZoneControlService;
 
     @BeforeEach
     void setUp() {
@@ -89,6 +92,7 @@ class DispatchFlowIntegrationTest {
         when(dispatchPauseControlService.isDispatchPaused(any())).thenReturn(false);
         when(dispatchPauseControlService.isGlobalDispatchPaused()).thenReturn(false);
         when(peakModeService.isPeakMode(any())).thenReturn(false);
+        when(trafficZoneControlService.isPointInPausedZone(any(), any(), any())).thenReturn(false);
     }
 
     @Test
