@@ -7,12 +7,15 @@
       <a-button @click="handleRefresh">
         <ReloadOutlined /> 刷新
       </a-button>
-      <a-button @click="handleExport">
-        <DownloadOutlined /> 导出
-      </a-button>
     </template>
 
-    <div class="search-bar">
+    <QueryFilterCard
+      title="筛选条件"
+      :result-summary="`共 ${store.total} 条结果`"
+      :active-chips="activeFilterChips"
+      @remove="removeFilterChip"
+      @clear="handleReset"
+    >
       <a-select
         v-model:value="queryForm.status"
         placeholder="订单状态"
@@ -33,7 +36,12 @@
         <SearchOutlined /> 查询
       </a-button>
       <a-button @click="handleReset">重置</a-button>
-    </div>
+      <template #extra>
+        <a-button :disabled="store.total === 0" @click="handleExport">
+          <DownloadOutlined /> 导出
+        </a-button>
+      </template>
+    </QueryFilterCard>
 
     <a-table
       :columns="columns"
@@ -111,6 +119,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import QueryFilterCard from '@/components/common/QueryFilterCard.vue'
+import type { FilterChip } from '@/components/common/QueryFilterCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import ParkDeliveryOrderModal from '@/components/park/ParkDeliveryOrderModal.vue'
@@ -165,6 +175,26 @@ const pagination = computed(() => ({
   showTotal: (total: number) => `共 ${total} 条`,
   pageSizeOptions: ['10', '20', '50', '100'],
 }))
+
+const activeFilterChips = computed((): FilterChip[] => {
+  const chips: FilterChip[] = []
+  if (queryForm.status) {
+    chips.push({
+      key: 'status',
+      label: `状态：${orderStatusMap[queryForm.status]?.label || queryForm.status}`,
+    })
+  }
+  if (queryForm.orderNo.trim()) {
+    chips.push({ key: 'orderNo', label: `编号：${queryForm.orderNo.trim()}` })
+  }
+  return chips
+})
+
+function removeFilterChip(key: string) {
+  if (key === 'status') queryForm.status = undefined
+  if (key === 'orderNo') queryForm.orderNo = ''
+  handleSearch()
+}
 
 function priorityColor(p: string) {
   const map: Record<string, string> = { P0: 'red', P1: 'orange', P2: 'blue', P3: 'default' }

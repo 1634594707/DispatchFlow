@@ -14,7 +14,7 @@
           ref="inputRef"
           :value="keyword"
           class="palette-input"
-          placeholder="搜索订单/任务/车辆，或输入页面名称…"
+          placeholder="查车、查单、派车、打开页面…"
           @input="onInput"
           @keydown.stop
         />

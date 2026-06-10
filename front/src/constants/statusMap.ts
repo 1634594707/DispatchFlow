@@ -5,6 +5,21 @@ interface StatusConfig {
   color: string
 }
 
+/** Maps legacy color keys to unified risk semantics for UI components. */
+export type StatusSemantic = 'critical' | 'warning' | 'active' | 'normal' | 'muted'
+
+export function statusColorToSemantic(color: string): StatusSemantic {
+  const map: Record<string, StatusSemantic> = {
+    error: 'critical',
+    warning: 'warning',
+    processing: 'active',
+    cyan: 'active',
+    success: 'normal',
+    default: 'muted',
+  }
+  return map[color] || 'muted'
+}
+
 export const orderStatusMap: Record<OrderStatus, StatusConfig> = {
   [OrderStatus.CREATED]: { label: '已创建', color: 'default' },
   [OrderStatus.WAITING_DISPATCH]: { label: '待调度', color: 'processing' },
@@ -28,7 +43,7 @@ export const taskStatusMap: Record<TaskStatus, StatusConfig> = {
 
 export const onlineStatusMap: Record<OnlineStatus, StatusConfig> = {
   [OnlineStatus.ONLINE]: { label: '在线', color: 'success' },
-  [OnlineStatus.OFFLINE]: { label: '离线', color: 'error' },
+  [OnlineStatus.OFFLINE]: { label: '离线', color: 'default' },
 }
 
 export const dispatchStatusMap: Record<DispatchStatus, StatusConfig> = {

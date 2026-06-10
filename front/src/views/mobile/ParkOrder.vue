@@ -14,6 +14,20 @@
     </header>
 
     <main class="mobile-main">
+      <MerchantHomePanel
+        :current-order="trackedOrder"
+        :favorite-routes="favoriteRoutes"
+        :history-count="orderHistory.length"
+        :fee-estimate="merchantFeeEstimate"
+        :remaining-label="remainingDeliveryLabel"
+        :share-link="trackingShareUrl"
+        @track="onMerchantTrack"
+        @order-again="onMerchantOrderAgain"
+        @select-route="onMerchantSelectRoute"
+        @open-history="historyDrawerOpen = true"
+        @quick-order="scrollToQuickOrder"
+      />
+
       <OrderTrackingPanel
         v-if="trackedOrder"
         ref="trackingPanelRef"
@@ -79,14 +93,42 @@
         <p class="api-key-note">仅本地开发可见；生产环境请配置环境变量。</p>
       </details>
     </main>
+
+    <a-drawer
+      v-model:open="historyDrawerOpen"
+      title="订单历史"
+      placement="bottom"
+      height="70vh"
+      class="order-history-drawer"
+    >
+      <div v-if="orderHistory.length === 0" class="history-empty">暂无历史订单</div>
+      <button
+        v-for="order in orderHistory"
+        :key="order.orderId"
+        type="button"
+        class="history-item"
+        @click="selectHistoryOrder(order.orderId)"
+      >
+        <div class="history-item-head">
+          <span>#{{ order.orderId }}</span>
+          <span class="history-stage">{{ order.runtimeStage }}</span>
+        </div>
+        <p class="history-route">
+          {{ order.pickupStation.stationCode }} → {{ order.dropoffStation.stationCode }}
+        </p>
+      </button>
+    </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import OrderTrackingPanel from '@/components/mobile/OrderTrackingPanel.vue'
 import QuickOrderPanel from '@/components/mobile/QuickOrderPanel.vue'
+import MerchantHomePanel from '@/components/mobile/MerchantHomePanel.vue'
+import type { FavoriteRoute } from '@/components/mobile/MerchantHomePanel.vue'
 import type { DemoRoutePreset } from '@/components/mobile/QuickOrderPanel.vue'
 import { parkDeliveryDemoRoutes, parkSchematicDemoRoutes, loadMobileOrderMode, persistMobileOrderMode } from '@/constants/parkDelivery'
 import type { MobileOrderMode } from '@/constants/parkDelivery'
@@ -149,6 +191,8 @@ const geoMapAvailable = isAmapConfigured()
 const showApiKeySettings = import.meta.env.DEV
 const trackingPanelRef = ref<InstanceType<typeof OrderTrackingPanel> | null>(null)
 const quickOrderPanelRef = ref<InstanceType<typeof QuickOrderPanel> | null>(null)
+const historyDrawerOpen = ref(false)
+const router = useRouter()
 const lastTrackingUpdatedAt = ref<Date | null>(null)
 const trackingFailureCount = ref(0)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
@@ -315,6 +359,12 @@ const trackingScreenLink = computed(() =>
   buildGeoTrackingLink(trackedOrder.value?.orderId, trackedOrder.value?.vehicleId),
 )
 
+const trackingShareUrl = computed(() => {
+  if (!trackingScreenLink.value) return null
+  const resolved = router.resolve(trackingScreenLink.value)
+  return `${window.location.origin}${resolved.href}`
+})
+
 const trackingLastUpdatedLabel = computed(() => {
   if (!lastTrackingUpdatedAt.value) return null
   return lastTrackingUpdatedAt.value.toLocaleTimeString('zh-CN', {
@@ -325,6 +375,57 @@ const trackingLastUpdatedLabel = computed(() => {
 })
 
 const trackingConnectionStale = computed(() => trackingFailureCount.value >= 3)
+
+const orderHistory = computed(() =>
+  [...visibleParkOrders.value]
+    .filter((order) => ['COMPLETED', 'FAILED'].includes(order.runtimeStage))
+    .slice(0, 30),
+)
+
+const merchantFeeEstimate = computed(() => {
+  if (!trackedOrder.value) return null
+  return estimateRouteFee(trackedOrder.value.pickupStation, trackedOrder.value.dropoffStation)
+})
+
+function estimateRouteFee(
+  pickup?: { coordLng?: number | null; coordLat?: number | null },
+  dropoff?: { coordLng?: number | null; coordLat?: number | null },
+) {
+  if (!pickup?.coordLng || !dropoff?.coordLng) return '按里程计费'
+  const path: [number, number][] = [
+    [Number(pickup.coordLng), Number(pickup.coordLat)],
+    [Number(dropoff.coordLng), Number(dropoff.coordLat)],
+  ]
+  const meters = polylineLengthMeters(path)
+  if (meters <= 0) return '按里程计费'
+  const yuan = Math.max(3, Math.round(meters / 500) * 2)
+  return `预估 ¥${yuan} · ${formatDistance(meters)}`
+}
+
+function onMerchantTrack(orderId: number) {
+  trackedOrderId.value = orderId
+  void nextTick(() => trackingPanelRef.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+
+function onMerchantOrderAgain(orderId: number) {
+  const order = visibleParkOrders.value.find((item) => item.orderId === orderId)
+  if (!order) return
+  form.pickupStationId = order.pickupStation.stationId
+  form.dropoffStationId = order.dropoffStation.stationId
+  scrollToQuickOrder()
+}
+
+async function onMerchantSelectRoute(route: FavoriteRoute) {
+  form.pickupStationId = route.pickupStationId
+  form.dropoffStationId = route.dropoffStationId
+  scrollToQuickOrder()
+}
+
+function selectHistoryOrder(orderId: number) {
+  trackedOrderId.value = orderId
+  historyDrawerOpen.value = false
+  void nextTick(() => trackingPanelRef.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
 
 const remainingDeliveryLabel = computed(() => {
   const vehicle = trackedVehicle.value
@@ -383,6 +484,20 @@ function resolveStationIds(pickupCode: string, dropoffCode: string) {
   const dropoff = findMobileOrderStation(stations.value, { stationCode: dropoffCode }, orderable)
   return { pickup, dropoff }
 }
+
+const favoriteRoutes = computed((): FavoriteRoute[] => {
+  const demos = activeDemoRoutes.value.slice(0, 4)
+  return demos.map((route, index) => {
+    const { pickup, dropoff } = resolveStationIds(route.pickupCode, route.dropoffCode)
+    return {
+      key: `${route.pickupCode}-${route.dropoffCode}-${index}`,
+      label: route.label,
+      pickupStationId: pickup?.stationId ?? 0,
+      dropoffStationId: dropoff?.stationId ?? 0,
+      feeHint: estimateRouteFee(pickup ?? undefined, dropoff ?? undefined),
+    }
+  }).filter((route) => route.pickupStationId && route.dropoffStationId)
+})
 
 function ensureValidOrderStationIds(): boolean {
   const orderable = orderableStationsForMode(stations.value, orderMode.value)
@@ -715,6 +830,42 @@ onUnmounted(() => {
   margin: 8px 0 0;
   font-size: 11px;
   color: #5a7a9a;
+}
+
+.history-empty {
+  padding: 32px;
+  text-align: center;
+  color: #8b949e;
+}
+
+.history-item {
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(13, 17, 23, 0.6);
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-item-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6edf3;
+}
+
+.history-stage {
+  font-size: 11px;
+  color: #00b4d8;
+}
+
+.history-route {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #8b949e;
 }
 
 @media (max-width: 420px) {

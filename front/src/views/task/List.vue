@@ -4,12 +4,15 @@
       <a-button @click="handleRefresh">
         <ReloadOutlined /> 刷新
       </a-button>
-      <a-button @click="handleExport">
-        <DownloadOutlined /> 导出
-      </a-button>
     </template>
 
-    <div class="search-bar">
+    <QueryFilterCard
+      title="筛选条件"
+      :result-summary="`共 ${store.total} 条结果`"
+      :active-chips="activeFilterChips"
+      @remove="removeFilterChip"
+      @clear="handleReset"
+    >
       <a-select
         v-model:value="queryForm.status"
         placeholder="任务状态"
@@ -42,7 +45,12 @@
         <SearchOutlined /> 查询
       </a-button>
       <a-button @click="handleReset">重置</a-button>
-    </div>
+      <template #extra>
+        <a-button :disabled="store.total === 0" @click="handleExport">
+          <DownloadOutlined /> 导出
+        </a-button>
+      </template>
+    </QueryFilterCard>
 
     <a-table
       :columns="columns"
@@ -209,6 +217,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import QueryFilterCard from '@/components/common/QueryFilterCard.vue'
+import type { FilterChip } from '@/components/common/QueryFilterCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useTaskStore } from '@/stores/task'
@@ -266,6 +276,34 @@ const pagination = computed(() => ({
   showTotal: (total: number) => `共 ${total} 条`,
   pageSizeOptions: ['10', '20', '50', '100'],
 }))
+
+const activeFilterChips = computed((): FilterChip[] => {
+  const chips: FilterChip[] = []
+  if (queryForm.status) {
+    chips.push({
+      key: 'status',
+      label: `状态：${taskStatusMap[queryForm.status]?.label || queryForm.status}`,
+    })
+  }
+  if (queryForm.taskNo.trim()) {
+    chips.push({ key: 'taskNo', label: `编号：${queryForm.taskNo.trim()}` })
+  }
+  if (queryForm.orderId) {
+    chips.push({ key: 'orderId', label: `订单：${queryForm.orderId}` })
+  }
+  if (queryForm.vehicleId) {
+    chips.push({ key: 'vehicleId', label: `车辆：${queryForm.vehicleId}` })
+  }
+  return chips
+})
+
+function removeFilterChip(key: string) {
+  if (key === 'status') queryForm.status = undefined
+  if (key === 'taskNo') queryForm.taskNo = ''
+  if (key === 'orderId') queryForm.orderId = undefined
+  if (key === 'vehicleId') queryForm.vehicleId = undefined
+  handleSearch()
+}
 
 function formatTime(t: string) {
   return dayjs(t).format('YYYY-MM-DD HH:mm:ss')

@@ -1,5 +1,5 @@
 <template>
-  <div class="tracking-page">
+  <div class="tracking-page" :class="`screen-mode-${screenMode}`">
     <!-- V5-T2: SSE 连接状态指示器 -->
     <div class="sse-status-bar" :class="`sse-${sseStatus}`">
       <span class="sse-status-dot"></span>
@@ -84,6 +84,14 @@
               短驳地理图 · 取送货与贴路轨迹
             </p>
             <span class="mode-toggle">
+              大屏：
+              <a-segmented
+                v-model:value="screenMode"
+                size="small"
+                :options="screenModeOptions"
+              />
+            </span>
+            <span class="mode-toggle">
               模式：{{ peakModeLabel }}
               <a-switch
                 v-if="authStore.isAdmin"
@@ -112,7 +120,7 @@
           />
         </header>
 
-        <div class="panel-toolbar">
+        <div v-if="screenMode === 'situation'" class="panel-toolbar panel-toolbar-situation">
           <!-- V5-N3: 预测性告警 SOC 区域 -->
         <div class="toolbar-field">
           <span class="toolbar-label">预警</span>
@@ -145,6 +153,26 @@
           </div>
         </div>
 
+        <div v-if="screenMode === 'incident'" class="incident-toolbar">
+          <div class="incident-toolbar-head">
+            <span class="incident-title">事件处置</span>
+            <span class="incident-hint">优先处理异常车辆与关联订单</span>
+          </div>
+          <div class="incident-actions">
+            <a-badge :count="predictiveLowSocVehicles.length" :overflow-count="99" size="small">
+              <a-button size="small" type="primary" danger @click="predictiveDrawerVisible = true">
+                <template #icon><BellOutlined /></template>
+                低电预警
+              </a-button>
+            </a-badge>
+            <a-button size="small" @click="filterByStatus('LOW_BATTERY')">筛选低电</a-button>
+            <router-link to="/field-ops/work-orders">
+              <a-button size="small">现场工单</a-button>
+            </router-link>
+            <a-button size="small" @click="filterByStatus('OFFLINE')">离线车辆</a-button>
+          </div>
+        </div>
+
         <div class="stat-strip">
           <button class="stat-item total" :class="{ active: activeFilter === 'all' }" @click="filterByStatus('all')">
             <span class="stat-value">{{ vehicles.length }}</span>
@@ -172,7 +200,7 @@
           </button>
         </div>
 
-        <div class="filter-bar">
+        <div v-if="screenMode === 'situation'" class="filter-bar">
           <button
             v-for="item in extraFilterOptions"
             :key="item.value"
@@ -190,7 +218,7 @@
           </button>
         </div>
 
-        <div v-if="opsMode && opsSnapshot" class="ops-panel">
+        <div v-if="screenMode === 'incident' && opsMode && opsSnapshot" class="ops-panel ops-panel-incident">
           <section class="panel-section">
             <div class="section-head"><span class="section-title">低电簇</span></div>
             <div v-for="c in opsSnapshot.lowBatteryClusters" :key="c.gridKey" class="ops-line">
@@ -498,6 +526,13 @@ const peakEnabled = ref(false)
 const peakTemplateCode = ref('DAILY')
 const opsMode = ref(false)
 const opsSnapshot = ref<OpsSnapshot | null>(null)
+
+type ScreenMode = 'situation' | 'incident'
+const screenMode = ref<ScreenMode>('situation')
+const screenModeOptions = [
+  { label: '态势', value: 'situation' as ScreenMode },
+  { label: '事件', value: 'incident' as ScreenMode },
+]
 
 const demo = useDemoMode()
 const demoMode = computed(() => demo.demoMode.value)
@@ -1556,6 +1591,54 @@ onUnmounted(() => {
     linear-gradient(180deg, #070b12 0%, var(--track-bg-deep) 100%);
   --map-marker-scale: 1;
   --map-line-weight-scale: 1;
+}
+
+.screen-mode-incident {
+  .side-panel .panel-content {
+    border-left-color: rgba(255, 61, 113, 0.35);
+  }
+
+  .stat-item.low-battery .stat-value,
+  .vehicle-card.offline .vehicle-id-block strong {
+    color: var(--track-danger);
+  }
+}
+
+.incident-toolbar {
+  padding: 10px 14px;
+  margin: 0 12px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 61, 113, 0.25);
+  background: rgba(255, 61, 113, 0.08);
+}
+
+.incident-toolbar-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.incident-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--track-danger);
+}
+
+.incident-hint {
+  font-size: 11px;
+  color: var(--track-text-muted);
+}
+
+.incident-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ops-panel-incident {
+  border: 1px solid rgba(255, 61, 113, 0.2);
+  background: rgba(255, 61, 113, 0.05);
 }
 
 .map-container {

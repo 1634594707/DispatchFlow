@@ -15,6 +15,12 @@
   --fsd-success: #00E676;
   --fsd-warning: #FFB020;
   --fsd-error: #FF3D71;
+  --fsd-info: #00B4D8;
+  --fsd-risk-critical: #FF3D71;
+  --fsd-risk-warning: #FFB020;
+  --fsd-risk-active: #00B4D8;
+  --fsd-risk-normal: #00E676;
+  --fsd-risk-muted: #6E7681;
   --fsd-gradient-card: linear-gradient(135deg, rgba(0, 180, 216, 0.03) 0%, rgba(13, 17, 23, 0) 100%);
   --fsd-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
   --fsd-shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -325,8 +331,39 @@ body {
 .stagger-3 { animation-delay: 0.15s; }
 .stagger-4 { animation-delay: 0.2s; }
 
-// ── Mobile Responsive ─────────────────────────────────────────
+// ── Guard mode: low-contrast shift duty ───────────────────────
 
+html.fsd-guard-mode {
+  --fsd-accent: #4a9eb3;
+  --fsd-accent-glow: rgba(74, 158, 179, 0.1);
+  --fsd-success: #3d9a6a;
+  --fsd-warning: #b8892a;
+  --fsd-error: #c43d5a;
+  --fsd-info: #4a9eb3;
+
+  .ant-table-thead > tr > th {
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-size: 13px !important;
+  }
+
+  .ant-badge-status-success,
+  .ant-tag-success {
+    filter: saturate(0.75);
+  }
+
+  .ant-badge-status-error,
+  .ant-tag-error,
+  .ant-badge-status-warning,
+  .ant-tag-warning {
+    filter: saturate(0.85);
+  }
+}
+
+// ── Responsive breakpoints ────────────────────────────────────
+
+@fsd-tablet-break: 1024px;
+@fsd-laptop-break: 1366px;
 @fsd-mobile-break: 768px;
 
 @media (max-width: @fsd-mobile-break) {

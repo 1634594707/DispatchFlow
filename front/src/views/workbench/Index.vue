@@ -24,20 +24,6 @@
           <a-button :loading="store.loading" @click="refreshAll">
             <ReloadOutlined /> 刷新 <span class="kbd-hint">R</span>
           </a-button>
-          <router-link
-            v-if="trafficSummary"
-            class="congestion-bar"
-            :class="congestionBarClass"
-            to="/infrastructure/traffic"
-          >
-            拥堵 L{{ trafficSummary.maxCongestionLevel }}
-            <span v-if="trafficSummary.highCongestionSegmentCount > 0">
-              · {{ trafficSummary.highCongestionSegmentCount }} 条高拥堵
-            </span>
-            <span v-if="trafficSummary.pausedZoneCount > 0">
-              · {{ trafficSummary.pausedZoneCount }} 个管制区
-            </span>
-          </router-link>
         </div>
       </div>
       <!-- V5-T4: 全文搜索 -->
@@ -62,14 +48,20 @@
           <SearchOutlined class="search-panel-trigger" @click="toggleCommandPalette" />
         </a-tooltip>
       </div>
-      <!-- V5-N4: 派车预测风险指示器 -->
-      <div
-        v-if="dispatchPrediction.dispatchRiskLevel.value !== 'safe'"
-        class="dispatch-risk-bar"
-        :class="`risk-${dispatchPrediction.dispatchRiskLevel.value}`"
-      >
-        <span class="risk-dot"></span>
-        <span class="risk-text">{{ dispatchPrediction.dispatchPredictionAlert.value?.message }}</span>
+      <!-- 调度风险带：合并派车预测、低电、拥堵 -->
+      <div v-if="riskBandItems.length > 0" class="ops-risk-band">
+        <button
+          v-for="item in riskBandItems"
+          :key="item.key"
+          type="button"
+          class="risk-band-item"
+          :class="`risk-${item.level}`"
+          @click="item.action?.()"
+        >
+          <span class="risk-dot"></span>
+          <span class="risk-text">{{ item.message }}</span>
+          <span v-if="item.action" class="risk-action-hint">查看 →</span>
+        </button>
       </div>
       <div class="header-bottom">
         <div class="header-metrics">
@@ -115,19 +107,6 @@
       message="当前为只读账号（VIEWER），无法执行派车、改派或异常处置操作"
     />
 
-    <!-- V5-E4: 全车队低电挂起提示 -->
-    <a-alert
-      v-if="fleetLowSocWarning"
-      type="warning"
-      show-icon
-      class="low-soc-banner"
-    >
-      <template #message>
-        <span>全车队低电告警：{{ lowSocCount }} 台车辆 SOC &lt; 30%（{{ lowSocVehicleCodes.join('、') }}），建议优先安排回充</span>
-      </template>
-    </a-alert>
-
-    <!-- V5-T3: 骨架屏（首次加载） + 分片加载 -->
     <SkeletonLoader v-if="showSkeleton" preset="workbench" />
     <div v-else class="workbench-grid">
       <!-- 左：任务池（核心面板，优先渲染） -->
@@ -219,7 +198,7 @@
             <span v-if="savedViews.length === 0 && quickFilterTemplates.every(t => activeViewName !== t.name)" class="filter-templates-hint">暂无</span>
           </div>
         </div>
-        <div v-if="authStore.canWrite && selectedTaskIds.length > 0" class="batch-toolbar">
+        <div v-if="authStore.canWrite && selectedTaskIds.length > 0" class="batch-toolbar batch-toolbar-sticky">
           <span class="batch-hint">已选 {{ selectedTaskIds.length }} 项</span>
           <div class="batch-groups">
             <span v-for="g in selectedRouteGroups" :key="g.routeCode" class="batch-group-tag route-tag">
@@ -317,21 +296,73 @@
         </a-spin>
       </section>
 
-      <!-- 中：地图缩略（延迟渲染） -->
-      <section v-if="deferredPanels" class="panel panel-map">
+      <!-- 中：主工作区（选中任务详情 + 态势地图） -->
+      <section v-if="deferredPanels" class="panel panel-workspace">
         <div class="panel-head">
-          <h2>园区态势</h2>
-          <span class="panel-hint">选中任务高亮关联车辆</span>
+          <div class="panel-head-title">
+            <h2>{{ selectedTask ? '当前任务' : '主工作区' }}</h2>
+            <span class="panel-hint">
+              {{ selectedTask ? selectedTask.taskNo : '点击左侧任务查看详情与关联车辆' }}
+            </span>
+          </div>
         </div>
-        <ParkMiniMap
-          :layout="parkLayout"
-          :vehicles="parkVehicles"
-          :highlight-task-id="store.selectedTaskId"
-        />
+        <div v-if="selectedTask" class="task-detail">
+          <div class="task-detail-head">
+            <span class="task-no">{{ selectedTask.taskNo }}</span>
+            <StatusBadge :status="selectedTask.status" type="task" />
+            <span v-if="selectedTask.orderPriority" class="priority-badge" :class="`priority-${selectedTask.orderPriority}`">
+              {{ selectedTask.orderPriority }}
+            </span>
+            <span v-if="selectedTask.routeCode" class="route-badge">{{ selectedTask.routeCode }}</span>
+          </div>
+          <div class="task-detail-meta">
+            <span>订单 #{{ selectedTask.orderId }}</span>
+            <span v-if="selectedTask.waitMinutes != null">等待 {{ selectedTask.waitMinutes }} 分</span>
+            <span v-if="selectedTask.openExceptionCount" class="exc-badge">{{ selectedTask.openExceptionCount }} 异常</span>
+          </div>
+          <p v-if="taskFailLabel(selectedTask)" class="task-reason">{{ taskFailLabel(selectedTask) }}</p>
+          <div v-if="authStore.canWrite" class="task-actions">
+            <a-button
+              size="small"
+              type="primary"
+              :loading="actionLoading === `auto-${selectedTask.taskId}`"
+              @click="handleAutoAssign(selectedTask)"
+            >
+              {{ selectedTask.status === TaskStatus.MANUAL_PENDING ? '重新自动派车' : '自动派车' }}
+            </a-button>
+            <a-button size="small" @click="openManualModal(selectedTask)">手动派车</a-button>
+            <a-button size="small" @click="handleBumpPriority(selectedTask)">紧急插队</a-button>
+            <a-button type="link" size="small" @click="router.push(`/tasks/${selectedTask.taskId}`)">详情页</a-button>
+          </div>
+        </div>
+        <div v-else class="task-detail-empty">
+          <p>从任务池选择一项，在此查看派车详情与园区态势</p>
+        </div>
+        <div class="workspace-map">
+          <div class="workspace-map-head">
+            <span>园区态势</span>
+            <span class="panel-hint">选中任务高亮关联车辆</span>
+          </div>
+          <ParkMiniMap
+            :layout="parkLayout"
+            :vehicles="parkVehicles"
+            :highlight-task-id="store.selectedTaskId"
+          />
+        </div>
       </section>
 
-      <!-- 右：异常队列（延迟渲染） -->
-      <section v-if="deferredPanels" class="panel panel-exceptions">
+      <!-- 右：辅助栏（默认收起异常队列） -->
+      <aside v-if="deferredPanels" class="aux-sidebar" :class="{ collapsed: auxCollapsed }">
+        <button
+          type="button"
+          class="aux-toggle"
+          :title="auxCollapsed ? '展开辅助栏' : '收起辅助栏'"
+          @click="auxCollapsed = !auxCollapsed"
+        >
+          <span v-if="auxCollapsed" class="aux-badge">{{ store.openExceptionCount }}</span>
+          {{ auxCollapsed ? '异常' : '收起' }}
+        </button>
+        <section v-if="!auxCollapsed" class="panel panel-exceptions">
         <div class="panel-head">
           <h2>异常队列</h2>
           <span class="panel-hint">OPEN · 快捷处置</span>
@@ -391,7 +422,8 @@
             <EmptyState v-if="!store.loading && store.openExceptions.length === 0" description="暂无 OPEN 异常" />
           </div>
         </a-spin>
-      </section>
+        </section>
+      </aside>
     </div>
 
     <a-modal
@@ -836,6 +868,47 @@ const pendingReorderData = ref<{ pickupStationId: number; dropoffStationId: numb
 // V5-T3: 骨架屏 + 分片加载
 const showSkeleton = computed(() => store.loading && store.poolTotal === 0)
 const deferredPanels = ref(false)
+const auxCollapsed = ref(true)
+
+interface RiskBandItem {
+  key: string
+  level: 'critical' | 'warning'
+  message: string
+  action?: () => void
+}
+
+const riskBandItems = computed((): RiskBandItem[] => {
+  const items: RiskBandItem[] = []
+  const prediction = dispatchPrediction.dispatchPredictionAlert.value
+  if (dispatchPrediction.dispatchRiskLevel.value !== 'safe' && prediction?.message) {
+    items.push({
+      key: 'dispatch-prediction',
+      level: dispatchPrediction.dispatchRiskLevel.value === 'critical' ? 'critical' : 'warning',
+      message: prediction.message,
+    })
+  }
+  if (fleetLowSocWarning.value) {
+    items.push({
+      key: 'low-soc',
+      level: 'critical',
+      message: `全车队低电：${lowSocCount.value} 台 SOC < 30%（${lowSocVehicleCodes.value.join('、')}）`,
+      action: () => { void router.push('/energy/charging-report') },
+    })
+  }
+  if (trafficSummary.value && (trafficSummary.value.maxCongestionLevel >= 2 || trafficSummary.value.pausedZoneCount > 0)) {
+    const t = trafficSummary.value
+    const parts = [`拥堵 L${t.maxCongestionLevel}`]
+    if (t.highCongestionSegmentCount > 0) parts.push(`${t.highCongestionSegmentCount} 条高拥堵`)
+    if (t.pausedZoneCount > 0) parts.push(`${t.pausedZoneCount} 个管制区`)
+    items.push({
+      key: 'traffic',
+      level: t.maxCongestionLevel >= 3 ? 'critical' : 'warning',
+      message: parts.join(' · '),
+      action: () => { void router.push('/infrastructure/traffic') },
+    })
+  }
+  return items
+})
 
 // Saved views
 interface SavedView {
@@ -963,6 +1036,13 @@ const filteredTaskPool = computed(() => {
     tasks = tasks.filter((t) => t.vehicleId == null)
   }
   return tasks
+})
+
+const selectedTask = computed(() => {
+  if (!store.selectedTaskId) return null
+  return filteredTaskPool.value.find((t) => t.taskId === store.selectedTaskId)
+    || store.taskPool.find((t) => t.taskId === store.selectedTaskId)
+    || null
 })
 
 const hasActiveFilters = computed(() =>
@@ -1668,7 +1748,46 @@ watch(() => parkScope.scopeVersion, () => {
   }
 }
 
-/* V5-N4: 派车预测风险条 */
+/* 调度风险带 */
+.ops-risk-band {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.risk-band-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: default;
+  text-align: left;
+
+  &.risk-warning {
+    background: rgba(255, 183, 3, 0.1);
+    border: 1px solid rgba(255, 183, 3, 0.25);
+    color: var(--fsd-warning);
+  }
+
+  &.risk-critical {
+    background: rgba(255, 61, 113, 0.12);
+    border: 1px solid rgba(255, 61, 113, 0.3);
+    color: var(--fsd-error);
+    cursor: pointer;
+  }
+}
+
+.risk-action-hint {
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+/* V5-N4: 派车预测风险条（legacy, kept for reference） */
 .dispatch-risk-bar {
   display: flex;
   align-items: center;
@@ -1834,9 +1953,123 @@ watch(() => parkScope.scopeVersion, () => {
 .workbench-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(320px, 380px) 1fr minmax(300px, 360px);
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr) auto;
   gap: 16px;
   min-height: 520px;
+  align-items: stretch;
+}
+
+.panel-workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.task-detail {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--fsd-border);
+}
+
+.task-detail-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--fsd-text-tertiary);
+  font-size: 13px;
+  border-bottom: 1px solid var(--fsd-border);
+}
+
+.task-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.task-detail-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
+  margin-bottom: 10px;
+}
+
+.workspace-map {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  padding: 12px;
+}
+
+.workspace-map-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fsd-text-primary);
+}
+
+.aux-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 300px;
+  max-width: 340px;
+  transition: min-width 0.2s ease;
+
+  &.collapsed {
+    min-width: 48px;
+    max-width: 48px;
+  }
+}
+
+.aux-toggle {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--fsd-border);
+  background: rgba(22, 27, 34, 0.8);
+  color: var(--fsd-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  position: relative;
+
+  .aux-badge {
+    position: absolute;
+    top: 4px;
+    right: 2px;
+    min-width: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--fsd-error);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    writing-mode: horizontal-tb;
+  }
+}
+
+.aux-sidebar:not(.collapsed) .aux-toggle {
+  writing-mode: horizontal-tb;
+  text-orientation: unset;
+  align-self: flex-end;
+  padding: 4px 12px;
+}
+
+.batch-toolbar-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 8px 12px;
+  background: rgba(13, 17, 23, 0.92);
+  border-bottom: 1px solid var(--fsd-border);
+  backdrop-filter: blur(6px);
 }
 
 .panel {
@@ -2393,18 +2626,46 @@ watch(() => parkScope.scopeVersion, () => {
   }
 }
 
+@media (max-width: 1366px) {
+  .header-metrics .metric:nth-child(n+5) {
+    display: none;
+  }
+}
+
 @media (max-width: 1200px) {
   .workbench-grid {
     grid-template-columns: 1fr;
   }
 
-  .pool-load-more {
-  margin-top: 12px;
-}
+  .aux-sidebar {
+    min-width: 100%;
+    max-width: 100%;
 
-.task-list,
+    &.collapsed {
+      min-width: 100%;
+      max-width: 100%;
+    }
+  }
+
+  .aux-toggle {
+    writing-mode: horizontal-tb;
+    text-orientation: unset;
+    width: 100%;
+  }
+
+  .pool-load-more {
+    margin-top: 12px;
+  }
+
+  .task-list,
   .exception-list {
     max-height: 360px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .workspace-map {
+    min-height: 160px;
   }
 }
 </style>

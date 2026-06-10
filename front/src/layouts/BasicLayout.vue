@@ -85,6 +85,16 @@
               <ReloadOutlined />
             </a-button>
           </a-tooltip>
+          <a-tooltip :title="guardMode.enabled ? '关闭值守模式' : '开启值守模式（降低视觉对比）'">
+            <a-button
+              type="text"
+              class="header-icon-btn"
+              :class="{ active: guardMode.enabled }"
+              @click="guardMode.toggle()"
+            >
+              <EyeOutlined />
+            </a-button>
+          </a-tooltip>
           <a-tooltip :title="realtimeStore.connected ? '实时连接正常' : '实时连接断开'">
             <span class="stream-indicator" :class="{ online: realtimeStore.connected }" />
           </a-tooltip>
@@ -210,6 +220,7 @@ import {
   LogoutOutlined,
   SearchOutlined,
   RobotOutlined,
+  EyeOutlined,
 } from '@ant-design/icons-vue'
 import NavMenuItems from '@/components/layout/NavMenuItems.vue'
 import DispatchFlowLogo from '@/components/brand/DispatchFlowLogo.vue'
@@ -218,6 +229,7 @@ import CommandPalette from '@/components/command/CommandPalette.vue'
 import DispatchAssistantDrawer from '@/components/assistant/DispatchAssistantDrawer.vue'
 import ApiErrorBadge from '@/components/error/ApiErrorBadge.vue'
 import { useCommandPalette, type CommandPaletteItem } from '@/composables/useCommandPalette'
+import { useGuardMode } from '@/composables/useGuardMode'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -243,6 +255,7 @@ const authStore = useAuthStore()
 const realtimeStore = useRealtimeStore()
 const alertStore = useAlertStore()
 const commandPalette = useCommandPalette()
+const guardMode = useGuardMode()
 const assistantOpen = ref(false)
 const paletteItems = computed(() => commandPalette.buildItems())
 
@@ -697,6 +710,11 @@ onUnmounted(() => {
     &:hover {
       background: var(--fsd-bg-hover) !important;
       color: var(--fsd-text-primary) !important;
+    }
+
+    &.active {
+      color: var(--fsd-accent) !important;
+      background: var(--fsd-accent-glow) !important;
     }
   }
 

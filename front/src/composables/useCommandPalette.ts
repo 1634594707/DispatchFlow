@@ -69,26 +69,52 @@ export function useCommandPalette() {
       {
         key: 'op-refresh-workbench',
         label: '刷新工作台',
-        group: '操作',
+        group: '快捷操作',
         hint: '重新加载任务池',
         action: async () => {
           await workbenchStore.fetchQueue()
+          void router.push('/workbench')
         },
+      },
+      {
+        key: 'op-open-tracking',
+        label: '打开车辆监控大屏',
+        group: '快捷操作',
+        action: () => { void router.push('/vehicle-tracking') },
       },
       {
         key: 'op-open-exceptions',
         label: '打开异常列表',
-        group: '操作',
+        group: '快捷操作',
         action: () => { void router.push('/exceptions?status=OPEN') },
+      },
+      {
+        key: 'op-open-field-ops',
+        label: '创建现场工单',
+        group: '快捷操作',
+        action: () => { void router.push('/field-ops/work-orders') },
+      },
+      {
+        key: 'op-pause-dispatch',
+        label: '前往调度策略',
+        group: '快捷操作',
+        hint: '暂停区域 / 派单策略',
+        action: () => { void router.push('/system/dispatch-strategy') },
       },
     ]
     if (workbenchStore.selectedTaskId) {
       const taskId = workbenchStore.selectedTaskId
-      ops.push({
+      ops.unshift({
         key: 'op-goto-selected-task',
         label: `跳转选中任务 #${taskId}`,
-        group: '操作',
+        group: '快捷操作',
         action: () => { void router.push(`/tasks/${taskId}`) },
+      })
+      ops.unshift({
+        key: 'op-open-workbench',
+        label: '打开工作台并定位任务',
+        group: '快捷操作',
+        action: () => { void router.push({ path: '/workbench', query: { taskId: String(taskId) } }) },
       })
     }
     return ops
