@@ -1,54 +1,62 @@
 <template>
   <a-layout class="fsd-layout">
+    <!-- Desktop/Tablet: Fixed Sidebar -->
     <a-layout-sider
-      v-model:collapsed="collapsed"
-      :width="208"
+      v-if="!resp.isPhone.value"
+      v-model:collapsed="sidebarCollapsed"
+      :width="sidebarWidth"
       :collapsed-width="64"
       :trigger="null"
       collapsible
       class="fsd-sider"
-      :class="collapsed ? 'fsd-sider--collapsed' : 'fsd-sider--expanded'"
+      :class="sidebarCollapsed ? 'fsd-sider--collapsed' : 'fsd-sider--expanded'"
     >
-      <div class="sider-logo">
-        <div class="logo-icon">
-          <DispatchFlowLogo :size="32" />
-        </div>
-        <transition name="fade">
-          <div v-if="!collapsed" class="logo-text">
-            <span class="logo-title">DispatchFlow</span>
-            <span class="logo-sub">无人车调度平台</span>
-          </div>
-        </transition>
-      </div>
-
-      <a-menu
-        v-if="visibleNavItems.length > 0"
-        v-model:selectedKeys="selectedKeys"
-        v-model:openKeys="openKeys"
-        theme="dark"
-        mode="inline"
-        @click="handleMenuClick"
-      >
-        <NavMenuItems
-          :items="visibleNavItems"
-          :workbench-badge-count="workbenchBadgeCount"
-          :exception-badge-count="workbenchStore.openExceptionCount"
-        />
-      </a-menu>
+      <SidebarContent :collapsed="sidebarCollapsed" />
     </a-layout-sider>
 
-    <a-layout>
-      <a-layout-header class="fsd-header">
+    <!-- Phone: Drawer Sidebar -->
+    <a-drawer
+      v-if="resp.isPhone.value"
+      :open="mobileDrawerOpen"
+      placement="left"
+      :width="280"
+      :closable="false"
+      :body-style="{ padding: 0, background: '#121821' }"
+      class="fsd-mobile-drawer"
+      @close="mobileDrawerOpen = false"
+    >
+      <SidebarContent :collapsed="false" @navigate="mobileDrawerOpen = false" />
+    </a-drawer>
+
+    <a-layout class="fsd-main-area">
+      <!-- Header -->
+      <a-layout-header class="fsd-header" :class="{ 'fsd-header--mobile': resp.isPhone.value }">
         <div class="header-left">
+          <!-- Phone: hamburger button -->
           <a-button
+            v-if="resp.isPhone.value"
             type="text"
             class="trigger-btn"
+            aria-label="打开导航菜单"
+            @click="mobileDrawerOpen = true"
+          >
+            <MenuOutlined />
+          </a-button>
+
+          <!-- Desktop/Tablet: collapse toggle -->
+          <a-button
+            v-else
+            type="text"
+            class="trigger-btn"
+            :aria-label="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
             @click="toggleCollapsed"
           >
-            <MenuFoldOutlined v-if="!collapsed" />
+            <MenuFoldOutlined v-if="!sidebarCollapsed" />
             <MenuUnfoldOutlined v-else />
           </a-button>
-          <a-breadcrumb class="header-breadcrumb">
+
+          <!-- Breadcrumb (hidden on phone) -->
+          <a-breadcrumb v-if="!resp.isXs.value" class="header-breadcrumb">
             <a-breadcrumb-item>
               <router-link to="/workbench">首页</router-link>
             </a-breadcrumb-item>
@@ -59,9 +67,17 @@
               <span v-else>{{ item.label }}</span>
             </a-breadcrumb-item>
           </a-breadcrumb>
+
+          <!-- Phone: page title instead of breadcrumb -->
+          <span v-else class="header-page-title">
+            {{ pageTitle }}
+          </span>
         </div>
+
         <div class="header-right">
+          <!-- Park scope (hidden on phone) -->
           <a-select
+            v-if="!resp.isPhone.value"
             v-model:value="parkScope.selectedParkId"
             :options="parkScope.parkOptions"
             placeholder="全部园区"
@@ -70,90 +86,107 @@
             :loading="parkScope.loading"
             @change="onParkScopeChange"
           />
-          <a-tooltip title="命令面板 (Ctrl+K)">
-            <a-button type="text" class="header-icon-btn" @click="commandPalette.open()">
-              <SearchOutlined />
+
+          <!-- Desktop: all icon buttons visible -->
+          <template v-if="!resp.isMobile.value">
+            <a-tooltip title="命令面板 (Ctrl+K)">
+              <a-button type="text" class="header-icon-btn" aria-label="打开命令面板" @click="commandPalette.open()">
+                <SearchOutlined />
+              </a-button>
+            </a-tooltip>
+            <a-tooltip title="调度快捷指令">
+              <a-button type="text" class="header-icon-btn" aria-label="调度助手" @click="assistantOpen = true">
+                <RobotOutlined />
+              </a-button>
+            </a-tooltip>
+            <a-tooltip title="刷新数据">
+              <a-button type="text" class="header-icon-btn" aria-label="刷新数据" @click="refreshScopedData">
+                <ReloadOutlined />
+              </a-button>
+            </a-tooltip>
+            <a-tooltip :title="guardMode.enabled ? '关闭值守模式' : '开启值守模式'">
+              <a-button
+                type="text"
+                class="header-icon-btn"
+                :class="{ active: guardMode.enabled }"
+                aria-label="切换值守模式"
+                @click="guardMode.toggle()"
+              >
+                <EyeOutlined />
+              </a-button>
+            </a-tooltip>
+          </template>
+
+          <!-- Mobile: collapsed actions into dropdown -->
+          <a-dropdown v-else trigger="click">
+            <a-button type="text" class="header-icon-btn" aria-label="更多操作">
+              <MoreOutlined />
             </a-button>
-          </a-tooltip>
-          <a-tooltip title="调度快捷指令">
-            <a-button type="text" class="header-icon-btn" @click="assistantOpen = true">
-              <RobotOutlined />
-            </a-button>
-          </a-tooltip>
-          <a-tooltip title="刷新数据">
-            <a-button type="text" class="header-icon-btn" @click="refreshScopedData">
-              <ReloadOutlined />
-            </a-button>
-          </a-tooltip>
-          <a-tooltip :title="guardMode.enabled ? '关闭值守模式' : '开启值守模式（降低视觉对比）'">
-            <a-button
-              type="text"
-              class="header-icon-btn"
-              :class="{ active: guardMode.enabled }"
-              @click="guardMode.toggle()"
-            >
-              <EyeOutlined />
-            </a-button>
-          </a-tooltip>
+            <template #overlay>
+              <a-menu @click="handleMobileAction">
+                <a-menu-item key="park">
+                  <EnvironmentOutlined />
+                  <span v-if="parkScope.selectedParkId">{{ parkScope.selectedParkName || '已选园区' }}</span>
+                  <span v-else>全部园区</span>
+                </a-menu-item>
+                <a-menu-divider />
+                <a-menu-item key="command"><SearchOutlined /> 命令面板</a-menu-item>
+                <a-menu-item key="assistant"><RobotOutlined /> 调度助手</a-menu-item>
+                <a-menu-item key="refresh"><ReloadOutlined /> 刷新数据</a-menu-item>
+                <a-menu-divider />
+                <a-menu-item key="guard">
+                  <EyeOutlined />
+                  {{ guardMode.enabled ? '关闭值守模式' : '开启值守模式' }}
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
+
+          <!-- Connection indicator -->
           <a-tooltip :title="realtimeStore.connected ? '实时连接正常' : '实时连接断开'">
             <span class="stream-indicator" :class="{ online: realtimeStore.connected }" />
           </a-tooltip>
+
           <ApiErrorBadge />
-          <a-popover trigger="click" placement="bottomRight" @openChange="handleNotificationOpen">
+
+          <!-- Notifications -->
+          <a-popover
+            v-if="!resp.isPhone.value"
+            trigger="click"
+            placement="bottomRight"
+            @openChange="handleNotificationOpen"
+          >
             <template #content>
-              <div class="notification-panel">
-                <div class="notification-header">
-                  <span>待处理异常</span>
-                  <a class="notification-link" @click="router.push('/system/alert-settings')">告警设置</a>
-                  <a
-                    v-if="notificationCount > 0"
-                    class="notification-link"
-                    @click="router.push('/exceptions')"
-                  >
-                    查看全部
-                  </a>
-                </div>
-                <div v-if="alertStore.history.length > 0" class="alert-history-block">
-                  <div class="alert-history-title">最近告警</div>
-                  <div
-                    v-for="item in alertStore.history.slice(0, 5)"
-                    :key="item.id"
-                    class="alert-history-item"
-                    :class="{ unread: !item.read }"
-                  >
-                    <span class="alert-history-sev">{{ item.severity }}</span>
-                    <span>{{ item.message }}</span>
-                  </div>
-                </div>
-                <a-spin :spinning="notificationLoading">
-                  <div v-if="notificationItems.length > 0" class="notification-list">
-                    <button
-                      v-for="item in notificationItems"
-                      :key="item.id"
-                      type="button"
-                      class="notification-item"
-                      @click="goException(item)"
-                    >
-                      <span class="notification-type">{{ item.exceptionType }}</span>
-                      <span class="notification-msg">{{ item.exceptionMsg || '调度异常' }}</span>
-                      <span class="notification-time">{{ formatNotificationTime(item.occurTime) }}</span>
-                    </button>
-                  </div>
-                  <a-empty v-else :image="simpleImage" description="暂无待处理通知" />
-                </a-spin>
-              </div>
+              <NotificationPanel
+                :items="notificationItems"
+                :loading="notificationLoading"
+                :alert-history="alertStore.history"
+                @view-all="router.push('/exceptions')"
+                @settings="router.push('/system/alert-settings')"
+                @click-item="goException"
+              />
             </template>
-            <a-button type="text" class="header-icon-btn notification-btn">
-              <a-badge
-                :count="notificationCount"
-                :overflow-count="99"
-                :show-zero="false"
-                :offset="[-4, 4]"
-              >
+            <a-button type="text" class="header-icon-btn notification-btn" aria-label="通知">
+              <a-badge :count="notificationCount" :overflow-count="99" :show-zero="false" :offset="[-4, 4]">
                 <BellOutlined />
               </a-badge>
             </a-button>
           </a-popover>
+
+          <!-- Phone: notification opens as drawer -->
+          <a-button
+            v-else
+            type="text"
+            class="header-icon-btn notification-btn"
+            aria-label="通知"
+            @click="mobileNotifyOpen = true"
+          >
+            <a-badge :count="notificationCount" :overflow-count="99" :show-zero="false" :offset="[-4, 4]">
+              <BellOutlined />
+            </a-badge>
+          </a-button>
+
+          <!-- User menu -->
           <a-dropdown>
             <div class="user-info">
               <UserAvatar
@@ -162,7 +195,7 @@
                 :role="authStore.user?.role"
                 :size="32"
               />
-              <span class="user-name">{{ authStore.displayName }}</span>
+              <span v-if="!resp.isPhone.value" class="user-name">{{ authStore.displayName }}</span>
             </div>
             <template #overlay>
               <a-menu @click="handleUserMenu">
@@ -175,15 +208,43 @@
         </div>
       </a-layout-header>
 
-      <a-layout-content class="fsd-content" :class="{ 'fullscreen-mode': route.meta.fullscreen }">
+      <!-- Main content -->
+      <a-layout-content
+        class="fsd-content"
+        :class="{
+          'fullscreen-mode': route.meta.fullscreen,
+          'fsd-content--mobile': resp.isMobile.value,
+          'fsd-content--phone': resp.isPhone.value,
+        }"
+      >
         <router-view v-slot="{ Component }">
           <transition name="page-fade" mode="out-in">
-            <component :is="Component" />
+            <component :is="Component" :key="route.fullPath" />
           </transition>
         </router-view>
       </a-layout-content>
     </a-layout>
 
+    <!-- Back to top -->
+    <BackToTop />
+
+    <!-- Phone: Bottom Navigation Bar -->
+    <nav v-if="resp.isPhone.value" class="fsd-bottom-nav" aria-label="底部导航">
+      <button
+        v-for="item in bottomNavItems"
+        :key="item.key"
+        type="button"
+        class="bottom-nav-item"
+        :class="{ 'bottom-nav-item--active': item.active }"
+        @click="handleBottomNav(item)"
+      >
+        <component :is="item.icon" class="bottom-nav-icon" />
+        <span class="bottom-nav-label">{{ item.label }}</span>
+        <span v-if="item.badge" class="bottom-nav-badge">{{ item.badge > 99 ? '99+' : item.badge }}</span>
+      </button>
+    </nav>
+
+    <!-- Modals & Overlays -->
     <CommandPalette
       :visible="commandPalette.visible.value"
       :keyword="commandPalette.keyword.value"
@@ -197,13 +258,67 @@
       @run="onPaletteRun"
     />
     <DispatchAssistantDrawer v-model:open="assistantOpen" />
+
+    <!-- Mobile notification drawer -->
+    <a-drawer
+      v-if="resp.isPhone.value"
+      :open="mobileNotifyOpen"
+      placement="bottom"
+      :height="'70vh'"
+      :closable="true"
+      title="通知中心"
+      class="fsd-mobile-notify-drawer"
+      @close="mobileNotifyOpen = false"
+      @afterOpenChange="(open: boolean) => { if (open) handleNotificationOpen(true) }"
+    >
+      <NotificationPanel
+        :items="notificationItems"
+        :loading="notificationLoading"
+        :alert-history="alertStore.history"
+        @view-all="mobileNotifyOpen = false; router.push('/exceptions')"
+        @settings="mobileNotifyOpen = false; router.push('/system/alert-settings')"
+        @click-item="(item: ExceptionAdminListItem) => { mobileNotifyOpen = false; goException(item) }"
+      />
+    </a-drawer>
+
+    <!-- Mobile park selector drawer -->
+    <a-drawer
+      v-if="resp.isPhone.value && mobileParkOpen"
+      :open="mobileParkOpen"
+      placement="bottom"
+      :height="'auto'"
+      :closable="true"
+      title="选择园区"
+      class="fsd-mobile-park-drawer"
+      @close="mobileParkOpen = false"
+    >
+      <div class="mobile-park-list">
+        <button
+          type="button"
+          class="mobile-park-item"
+          :class="{ active: !parkScope.selectedParkId }"
+          @click="parkScope.setParkId(undefined as any); mobileParkOpen = false; onParkScopeChange()"
+        >
+          全部园区
+        </button>
+        <button
+          v-for="park in parkScope.parkOptions"
+          :key="park.value"
+          type="button"
+          class="mobile-park-item"
+          :class="{ active: parkScope.selectedParkId === park.value }"
+          @click="parkScope.setParkId(park.value); mobileParkOpen = false; onParkScopeChange()"
+        >
+          {{ park.label }}
+        </button>
+      </div>
+    </a-drawer>
   </a-layout>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Empty } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
@@ -214,6 +329,7 @@ dayjs.locale('zh-cn')
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  MenuOutlined,
   BellOutlined,
   ReloadOutlined,
   UserOutlined,
@@ -221,15 +337,26 @@ import {
   SearchOutlined,
   RobotOutlined,
   EyeOutlined,
+  MoreOutlined,
+  EnvironmentOutlined,
+  DashboardOutlined,
+  FileTextOutlined,
+  CarOutlined,
+  AlertOutlined,
+  ToolOutlined,
+  BarChartOutlined,
+  SettingOutlined,
 } from '@ant-design/icons-vue'
-import NavMenuItems from '@/components/layout/NavMenuItems.vue'
-import DispatchFlowLogo from '@/components/brand/DispatchFlowLogo.vue'
 import UserAvatar from '@/components/brand/UserAvatar.vue'
 import CommandPalette from '@/components/command/CommandPalette.vue'
 import DispatchAssistantDrawer from '@/components/assistant/DispatchAssistantDrawer.vue'
 import ApiErrorBadge from '@/components/error/ApiErrorBadge.vue'
+import NotificationPanel from '@/components/layout/NotificationPanel.vue'
+import SidebarContent from '@/components/layout/SidebarContent.vue'
+import BackToTop from '@/components/common/BackToTop.vue'
 import { useCommandPalette, type CommandPaletteItem } from '@/composables/useCommandPalette'
 import { useGuardMode } from '@/composables/useGuardMode'
+import { useResponsive } from '@/composables/useResponsive'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -239,10 +366,7 @@ import { useAlertStore } from '@/stores/alert'
 import { ADMIN_AUTH_ENABLED } from '@/config'
 import {
   BREADCRUMB_PATH_MAP,
-  NAV_PARENT_KEY_MAP,
   NAV_PATH_MAP,
-  NAVIGATION_TREE,
-  filterNavByRole,
   resolveMenuKeyFromPath,
 } from '@/config/navigation'
 
@@ -256,24 +380,84 @@ const realtimeStore = useRealtimeStore()
 const alertStore = useAlertStore()
 const commandPalette = useCommandPalette()
 const guardMode = useGuardMode()
+const resp = useResponsive()
+
 const assistantOpen = ref(false)
 const paletteItems = computed(() => commandPalette.buildItems())
 
 const collapsed = ref(false)
-const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE
+const mobileDrawerOpen = ref(false)
+const mobileNotifyOpen = ref(false)
+const mobileParkOpen = ref(false)
 const notificationLoading = ref(false)
 const notificationItems = ref<ExceptionAdminListItem[]>([])
 
-const notificationCount = computed(() => workbenchStore.openExceptionCount)
+// ── Responsive sidebar state ─────────────────────────────
+const sidebarCollapsed = computed({
+  get: () => {
+    if (resp.autoCollapseSidebar.value) return true
+    return collapsed.value
+  },
+  set: (v) => { collapsed.value = v },
+})
 
-const workbenchBadgeCount = computed(
-  () => workbenchStore.pendingCount + workbenchStore.manualPendingCount + workbenchStore.openExceptionCount
+const sidebarWidth = computed(() =>
+  resp.isTablet.value ? 64 : 208
 )
 
-const visibleNavItems = computed(() => filterNavByRole(NAVIGATION_TREE, authStore.user?.role))
+// ── Page title for mobile header ─────────────────────────
+const pageTitle = computed(() => {
+  const crumbs = breadcrumbItems.value
+  if (crumbs.length > 0) return crumbs[crumbs.length - 1].label
+  const meta = route.meta as Record<string, unknown> | undefined
+  return (meta?.title as string) || 'DispatchFlow'
+})
 
-const selectedKeys = ref<string[]>(['workbench'])
-const openKeys = ref<string[]>([])
+// ── Bottom nav items ─────────────────────────────────────
+const bottomNavItems = computed(() => {
+  const path = route.path
+  return [
+    {
+      key: 'workbench',
+      label: '工作台',
+      icon: DashboardOutlined,
+      path: '/workbench',
+      active: path.startsWith('/workbench'),
+      badge: workbenchStore.openExceptionCount || undefined,
+    },
+    {
+      key: 'orders',
+      label: '订单',
+      icon: FileTextOutlined,
+      path: '/orders',
+      active: path.startsWith('/orders'),
+    },
+    {
+      key: 'vehicles',
+      label: '车辆',
+      icon: CarOutlined,
+      path: '/vehicles',
+      active: path.startsWith('/vehicles'),
+    },
+    {
+      key: 'analytics',
+      label: '分析',
+      icon: BarChartOutlined,
+      path: '/analytics',
+      active: path.startsWith('/analytics'),
+    },
+    {
+      key: 'more',
+      label: '更多',
+      icon: MoreOutlined,
+      path: '',
+      active: false,
+      badge: undefined,
+    },
+  ]
+})
+
+const notificationCount = computed(() => workbenchStore.openExceptionCount)
 
 const breadcrumbItems = computed(() => {
   const meta = route.meta
@@ -314,10 +498,6 @@ async function handleNotificationOpen(open: boolean) {
   }
 }
 
-function formatNotificationTime(value: string) {
-  return dayjs(value).fromNow()
-}
-
 function goException(item: ExceptionAdminListItem) {
   if (item.taskId) {
     router.push(`/tasks/${item.taskId}`)
@@ -326,27 +506,38 @@ function goException(item: ExceptionAdminListItem) {
   router.push({ path: '/exceptions', query: { status: 'OPEN', exceptionId: String(item.id) } })
 }
 
-function handleMenuClick({ key }: { key: string }) {
-  const path = NAV_PATH_MAP[key]
-  if (path) {
-    router.push(path)
-  }
-}
-
-function syncOpenKeysByPath(path = route.path) {
-  const menuKey = resolveMenuKeyFromPath(path)
-  if (!menuKey) return
-  const parentKey = NAV_PARENT_KEY_MAP[menuKey]
-  openKeys.value = !collapsed.value && parentKey ? [parentKey] : []
-}
-
 function toggleCollapsed() {
   collapsed.value = !collapsed.value
-  if (collapsed.value) {
-    openKeys.value = []
+}
+
+function handleMobileAction({ key }: { key: string }) {
+  switch (key) {
+    case 'park':
+      mobileParkOpen.value = true
+      break
+    case 'command':
+      commandPalette.open()
+      break
+    case 'assistant':
+      assistantOpen.value = true
+      break
+    case 'refresh':
+      refreshScopedData()
+      break
+    case 'guard':
+      guardMode.toggle()
+      break
+  }
+}
+
+function handleBottomNav(item: typeof bottomNavItems.value[number]) {
+  if (item.key === 'more') {
+    mobileDrawerOpen.value = true
     return
   }
-  syncOpenKeysByPath()
+  if (item.path) {
+    router.push(item.path)
+  }
 }
 
 async function onPaletteRun(item: CommandPaletteItem) {
@@ -386,16 +577,13 @@ async function onParkScopeChange() {
 
 watch(
   () => route.path,
-  (path) => {
-    const menuKey = resolveMenuKeyFromPath(path)
-    if (menuKey) {
-      selectedKeys.value = [menuKey]
-      syncOpenKeysByPath(path)
-    }
-  },
-  { immediate: true }
+  () => {
+    // Close mobile drawer on navigation
+    mobileDrawerOpen.value = false
+  }
 )
 
+// Auto-init responsive detection
 onMounted(() => {
   parkScope.loadParks()
   refreshBadgeCounts()
@@ -408,233 +596,62 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="less">
+/* ── Layout ─────────────────────────────────────────────── */
 .fsd-layout {
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
+.fsd-main-area {
+  transition: margin-left 0.2s var(--fsd-ease);
+}
+
+/* ── Sidebar ────────────────────────────────────────────── */
 .fsd-sider {
   position: fixed;
   left: 0;
   top: 0;
   bottom: 0;
-  z-index: 10;
-  overflow: auto;
+  z-index: var(--fsd-z-sticky);
+  overflow: hidden;
 
-  .sider-logo {
-    height: 64px;
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    gap: 12px;
-    border-bottom: 1px solid var(--fsd-border);
-    overflow: hidden;
-  }
-
-  .logo-icon svg {
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
-  }
-
-  .logo-text {
+  :deep(.ant-layout-sider-children) {
     display: flex;
     flex-direction: column;
-    min-width: 0;
-  }
-
-  .logo-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--fsd-text-primary);
-    letter-spacing: -0.02em;
-    line-height: 1.2;
-  }
-
-  .logo-sub {
-    font-size: 11px;
-    color: var(--fsd-text-tertiary);
-    letter-spacing: 0.04em;
-  }
-
-  :deep(.ant-menu-root) {
-    border-inline-end: 0;
-    background: #0b1118 !important;
-  }
-
-  :deep(.ant-menu-sub) {
-    background: #0b1118 !important;
-  }
-
-  :deep(.ant-menu-root > .ant-menu-item),
-  :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title) {
-    display: flex !important;
-    align-items: center;
-    height: 42px;
-    margin-block: 4px;
-    line-height: 42px;
-  }
-
-  &.fsd-sider--expanded {
-    :deep(.ant-menu-root > .ant-menu-item),
-    :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title) {
-      padding-inline: 36px 16px !important;
-    }
-
-    :deep(.ant-menu-root > .ant-menu-item .ant-menu-title-content),
-    :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title .ant-menu-title-content) {
-      display: flex;
-      align-items: center;
-      flex: 1 1 auto;
-      min-width: 0;
-      margin-inline-start: 0 !important;
-      line-height: 1;
-    }
-
-    :deep(.ant-menu-sub .ant-menu-item) {
-      display: flex !important;
-      align-items: center;
-      height: 38px;
-      margin-block: 2px;
-      padding-inline: 76px 16px !important;
-      line-height: 38px;
-    }
-
-    :deep(.ant-menu-sub .ant-menu-title-content) {
-      margin-inline-start: 0 !important;
-    }
-  }
-
-  &.fsd-sider--collapsed {
-    :deep(.ant-menu-root > .ant-menu-item),
-    :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title) {
-      display: grid !important;
-      width: 56px;
-      height: 42px;
-      margin-inline: 4px;
-      padding-inline: 0 !important;
-      place-items: center;
-      overflow: hidden;
-    }
-
-    :deep(.ant-menu-root > .ant-menu-item:hover),
-    :deep(.ant-menu-root > .ant-menu-submenu > .ant-menu-submenu-title:hover),
-    :deep(.ant-menu-root > .ant-menu-item-selected),
-    :deep(.ant-menu-root > .ant-menu-submenu-selected > .ant-menu-submenu-title) {
-      background: var(--fsd-bg-active) !important;
-      color: var(--fsd-accent) !important;
-      opacity: 1 !important;
-    }
-
-    :deep(.ant-menu-title-content) {
-      display: grid !important;
-      width: 20px;
-      height: 20px;
-      margin: 0 !important;
-      padding: 0 !important;
-      place-items: center;
-      opacity: 1 !important;
-      overflow: hidden;
-    }
-
-    :deep(.nav-menu-entry) {
-      display: grid;
-      grid-template-columns: 20px;
-      width: 20px;
-      height: 20px;
-      place-items: center;
-    }
-
-    :deep(.nav-menu-entry__icon),
-    :deep(.nav-menu-icon),
-    :deep(.nav-menu-icon .anticon),
-    :deep(.nav-menu-icon svg),
-    :deep(.nav-menu-badge-icon),
-    :deep(.nav-menu-badge-icon__slot) {
-      display: grid !important;
-      width: 20px;
-      height: 20px;
-      place-items: center;
-      opacity: 1 !important;
-    }
-
-    :deep(.nav-menu-entry__label),
-    :deep(.ant-menu-sub),
-    :deep(.ant-menu-submenu-arrow) {
-      display: none !important;
-    }
-  }
-
-  :deep(.ant-menu-item:hover),
-  :deep(.ant-menu-submenu-title:hover),
-  :deep(.ant-menu-item-selected),
-  :deep(.ant-menu-submenu-selected > .ant-menu-submenu-title) {
-    color: var(--fsd-text-primary) !important;
-    opacity: 1 !important;
-  }
-
-  :deep(.ant-menu-item:hover .nav-menu-entry),
-  :deep(.ant-menu-submenu-title:hover .nav-menu-entry),
-  :deep(.ant-menu-item-selected .nav-menu-entry),
-  :deep(.ant-menu-submenu-selected > .ant-menu-submenu-title .nav-menu-entry) {
-    color: inherit;
-    opacity: 1 !important;
+    height: 100%;
+    overflow: hidden;
   }
 }
 
-:global(.nav-menu-popup) {
-  background: #0b1118 !important;
+/* Allow popup to overflow when sidebar is collapsed */
+.fsd-sider--collapsed {
+  overflow: visible;
 
-  .ant-menu {
-    min-width: 160px;
-    padding: 6px;
-    border: 1px solid #233042;
-    border-radius: 12px;
-    background: #0b1118 !important;
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.44);
-  }
-
-  .ant-menu-item {
-    display: flex !important;
-    height: 36px;
-    margin-block: 2px;
-    padding-inline: 12px !important;
-    align-items: center;
-    border-radius: 8px;
-    color: var(--fsd-text-secondary) !important;
-    line-height: 36px;
-  }
-
-  .ant-menu-item:hover,
-  .ant-menu-item-selected {
-    background: var(--fsd-bg-active) !important;
-    color: var(--fsd-text-primary) !important;
-  }
-
-  .ant-menu-title-content {
-    margin-inline-start: 0 !important;
-  }
-
-  .nav-menu-entry {
-    display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
-    column-gap: 12px;
-    width: 100%;
-    align-items: center;
-  }
-
-  .nav-menu-entry__icon {
-    display: grid;
-    width: 20px;
-    height: 20px;
-    place-items: center;
-  }
-
-  .nav-menu-entry__label {
-    display: block;
+  :deep(.ant-layout-sider-children) {
+    overflow: visible;
   }
 }
 
+/* ── Mobile Drawer ──────────────────────────────────────── */
+:global(.fsd-mobile-drawer) {
+  .ant-drawer-body {
+    padding: 0 !important;
+    background: #121821 !important;
+  }
+
+  /* SidebarContent now renders custom nav, not ant-menu */
+  .sidebar-logo {
+    height: 56px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--fsd-border);
+  }
+}
+
+/* ── Header ─────────────────────────────────────────────── */
 .fsd-header {
   position: sticky;
   top: 0;
@@ -645,7 +662,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: margin-left 0.2s;
+  transition: margin-left 0.2s var(--fsd-ease);
 
   .header-left {
     display: flex;
@@ -657,15 +674,15 @@ onUnmounted(() => {
   }
 
   .trigger-btn {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: var(--fsd-radius) !important;
     color: var(--fsd-text-secondary) !important;
-    font-size: 18px;
+    font-size: 20px;
 
     &:hover {
       background: var(--fsd-bg-hover) !important;
@@ -690,6 +707,15 @@ onUnmounted(() => {
     }
   }
 
+  .header-page-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--fsd-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .header-right {
     display: flex;
     align-items: center;
@@ -698,14 +724,14 @@ onUnmounted(() => {
   }
 
   .header-icon-btn {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: var(--fsd-radius) !important;
     color: var(--fsd-text-secondary) !important;
-    font-size: 18px;
+    font-size: 20px;
 
     &:hover {
       background: var(--fsd-bg-hover) !important;
@@ -741,101 +767,123 @@ onUnmounted(() => {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  /* Mobile header adjustments */
+  &.fsd-header--mobile {
+    margin-left: 0;
+    padding: 0 12px;
+    height: 56px;
+  }
 }
 
+/* ── Content area ───────────────────────────────────────── */
 .fsd-content {
   margin-left: 208px;
   min-height: calc(100vh - 64px);
-  padding: 24px;
+  min-height: calc(100dvh - 64px);
+  padding: var(--fsd-space-6);
   overflow: auto;
   background: var(--fsd-bg-deep);
-  transition: margin-left 0.2s;
+  transition: margin-left 0.2s var(--fsd-ease);
 
   &.fullscreen-mode {
     padding: 0;
     overflow: hidden;
     position: relative;
   }
+
+  &.fsd-content--mobile {
+    margin-left: 0;
+  }
+
+  &.fsd-content--phone {
+    padding: var(--fsd-space-4);
+    min-height: calc(100dvh - 56px - 64px);
+    padding-bottom: calc(var(--fsd-space-4) + 64px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
-:deep(.ant-layout-sider-collapsed) ~ .ant-layout .fsd-header,
-:deep(.ant-layout-sider-collapsed) ~ .ant-layout .fsd-content {
+/* Sidebar collapsed state */
+:deep(.ant-layout-sider-collapsed) ~ .fsd-main-area .fsd-header,
+:deep(.ant-layout-sider-collapsed) ~ .fsd-main-area .fsd-content {
   margin-left: 64px;
 }
 
-.notification-panel {
-  width: 300px;
-}
-
-.notification-header {
+/* ── Bottom Navigation ──────────────────────────────────── */
+.fsd-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--fsd-z-sticky);
   display: flex;
+  justify-content: space-around;
   align-items: center;
-  justify-content: space-between;
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--fsd-text-primary);
-  margin-bottom: 12px;
+  height: 64px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--fsd-bg-base);
+  border-top: 1px solid var(--fsd-border);
+  backdrop-filter: blur(16px) saturate(140%);
 }
 
-.notification-link {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--fsd-accent);
-  text-decoration: none;
-
-  &:hover {
-    color: #7ee8ff;
-  }
-}
-
-.notification-list {
+.bottom-nav-item {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 320px;
-  overflow: auto;
-}
-
-.notification-item {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--fsd-border);
-  border-radius: 8px;
-  background: rgba(22, 27, 34, 0.5);
-  text-align: left;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  height: 100%;
+  padding: 8px 4px;
+  border: none;
+  background: transparent;
+  color: var(--fsd-text-tertiary);
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition: color 0.2s var(--fsd-ease);
+  -webkit-tap-highlight-color: transparent;
 
-  &:hover {
-    border-color: rgba(0, 180, 216, 0.35);
-    background: rgba(0, 180, 216, 0.08);
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &--active {
+    color: var(--fsd-accent);
+
+    .bottom-nav-icon {
+      color: var(--fsd-accent);
+    }
   }
 }
 
-.notification-type {
-  display: block;
+.bottom-nav-icon {
+  font-size: 22px;
+  transition: color 0.2s var(--fsd-ease);
+}
+
+.bottom-nav-label {
   font-size: 11px;
-  font-weight: 600;
-  color: var(--fsd-warning);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 500;
+  line-height: 1;
 }
 
-.notification-msg {
-  display: block;
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--fsd-text-primary);
-  line-height: 1.4;
+.bottom-nav-badge {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 20px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--fsd-error);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
 }
 
-.notification-time {
-  display: block;
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--fsd-text-tertiary);
-}
-
+/* ── Stream indicator ───────────────────────────────────── */
 .stream-indicator {
   width: 8px;
   height: 8px;
@@ -850,37 +898,40 @@ onUnmounted(() => {
   }
 }
 
-.alert-history-block {
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--fsd-border);
+/* ── Mobile park list ───────────────────────────────────── */
+.mobile-park-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  max-height: 50vh;
+  overflow-y: auto;
 }
 
-.alert-history-title {
-  font-size: 12px;
-  color: var(--fsd-text-tertiary);
-  margin-bottom: 8px;
-}
+.mobile-park-item {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: var(--fsd-radius);
+  background: transparent;
+  color: var(--fsd-text-primary);
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s var(--fsd-ease);
 
-.alert-history-item {
-  font-size: 12px;
-  color: var(--fsd-text-secondary);
-  padding: 6px 0;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+  &:hover {
+    background: var(--fsd-bg-hover);
+  }
 
-  &.unread {
-    color: var(--fsd-text-primary);
+  &.active {
+    background: var(--fsd-accent-glow);
+    color: var(--fsd-accent);
+    font-weight: 600;
   }
 }
 
-.alert-history-sev {
-  display: inline-block;
-  margin-right: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--fsd-warning);
-}
-
+/* ── Transitions ────────────────────────────────────────── */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s;
@@ -892,11 +943,11 @@ onUnmounted(() => {
 }
 
 .page-fade-enter-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.25s var(--fsd-ease), transform 0.25s var(--fsd-ease);
 }
 
 .page-fade-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s var(--fsd-ease);
 }
 
 .page-fade-enter-from {
@@ -906,5 +957,21 @@ onUnmounted(() => {
 
 .page-fade-leave-to {
   opacity: 0;
+}
+
+/* ── Responsive: Tablet ─────────────────────────────────── */
+@media (max-width: 991px) {
+  /* SidebarContent handles its own responsive sizing */
+}
+
+/* ── Responsive: Phone ──────────────────────────────────── */
+@media (max-width: 575px) {
+  .fsd-header {
+    .header-icon-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+    }
+  }
 }
 </style>

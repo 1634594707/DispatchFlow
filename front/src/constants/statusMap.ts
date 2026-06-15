@@ -69,6 +69,73 @@ export const exceptionStatusMap: Record<ExceptionStatus, StatusConfig> = {
   [ExceptionStatus.RESOLVED]: { label: '已处理', color: 'success' },
 }
 
+// ── Infra: Parking Slot / Charging Pile ──────────────────
+export const slotStatusMap: Record<string, StatusConfig> = {
+  FREE:     { label: '空闲',   color: 'success' },
+  OCCUPIED: { label: '占用',   color: 'warning' },
+  RESERVED: { label: '预留',   color: 'processing' },
+  CHARGING: { label: '充电中', color: 'cyan' },
+  FAULT:    { label: '故障',   color: 'error' },
+}
+
+// ── Infra: Entity Active/Inactive ────────────────────────
+export const infraActiveMap: Record<string, StatusConfig> = {
+  ACTIVE:   { label: '启用', color: 'success' },
+  INACTIVE: { label: '停用', color: 'default' },
+  DISABLED: { label: '禁用', color: 'default' },
+}
+
+// ── Field Ops: Ticket ────────────────────────────────────
+export const ticketStatusMap: Record<string, StatusConfig> = {
+  OPEN:        { label: '待处理', color: 'error' },
+  IN_PROGRESS: { label: '处理中', color: 'processing' },
+  DONE:        { label: '已完成', color: 'success' },
+}
+
+// ── System: Alert Escalation ─────────────────────────────
+export const alertStatusMap: Record<string, StatusConfig> = {
+  pending:      { label: '待确认', color: 'warning' },
+  acknowledged: { label: '已确认', color: 'processing' },
+  resolved:     { label: '已解决', color: 'success' },
+}
+
+// ── System: Health ───────────────────────────────────────
+export const healthStatusMap: Record<string, StatusConfig> = {
+  UP:       { label: '正常', color: 'success' },
+  OK:       { label: '正常', color: 'success' },
+  DOWN:     { label: '异常', color: 'error' },
+  DEGRADED: { label: '降级', color: 'warning' },
+  WARNING:  { label: '警告', color: 'warning' },
+  CRITICAL: { label: '严重', color: 'error' },
+}
+
+// ── System: Config Check ─────────────────────────────────
+export const configCheckMap: Record<string, StatusConfig> = {
+  ok:   { label: '通过', color: 'success' },
+  warn: { label: '可选', color: 'warning' },
+  fail: { label: '缺失', color: 'error' },
+}
+
+// ── User ─────────────────────────────────────────────────
+export const userStatusMap: Record<string, StatusConfig> = {
+  ACTIVE:   { label: '正常', color: 'success' },
+  DISABLED: { label: '禁用', color: 'default' },
+}
+
+// ── Report / Execution ───────────────────────────────────
+export const executionStatusMap: Record<string, StatusConfig> = {
+  SUCCESS: { label: '成功', color: 'success' },
+  FAILURE: { label: '失败', color: 'error' },
+}
+
+// ── Vehicle Health ───────────────────────────────────────
+export const vehicleHealthMap: Record<string, StatusConfig> = {
+  GOOD:     { label: '良好', color: 'success' },
+  FAIR:     { label: '一般', color: 'warning' },
+  POOR:     { label: '较差', color: 'error' },
+  CRITICAL: { label: '严重', color: 'error' },
+}
+
 export const DISPATCH_FAIL_REASON: Record<string, string> = {
   NO_VEHICLE: '无可用车辆',
   NO_IDLE_VEHICLE: '无在线空闲车辆',

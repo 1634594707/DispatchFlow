@@ -6,6 +6,8 @@ Thumbs.db
 
 # Local agent / workspace metadata
 .agents/
+.claude/
+.workbuddy/
 .golutra/
 project/
 DISPATCHFLOW/
@@ -33,6 +35,7 @@ dist/
 front/node_modules/
 front/dist/
 front/.env.local
+front/public/runtime-config.js
 front/scripts/perf/.auth/
 front/test-results/
 

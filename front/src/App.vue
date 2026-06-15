@@ -27,23 +27,9 @@
 
 <script setup lang="ts">
 import { h, watch } from 'vue'
-import { Button, notification, theme } from 'ant-design-vue'
+import { Button, notification } from 'ant-design-vue'
 import { usePWAInstall } from '@/composables/usePWAInstall'
-
-const themeConfig = {
-  algorithm: theme.darkAlgorithm,
-  token: {
-    colorPrimary: '#00B4D8',
-    colorSuccess: '#00E676',
-    colorWarning: '#FFB020',
-    colorError: '#FF3D71',
-    colorBgBase: '#0D1117',
-    colorTextBase: '#E6EDF3',
-    borderRadius: 8,
-    fontFamily:
-      "'Plus Jakarta Sans', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  },
-}
+import { themeConfig } from '@/config/theme'
 
 const pwa = usePWAInstall()
 

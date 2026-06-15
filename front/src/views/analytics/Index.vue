@@ -53,22 +53,10 @@
         <section v-if="chainKpi" class="panel metrics-panel">
           <h3>链路 KPI <a-button type="link" size="small" @click="drillDownTasks(chainKpi)">查看任务 →</a-button></h3>
           <div class="metric-cards">
-            <div class="metric-card clickable" @click="drillDownTasks(chainKpi)">
-              <span class="metric-label">完成均时</span>
-              <span class="metric-value">{{ chainKpi.avgCompletionMinutes }}<small>分</small></span>
-            </div>
-            <div class="metric-card clickable" @click="drillDownTasks(chainKpi)">
-              <span class="metric-label">等待 P50</span>
-              <span class="metric-value">{{ chainKpi.waitP50Minutes }}<small>分</small></span>
-            </div>
-            <div class="metric-card clickable" @click="drillDownTasks(chainKpi)">
-              <span class="metric-label">等待 P90</span>
-              <span class="metric-value">{{ chainKpi.waitP90Minutes }}<small>分</small></span>
-            </div>
-            <div class="metric-card clickable" @click="drillDownTasks(chainKpi)">
-              <span class="metric-label">单车日均任务</span>
-              <span class="metric-value">{{ chainKpi.tasksPerVehiclePerDay }}</span>
-            </div>
+            <MetricCard variant="compact" label="完成均时" :value="chainKpi.avgCompletionMinutes" unit="分" color-theme="cyan" clickable @click="drillDownTasks(chainKpi)" />
+            <MetricCard variant="compact" label="等待 P50" :value="chainKpi.waitP50Minutes" unit="分" color-theme="amber" clickable @click="drillDownTasks(chainKpi)" />
+            <MetricCard variant="compact" label="等待 P90" :value="chainKpi.waitP90Minutes" unit="分" color-theme="red" clickable @click="drillDownTasks(chainKpi)" />
+            <MetricCard variant="compact" label="单车日均任务" :value="chainKpi.tasksPerVehiclePerDay" color-theme="green" clickable @click="drillDownTasks(chainKpi)" />
           </div>
         </section>
 
@@ -92,18 +80,9 @@
         <section class="panel metrics-panel">
           <h3>效率指标</h3>
           <div class="metric-cards">
-            <div class="metric-card clickable" @click="drillDownEfficiency('duration')">
-              <span class="metric-label">平均任务时长</span>
-              <span class="metric-value">{{ efficiency?.avgTaskDurationMinutes ?? '-' }}<small>分</small></span>
-            </div>
-            <div class="metric-card clickable" @click="drillDownEfficiency('utilization')">
-              <span class="metric-label">车辆利用率</span>
-              <span class="metric-value">{{ efficiency?.vehicleUtilizationRate ?? '-' }}<small>%</small></span>
-            </div>
-            <div class="metric-card" @click="router.push('/exceptions')">
-              <span class="metric-label">异常处理时长</span>
-              <span class="metric-value">{{ exceptionAnalysis?.avgResolutionMinutes ?? '-' }}<small>分</small></span>
-            </div>
+            <MetricCard variant="compact" label="平均任务时长" :value="efficiency?.avgTaskDurationMinutes ?? '-'" unit="分" color-theme="cyan" clickable @click="drillDownEfficiency('duration')" />
+            <MetricCard variant="compact" label="车辆利用率" :value="efficiency?.vehicleUtilizationRate ?? '-'" unit="%" color-theme="green" clickable @click="drillDownEfficiency('utilization')" />
+            <MetricCard variant="compact" label="异常处理时长" :value="exceptionAnalysis?.avgResolutionMinutes ?? '-'" unit="分" color-theme="red" @click="router.push('/exceptions')" />
           </div>
         </section>
 
@@ -166,6 +145,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageContainer from '@/components/common/PageContainer.vue'
 import TrendBarChart from '@/components/analytics/TrendBarChart.vue'
+import MetricCard from '@/components/common/MetricCard.vue'
 import {
   getAnalyticsDailySummary,
   getAnalyticsEfficiency,
@@ -332,45 +312,8 @@ watch(
 
 .metric-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 12px;
-}
-
-.metric-card {
-  padding: 14px;
-  border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius);
-  background: rgba(22, 27, 34, 0.45);
-}
-
-.clickable {
-  cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.clickable:hover {
-  border-color: var(--fsd-accent);
-  box-shadow: 0 0 0 1px rgba(0, 180, 216, 0.15);
-}
-
-.metric-label {
-  display: block;
-  font-size: 12px;
-  color: var(--fsd-text-tertiary);
-}
-
-.metric-value {
-  display: block;
-  margin-top: 8px;
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--fsd-accent);
-  font-family: 'JetBrains Mono', monospace;
-
-  small {
-    font-size: 14px;
-    margin-left: 4px;
-  }
 }
 
 .type-list, .peak-list, .highlight-list {

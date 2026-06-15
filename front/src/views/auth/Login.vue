@@ -9,7 +9,7 @@
     <div class="login-card animate-fade-in-up">
       <div class="login-brand">
         <div class="brand-icon">
-          <DispatchFlowLogo :size="48" />
+          <DispatchFlowLogo :size="52" />
         </div>
         <h1>DispatchFlow</h1>
         <p>找家纺网 · 叠石桥 L1 无人车短驳调度</p>
@@ -122,7 +122,7 @@ async function handleLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #06090f;
+  background: var(--fsd-bg-deep);
   position: relative;
   overflow: hidden;
 }
@@ -137,80 +137,98 @@ async function handleLogin() {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(0, 180, 216, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 180, 216, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(34, 199, 230, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 199, 230, 0.035) 1px, transparent 1px);
   background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 30%, transparent 100%);
 }
 
 .glow {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.35;
+  filter: blur(90px);
+  opacity: 0.4;
 }
 
 .glow-1 {
-  width: 400px;
-  height: 400px;
-  background: #00b4d8;
-  top: -100px;
-  right: 10%;
+  width: 420px;
+  height: 420px;
+  background: #22c7e6;
+  top: -120px;
+  right: 8%;
 }
 
 .glow-2 {
-  width: 300px;
-  height: 300px;
-  background: #0077b6;
-  bottom: -50px;
-  left: 15%;
+  width: 320px;
+  height: 320px;
+  background: #2d8bf0;
+  bottom: -60px;
+  left: 12%;
 }
 
 .login-card {
   position: relative;
-  width: 400px;
-  padding: 40px;
-  background: rgba(13, 17, 23, 0.92);
-  border: 1px solid #21262d;
-  border-radius: 16px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(12px);
+  width: 408px;
+  padding: 44px 40px 40px;
+  background: rgba(18, 24, 33, 0.86);
+  border: 1px solid var(--fsd-border-active);
+  border-radius: var(--fsd-radius-xl);
+  box-shadow: var(--fsd-shadow-elevated);
+  backdrop-filter: blur(16px) saturate(140%);
 }
 
 .login-brand {
   text-align: center;
   margin-bottom: 32px;
 
+  .brand-icon {
+    display: inline-flex;
+    margin-bottom: 16px;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(34, 199, 230, 0.32);
+  }
+
   .brand-icon svg {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 12px;
+    width: 52px;
+    height: 52px;
+    display: block;
+    border-radius: 14px;
   }
 
   h1 {
     margin: 0;
-    font-size: 24px;
+    font-size: 26px;
     font-weight: 700;
-    color: #f0f6fc;
     letter-spacing: -0.02em;
+    background: linear-gradient(90deg, #eef3f9 0%, #b7e9f4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
   p {
-    margin: 6px 0 0;
+    margin: 8px 0 0;
     font-size: 13px;
-    color: #8b949e;
+    color: var(--fsd-text-tertiary);
+    letter-spacing: 0.02em;
   }
 }
 
 .login-btn {
   margin-top: 8px;
-  height: 44px !important;
+  height: 46px !important;
+  font-size: 15px;
   font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .login-hint {
-  margin-top: 20px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--fsd-border);
   text-align: center;
   font-size: 12px;
-  color: #6e7681;
+  color: var(--fsd-text-tertiary);
 }
 </style>

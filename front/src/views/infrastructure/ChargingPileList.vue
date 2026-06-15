@@ -48,7 +48,7 @@
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">
-          <a-tag :color="slotStatusColor(record.status)">{{ slotStatusLabel(record.status) }}</a-tag>
+          <StatusBadge :status="record.status" type="slot" />
         </template>
         <template v-else-if="column.key === 'maxPowerKw'">
           {{ record.maxPowerKw != null ? `${record.maxPowerKw} kW` : '-' }}
@@ -118,6 +118,7 @@ import { computed, ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useParkOptions } from '@/composables/useParkOptions'
 import * as infraApi from '@/api/infrastructure'
 import type { AdminChargingPile, AdminParkingSlot } from '@/types/infrastructure'
@@ -166,20 +167,6 @@ const statusOptions = [
   { label: '充电中', value: 'CHARGING' },
   { label: '故障', value: 'FAULT' },
 ]
-
-function slotStatusLabel(status: string) {
-  const map: Record<string, string> = {
-    FREE: '空闲', OCCUPIED: '占用', RESERVED: '预留', CHARGING: '充电中', FAULT: '故障',
-  }
-  return map[status] || status
-}
-
-function slotStatusColor(status: string) {
-  const map: Record<string, string> = {
-    FREE: 'success', OCCUPIED: 'warning', RESERVED: 'processing', CHARGING: 'cyan', FAULT: 'error',
-  }
-  return map[status] || 'default'
-}
 
 async function loadSlotOptions() {
   if (!form.parkId) {

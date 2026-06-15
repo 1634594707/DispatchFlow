@@ -18,7 +18,7 @@
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'coords'">{{ record.coordX }}, {{ record.coordY }}</template>
         <template v-else-if="column.key === 'status'">
-          <a-tag :color="record.status === 'ACTIVE' ? 'success' : 'default'">{{ record.status }}</a-tag>
+          <StatusBadge :status="record.status" type="infra" />
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
@@ -60,6 +60,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useParkOptions } from '@/composables/useParkOptions'
 import * as infraApi from '@/api/infrastructure'
 import type { AdminBatterySwapCabinet } from '@/api/infrastructure'

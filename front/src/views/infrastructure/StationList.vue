@@ -28,9 +28,7 @@
           <a-tag :color="typeColor(record.stationType)">{{ typeLabel(record.stationType) }}</a-tag>
         </template>
         <template v-else-if="column.key === 'status'">
-          <a-tag :color="record.status === 'ACTIVE' ? 'success' : 'default'">
-            {{ record.status === 'ACTIVE' ? '可用' : '维护中' }}
-          </a-tag>
+          <StatusBadge :status="record.status" type="infra" />
         </template>
         <template v-else-if="column.key === 'coord'">
           ({{ record.coordX }}, {{ record.coordY }})
@@ -132,6 +130,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import ParkInfraPreview from '@/components/infrastructure/ParkInfraPreview.vue'
 import { useParkOptions } from '@/composables/useParkOptions'
 import * as infraApi from '@/api/infrastructure'

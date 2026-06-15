@@ -26,6 +26,20 @@
       :fit-view-points="geoFitViewPoints"
       :fit-view-on-change="Boolean(selectedId)"
     />
+    <div v-else-if="trackingScene === 'delivery'" class="map-container geo-map-layer geo-map-unconfigured">
+      <div class="geo-map-unconfigured__body">
+        <p class="geo-map-unconfigured__title">短驳地理图未加载</p>
+        <p class="geo-map-unconfigured__hint">
+          生产环境需配置高德 JS Key 与安全密钥。构建时写入
+          <code>VITE_AMAP_KEY</code> / <code>VITE_AMAP_SECURITY_CODE</code>，或部署后编辑
+          <code>runtime-config.js</code>（无需重新打包）。
+        </p>
+        <p class="geo-map-unconfigured__hint">
+          若 Key 已配置仍空白，请在高德控制台将该 Key 的「Web端(JS API)」域名白名单加入当前站点域名。
+        </p>
+        <router-link class="geo-map-unconfigured__link" to="/system/config-check">打开试点配置自检 →</router-link>
+      </div>
+    </div>
 
     <div v-if="apiError" class="api-alert">
       <span class="api-alert-dot"></span>
@@ -1665,6 +1679,54 @@ onUnmounted(() => {
     transform: translateY(-4px);
     white-space: nowrap;
     backdrop-filter: blur(10px);
+  }
+}
+
+.geo-map-unconfigured {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 40%, rgba(0, 180, 216, 0.08), transparent 55%),
+    linear-gradient(180deg, #070b12 0%, var(--track-bg-deep) 100%);
+}
+
+.geo-map-unconfigured__body {
+  max-width: 420px;
+  padding: 28px 32px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 143, 163, 0.28);
+  background: rgba(13, 17, 23, 0.92);
+  text-align: center;
+}
+
+.geo-map-unconfigured__title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ff8fa3;
+}
+
+.geo-map-unconfigured__hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--track-text-muted);
+
+  code {
+    color: #79c0ff;
+  }
+}
+
+.geo-map-unconfigured__link {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #58a6ff;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 

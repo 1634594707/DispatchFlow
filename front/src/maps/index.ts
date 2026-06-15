@@ -13,6 +13,7 @@ export function resolveGeoMapProvider(): MapProvider | null {
 
 export { AmapProvider } from './amapProvider'
 export { getMapConfig, isAmapConfigured } from './config'
+export { formatAmapDomainAuthError, getAmapWhitelistHosts } from './amapAuth'
 export type {
   GeoMapCircle,
   GeoMapHandle,

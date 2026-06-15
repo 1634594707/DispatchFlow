@@ -1,12 +1,12 @@
-/** DispatchFlow 视觉标识色板（见产品视觉规范） */
+/** DispatchFlow 视觉标识色板（与暗色指挥中心主题统一，青蓝色系） */
 export const BRAND_COLORS = {
-  primary: '#1E88E5',
-  primaryDark: '#1565C0',
-  primaryLight: '#42A5F5',
-  primaryDeep: '#0D47A1',
-  onPrimary: '#FFFFFF',
-  textPrimary: '#333333',
-  textSecondary: '#666666',
+  primary: '#22C7E6',
+  primaryDark: '#2D8BF0',
+  primaryLight: '#38D9F2',
+  primaryDeep: '#0FA8C6',
+  onPrimary: '#04121A',
+  textPrimary: '#EEF3F9',
+  textSecondary: '#9BA8B8',
 } as const
 
 export const BRAND_AVATAR_GRADIENTS = {

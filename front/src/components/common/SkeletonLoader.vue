@@ -1,162 +1,335 @@
 <template>
-  <div v-if="preset === 'workbench'" class="skeleton-workbench">
-    <div class="skeleton-panel skeleton-panel-tasks">
-      <div class="skeleton-head"></div>
-      <div class="skeleton-line"></div>
-      <div class="skeleton-line short"></div>
-      <div class="skeleton-card"></div>
-      <div class="skeleton-card"></div>
-      <div class="skeleton-card short"></div>
-    </div>
-    <div class="skeleton-panel skeleton-panel-map">
-      <div class="skeleton-head"></div>
-      <div class="skeleton-block map-block"></div>
-    </div>
-    <div class="skeleton-panel skeleton-panel-exc">
-      <div class="skeleton-head"></div>
-      <div class="skeleton-card"></div>
-      <div class="skeleton-card short"></div>
-    </div>
-  </div>
+  <div class="skl-root" :class="`skl--${variant}`" role="status" aria-label="加载中">
+    <!-- Card skeleton -->
+    <template v-if="variant === 'card'">
+      <div class="skl-card">
+        <div class="skl-card-header">
+          <div class="skl-line skl-line--short" />
+          <div class="skl-line skl-line--xs" />
+        </div>
+        <div class="skl-card-body">
+          <div class="skl-block skl-block--lg" />
+          <div class="skl-line skl-line--md" />
+          <div class="skl-line skl-line--full" />
+        </div>
+      </div>
+    </template>
 
-  <div v-else-if="preset === 'tracking'" class="skeleton-tracking">
-    <div class="skeleton-tracking-panel">
-      <div class="skeleton-head"></div>
-      <div class="skeleton-line"></div>
-      <div class="skeleton-line short"></div>
-      <div class="skeleton-card"></div>
-      <div class="skeleton-card"></div>
-      <div class="skeleton-card short"></div>
-      <div class="skeleton-card"></div>
-    </div>
-    <div class="skeleton-tracking-map">
-      <div class="skeleton-block map-block"></div>
-    </div>
-  </div>
+    <!-- Table skeleton -->
+    <template v-if="variant === 'table'">
+      <div class="skl-table">
+        <div class="skl-table-header">
+          <div v-for="col in columns" :key="col" class="skl-line skl-line--xs" :style="{ flex: col }" />
+        </div>
+        <div v-for="row in rows" :key="row" class="skl-table-row">
+          <div v-for="col in columns" :key="col" class="skl-line" :style="{ flex: col }" />
+        </div>
+      </div>
+    </template>
 
-  <div v-else class="skeleton-default">
-    <div class="skeleton-head"></div>
-    <div class="skeleton-line"></div>
-    <div class="skeleton-line short"></div>
+    <!-- Chart skeleton -->
+    <template v-if="variant === 'chart'">
+      <div class="skl-chart">
+        <div class="skl-chart-header">
+          <div class="skl-line skl-line--md" />
+        </div>
+        <div class="skl-chart-area">
+          <div class="skl-chart-bar" v-for="i in 7" :key="i" :style="{ height: `${30 + Math.random() * 60}%` }" />
+        </div>
+      </div>
+    </template>
+
+    <!-- Stat cards row -->
+    <template v-if="variant === 'stats'">
+      <div class="skl-stats" :style="{ gridTemplateColumns: `repeat(${count}, 1fr)` }">
+        <div v-for="i in count" :key="i" class="skl-stat-card">
+          <div class="skl-line skl-line--xs" />
+          <div class="skl-block skl-block--sm" />
+        </div>
+      </div>
+    </template>
+
+    <!-- Paragraph text -->
+    <template v-if="variant === 'text'">
+      <div class="skl-text">
+        <div v-for="i in lines" :key="i" class="skl-line" :class="i === lines ? 'skl-line--short' : 'skl-line--full'" />
+      </div>
+    </template>
+
+    <!-- List -->
+    <template v-if="variant === 'list'">
+      <div class="skl-list">
+        <div v-for="i in count" :key="i" class="skl-list-item">
+          <div class="skl-avatar" />
+          <div class="skl-list-content">
+            <div class="skl-line skl-line--md" />
+            <div class="skl-line skl-line--xs" />
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Inline (single line, e.g. for labels) -->
+    <template v-if="variant === 'inline'">
+      <span class="skl-inline" :style="{ width: `${width}px` }" />
+    </template>
+
+    <span class="skl-sr-only">加载中...</span>
   </div>
 </template>
 
 <script setup lang="ts">
-withDefaults(defineProps<{
-  preset?: 'workbench' | 'tracking' | 'default'
-}>(), {
-  preset: 'default',
-})
+withDefaults(
+  defineProps<{
+    /** Skeleton variant */
+    variant?: 'card' | 'table' | 'chart' | 'stats' | 'text' | 'list' | 'inline'
+    /** Number of rows (table) or lines (text) or items (stats/list) */
+    count?: number
+    /** Width for inline variant, in px */
+    width?: number
+    /** Table columns: array of flex values */
+    columns?: number[]
+    /** Table row count */
+    rows?: number
+    /** Text line count */
+    lines?: number
+  }>(),
+  {
+    variant: 'text',
+    count: 4,
+    width: 80,
+    columns: () => [1, 2, 1.5, 1, 0.8],
+    rows: 5,
+    lines: 3,
+  }
+)
 </script>
 
 <style scoped lang="less">
-@keyframes skeleton-shimmer {
-  0% { background-position: -400px 0; }
-  100% { background-position: calc(400px + 100%) 0; }
+/* ── Root ──────────────────────────────────────────────── */
+.skl-root {
+  display: contents;
 }
 
-.skeleton-shimmer {
+.skl-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Shimmer animation ──────────────────────────────────── */
+@keyframes skl-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ── Base skeleton elements ─────────────────────────────── */
+.skl-line {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.10) 37%,
+    rgba(255, 255, 255, 0.05) 63%
+  );
+  background-size: 200% 100%;
+  animation: skl-shimmer 1.6s ease-in-out infinite;
+  flex: 1;
+
+  &--xs   { width: 60px;  flex: none; }
+  &--short{ width: 120px; flex: none; }
+  &--md   { width: 180px; flex: none; }
+  &--full { width: 100%;  }
+}
+
+.skl-block {
+  border-radius: 8px;
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.04) 25%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.04) 75%
+    rgba(255, 255, 255, 0.09) 37%,
+    rgba(255, 255, 255, 0.04) 63%
   );
-  background-size: 400px 100%;
-  animation: skeleton-shimmer 1.6s ease-in-out infinite;
-  border-radius: 6px;
+  background-size: 200% 100%;
+  animation: skl-shimmer 1.6s ease-in-out infinite;
+
+  &--sm { width: 48px;  height: 48px; }
+  &--md { width: 80px;  height: 80px; }
+  &--lg { width: 100%;  height: 120px; }
 }
 
-.skeleton-head {
-  .skeleton-shimmer();
-  height: 20px;
-  width: 120px;
-  margin-bottom: 16px;
+.skl-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.09) 37%,
+    rgba(255, 255, 255, 0.04) 63%
+  );
+  background-size: 200% 100%;
+  animation: skl-shimmer 1.6s ease-in-out infinite;
 }
 
-.skeleton-line {
-  .skeleton-shimmer();
-  height: 12px;
-  width: 100%;
-  margin-bottom: 10px;
-
-  &.short {
-    width: 60%;
-  }
+.skl-inline {
+  display: inline-block;
+  height: 1em;
+  border-radius: 4px;
+  vertical-align: middle;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.10) 37%,
+    rgba(255, 255, 255, 0.05) 63%
+  );
+  background-size: 200% 100%;
+  animation: skl-shimmer 1.6s ease-in-out infinite;
 }
 
-.skeleton-card {
-  .skeleton-shimmer();
-  height: 56px;
-  width: 100%;
-  margin-bottom: 8px;
-
-  &.short {
-    width: 75%;
-  }
-}
-
-.skeleton-block {
-  .skeleton-shimmer();
-  height: 100%;
-  width: 100%;
-
-  &.map-block {
-    min-height: 200px;
-  }
-}
-
-/* workbench layout */
-.skeleton-workbench {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
-  padding: 24px;
-
-  .skeleton-panel {
-    background: rgba(22, 27, 34, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
-    padding: 20px;
-  }
-
-  .skeleton-panel-map {
-    .map-block {
-      min-height: 360px;
-    }
-  }
-}
-
-/* tracking layout */
-.skeleton-tracking {
+/* ── Card skeleton ──────────────────────────────────────── */
+.skl-card {
+  background: var(--fsd-bg-base);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-lg);
+  padding: var(--fsd-space-5);
   display: flex;
-  height: 100vh;
-  position: relative;
+  flex-direction: column;
+  gap: var(--fsd-space-4);
+}
 
-  .skeleton-tracking-panel {
-    width: 320px;
-    flex-shrink: 0;
-    background: rgba(13, 17, 23, 0.95);
-    padding: 20px;
-    overflow: hidden;
-  }
+.skl-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fsd-space-2);
+}
 
-  .skeleton-tracking-map {
-    flex: 1;
-    padding: 48px 24px 24px;
-    background: rgba(13, 17, 23, 0.5);
+.skl-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fsd-space-3);
+}
 
-    .map-block {
-      min-height: calc(100vh - 72px);
-      border-radius: 12px;
-    }
+/* ── Table skeleton ─────────────────────────────────────── */
+.skl-table {
+  background: var(--fsd-bg-base);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-lg);
+  overflow: hidden;
+}
+
+.skl-table-header {
+  display: flex;
+  gap: var(--fsd-space-4);
+  padding: var(--fsd-space-4) var(--fsd-space-5);
+  border-bottom: 1px solid var(--fsd-border);
+  background: var(--fsd-bg-elevated);
+}
+
+.skl-table-row {
+  display: flex;
+  gap: var(--fsd-space-4);
+  padding: var(--fsd-space-3) var(--fsd-space-5);
+  border-bottom: 1px solid var(--fsd-border);
+
+  &:last-child {
+    border-bottom: none;
   }
 }
 
-.skeleton-default {
-  padding: 24px;
-  background: rgba(22, 27, 34, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+/* ── Chart skeleton ─────────────────────────────────────── */
+.skl-chart {
+  background: var(--fsd-bg-base);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-lg);
+  padding: var(--fsd-space-5);
+}
+
+.skl-chart-header {
+  margin-bottom: var(--fsd-space-5);
+}
+
+.skl-chart-area {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--fsd-space-3);
+  height: 180px;
+  padding: 0 var(--fsd-space-2);
+}
+
+.skl-chart-bar {
+  flex: 1;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(
+    180deg,
+    rgba(34, 199, 230, 0.18) 0%,
+    rgba(34, 199, 230, 0.04) 100%
+  );
+  animation: skl-shimmer 1.6s ease-in-out infinite;
+  background-size: 200% 100%;
+}
+
+/* ── Stats skeleton ─────────────────────────────────────── */
+.skl-stats {
+  display: grid;
+  gap: var(--fsd-space-4);
+
+  @media (max-width: 767px) {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.skl-stat-card {
+  background: var(--fsd-bg-base);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-lg);
+  padding: var(--fsd-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--fsd-space-3);
+}
+
+/* ── Text skeleton ──────────────────────────────────────── */
+.skl-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fsd-space-3);
+}
+
+/* ── List skeleton ──────────────────────────────────────── */
+.skl-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fsd-space-2);
+}
+
+.skl-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--fsd-space-3);
+  padding: var(--fsd-space-3) var(--fsd-space-4);
+  background: var(--fsd-bg-base);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius);
+}
+
+.skl-list-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fsd-space-2);
+  min-width: 0;
 }
 </style>

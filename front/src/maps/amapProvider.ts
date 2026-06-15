@@ -1,4 +1,5 @@
 import { getMapConfig } from './config'
+import { waitForAmapAuth } from './amapAuth'
 import type {
   GeoMapCircle,
   GeoMapHandle,
@@ -45,6 +46,8 @@ export class AmapProvider implements MapProvider {
       viewMode: '2D',
     })
     map.addControl(new AMap.Scale())
+
+    await waitForAmapAuth(map, options.container)
 
     let markers: AMapOverlay[] = []
     let polygons: AMapOverlay[] = []

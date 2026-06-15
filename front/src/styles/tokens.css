@@ -1,0 +1,164 @@
+/* ==========================================================================
+   DispatchFlow Design Tokens — Single Source of Truth
+   ==========================================================================
+   这是所有视觉属性的唯一权威来源。禁止在各组件中硬编码色值/尺寸。
+   同步文件：src/config/theme.ts (Ant Design Vue)、docs/DESIGN-SYSTEM.md
+
+   基线：4px 网格 · 暗色优先 · WCAG AA · OKLCH 感知色彩空间
+   ========================================================================== */
+
+/* ── Color: Background Layers ───────────────────────────── */
+:root {
+  --fsd-bg-deep:     #0B1018;   /* 页面底层 (body bg)            */
+  --fsd-bg-base:     #121821;   /* 卡片 / 侧边 / 表格            */
+  --fsd-bg-elevated: #1A2230;   /* 输入框 / 下拉 / 模态          */
+  --fsd-bg-hover:    #222C3C;   /* 悬停态                        */
+  --fsd-bg-active:   #283447;   /* 按下 / 选中态                 */
+}
+
+/* ── Color: Text ────────────────────────────────────────── */
+:root {
+  --fsd-text-primary:   #EEF3F9;   /* 正文 / 标题 (contrast ~14:1)  */
+  --fsd-text-secondary: #9BA8B8;   /* 辅助文字 (contrast ~5.4:1)    */
+  --fsd-text-tertiary:  #6B7787;   /* 提示 / placeholder            */
+  --fsd-text-heading:   #F4F8FC;   /* 页面标题增强                  */
+}
+
+/* ── Color: Border ──────────────────────────────────────── */
+:root {
+  --fsd-border:        rgba(255, 255, 255, 0.07);  /* 默认边框     */
+  --fsd-border-active: rgba(255, 255, 255, 0.14);  /* 悬停/激活边框 */
+  --fsd-border-split:  rgba(255, 255, 255, 0.05);  /* 分割线       */
+}
+
+/* ── Color: Accent (Signal Cyan) ────────────────────────── */
+:root {
+  --fsd-accent:        #22C7E6;   /* 品牌主色                        */
+  --fsd-accent-strong: #38D9F2;   /* 主色增亮 (hover/active)          */
+  --fsd-accent-muted:  #0FA8C6;   /* 主色加深 (按下)                 */
+  --fsd-accent-glow:   rgba(34, 199, 230, 0.16); /* 发光效果         */
+  --fsd-accent-bg:     rgba(34, 199, 230, 0.10); /* 浅底背景         */
+  --fsd-accent-border: rgba(34, 199, 230, 0.30); /* 边框强调         */
+}
+
+/* ── Color: Semantic ────────────────────────────────────── */
+:root {
+  --fsd-success: #2DE08A;   /* 已调度 / 已完成 / 在线              */
+  --fsd-warning: #FFC04D;   /* 低电量 / 拥堵 / 待处理              */
+  --fsd-error:   #FF5C7C;   /* 异常告警 / 离线 / 碰撞              */
+  --fsd-info:    #22C7E6;   /* 进行中 / 已派车 / 行驶中            */
+}
+
+/* ── Color: Risk Status (调度风险标识) ───────────────────── */
+:root {
+  --fsd-risk-critical: #FF5C7C;   /* 严重 — 需立即处理               */
+  --fsd-risk-warning:  #FFC04D;   /* 警告 — 需关注                   */
+  --fsd-risk-active:   #22C7E6;   /* 进行中 — 正常范围               */
+  --fsd-risk-normal:   #2DE08A;   /* 正常 — 无风险                   */
+  --fsd-risk-muted:    #6B7787;   /* 已归档 — 不活跃                 */
+}
+
+/* ── Typography ─────────────────────────────────────────── */
+:root {
+  --fsd-font-sans: 'Plus Jakarta Sans', 'PingFang SC', 'Microsoft YaHei',
+    'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --fsd-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+
+  /* Modular scale: 12 → 13 → 14 → 15 → 18 → 20 → 24 */
+  --fsd-text-xs:   12px;   /* labels, badges, chart annotations   */
+  --fsd-text-sm:   13px;   /* secondary descriptions, meta        */
+  --fsd-text-base: 14px;   /* body, table cell, form label        */
+  --fsd-text-md:   15px;   /* sub-heading, modal title            */
+  --fsd-text-lg:   18px;   /* section heading, card title         */
+  --fsd-text-xl:   20px;   /* panel title (h2)                    */
+  --fsd-text-2xl:  24px;   /* page title (h1), dashboard heading  */
+
+  --fsd-leading-tight:  1.3;   /* headings             */
+  --fsd-leading-snug:   1.4;   /* panel titles         */
+  --fsd-leading-normal: 1.5;   /* sub-headings         */
+  --fsd-leading-relaxed:1.6;   /* body / long text     */
+
+  --fsd-font-regular:  400;
+  --fsd-font-medium:   500;
+  --fsd-font-semibold: 600;
+  --fsd-font-bold:     700;
+  --fsd-font-extrabold:800;
+
+  /* Letter spacing */
+  --fsd-tracking-tight: -0.02em;   /* large headings */
+  --fsd-tracking-normal: 0;
+}
+
+/* ── Spacing (4px 基线网格) ─────────────────────────────── */
+:root {
+  --fsd-space-1:   4px;    /* 图标内边距、紧凑间隙        */
+  --fsd-space-2:   8px;    /* 组件内间距、标签组 gap      */
+  --fsd-space-3:  12px;    /* 行内元素间距、列表项间距    */
+  --fsd-space-4:  16px;    /* 卡片内边距、表单项间距      */
+  --fsd-space-5:  20px;    /* 面板标题与内容间距          */
+  --fsd-space-6:  24px;    /* 区块间距、卡片间距          */
+  --fsd-space-8:  32px;    /* 页面内边距、大区块分隔      */
+  --fsd-space-10: 40px;    /* 页面顶部留白                */
+  --fsd-space-12: 48px;    /* 模块间大分隔                */
+  --fsd-space-16: 64px;    /* 页面级大留白                */
+}
+
+/* ── Border Radius ──────────────────────────────────────── */
+:root {
+  --fsd-radius-xs:  6px;    /* badge, indicator            */
+  --fsd-radius-sm:  8px;    /* input, tag, button          */
+  --fsd-radius:    10px;    /* card, panel, default        */
+  --fsd-radius-lg: 16px;    /* modal, drawer               */
+  --fsd-radius-xl: 20px;    /* hero card, large container  */
+}
+
+/* ── Elevation / Shadow ─────────────────────────────────── */
+:root {
+  --fsd-shadow-card:    0 1px 2px rgba(0, 0, 0, 0.24),
+                        0 4px 16px rgba(0, 0, 0, 0.18);   /* 卡片 */
+  --fsd-shadow-elevated: 0 12px 36px rgba(0, 0, 0, 0.42),
+                         0 2px 8px rgba(0, 0, 0, 0.28);   /* 模态/抽屉 */
+  --fsd-shadow-glow:    0 0 0 1px rgba(34, 199, 230, 0.16),
+                        0 8px 28px rgba(34, 199, 230, 0.16); /* 品牌发光 */
+}
+
+/* ── Motion / Easing ────────────────────────────────────── */
+:root {
+  --fsd-ease:          cubic-bezier(0.22, 0.61, 0.36, 1);      /* 通用缓出 */
+  --fsd-ease-in:       cubic-bezier(0.55, 0.06, 0.68, 0.19);   /* 缓入     */
+  --fsd-ease-in-out:   cubic-bezier(0.65, 0.05, 0.36, 1);      /* 缓入缓出 */
+  --fsd-ease-bounce:   cubic-bezier(0.34, 1.56, 0.64, 1);      /* 弹性缓出 */
+
+  --fsd-duration-fast:   150ms;
+  --fsd-duration-normal: 250ms;
+  --fsd-duration-slow:   400ms;
+}
+
+/* ── Sizing ─────────────────────────────────────────────── */
+:root {
+  --fsd-control-height-sm: 32px;   /* 小号控件 (按钮/输入)     */
+  --fsd-control-height:    38px;   /* 常规控件                  */
+  --fsd-control-height-lg: 44px;   /* 大号控件                  */
+  --fsd-touch-target-min:  44px;   /* 最小触摸目标 (WCAG)       */
+  --fsd-sidebar-collapsed: 64px;   /* 折叠侧边栏宽              */
+  --fsd-sidebar-expanded: 208px;   /* 展开侧边栏宽              */
+}
+
+/* ── Z-Index Scale ──────────────────────────────────────── */
+:root {
+  --fsd-z-dropdown:  1050;
+  --fsd-z-sticky:    1020;
+  --fsd-z-modal:     1000;
+  --fsd-z-drawer:     990;
+  --fsd-z-popover:    980;
+  --fsd-z-tooltip:    970;
+  --fsd-z-toast:     1060;
+}
+
+/* ── Gradient Presets ───────────────────────────────────── */
+:root {
+  --fsd-gradient-card:  linear-gradient(135deg, rgba(34, 199, 230, 0.05) 0%, rgba(18, 24, 33, 0) 60%);
+  --fsd-gradient-accent: linear-gradient(135deg, #22C7E6 0%, #2D8BF0 100%);
+  --fsd-gradient-danger: linear-gradient(135deg, #FF5C7C 0%, #FF8A65 100%);
+  --fsd-gradient-success: linear-gradient(135deg, #2DE08A 0%, #00E676 100%);
+}

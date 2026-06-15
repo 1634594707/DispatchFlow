@@ -1,7 +1,13 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="32" height="32" rx="2" fill="#1565C0"/>
-  <path d="M5 23 H27" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
-  <rect x="12" y="17" width="8" height="8" rx="1" fill="#FFFFFF"/>
-  <circle cx="13.5" cy="23.5" r="2" fill="#FFFFFF"/>
-  <circle cx="18.5" cy="23.5" r="2" fill="#FFFFFF"/>
+  <defs>
+    <linearGradient id="df-fav" x1="3" y1="3" x2="29" y2="29" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22C7E6"/>
+      <stop offset="1" stop-color="#2D8BF0"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#df-fav)"/>
+  <path d="M6 24 C11 22 13 18 17.5 14" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.95"/>
+  <path d="M9 26 C12.5 24.5 14 22 16.5 19" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.55"/>
+  <circle cx="21" cy="11" r="4" fill="#FFFFFF"/>
+  <circle cx="21" cy="11" r="1.7" fill="#2D8BF0"/>
 </svg>

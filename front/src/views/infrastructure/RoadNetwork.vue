@@ -28,9 +28,7 @@
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'status'">
-              <a-tag :color="record.status === 'ACTIVE' ? 'success' : 'default'">
-                {{ record.status === 'ACTIVE' ? '启用' : '禁用' }}
-              </a-tag>
+              <StatusBadge :status="record.status" type="infra" />
             </template>
             <template v-else-if="column.key === 'coord'">
               ({{ record.coordX }}, {{ record.coordY }})
@@ -58,9 +56,7 @@
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'status'">
-              <a-tag :color="record.status === 'ACTIVE' ? 'success' : 'warning'">
-                {{ record.status === 'ACTIVE' ? '启用' : '禁用' }}
-              </a-tag>
+              <StatusBadge :status="record.status" type="infra" />
             </template>
             <template v-else-if="column.key === 'route'">
               {{ record.fromNodeCode }} → {{ record.toNodeCode }}
@@ -176,6 +172,7 @@ import { message, Modal } from 'ant-design-vue'
 import * as trafficApi from '@/api/traffic'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useParkOptions } from '@/composables/useParkOptions'
 import * as infraApi from '@/api/infrastructure'
 import type { AdminRoadNode, AdminRoadSegment } from '@/types/infrastructure'

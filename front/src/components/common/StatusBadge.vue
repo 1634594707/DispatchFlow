@@ -13,12 +13,23 @@ import {
   onlineStatusMap,
   dispatchStatusMap,
   exceptionStatusMap,
+  slotStatusMap,
+  infraActiveMap,
+  ticketStatusMap,
+  alertStatusMap,
+  healthStatusMap,
+  configCheckMap,
+  userStatusMap,
+  executionStatusMap,
+  vehicleHealthMap,
   statusColorToSemantic,
 } from '@/constants/statusMap'
 
 const props = withDefaults(defineProps<{
   status: string
   type?: 'order' | 'task' | 'online' | 'dispatch' | 'exception'
+    | 'slot' | 'infra' | 'ticket' | 'alert' | 'health' | 'config'
+    | 'user' | 'execution' | 'vehicleHealth'
   size?: 'sm' | 'md'
   showDot?: boolean
 }>(), {
@@ -28,11 +39,20 @@ const props = withDefaults(defineProps<{
 })
 
 const statusMaps: Record<string, Record<string, { label: string; color: string }>> = {
-  order: orderStatusMap,
-  task: taskStatusMap,
-  online: onlineStatusMap,
-  dispatch: dispatchStatusMap,
-  exception: exceptionStatusMap,
+  order:         orderStatusMap,
+  task:          taskStatusMap,
+  online:        onlineStatusMap,
+  dispatch:      dispatchStatusMap,
+  exception:     exceptionStatusMap,
+  slot:          slotStatusMap,
+  infra:         infraActiveMap,
+  ticket:        ticketStatusMap,
+  alert:         alertStatusMap,
+  health:        healthStatusMap,
+  config:        configCheckMap,
+  user:          userStatusMap,
+  execution:     executionStatusMap,
+  vehicleHealth: vehicleHealthMap,
 }
 
 const config = computed(() => {

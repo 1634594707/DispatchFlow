@@ -1,33 +1,5 @@
 @import './theme.less';
 
-:root {
-  --fsd-bg-deep: #06090F;
-  --fsd-bg-base: #0D1117;
-  --fsd-bg-elevated: #161B22;
-  --fsd-bg-hover: #1C2128;
-  --fsd-border: #21262D;
-  --fsd-border-active: #30363D;
-  --fsd-text-primary: #E6EDF3;
-  --fsd-text-secondary: #8B949E;
-  --fsd-text-tertiary: #6E7681;
-  --fsd-accent: #00B4D8;
-  --fsd-accent-glow: rgba(0, 180, 216, 0.15);
-  --fsd-success: #00E676;
-  --fsd-warning: #FFB020;
-  --fsd-error: #FF3D71;
-  --fsd-info: #00B4D8;
-  --fsd-risk-critical: #FF3D71;
-  --fsd-risk-warning: #FFB020;
-  --fsd-risk-active: #00B4D8;
-  --fsd-risk-normal: #00E676;
-  --fsd-risk-muted: #6E7681;
-  --fsd-gradient-card: linear-gradient(135deg, rgba(0, 180, 216, 0.03) 0%, rgba(13, 17, 23, 0) 100%);
-  --fsd-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --fsd-shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --fsd-radius: 8px;
-  --fsd-radius-lg: 12px;
-}
-
 * {
   margin: 0;
   padding: 0;
@@ -44,6 +16,10 @@ body {
   font-family: 'Plus Jakarta Sans', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', -apple-system,
     BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--fsd-bg-deep);
+  background-image:
+    radial-gradient(900px circle at 12% -5%, rgba(34, 199, 230, 0.07), transparent 45%),
+    radial-gradient(800px circle at 100% 0%, rgba(45, 139, 240, 0.06), transparent 42%);
+  background-attachment: fixed;
   color: var(--fsd-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -51,8 +27,8 @@ body {
 
 // Scrollbar
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -60,11 +36,14 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--fsd-border);
-  border-radius: 3px;
+  background: var(--fsd-border-active);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
 
   &:hover {
-    background: var(--fsd-border-active);
+    background: rgba(255, 255, 255, 0.24);
+    background-clip: padding-box;
   }
 }
 
@@ -108,6 +87,15 @@ body {
   background: var(--fsd-bg-base) !important;
   border: 1px solid var(--fsd-border) !important;
   border-radius: var(--fsd-radius-lg) !important;
+  box-shadow: var(--fsd-shadow-card) !important;
+  transition: border-color 0.25s var(--fsd-ease), box-shadow 0.25s var(--fsd-ease),
+    transform 0.25s var(--fsd-ease) !important;
+
+  &.ant-card-hoverable:hover {
+    border-color: var(--fsd-border-active) !important;
+    box-shadow: var(--fsd-shadow-elevated) !important;
+    transform: translateY(-2px);
+  }
 }
 
 .ant-table,
@@ -125,9 +113,7 @@ body {
   color: var(--fsd-text-secondary) !important;
   font-weight: 600 !important;
   font-size: 12px !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
-}
+  }
 
 .ant-table-tbody > tr,
 .ant-table-tbody > tr.ant-table-row {
@@ -172,6 +158,10 @@ body {
   }
 }
 
+.ant-btn {
+  transition: all 0.2s var(--fsd-ease) !important;
+}
+
 .ant-btn-default {
   background: var(--fsd-bg-elevated) !important;
   border: 1px solid var(--fsd-border) !important;
@@ -180,6 +170,25 @@ body {
   &:hover {
     border-color: var(--fsd-accent) !important;
     color: var(--fsd-accent) !important;
+    background: var(--fsd-bg-hover) !important;
+  }
+}
+
+.ant-btn-primary {
+  background: var(--fsd-gradient-accent) !important;
+  border: none !important;
+  color: #04121a !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 10px rgba(34, 199, 230, 0.24) !important;
+
+  &:hover {
+    filter: brightness(1.08) !important;
+    box-shadow: 0 4px 16px rgba(34, 199, 230, 0.34) !important;
+    color: #04121a !important;
+  }
+
+  &:active {
+    filter: brightness(0.96) !important;
   }
 }
 
@@ -190,10 +199,17 @@ body {
   background: var(--fsd-bg-elevated) !important;
   border: 1px solid var(--fsd-border) !important;
   color: var(--fsd-text-primary) !important;
+  border-radius: var(--fsd-radius) !important;
+  transition: border-color 0.2s var(--fsd-ease), box-shadow 0.2s var(--fsd-ease) !important;
 
   &:hover,
   &:focus {
     border-color: var(--fsd-accent) !important;
+  }
+
+  &:focus,
+  &-focused {
+    box-shadow: 0 0 0 3px var(--fsd-accent-glow) !important;
   }
 }
 
@@ -217,7 +233,7 @@ body {
     color: var(--fsd-text-primary) !important;
 
     &::placeholder {
-      color: var(--fsd-text-tertiary) !important;
+      color: #8B949E !important;
     }
   }
 
@@ -249,13 +265,18 @@ body {
 
 .ant-select-dropdown,
 .park-select-dropdown {
-  background: var(--fsd-bg-elevated) !important;
+  background: rgba(26, 34, 48, 0.92) !important;
   border: 1px solid var(--fsd-border) !important;
+  border-radius: var(--fsd-radius) !important;
+  box-shadow: var(--fsd-shadow-elevated) !important;
+  backdrop-filter: blur(16px) saturate(140%);
   font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif !important;
 }
 
 .ant-select-item {
   color: var(--fsd-text-secondary) !important;
+  border-radius: var(--fsd-radius-sm) !important;
+  transition: background 0.18s var(--fsd-ease), color 0.18s var(--fsd-ease) !important;
 
   &-option-active,
   &-option-selected {
@@ -268,11 +289,18 @@ body {
   background: var(--fsd-bg-base) !important;
   border: 1px solid var(--fsd-border) !important;
   border-radius: var(--fsd-radius-lg) !important;
+  box-shadow: var(--fsd-shadow-elevated) !important;
 }
 
 .ant-modal-header {
-  background: var(--fsd-bg-elevated) !important;
+  background: transparent !important;
   border-bottom: 1px solid var(--fsd-border) !important;
+}
+
+.ant-modal-mask,
+.ant-drawer-mask {
+  background: rgba(6, 9, 15, 0.55) !important;
+  backdrop-filter: blur(2px);
 }
 
 .ant-drawer-content {
@@ -280,8 +308,31 @@ body {
 }
 
 .ant-drawer-header {
-  background: var(--fsd-bg-elevated) !important;
+  background: transparent !important;
   border-bottom: 1px solid var(--fsd-border) !important;
+}
+
+.ant-dropdown-menu,
+.ant-popover-inner {
+  background: rgba(26, 34, 48, 0.92) !important;
+  border: 1px solid var(--fsd-border) !important;
+  border-radius: var(--fsd-radius) !important;
+  box-shadow: var(--fsd-shadow-elevated) !important;
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
+.ant-dropdown-menu-item {
+  border-radius: var(--fsd-radius-sm) !important;
+  transition: background 0.18s var(--fsd-ease), color 0.18s var(--fsd-ease) !important;
+
+  &:hover {
+    background: var(--fsd-bg-hover) !important;
+    color: var(--fsd-text-primary) !important;
+  }
+}
+
+.ant-tag {
+  border-radius: var(--fsd-radius-sm) !important;
 }
 
 .ant-badge-status-success { background: var(--fsd-success) !important; }
@@ -306,11 +357,6 @@ body {
 }
 
 // Animations
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 61, 113, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(255, 61, 113, 0); }
-}
-
 @keyframes fade-in-up {
   from {
     opacity: 0;
@@ -330,6 +376,23 @@ body {
 .stagger-2 { animation-delay: 0.1s; }
 .stagger-3 { animation-delay: 0.15s; }
 .stagger-4 { animation-delay: 0.2s; }
+
+// ── Accessibility: reduced motion ─────────────────────────
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+// ── Accessibility: keyboard focus ring ────────────────────
+*:focus-visible {
+  outline: 2px solid var(--fsd-accent);
+  outline-offset: 2px;
+}
 
 // ── Guard mode: low-contrast shift duty ───────────────────────
 
@@ -361,37 +424,267 @@ html.fsd-guard-mode {
 }
 
 // ── Responsive breakpoints ────────────────────────────────────
+// Aligned with Ant Design Vue 4 grid breakpoints
+@fsd-break-xs: 575px;     // phone
+@fsd-break-sm: 576px;     // large phone / small tablet
+@fsd-break-md: 768px;     // tablet portrait
+@fsd-break-lg: 992px;     // tablet landscape / small laptop
+@fsd-break-xl: 1200px;    // desktop
+@fsd-break-xxl: 1600px;   // large desktop
 
-@fsd-tablet-break: 1024px;
-@fsd-laptop-break: 1366px;
-@fsd-mobile-break: 768px;
+// ── Responsive: Phone (< 576px) ──────────────────────────────
+@media (max-width: @fsd-break-xs) {
+  // Typography
+  h1, .page-title { font-size: 20px; }
+  h2, .section-title { font-size: 18px; }
+  h3, .card-title { font-size: 15px; }
+  body { font-size: 14px; }
 
-@media (max-width: @fsd-mobile-break) {
+  // Tables: compact on mobile
   .ant-table {
-    font-size: 12px;
+    font-size: var(--fsd-text-xs);
+
+    .ant-table-thead > tr > th,
+    .ant-table-tbody > tr > td {
+      padding: 8px 10px !important;
+    }
+
+    .ant-table-thead > tr > th {
+      font-size: 11px;
+    }
   }
 
-  .ant-table-thead > tr > th,
-  .ant-table-tbody > tr > td {
-    padding: 6px 8px !important;
+  // Tables: horizontal scroll wrapper
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
+  // Cards: reduced padding
+  .ant-card {
+    border-radius: var(--fsd-radius);
+
+    .ant-card-body {
+      padding: var(--fsd-space-4);
+    }
+
+    .ant-card-head {
+      padding: 0 var(--fsd-space-4);
+      min-height: 48px;
+
+      .ant-card-head-title {
+        padding: var(--fsd-space-3) 0;
+        font-size: var(--fsd-text-md);
+      }
+    }
+  }
+
+  // Modals: full-width on mobile
+  .ant-modal {
+    max-width: calc(100vw - 32px) !important;
+    margin: 16px;
+
+    .ant-modal-content {
+      border-radius: var(--fsd-radius-lg);
+
+      .ant-modal-body {
+        padding: var(--fsd-space-4);
+        max-height: calc(100dvh - 180px);
+        overflow-y: auto;
+      }
+    }
+  }
+
+  // Drawers: bottom sheet style
+  .ant-drawer-content-wrapper {
+    max-width: 100vw !important;
+  }
+
+  // Page containers
   .page-container .page-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: var(--fsd-space-3);
   }
 
   .page-container .page-title {
-    font-size: 18px;
+    font-size: var(--fsd-text-xl);
   }
 
   .page-container .search-bar {
     flex-direction: column;
     align-items: stretch;
+    gap: var(--fsd-space-2);
 
     > * {
       width: 100% !important;
     }
   }
+
+  // Buttons: full-width in toolbars
+  .page-toolbar {
+    flex-wrap: wrap;
+    gap: var(--fsd-space-2);
+
+    .ant-btn {
+      flex: 1;
+    }
+  }
+
+  // Pagination: compact
+  .ant-pagination {
+    font-size: var(--fsd-text-xs);
+
+    .ant-pagination-item {
+      min-width: 32px;
+      height: 32px;
+      line-height: 30px;
+    }
+
+    .ant-pagination-prev,
+    .ant-pagination-next {
+      min-width: 32px;
+      height: 32px;
+    }
+  }
+
+  // Form controls: full-width
+  .ant-form-item {
+    margin-bottom: var(--fsd-space-4);
+  }
+
+  // Tabs: scrollable
+  .ant-tabs-nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+
+    &::before {
+      border-bottom: none;
+    }
+  }
+
+  // Dropdowns: full-width
+  .ant-select-dropdown,
+  .ant-picker-dropdown {
+    min-width: auto !important;
+  }
+
+  // Descriptions: stacked
+  .ant-descriptions {
+    .ant-descriptions-row > td {
+      display: block;
+      padding: var(--fsd-space-2) 0;
+    }
+
+    .ant-descriptions-item-label {
+      font-size: var(--fsd-text-xs);
+    }
+  }
+}
+
+// ── Responsive: Tablet (576px - 991px) ───────────────────────
+@media (min-width: @fsd-break-sm) and (max-width: @fsd-break-lg) {
+  .page-container .search-bar {
+    flex-wrap: wrap;
+    gap: var(--fsd-space-2);
+
+    > * {
+      flex: 1;
+      min-width: 180px;
+    }
+  }
+
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    padding: 10px 12px !important;
+  }
+}
+
+// ── Touch-friendly adjustments ────────────────────────────────
+@media (pointer: coarse) {
+  // Larger touch targets
+  .ant-btn-sm {
+    min-height: 32px;
+    padding-inline: 12px;
+  }
+
+  .ant-radio-wrapper,
+  .ant-checkbox-wrapper {
+    padding-block: 4px;
+  }
+
+  // Remove hover states that stick on touch
+  .ant-btn:hover {
+    filter: none;
+  }
+
+  // Larger dropdown items
+  .ant-select-item,
+  .ant-dropdown-menu-item {
+    min-height: 36px;
+    line-height: 36px;
+  }
+}
+
+// ── Print styles ──────────────────────────────────────────────
+@media print {
+  .fsd-sider,
+  .fsd-header,
+  .fsd-bottom-nav,
+  .btt-btn {
+    display: none !important;
+  }
+
+  .fsd-content {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  .ant-card {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    break-inside: avoid;
+  }
+
+  .ant-table {
+    font-size: 11px;
+
+    .ant-table-thead > tr > th {
+      background: #f0f0f0 !important;
+      color: #333 !important;
+    }
+  }
+}
+
+// ── Responsive utility classes ────────────────────────────────
+.hide-on-mobile {
+  @media (max-width: @fsd-break-xs) {
+    display: none !important;
+  }
+}
+
+.hide-on-desktop {
+  @media (min-width: @fsd-break-lg) {
+    display: none !important;
+  }
+}
+
+.show-only-mobile {
+  display: none !important;
+
+  @media (max-width: @fsd-break-xs) {
+    display: revert !important;
+  }
+}
+
+// ── Safe area padding for notched devices ─────────────────────
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

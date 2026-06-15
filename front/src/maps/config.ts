@@ -10,14 +10,23 @@ function parseCenter(raw?: string): [number, number] {
   return [parts[0], parts[1]]
 }
 
+function readConfigValue(key: keyof ImportMetaEnv): string {
+  const runtimeValue = window.__DISPATCHFLOW_RUNTIME_CONFIG__?.[key as keyof DispatchFlowRuntimeConfig]
+  if (typeof runtimeValue === 'string' && runtimeValue.trim()) {
+    return runtimeValue.trim()
+  }
+  const envValue = import.meta.env[key]
+  return typeof envValue === 'string' ? envValue.trim() : ''
+}
+
 export function getMapConfig() {
-  const provider = (import.meta.env.VITE_MAP_PROVIDER || 'AMAP').toUpperCase() as MapProviderId
+  const provider = (readConfigValue('VITE_MAP_PROVIDER') || 'AMAP').toUpperCase() as MapProviderId
   return {
     provider,
-    amapKey: import.meta.env.VITE_AMAP_KEY?.trim() || '',
-    amapSecurityCode: import.meta.env.VITE_AMAP_SECURITY_CODE?.trim() || '',
-    defaultCenter: parseCenter(import.meta.env.VITE_AMAP_DEFAULT_CENTER),
-    defaultZoom: Number(import.meta.env.VITE_AMAP_DEFAULT_ZOOM || 15),
+    amapKey: readConfigValue('VITE_AMAP_KEY'),
+    amapSecurityCode: readConfigValue('VITE_AMAP_SECURITY_CODE'),
+    defaultCenter: parseCenter(readConfigValue('VITE_AMAP_DEFAULT_CENTER') || undefined),
+    defaultZoom: Number(readConfigValue('VITE_AMAP_DEFAULT_ZOOM') || 15),
   }
 }
 

@@ -17,9 +17,7 @@
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">
-          <a-tag :color="record.status === 'ACTIVE' ? 'success' : 'default'">
-            {{ record.status === 'ACTIVE' ? '启用' : '停用' }}
-          </a-tag>
+          <StatusBadge :status="record.status" type="infra" />
         </template>
         <template v-else-if="column.key === 'defaultPark'">
           <a-tag v-if="record.defaultPark" color="cyan">默认</a-tag>
@@ -115,6 +113,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import ParkSetupWizard from '@/views/infrastructure/ParkSetupWizard.vue'
 import * as infraApi from '@/api/infrastructure'
 import type { AdminPark } from '@/types/infrastructure'

@@ -37,7 +37,8 @@
 
       <a-card size="small" title="配置指引" class="guide-card">
         <ul class="guide-list">
-          <li>前端地图：复制 <code>front/.env.example</code> → <code>front/.env.local</code>，填写 <code>VITE_AMAP_KEY</code> 与 <code>VITE_AMAP_SECURITY_CODE</code></li>
+          <li>前端地图：本地复制 <code>front/.env.example</code> → <code>front/.env.local</code>；生产构建用 <code>front/.env.production</code> 或部署后编辑 <code>runtime-config.js</code></li>
+          <li>高德控制台：Key 类型选「Web端(JS API)」，配置安全密钥，并将<strong>线上域名</strong>加入白名单</li>
           <li>后端驾车路径：设置环境变量 <code>FSD_AMAP_WEB_SERVICE_KEY</code>（或依赖本地 OSM 路网）</li>
           <li>移动下单：<code>VITE_MOBILE_API_KEY</code> 与 Flyway V25 种子 Key 一致</li>
           <li>贴路验收：<code>.\scripts\m8-r7-accept.ps1 -JsonReport</code></li>
@@ -52,7 +53,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { getRoadRouteHealth, type RoadRouteHealth } from '@/api/park'
-import { getMapConfig, isAmapConfigured } from '@/maps'
+import { getMapConfig, getAmapWhitelistHosts, isAmapConfigured } from '@/maps'
 
 type CheckStatus = 'ok' | 'warn' | 'fail'
 
@@ -70,6 +71,8 @@ const roadHealthError = ref('')
 
 const mapConfig = getMapConfig()
 const mobileKey = (import.meta.env.VITE_MOBILE_API_KEY as string | undefined)?.trim() || ''
+
+const whitelistHosts = getAmapWhitelistHosts()
 
 const checks = computed<ConfigCheckItem[]>(() => {
   const jsKeyOk = !!mapConfig.amapKey
@@ -99,6 +102,15 @@ const checks = computed<ConfigCheckItem[]>(() => {
       detail: isAmapConfigured() ? 'AMAP 双 Key 就绪' : 'Key 或安全码缺失',
     },
     {
+      id: 'amap-domain',
+      title: '高德域名白名单',
+      status: isAmapConfigured() ? 'warn' : 'fail',
+      detail: isAmapConfigured()
+        ? `当前访问：${whitelistHosts.join(' · ')} — 须在高德控制台 JS Key 白名单中`
+        : '先配置 Key 后再添加域名白名单',
+      hint: '控制台报错 INVALID_USER_DOMAIN 即此项未配置；localhost 与线上域名需分别添加',
+    },
+    {
       id: 'mobile-key',
       title: '移动下单 API Key',
       status: mobileOk ? 'ok' : 'warn',
@@ -122,7 +134,11 @@ const checks = computed<ConfigCheckItem[]>(() => {
 })
 
 const overallReady = computed(() =>
-  checks.value.every(item => item.status === 'ok' || (item.id === 'mobile-key' && item.status === 'warn')),
+  checks.value.every(item =>
+    item.status === 'ok'
+    || (item.id === 'mobile-key' && item.status === 'warn')
+    || (item.id === 'amap-domain' && item.status === 'warn'),
+  ),
 )
 
 function maskSecret(value: string) {
