@@ -52,7 +52,7 @@
               <a-descriptions-item label="电量">
                 <a-progress
                   :percent="store.detail.batteryLevel"
-                  :stroke-color="store.detail.batteryLevel < 20 ? '#FF3D71' : '#00E676'"
+                  :stroke-color="store.detail.batteryLevel < 20 ? '#FF5C7C' : '#2DE08A'"
                   size="small"
                 />
               </a-descriptions-item>
@@ -299,8 +299,8 @@ function formatTime(t: string) {
 }
 
 function healthColor(level: string) {
-  const map: Record<string, string> = { GOOD: '#00E676', FAIR: '#FFD666', POOR: '#FFAA00', CRITICAL: '#FF3D71' }
-  return map[level] || '#58a6ff'
+  const map: Record<string, string> = { GOOD: '#2DE08A', FAIR: '#FFC04D', POOR: '#FFC04D', CRITICAL: '#FF5C7C' }
+  return map[level] || '#22C7E6'
 }
 
 async function loadTrajectory() {
@@ -330,7 +330,7 @@ function drawTrajectory() {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.fillStyle = '#0d1117'
+  ctx.fillStyle = '#0B1018'
   ctx.fillRect(0, 0, width, height)
   const xs = points.map((p) => p.x)
   const ys = points.map((p) => p.y)
@@ -342,7 +342,7 @@ function drawTrajectory() {
   const scale = Math.min((width - pad * 2) / (maxX - minX || 1), (height - pad * 2) / (maxY - minY || 1))
   const tx = (x: number) => pad + (x - minX) * scale
   const ty = (y: number) => pad + (y - minY) * scale
-  ctx.strokeStyle = '#00b4d8'
+  ctx.strokeStyle = '#22C7E6'
   ctx.lineWidth = 2
   ctx.beginPath()
   points.forEach((p, i) => {
@@ -350,7 +350,7 @@ function drawTrajectory() {
     else ctx.lineTo(tx(p.x), ty(p.y))
   })
   ctx.stroke()
-  ctx.fillStyle = '#00E676'
+  ctx.fillStyle = '#2DE08A'
   const last = points[points.length - 1]
   ctx.beginPath()
   ctx.arc(tx(last.x), ty(last.y), 5, 0, Math.PI * 2)

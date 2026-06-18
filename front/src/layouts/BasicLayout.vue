@@ -21,7 +21,7 @@
       placement="left"
       :width="280"
       :closable="false"
-      :body-style="{ padding: 0, background: '#121821' }"
+      :body-style="{ padding: 0, background: 'var(--fsd-bg-base)' }"
       class="fsd-mobile-drawer"
       @close="mobileDrawerOpen = false"
     >
@@ -89,10 +89,17 @@
 
           <!-- Desktop: all icon buttons visible -->
           <template v-if="!resp.isMobile.value">
-            <a-tooltip title="命令面板 (Ctrl+K)">
-              <a-button type="text" class="header-icon-btn" aria-label="打开命令面板" @click="commandPalette.open()">
-                <SearchOutlined />
-              </a-button>
+            <a-tooltip title="打开命令面板 (Ctrl+K)">
+              <button
+                type="button"
+                class="command-trigger"
+                aria-label="打开命令面板 (Ctrl+K)"
+                @click="commandPalette.open()"
+              >
+                <SearchOutlined class="command-trigger-icon" />
+                <span class="command-trigger-text">搜索订单、车辆…</span>
+                <span class="command-trigger-kbd" aria-hidden="true">Ctrl K</span>
+              </button>
             </a-tooltip>
             <a-tooltip title="调度快捷指令">
               <a-button type="text" class="header-icon-btn" aria-label="调度助手" @click="assistantOpen = true">
@@ -414,6 +421,11 @@ const pageTitle = computed(() => {
 })
 
 // ── Bottom nav items ─────────────────────────────────────
+// V9-UX7: Added badges for orders (pending dispatch) and vehicles (offline)
+const offlineVehicleCount = computed(() =>
+  workbenchStore.parkVehicles.filter(v => v.onlineStatus === 'OFFLINE').length
+)
+
 const bottomNavItems = computed(() => {
   const path = route.path
   return [
@@ -431,6 +443,7 @@ const bottomNavItems = computed(() => {
       icon: FileTextOutlined,
       path: '/orders',
       active: path.startsWith('/orders'),
+      badge: dashboardStore.summary?.pendingCount || undefined,
     },
     {
       key: 'vehicles',
@@ -438,6 +451,7 @@ const bottomNavItems = computed(() => {
       icon: CarOutlined,
       path: '/vehicles',
       active: path.startsWith('/vehicles'),
+      badge: offlineVehicleCount.value || undefined,
     },
     {
       key: 'analytics',
@@ -564,7 +578,10 @@ async function handleUserMenu({ key }: { key: string }) {
 }
 
 async function refreshBadgeCounts() {
-  await workbenchStore.fetchQueue()
+  await Promise.all([
+    workbenchStore.fetchQueue(),
+    dashboardStore.fetchSummary({ silent: true }),
+  ])
 }
 
 async function onParkScopeChange() {
@@ -637,7 +654,7 @@ onUnmounted(() => {
 :global(.fsd-mobile-drawer) {
   .ant-drawer-body {
     padding: 0 !important;
-    background: #121821 !important;
+    background: var(--fsd-bg-base) !important;
   }
 
   /* SidebarContent now renders custom nav, not ant-menu */
@@ -742,6 +759,64 @@ onUnmounted(() => {
       color: var(--fsd-accent) !important;
       background: var(--fsd-accent-glow) !important;
     }
+  }
+
+  /* Command palette trigger styled as a search box */
+  .command-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    width: 240px;
+    max-width: 26vw;
+    padding: 0 10px;
+    margin-right: 4px;
+    border: 1px solid var(--fsd-border);
+    border-radius: var(--fsd-radius);
+    background: var(--fsd-bg-hover);
+    color: var(--fsd-text-tertiary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.2s var(--fsd-ease), background 0.2s var(--fsd-ease);
+
+    &:hover {
+      border-color: var(--fsd-accent);
+      background: var(--fsd-bg-base);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--fsd-accent);
+      outline-offset: 1px;
+    }
+  }
+
+  .command-trigger-icon {
+    font-size: 16px;
+    color: var(--fsd-text-tertiary);
+    flex-shrink: 0;
+  }
+
+  .command-trigger-text {
+    flex: 1;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .command-trigger-kbd {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--fsd-text-tertiary);
+    padding: 3px 6px;
+    border: 1px solid var(--fsd-border);
+    border-radius: 4px;
+    background: var(--fsd-bg-base);
   }
 
   .user-info {
@@ -893,8 +968,8 @@ onUnmounted(() => {
   margin-right: 8px;
 
   &.online {
-    background: #00e676;
-    box-shadow: 0 0 8px rgba(0, 230, 118, 0.6);
+    background: var(--fsd-success);
+    box-shadow: 0 0 8px rgba(45, 224, 138, 0.6);
   }
 }
 

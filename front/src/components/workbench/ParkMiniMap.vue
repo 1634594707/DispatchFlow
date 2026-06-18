@@ -80,7 +80,7 @@ function draw() {
   const tx = (x: number) => offsetX + x * scale
   const ty = (y: number) => offsetY + y * scale
 
-  ctx.fillStyle = '#0d1117'
+  ctx.fillStyle = '#0B1018'
   ctx.fillRect(0, 0, width, height)
 
   ctx.strokeStyle = 'rgba(48, 54, 61, 0.9)'
@@ -97,7 +97,7 @@ function draw() {
   }
 
   for (const spot of layout.parkingSpots) {
-    ctx.fillStyle = 'rgba(0, 180, 216, 0.15)'
+    ctx.fillStyle = 'rgba(34, 199, 230, 0.15)'
     ctx.fillRect(tx(spot.x) - 4, ty(spot.y) - 4, 8, 8)
   }
 
@@ -113,8 +113,8 @@ function draw() {
     const x = tx(vehicle.x)
     const y = ty(vehicle.y)
     ctx.beginPath()
-    ctx.fillStyle = linked ? '#00e676' : vehicle.onlineStatus === 'ONLINE' ? '#48cae4' : '#6e7681'
-    ctx.strokeStyle = linked ? '#00e676' : 'rgba(255,255,255,0.2)'
+    ctx.fillStyle = linked ? '#2DE08A' : vehicle.onlineStatus === 'ONLINE' ? '#22C7E6' : '#6B7787'
+    ctx.strokeStyle = linked ? '#2DE08A' : 'rgba(255,255,255,0.2)'
     ctx.lineWidth = linked ? 2 : 1
     ctx.moveTo(x, y - 7)
     ctx.lineTo(x + 6, y + 5)
@@ -124,7 +124,7 @@ function draw() {
     ctx.stroke()
     if (vehicle.onlineStatus === 'ONLINE') {
       ctx.font = '9px JetBrains Mono, monospace'
-      ctx.fillStyle = vehicle.lowBattery ? '#ff7a45' : 'rgba(255,255,255,0.65)'
+      ctx.fillStyle = vehicle.lowBattery ? '#FF5C7C' : 'rgba(255,255,255,0.65)'
       ctx.textAlign = 'center'
       ctx.fillText(`${vehicle.batteryLevel}%`, x, y + 14)
     }
@@ -158,7 +158,7 @@ onUnmounted(() => {
   min-height: 280px;
   border-radius: 12px;
   overflow: hidden;
-  background: #0d1117;
+  background: var(--fsd-bg-deep);
   border: 1px solid var(--fsd-border);
 }
 
@@ -189,7 +189,7 @@ onUnmounted(() => {
   gap: 10px;
   padding: 6px 10px;
   border-radius: 8px;
-  background: rgba(13, 17, 23, 0.82);
+  background: rgba(11, 16, 24, 0.82);
   border: 1px solid rgba(48, 54, 61, 0.8);
   backdrop-filter: blur(6px);
 }
@@ -223,16 +223,16 @@ onUnmounted(() => {
   height: 8px;
   border-radius: 50%;
 
-  &.pickup { background: #00b4d8; }
-  &.dropoff { background: #ffb703; }
-  &.express { background: #06d6a0; }
+  &.pickup { background: var(--fsd-accent); }
+  &.dropoff { background: var(--fsd-warning); }
+  &.express { background: var(--fsd-success); }
   &.vehicle {
     width: 0;
     height: 0;
     border-radius: 0;
     border-left: 4px solid transparent;
     border-right: 4px solid transparent;
-    border-bottom: 7px solid #48cae4;
+    border-bottom: 7px solid var(--fsd-accent);
     background: none;
   }
 }
@@ -247,7 +247,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 8px 12px;
   border-radius: 8px;
-  background: rgba(13, 17, 23, 0.82);
+  background: rgba(11, 16, 24, 0.82);
   border: 1px solid rgba(48, 54, 61, 0.8);
   backdrop-filter: blur(6px);
 }
@@ -264,7 +264,7 @@ onUnmounted(() => {
   text-decoration: none;
 
   &:hover {
-    color: #7ee8ff;
+    color: var(--fsd-accent);
   }
 }
 </style>

@@ -71,8 +71,8 @@ async function handleInstall() {
   align-items: center;
   gap: 12px;
   padding: 10px 20px;
-  background: #1A1D23;
-  border: 1px solid #30363D;
+  background: var(--fsd-bg-base);
+  border: 1px solid var(--fsd-border);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(12px);
@@ -81,6 +81,6 @@ async function handleInstall() {
 
 .pwa-install-text {
   font-size: 13px;
-  color: #8B949E;
+  color: var(--fsd-text-secondary);
 }
 </style>

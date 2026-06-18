@@ -133,7 +133,7 @@ const mapPoints = computed(() =>
       label: s.slotCode,
       x: Number(s.coordX),
       y: Number(s.coordY),
-      color: s.status === 'FREE' ? '#00e676' : '#ffb703',
+      color: s.status === 'FREE' ? '#2DE08A' : '#FFC04D',
     }))
 )
 

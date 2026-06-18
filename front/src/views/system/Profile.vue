@@ -207,12 +207,12 @@ onMounted(() => {
 
 .notification-status {
   font-size: 13px;
-  color: var(--fsd-text-secondary, #8B949E);
+  color: var(--fsd-text-secondary, #9BA8B8);
 }
 
 .notification-desc {
   font-size: 12px;
-  color: var(--fsd-text-tertiary, #484F58);
+  color: var(--fsd-text-tertiary, #6B7787);
   margin-top: 4px;
   line-height: 1.5;
 }

@@ -19,18 +19,18 @@ export function stationGeoPosition(station: ParkStation): [number, number] | nul
 }
 
 export function markerColor(vehicle: ParkVehicleSnapshot): string {
-  if (vehicle.onlineStatus === 'OFFLINE') return '#ff4d6d'
-  if (vehicle.charging) return '#ffb020'
-  if (vehicle.lowBattery) return '#ff7a45'
-  if (vehicle.dispatchStatus === 'BUSY') return '#3ea6ff'
-  return '#00d68f'
+  if (vehicle.onlineStatus === 'OFFLINE') return '#FF5C7C'
+  if (vehicle.charging) return '#FFC04D'
+  if (vehicle.lowBattery) return '#FF5C7C'
+  if (vehicle.dispatchStatus === 'BUSY') return '#22C7E6'
+  return '#2DE08A'
 }
 
 export function orderColor(stage: string): string {
-  if (stage === 'COMPLETED') return '#00d68f'
-  if (stage === 'FAILED' || stage === 'MANUAL_PENDING') return '#ff4d6d'
-  if (stage === 'LOADING' || stage === 'UNLOADING' || stage === 'CHARGING') return '#ffb020'
-  return '#3ea6ff'
+  if (stage === 'COMPLETED') return '#2DE08A'
+  if (stage === 'FAILED' || stage === 'MANUAL_PENDING') return '#FF5C7C'
+  if (stage === 'LOADING' || stage === 'UNLOADING' || stage === 'CHARGING') return '#FFC04D'
+  return '#22C7E6'
 }
 
 function shortVehicleCode(code: string): string {
@@ -99,7 +99,7 @@ export function buildGeoPolylines(
         path: vehicle.plannedRouteGeo.map(
           (p) => [Number(p.longitude ?? p.x), Number(p.latitude ?? p.y)] as [number, number],
         ),
-        strokeColor: '#5cadff',
+        strokeColor: '#22C7E6',
         strokeWeight: 5,
         strokeOpacity: 0.55,
         zIndex: 40,
@@ -151,8 +151,8 @@ export function buildGeofencePolygons(geofences: ParkGeofence[]): GeoMapPolygon[
     .map((fence) => ({
       id: String(fence.id),
       path: fence.polygon.map((point) => [Number(point[0]), Number(point[1])] as [number, number]),
-      strokeColor: fence.fenceType === 'RESTRICTED' ? '#ff6b6b' : '#00d4aa',
-      fillColor: fence.fenceType === 'RESTRICTED' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(0, 212, 170, 0.12)',
+      strokeColor: fence.fenceType === 'RESTRICTED' ? '#FF5C7C' : '#2DE08A',
+      fillColor: fence.fenceType === 'RESTRICTED' ? 'rgba(255, 92, 124, 0.15)' : 'rgba(45, 224, 138, 0.12)',
       zIndex: 10,
     }))
 }

@@ -178,10 +178,19 @@
           @mousedown="onMouseDown"
           @mousemove="onMouseMove"
           @mouseup="onMouseUp"
-          @mouseleave="onMouseUp"
+          @mouseleave="onMouseLeaveCanvas"
         />
         <div v-if="!loading && loadError" class="twin-empty">{{ loadError }}</div>
         <div v-else-if="!loading && !hasLayout" class="twin-empty">暂无园区地图数据，请检查默认园区配置</div>
+
+        <!-- V9-UX4: Vehicle hover tooltip -->
+        <div
+          v-if="hoverTooltip.visible"
+          class="vehicle-hover-tooltip"
+          :style="{ left: hoverTooltip.x + 'px', top: (hoverTooltip.y - 28) + 'px' }"
+        >
+          {{ hoverTooltip.code }}
+        </div>
 
         <!-- Area stats popover -->
         <div
@@ -382,6 +391,15 @@ const vehiclePositions = ref<Map<number, { x: number; y: number; vehicle: ParkVe
 const selectedVehicle = ref<ParkVehicleSnapshot | null>(null)
 const vehicleDrawerVisible = ref(false)
 
+// V9-UX4: Vehicle hover feedback
+const hoveredVehicleId = ref<number | null>(null)
+const hoverTooltip = ref<{ visible: boolean; x: number; y: number; code: string }>({
+  visible: false,
+  x: 0,
+  y: 0,
+  code: '',
+})
+
 // V5-DT1: Rectangle selection
 const isDragging = ref(false)
 const dragStart = ref<{ x: number; y: number } | null>(null)
@@ -400,11 +418,11 @@ const scenarioOptions = [
 ]
 
 const batteryColor = computed(() => {
-  if (!selectedVehicle.value) return '#52c41a'
+  if (!selectedVehicle.value) return '#2DE08A'
   const lvl = selectedVehicle.value.batteryLevel
-  if (lvl < 20) return '#ff4d4f'
-  if (lvl < 50) return '#faad14'
-  return '#52c41a'
+  if (lvl < 20) return '#FF5C7C'
+  if (lvl < 50) return '#FFC04D'
+  return '#2DE08A'
 })
 
 function formatSelectedVehicleBattery() {
@@ -584,8 +602,8 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
   ctx.clearRect(0, 0, width, height)
 
   const gradient = ctx.createLinearGradient(0, 0, 0, height)
-  gradient.addColorStop(0, '#0b1320')
-  gradient.addColorStop(1, '#152238')
+  gradient.addColorStop(0, '#0B1018')
+  gradient.addColorStop(1, '#1A2230')
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, width, height)
 
@@ -612,9 +630,9 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
   for (const station of layout.stations || []) {
     const x = isoX(station.x, station.y)
     const y = isoY(station.x, station.y)
-    ctx.fillStyle = 'rgba(0, 180, 216, 0.35)'
+    ctx.fillStyle = 'rgba(34, 199, 230, 0.35)'
     ctx.fillRect(x - 10, y - 6, 20, 12)
-    ctx.fillStyle = '#7dd3fc'
+    ctx.fillStyle = '#22C7E6'
     ctx.fillRect(x - 8, y - 14, 16, 8)
   }
 
@@ -623,7 +641,16 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
     if (vehicle.x == null || vehicle.y == null) continue
     const x = isoX(Number(vehicle.x), Number(vehicle.y))
     const y = isoY(Number(vehicle.x), Number(vehicle.y))
-    const color = vehicle.lowBattery ? '#ff6b6b' : vehicle.charging ? '#ffd166' : '#4ade80'
+    const color = vehicle.lowBattery ? '#FF5C7C' : vehicle.charging ? '#FFC04D' : '#2DE08A'
+
+    // V9-UX4: Hover highlight — translucent ring around hovered vehicle
+    if (hoveredVehicleId.value === vehicle.vehicleId) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(x, y - 10, 11, 0, Math.PI * 2)
+      ctx.stroke()
+    }
 
     // Highlight selected vehicle
     if (selectedVehicle.value?.vehicleId === vehicle.vehicleId) {
@@ -651,17 +678,31 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
     const sy = Math.min(dragStart.value.y, dragEnd.value.y)
     const ex = Math.max(dragStart.value.x, dragEnd.value.x)
     const ey = Math.max(dragStart.value.y, dragEnd.value.y)
-    ctx.strokeStyle = 'rgba(0, 180, 216, 0.8)'
+    ctx.strokeStyle = 'rgba(34, 199, 230, 0.8)'
     ctx.lineWidth = 1.5
     ctx.setLineDash([4, 4])
     ctx.strokeRect(sx, sy, ex - sx, ey - sy)
-    ctx.fillStyle = 'rgba(0, 180, 216, 0.08)'
+    ctx.fillStyle = 'rgba(34, 199, 230, 0.08)'
     ctx.fillRect(sx, sy, ex - sx, ey - sy)
     ctx.setLineDash([])
   }
 }
 
 // V5-DT1: Canvas click handler for vehicle detection
+// V9-UX5: Reduced hit-test threshold from 15px to 10px to avoid misclicks in dense areas
+function findVehicleAt(x: number, y: number, threshold = 10): number | null {
+  let closestId: number | null = null
+  let closestDist = Infinity
+  for (const [id, pos] of vehiclePositions.value.entries()) {
+    const dist = Math.hypot(x - pos.x, y - (pos.y - 10))
+    if (dist < threshold && dist < closestDist) {
+      closestDist = dist
+      closestId = id
+    }
+  }
+  return closestId
+}
+
 function onCanvasClick(e: MouseEvent) {
   const canvas = canvasRef.value
   if (!canvas) return
@@ -669,16 +710,8 @@ function onCanvasClick(e: MouseEvent) {
   const clickX = e.clientX - rect.left
   const clickY = e.clientY - rect.top
 
-  // Hit-test: find closest vehicle within 15px
-  let closestId: number | null = null
-  let closestDist = Infinity
-  for (const [id, pos] of vehiclePositions.value.entries()) {
-    const dist = Math.hypot(clickX - pos.x, clickY - (pos.y - 10))
-    if (dist < 15 && dist < closestDist) {
-      closestDist = dist
-      closestId = id
-    }
-  }
+  // Hit-test: find closest vehicle within 10px (V9-UX5: lowered from 15px)
+  const closestId = findVehicleAt(clickX, clickY, 10)
 
   if (closestId != null) {
     const entry = vehiclePositions.value.get(closestId)
@@ -703,13 +736,61 @@ function onMouseDown(e: MouseEvent) {
 }
 
 function onMouseMove(e: MouseEvent) {
-  if (!isDragging.value) return
   const canvas = canvasRef.value
   if (!canvas) return
   const rect = canvas.getBoundingClientRect()
-  dragEnd.value = { x: e.clientX - rect.left, y: e.clientY - rect.top }
-  // Re-draw to show rectangle
-  drawTwin(snapshot.value?.layout ?? null, snapshot.value?.vehicles ?? [])
+  const mx = e.clientX - rect.left
+  const my = e.clientY - rect.top
+
+  if (isDragging.value) {
+    dragEnd.value = { x: mx, y: my }
+    // Re-draw to show rectangle
+    drawTwin(snapshot.value?.layout ?? null, snapshot.value?.vehicles ?? [])
+    return
+  }
+
+  // V9-UX4: Hover detection — update cursor and tooltip when over a vehicle
+  const hitId = findVehicleAt(mx, my, 10)
+  if (hitId !== hoveredVehicleId.value) {
+    const prevId = hoveredVehicleId.value
+    hoveredVehicleId.value = hitId
+    // Re-draw only when hover state changes to show/hide highlight ring
+    if (hitId !== null || prevId !== null) {
+      drawTwin(snapshot.value?.layout ?? null, snapshot.value?.vehicles ?? [])
+    }
+  }
+
+  if (hitId != null) {
+    const entry = vehiclePositions.value.get(hitId)
+    canvas.style.cursor = 'pointer'
+    hoverTooltip.value = {
+      visible: true,
+      x: mx,
+      y: my,
+      code: entry?.vehicle.vehicleCode ?? '',
+    }
+  } else {
+    canvas.style.cursor = ''
+    hoverTooltip.value = { ...hoverTooltip.value, visible: false }
+  }
+}
+
+function onMouseLeaveCanvas() {
+  // Cancel any in-progress drag without triggering selection
+  if (isDragging.value) {
+    isDragging.value = false
+    dragStart.value = null
+    dragEnd.value = null
+    drawTwin(snapshot.value?.layout ?? null, snapshot.value?.vehicles ?? [])
+  }
+  // V9-UX4: Clear hover state
+  if (hoveredVehicleId.value !== null) {
+    hoveredVehicleId.value = null
+    drawTwin(snapshot.value?.layout ?? null, snapshot.value?.vehicles ?? [])
+  }
+  const canvas = canvasRef.value
+  if (canvas) canvas.style.cursor = ''
+  hoverTooltip.value = { ...hoverTooltip.value, visible: false }
 }
 
 function onMouseUp(_e: MouseEvent) {
@@ -840,7 +921,7 @@ onUnmounted(() => resizeObserver?.disconnect())
   border-radius: var(--fsd-radius-lg);
   overflow: hidden;
   border: 1px solid var(--fsd-border);
-  background: #0b1320;
+  background: var(--fsd-bg-deep);
 }
 
 .twin-canvas {
@@ -848,6 +929,23 @@ onUnmounted(() => resizeObserver?.disconnect())
   height: 100%;
   display: block;
   cursor: crosshair;
+}
+
+/* V9-UX4: Vehicle hover tooltip */
+.vehicle-hover-tooltip {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  transform: translateX(-50%);
+  background: var(--fsd-bg-elevated, #1A2230);
+  border: 1px solid var(--fsd-border, rgba(255, 255, 255, 0.07));
+  border-radius: var(--fsd-radius, 6px);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fsd-text-primary, #EEF3F9);
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .twin-empty {
@@ -923,7 +1021,7 @@ onUnmounted(() => resizeObserver?.disconnect())
 }
 
 .panel-a .panel-title {
-  color: var(--fsd-primary);
+  color: var(--fsd-accent);
 }
 
 .panel-b .panel-title {
@@ -970,7 +1068,7 @@ onUnmounted(() => resizeObserver?.disconnect())
 
 .area-stats-content {
   background: var(--fsd-bg-elevated);
-  border: 1px solid var(--fsd-primary);
+  border: 1px solid var(--fsd-accent);
   border-radius: var(--fsd-radius);
   padding: 8px 14px;
   font-size: 13px;

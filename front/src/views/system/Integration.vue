@@ -748,24 +748,24 @@ onMounted(() => {
 
 .stats-card-label {
   font-size: 12px;
-  color: var(--fsd-text-tertiary, #8c8c8c);
+  color: var(--fsd-text-tertiary, #6B7787);
 }
 
 .stats-card-value {
   font-size: 24px;
   font-weight: 600;
   font-family: 'JetBrains Mono', monospace;
-  color: var(--fsd-text-primary, #e8e8e8);
+  color: var(--fsd-text-primary, #EEF3F9);
 }
 
 .stats-card-desc {
   font-size: 11px;
-  color: var(--fsd-text-tertiary, #8c8c8c);
+  color: var(--fsd-text-tertiary, #6B7787);
 }
 
-.text-success { color: #52c41a; }
-.text-warning { color: #faad14; }
-.text-danger { color: #ff4d4f; }
+.text-success { color: var(--fsd-success); }
+.text-warning { color: var(--fsd-warning); }
+.text-danger { color: var(--fsd-error); }
 
 // 趋势图
 .panel {
@@ -797,7 +797,7 @@ onMounted(() => {
 
 .trend-label {
   font-size: 11px;
-  color: var(--fsd-text-tertiary, #8c8c8c);
+  color: var(--fsd-text-tertiary, #6B7787);
   font-family: 'JetBrains Mono', monospace;
 }
 
@@ -811,19 +811,19 @@ onMounted(() => {
 
 .trend-bar-success {
   height: 100%;
-  background: #52c41a;
+  background: var(--fsd-success);
   transition: width 0.3s ease;
 }
 
 .trend-bar-error {
   height: 100%;
-  background: #ff4d4f;
+  background: var(--fsd-error);
   transition: width 0.3s ease;
 }
 
 .trend-value {
   font-size: 11px;
-  color: var(--fsd-text-secondary, #b0b0b0);
+  color: var(--fsd-text-secondary, #9BA8B8);
   text-align: right;
   font-family: 'JetBrains Mono', monospace;
 }
@@ -833,7 +833,7 @@ onMounted(() => {
   gap: 16px;
   margin-top: 8px;
   font-size: 12px;
-  color: var(--fsd-text-tertiary, #8c8c8c);
+  color: var(--fsd-text-tertiary, #6B7787);
 }
 
 .legend-dot {
@@ -845,8 +845,8 @@ onMounted(() => {
   vertical-align: middle;
 }
 
-.legend-success { background: #52c41a; }
-.legend-error { background: #ff4d4f; }
+.legend-success { background: var(--fsd-success); }
+.legend-error { background: var(--fsd-error); }
 
 // 沙箱
 .sandbox-info {
@@ -872,7 +872,7 @@ onMounted(() => {
   code {
     font-size: 12px;
     font-family: 'JetBrains Mono', monospace;
-    color: #a8d8a8;
+    color: var(--fsd-success);
     white-space: pre;
   }
 }

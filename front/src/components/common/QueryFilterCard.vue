@@ -110,8 +110,8 @@ const emit = defineEmits<{
   border-radius: 999px;
   font-size: 11px;
   font-weight: 500;
-  border: 1px solid rgba(0, 180, 216, 0.25);
-  background: rgba(0, 180, 216, 0.08);
+  border: 1px solid rgba(34, 199, 230, 0.25);
+  background: rgba(34, 199, 230, 0.08);
   color: var(--fsd-accent);
   cursor: pointer;
   transition: all 0.15s;
@@ -119,7 +119,7 @@ const emit = defineEmits<{
   &:hover {
     border-color: var(--fsd-error);
     color: var(--fsd-error);
-    background: rgba(255, 61, 113, 0.08);
+    background: rgba(255, 92, 124, 0.08);
   }
 }
 

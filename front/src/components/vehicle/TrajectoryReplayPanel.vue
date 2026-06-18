@@ -106,7 +106,7 @@ function draw() {
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, width, height)
-  ctx.fillStyle = '#0d1117'
+  ctx.fillStyle = '#0B1018'
   ctx.fillRect(0, 0, width, height)
   const xs = pts.map((p) => p.x!)
   const ys = pts.map((p) => p.y!)
@@ -118,7 +118,7 @@ function draw() {
   const scale = Math.min((width - pad * 2) / (maxX - minX || 1), (height - pad * 2) / (maxY - minY || 1))
   const tx = (x: number) => pad + (x - minX) * scale
   const ty = (y: number) => height - pad - (y - minY) * scale
-  ctx.strokeStyle = '#00B4D8'
+  ctx.strokeStyle = '#22C7E6'
   ctx.lineWidth = 2
   ctx.beginPath()
   pts.forEach((p, i) => {
@@ -130,14 +130,14 @@ function draw() {
   ctx.stroke()
   for (const dwell of dwellPoints.value) {
     ctx.fillStyle = 'rgba(255, 170, 0, 0.35)'
-    ctx.strokeStyle = '#FFAA00'
+    ctx.strokeStyle = '#FFC04D'
     ctx.beginPath()
     ctx.arc(tx(dwell.x), ty(dwell.y), 10, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
   }
   const last = pts[pts.length - 1]
-  ctx.fillStyle = '#FF3D71'
+  ctx.fillStyle = '#FF5C7C'
   ctx.beginPath()
   ctx.arc(tx(last.x!), ty(last.y!), 5, 0, Math.PI * 2)
   ctx.fill()
@@ -178,7 +178,7 @@ defineExpose({ reload: load })
 }
 .replay-hint {
   font-size: 12px;
-  color: #6b7c8f;
+  color: var(--fsd-text-tertiary);
   margin: 0;
 }
 </style>

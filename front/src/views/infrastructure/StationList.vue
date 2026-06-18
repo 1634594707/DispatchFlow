@@ -152,7 +152,7 @@ const mapPoints = computed(() =>
       label: s.stationCode,
       x: Number(s.coordX),
       y: Number(s.coordY),
-      color: s.stationType === 'PICKUP' ? '#00b4d8' : s.stationType === 'DROPOFF' ? '#ffb703' : '#8b949e',
+      color: s.stationType === 'PICKUP' ? '#22C7E6' : s.stationType === 'DROPOFF' ? '#FFC04D' : '#9BA8B8',
     }))
 )
 

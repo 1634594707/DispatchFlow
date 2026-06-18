@@ -114,7 +114,9 @@
         <div class="panel-head">
           <div class="panel-head-title">
             <h2>任务池</h2>
-            <span class="panel-order-hint">默认按优先级 · 拖动仅本机偏好</span>
+                      <a-tooltip title="排序仅保存在本机浏览器，不影响其他用户的显示顺序">
+              <span class="panel-order-hint">默认按优先级 · 拖动仅本机偏好</span>
+            </a-tooltip>
             <a-button
               v-if="hasManualTaskOrder"
               type="link"
@@ -151,7 +153,14 @@
         </div>
 
         <!-- V5-W6/W7: 筛选栏 + 视图模板 -->
-        <div class="filter-bar">
+        <!-- V9-UX6: Mobile filter trigger button -->
+        <button v-if="resp.isPhone.value" type="button" class="mobile-filter-trigger" @click="mobileFilterVisible = true">
+          <FilterOutlined />
+          <span>筛选</span>
+          <span v-if="hasActiveFilters" class="mobile-filter-dot"></span>
+        </button>
+        <!-- Desktop: inline filter bar -->
+        <div v-if="!resp.isPhone.value" class="filter-bar">
           <div class="filter-row">
             <a-select v-model:value="filterPriority" allow-clear placeholder="优先级" class="filter-select" size="small" @change="activeViewName = null">
               <a-select-option value="P1">P1 紧急</a-select-option>
@@ -198,6 +207,66 @@
             <span v-if="savedViews.length === 0 && quickFilterTemplates.every(t => activeViewName !== t.name)" class="filter-templates-hint">暂无</span>
           </div>
         </div>
+        <!-- V9-UX6: Mobile filter drawer -->
+        <a-drawer
+          v-if="resp.isPhone.value"
+          :open="mobileFilterVisible"
+          placement="bottom"
+          height="auto"
+          title="筛选条件"
+          class="mobile-filter-drawer"
+          @close="mobileFilterVisible = false"
+        >
+          <div class="filter-bar filter-bar--mobile">
+            <div class="filter-row">
+              <a-select v-model:value="filterPriority" allow-clear placeholder="优先级" class="filter-select" size="small" @change="activeViewName = null">
+                <a-select-option value="P1">P1 紧急</a-select-option>
+                <a-select-option value="P2">P2 普通</a-select-option>
+                <a-select-option value="P3">P3 低优先级</a-select-option>
+              </a-select>
+              <a-select v-model:value="filterWaitMin" allow-clear placeholder="等待时间" class="filter-select" size="small" @change="activeViewName = null">
+                <a-select-option :value="5">≥ 5 分钟</a-select-option>
+                <a-select-option :value="10">≥ 10 分钟</a-select-option>
+                <a-select-option :value="30">≥ 30 分钟</a-select-option>
+              </a-select>
+              <a-select v-model:value="filterVehicleAssigned" allow-clear placeholder="派车状态" class="filter-select" size="small" @change="activeViewName = null">
+                <a-select-option value="unassigned">未派车</a-select-option>
+                <a-select-option value="assigned">已派车</a-select-option>
+              </a-select>
+              <label class="filter-check">
+                <input v-model="filterOpenExceptionOnly" type="checkbox" @change="activeViewName = null" />
+                仅异常
+              </label>
+            </div>
+            <div class="filter-row">
+              <a-button size="small" type="link" :disabled="!hasActiveFilters" @click="openSaveViewModal">保存视图</a-button>
+              <a-button size="small" type="link" :disabled="!hasActiveFilters" @click="clearAllFilters">清除筛选</a-button>
+            </div>
+            <div class="filter-templates">
+              <span class="filter-templates-label">模板：</span>
+              <button
+                v-for="tmpl in quickFilterTemplates"
+                :key="tmpl.name"
+                class="filter-chip"
+                :class="{ active: activeViewName === tmpl.name }"
+                @click="applySavedView(tmpl)"
+              >
+                {{ tmpl.name }}
+              </button>
+              <template v-for="view in savedViews" :key="view.name">
+                <button
+                  class="filter-chip saved"
+                  :class="{ active: activeViewName === view.name }"
+                  @click="applySavedView(view)"
+                >
+                  {{ view.name }}
+                  <span class="filter-chip-del" @click.stop="deleteSavedView(view.name)">&times;</span>
+                </button>
+              </template>
+              <span v-if="savedViews.length === 0 && quickFilterTemplates.every(t => activeViewName !== t.name)" class="filter-templates-hint">暂无</span>
+            </div>
+          </div>
+        </a-drawer>
         <div v-if="authStore.canWrite && selectedTaskIds.length > 0" class="batch-toolbar batch-toolbar-sticky">
           <span class="batch-hint">已选 {{ selectedTaskIds.length }} 项</span>
           <div class="batch-groups">
@@ -270,7 +339,7 @@
                   </router-link>
                 </div>
               </div>
-              <div v-if="authStore.canWrite" class="task-actions" @click.stop>
+              <div v-if="authStore.canWrite && !resp.isPhone.value" class="task-actions" @click.stop>
                 <a-button
                   size="small"
                   type="primary"
@@ -285,6 +354,27 @@
                   详情
                 </a-button>
               </div>
+              <!-- V9-UX6: Mobile task actions as dropdown menu -->
+              <a-dropdown
+                v-else-if="authStore.canWrite && resp.isPhone.value"
+                trigger="click"
+                @click.stop
+              >
+                <a-button type="text" size="small" class="task-mobile-actions-btn" aria-label="更多操作">
+                  <MoreOutlined />
+                </a-button>
+                <template #overlay>
+                  <a-menu @click="(info: any) => handleMobileTaskAction(info.key, task)">
+                    <a-menu-item key="auto">
+                      {{ task.status === TaskStatus.MANUAL_PENDING ? '重新自动派车' : '自动派车' }}
+                    </a-menu-item>
+                    <a-menu-item key="manual">手动派车</a-menu-item>
+                    <a-menu-item key="bump">紧急插队</a-menu-item>
+                    <a-menu-divider />
+                    <a-menu-item key="detail">查看详情</a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
             </article>
             <EmptyState v-if="!store.loading && !store.poolLoading && filteredTaskPool.length === 0" description="暂无待处理任务" />
           </div>
@@ -631,7 +721,7 @@ import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkbenchShortcuts } from '@/composables/useWorkbenchShortcuts'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined, SearchOutlined, TagOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, SearchOutlined, TagOutlined, FilterOutlined, MoreOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -652,6 +742,7 @@ import { assignFieldOps } from '@/api/fieldOps'
 import { fetchUsers } from '@/api/auth'
 import { useChargingAwareness } from '@/composables/useChargingAwareness'
 import { useDispatchPrediction } from '@/composables/useDispatchPrediction'
+import { useResponsive } from '@/composables/useResponsive'
 import type { DispatchRoute } from '@/api/vertical'
 import { exceptionTypeMap } from '@/constants/statusMap'
 import {
@@ -671,10 +762,14 @@ const route = useRoute()
 const store = useWorkbenchStore()
 const authStore = useAuthStore()
 const parkScope = useParkScopeStore()
+const resp = useResponsive()
 const workbenchShortcutsEnabled = computed(() => route.path === '/workbench')
 const trafficSummary = ref<TrafficSummary | null>(null)
 const dispatchPaused = ref(false)
 const draggingTaskId = ref<number | null>(null)
+
+// V9-UX6: Mobile layout state
+const mobileFilterVisible = ref(false)
 const createOrderModalOpen = ref(false)
 const hasManualTaskOrder = computed(() => store.manualTaskOrder.length > 0)
 
@@ -753,7 +848,7 @@ function showUndoNotification(op: LastBatchOp) {
           style: 'margin-left: 12px',
           onClick: () => executeUndo(key),
         }, '撤销'),
-        h('span', { style: 'margin-left: 8px; font-size: 11px; color: #8c9bab' }, '30s'),
+        h('span', { style: 'margin-left: 8px; font-size: 11px; color: #9BA8B8' }, '30s'),
       ]),
     key,
     duration: 30,
@@ -868,7 +963,12 @@ const pendingReorderData = ref<{ pickupStationId: number; dropoffStationId: numb
 // V5-T3: 骨架屏 + 分片加载
 const showSkeleton = computed(() => store.loading && store.poolTotal === 0)
 const deferredPanels = ref(false)
-const auxCollapsed = ref(true)
+const auxCollapsed = ref(store.openExceptionCount === 0)
+
+// V9-UX1: 辅助栏智能展开 — 根据异常数量自动折叠/展开
+watch(() => store.openExceptionCount, (newCount) => {
+  auxCollapsed.value = newCount === 0
+})
 
 interface RiskBandItem {
   key: string
@@ -1514,6 +1614,24 @@ async function handleBumpPriority(task: TaskAdminListItem) {
   }
 }
 
+// V9-UX6: Mobile task action dispatcher (dropdown menu → existing handlers)
+function handleMobileTaskAction(key: string, task: TaskAdminListItem) {
+  switch (key) {
+    case 'auto':
+      handleAutoAssign(task)
+      break
+    case 'manual':
+      openManualModal(task)
+      break
+    case 'bump':
+      handleBumpPriority(task)
+      break
+    case 'detail':
+      router.push(`/tasks/${task.taskId}`)
+      break
+  }
+}
+
 function onTaskDragStart(taskId: number) {
   draggingTaskId.value = taskId
 }
@@ -1532,6 +1650,7 @@ function onTaskDrop(targetTaskId: number) {
   ids.splice(from, 1)
   ids.splice(to, 0, draggingTaskId.value)
   store.reorderTasks(ids)
+  message.success('排序已保存至本机')
   draggingTaskId.value = null
 }
 
@@ -1628,14 +1747,14 @@ watch(() => parkScope.scopeVersion, () => {
 
 .shortcut-hint {
   font-size: 12px;
-  color: #8c9bab;
+  color: var(--fsd-text-secondary);
   white-space: nowrap;
 }
 
 .kbd-hint {
   margin-left: 4px;
   font-size: 10px;
-  border: 1px solid #d7e0e8;
+  border: 1px solid var(--fsd-border);
   border-radius: 4px;
   padding: 0 4px;
 }
@@ -1646,7 +1765,7 @@ watch(() => parkScope.scopeVersion, () => {
   gap: 14px;
   padding: 20px 24px;
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(0, 119, 182, 0.12) 0%, rgba(13, 17, 23, 0.95) 55%);
+  background: linear-gradient(135deg, rgba(34, 199, 230, 0.12) 0%, rgba(11, 16, 24, 0.95) 55%);
   border: 1px solid var(--fsd-border);
 }
 
@@ -1689,8 +1808,8 @@ watch(() => parkScope.scopeVersion, () => {
 
 .search-option-group {
   font-size: 10px;
-  color: #8c9bab;
-  background: rgba(140, 155, 171, 0.12);
+  color: var(--fsd-text-secondary);
+  background: rgba(155, 168, 184, 0.12);
   padding: 1px 6px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -1704,18 +1823,18 @@ watch(() => parkScope.scopeVersion, () => {
 
 .search-option-hint {
   font-size: 11px;
-  color: #8c9bab;
+  color: var(--fsd-text-secondary);
   margin-left: auto;
 }
 
 .search-panel-trigger {
   font-size: 16px;
-  color: #8c9bab;
+  color: var(--fsd-text-secondary);
   cursor: pointer;
   transition: color 0.2s;
 
   &:hover {
-    color: #eaf4ff;
+    color: var(--fsd-text-primary);
   }
 }
 
@@ -1733,18 +1852,18 @@ watch(() => parkScope.scopeVersion, () => {
   white-space: nowrap;
 
   &.congestion-ok {
-    color: #00e676;
-    background: rgba(0, 230, 118, 0.08);
+    color: var(--fsd-success);
+    background: rgba(45, 224, 138, 0.08);
   }
 
   &.congestion-warn {
-    color: #ffb703;
-    background: rgba(255, 183, 3, 0.1);
+    color: var(--fsd-warning);
+    background: rgba(255, 192, 77, 0.1);
   }
 
   &.congestion-critical {
-    color: #ff3d71;
-    background: rgba(255, 61, 113, 0.12);
+    color: var(--fsd-error);
+    background: rgba(255, 92, 124, 0.12);
   }
 }
 
@@ -1768,14 +1887,14 @@ watch(() => parkScope.scopeVersion, () => {
   text-align: left;
 
   &.risk-warning {
-    background: rgba(255, 183, 3, 0.1);
-    border: 1px solid rgba(255, 183, 3, 0.25);
+    background: rgba(255, 192, 77, 0.1);
+    border: 1px solid rgba(255, 192, 77, 0.25);
     color: var(--fsd-warning);
   }
 
   &.risk-critical {
-    background: rgba(255, 61, 113, 0.12);
-    border: 1px solid rgba(255, 61, 113, 0.3);
+    background: rgba(255, 92, 124, 0.12);
+    border: 1px solid rgba(255, 92, 124, 0.3);
     color: var(--fsd-error);
     cursor: pointer;
   }
@@ -1798,15 +1917,15 @@ watch(() => parkScope.scopeVersion, () => {
   font-weight: 500;
 
   &.risk-warning {
-    background: rgba(255, 183, 3, 0.1);
-    border: 1px solid rgba(255, 183, 3, 0.25);
-    color: #ffb703;
+    background: rgba(255, 192, 77, 0.1);
+    border: 1px solid rgba(255, 192, 77, 0.25);
+    color: var(--fsd-warning);
   }
 
   &.risk-critical {
-    background: rgba(255, 61, 113, 0.12);
-    border: 1px solid rgba(255, 61, 113, 0.3);
-    color: #ff3d71;
+    background: rgba(255, 92, 124, 0.12);
+    border: 1px solid rgba(255, 92, 124, 0.3);
+    color: var(--fsd-error);
   }
 }
 
@@ -1818,13 +1937,13 @@ watch(() => parkScope.scopeVersion, () => {
 }
 
 .risk-warning .risk-dot {
-  background: #ffb703;
-  box-shadow: 0 0 8px rgba(255, 183, 3, 0.4);
+  background: var(--fsd-warning);
+  box-shadow: 0 0 8px rgba(255, 192, 77, 0.4);
 }
 
 .risk-critical .risk-dot {
-  background: #ff3d71;
-  box-shadow: 0 0 8px rgba(255, 61, 113, 0.4);
+  background: var(--fsd-error);
+  box-shadow: 0 0 8px rgba(255, 92, 124, 0.4);
   animation: risk-pulse 1.2s ease-in-out infinite;
 }
 
@@ -1843,8 +1962,8 @@ watch(() => parkScope.scopeVersion, () => {
   margin-top: 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(255, 61, 113, 0.06);
-  border: 1px dashed rgba(255, 61, 113, 0.25);
+  background: rgba(255, 92, 124, 0.06);
+  border: 1px dashed rgba(255, 92, 124, 0.25);
 }
 
 .fail-suggestions {
@@ -1931,15 +2050,15 @@ watch(() => parkScope.scopeVersion, () => {
   }
 
   &.metric-info .metric-value {
-    color: var(--fsd-info, #1890ff);
+    color: var(--fsd-info, #22C7E6);
   }
 
   &.metric-charging .metric-value {
-    color: #722ed1;
+    color: var(--fsd-accent);
   }
 
   &.metric-online .metric-value {
-    color: #52c41a;
+    color: var(--fsd-success);
   }
 }
 
@@ -2034,7 +2153,7 @@ watch(() => parkScope.scopeVersion, () => {
   padding: 12px 8px;
   border-radius: 10px;
   border: 1px solid var(--fsd-border);
-  background: rgba(22, 27, 34, 0.8);
+  background: rgba(18, 24, 33, 0.8);
   color: var(--fsd-text-secondary);
   font-size: 12px;
   cursor: pointer;
@@ -2067,7 +2186,7 @@ watch(() => parkScope.scopeVersion, () => {
   top: 0;
   z-index: 2;
   padding: 8px 12px;
-  background: rgba(13, 17, 23, 0.92);
+  background: rgba(11, 16, 24, 0.92);
   border-bottom: 1px solid var(--fsd-border);
   backdrop-filter: blur(6px);
 }
@@ -2077,7 +2196,7 @@ watch(() => parkScope.scopeVersion, () => {
   flex-direction: column;
   border-radius: 14px;
   border: 1px solid var(--fsd-border);
-  background: rgba(22, 27, 34, 0.6);
+  background: rgba(18, 24, 33, 0.6);
   overflow: hidden;
 }
 
@@ -2138,8 +2257,8 @@ watch(() => parkScope.scopeVersion, () => {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(0, 180, 216, 0.15);
-  color: #00b4d8;
+  background: rgba(34, 199, 230, 0.15);
+  color: var(--fsd-accent);
 }
 
 .filter-tab {
@@ -2157,8 +2276,8 @@ watch(() => parkScope.scopeVersion, () => {
   }
 
   &.active {
-    border-color: rgba(0, 180, 216, 0.35);
-    background: rgba(0, 180, 216, 0.1);
+    border-color: rgba(34, 199, 230, 0.35);
+    background: rgba(34, 199, 230, 0.1);
     color: var(--fsd-accent);
   }
 }
@@ -2192,18 +2311,18 @@ watch(() => parkScope.scopeVersion, () => {
   padding: 12px 12px 12px 36px;
   border-radius: 10px;
   border: 1px solid var(--fsd-border);
-  background: rgba(13, 17, 23, 0.5);
+  background: rgba(11, 16, 24, 0.5);
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
 
   &:hover {
-    border-color: rgba(0, 180, 216, 0.25);
+    border-color: rgba(34, 199, 230, 0.25);
   }
 
   &.selected,
   &.checked {
-    border-color: rgba(0, 180, 216, 0.5);
-    box-shadow: 0 0 0 1px rgba(0, 180, 216, 0.15);
+    border-color: rgba(34, 199, 230, 0.5);
+    box-shadow: 0 0 0 1px rgba(34, 199, 230, 0.15);
   }
 }
 
@@ -2211,17 +2330,17 @@ watch(() => parkScope.scopeVersion, () => {
   padding: 12px;
   border-radius: 10px;
   border: 1px solid var(--fsd-border);
-  background: rgba(13, 17, 23, 0.5);
+  background: rgba(11, 16, 24, 0.5);
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
 
   &:hover {
-    border-color: rgba(0, 180, 216, 0.25);
+    border-color: rgba(34, 199, 230, 0.25);
   }
 
   &.selected {
-    border-color: rgba(0, 180, 216, 0.5);
-    box-shadow: 0 0 0 1px rgba(0, 180, 216, 0.15);
+    border-color: rgba(34, 199, 230, 0.5);
+    box-shadow: 0 0 0 1px rgba(34, 199, 230, 0.15);
   }
 }
 
@@ -2264,18 +2383,18 @@ watch(() => parkScope.scopeVersion, () => {
 }
 
 .route-tag {
-  background: rgba(0, 180, 216, 0.12);
-  color: #00b4d8;
+  background: rgba(34, 199, 230, 0.12);
+  color: var(--fsd-accent);
 }
 
 .priority-tag {
-  background: rgba(255, 176, 32, 0.12);
-  color: #ffb020;
+  background: rgba(255, 192, 77, 0.12);
+  color: var(--fsd-warning);
 }
 
 .vehicle-tag {
-  background: rgba(114, 46, 209, 0.12);
-  color: #722ed1;
+  background: rgba(34, 199, 230, 0.12);
+  color: var(--fsd-accent);
 }
 
 .batch-vehicle-groups {
@@ -2327,8 +2446,8 @@ watch(() => parkScope.scopeVersion, () => {
   padding: 6px 12px;
   margin-bottom: 10px;
   border-radius: 8px;
-  background: rgba(0, 180, 216, 0.08);
-  border: 1px solid rgba(0, 180, 216, 0.2);
+  background: rgba(34, 199, 230, 0.08);
+  border: 1px solid rgba(34, 199, 230, 0.2);
   font-size: 13px;
   font-weight: 600;
   color: var(--fsd-accent);
@@ -2356,7 +2475,7 @@ watch(() => parkScope.scopeVersion, () => {
   gap: 8px;
   padding: 4px 8px;
   border-radius: 6px;
-  background: rgba(13, 17, 23, 0.3);
+  background: rgba(11, 16, 24, 0.3);
   font-size: 12px;
 }
 
@@ -2394,9 +2513,9 @@ watch(() => parkScope.scopeVersion, () => {
   font-weight: 600;
 }
 
-.soc-critical { color: #ff3d71; }
-.soc-warn { color: #ffb020; }
-.soc-ok { color: #00e676; }
+.soc-critical { color: var(--fsd-error); }
+.soc-warn { color: var(--fsd-warning); }
+.soc-ok { color: var(--fsd-success); }
 
 /* V5-E4: 低电角标 */
 .low-soc-badge {
@@ -2407,7 +2526,7 @@ watch(() => parkScope.scopeVersion, () => {
   font-size: 10px;
   font-weight: 700;
   color: #fff;
-  background: #ff3d71;
+  background: var(--fsd-error);
   animation: pulse-soc 1.5s ease-in-out infinite;
 }
 
@@ -2487,7 +2606,7 @@ watch(() => parkScope.scopeVersion, () => {
   &:hover {
     border-color: var(--fsd-accent);
     color: var(--fsd-accent);
-    background: rgba(0, 119, 182, 0.06);
+    background: rgba(34, 199, 230, 0.06);
   }
 
   &.active {
@@ -2514,7 +2633,7 @@ watch(() => parkScope.scopeVersion, () => {
 
   &:hover {
     color: var(--fsd-error);
-    background: rgba(255, 61, 113, 0.1);
+    background: rgba(255, 92, 124, 0.1);
   }
 }
 
@@ -2555,10 +2674,10 @@ watch(() => parkScope.scopeVersion, () => {
   letter-spacing: 0.04em;
 }
 
-.priority-P0 { background: rgba(255, 61, 113, 0.2); color: #ff3d71; }
-.priority-P1 { background: rgba(255, 176, 32, 0.2); color: #ffb020; }
-.priority-P2 { background: rgba(0, 180, 216, 0.15); color: #00b4d8; }
-.priority-P3 { background: rgba(160, 160, 160, 0.15); color: #a0a0a0; }
+.priority-P0 { background: rgba(255, 92, 124, 0.2); color: var(--fsd-risk-critical); }
+.priority-P1 { background: rgba(255, 192, 77, 0.2); color: var(--fsd-risk-warning); }
+.priority-P2 { background: rgba(34, 199, 230, 0.15); color: var(--fsd-risk-active); }
+.priority-P3 { background: rgba(107, 119, 135, 0.15); color: var(--fsd-risk-muted); }
 
 .wait-badge {
   font-size: 11px;
@@ -2666,6 +2785,121 @@ watch(() => parkScope.scopeVersion, () => {
 @media (max-width: 1024px) {
   .workspace-map {
     min-height: 160px;
+  }
+}
+
+/* ── V9-UX6: Mobile (phone) layout optimization ────────── */
+
+/* Mobile filter trigger button */
+.mobile-filter-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  margin-bottom: 8px;
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius);
+  background: var(--fsd-bg-base);
+  color: var(--fsd-text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s var(--fsd-ease);
+
+  &:hover {
+    border-color: var(--fsd-accent);
+  }
+}
+
+.mobile-filter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fsd-accent);
+}
+
+/* Mobile filter drawer content */
+.filter-bar--mobile {
+  padding: 0;
+  gap: 12px;
+
+  .filter-row {
+    gap: 8px;
+  }
+
+  .filter-select {
+    width: 100%;
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+  }
+
+  .filter-check {
+    flex: 1 1 100%;
+  }
+
+  .filter-templates {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+/* Mobile task action button */
+.task-mobile-actions-btn {
+  width: 32px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fsd-text-secondary);
+}
+
+@media (max-width: 575px) {
+  /* Compact task cards for first-screen density */
+  .task-card {
+    padding: 8px 10px 8px 32px;
+  }
+
+  .task-check {
+    left: 8px;
+    top: 10px;
+  }
+
+  .task-card-head {
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .task-no {
+    font-size: 13px;
+  }
+
+  /* Merge metric row into a single compact line */
+  .task-meta {
+    gap: 8px;
+    font-size: 12px;
+    color: var(--fsd-text-tertiary);
+    flex-wrap: wrap;
+  }
+
+  .wait-badge,
+  .exc-badge {
+    font-size: 11px;
+    padding: 1px 6px;
+  }
+
+  .task-reason {
+    font-size: 12px;
+    margin: 4px 0 0;
+  }
+
+  /* Hide fail detail on mobile to save space (accessible via detail page) */
+  .task-fail-detail {
+    display: none;
+  }
+
+  /* Allow task list to use more viewport height on phone */
+  .task-list,
+  .exception-list {
+    max-height: none;
   }
 }
 </style>

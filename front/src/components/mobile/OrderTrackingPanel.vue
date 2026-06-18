@@ -231,7 +231,7 @@ function stageClass(stage: string) {
   display: block;
   font-size: 16px;
   font-weight: 800;
-  color: #f4f8fc;
+  color: var(--fsd-text-heading);
 }
 
 .panel-sub {
@@ -239,7 +239,7 @@ function stageClass(stage: string) {
   margin-top: 4px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  color: #6f88a2;
+  color: var(--fsd-text-secondary);
 }
 
 .stage-badge {
@@ -251,29 +251,29 @@ function stageClass(stage: string) {
 }
 
 .stage-badge.run {
-  color: #74c2ff;
+  color: var(--fsd-accent);
   background: rgba(62, 166, 255, 0.14);
 }
 
 .stage-badge.hold {
-  color: #ffb703;
+  color: var(--fsd-warning);
   background: rgba(255, 183, 3, 0.12);
 }
 
 .stage-badge.done {
-  color: #06d6a0;
+  color: var(--fsd-success);
   background: rgba(6, 214, 160, 0.12);
 }
 
 .stage-badge.risk {
-  color: #ff6b8a;
+  color: var(--fsd-error);
   background: rgba(255, 107, 138, 0.12);
 }
 
 .tracking-freshness {
   margin: -4px 0 12px;
   font-size: 11px;
-  color: #6f88a2;
+  color: var(--fsd-text-secondary);
 }
 
 .connection-alert {
@@ -284,12 +284,12 @@ function stageClass(stage: string) {
   border-radius: 12px;
   border: 1px solid rgba(255, 183, 3, 0.26);
   background: rgba(255, 183, 3, 0.1);
-  color: #ffd166;
+  color: var(--fsd-warning);
   font-size: 12px;
 }
 
 .connection-alert strong {
-  color: #ffb703;
+  color: var(--fsd-warning);
 }
 
 .order-switch {
@@ -307,7 +307,7 @@ function stageClass(stage: string) {
   border-radius: 999px;
   border: 1px solid rgba(62, 166, 255, 0.12);
   background: rgba(6, 12, 22, 0.55);
-  color: #7d94aa;
+  color: var(--fsd-text-secondary);
   font-size: 11px;
   font-weight: 700;
 }
@@ -315,7 +315,7 @@ function stageClass(stage: string) {
 .order-chip.active {
   border-color: rgba(255, 183, 3, 0.35);
   background: rgba(255, 183, 3, 0.1);
-  color: #ffd166;
+  color: var(--fsd-warning);
 }
 
 .map-shell {
@@ -347,7 +347,7 @@ function stageClass(stage: string) {
   aspect-ratio: 16 / 11;
   border-radius: 14px;
   overflow: hidden;
-  background: #09101b;
+  background: var(--fsd-bg-deep);
 }
 
 .geo-map {
@@ -374,7 +374,7 @@ function stageClass(stage: string) {
 
 .route-line {
   fill: none;
-  stroke: #3ea6ff;
+  stroke: var(--fsd-accent);
   stroke-width: 12;
   stroke-linecap: round;
   opacity: 0.85;
@@ -402,9 +402,9 @@ function stageClass(stage: string) {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
-.pin.pickup { background: #06d6a0; }
-.pin.dropoff { background: #ffb703; }
-.pin.vehicle { background: #3ea6ff; }
+.pin.pickup { background: var(--fsd-success); }
+.pin.dropoff { background: var(--fsd-warning); }
+.pin.vehicle { background: var(--fsd-accent); }
 
 .map-meta {
   display: flex;
@@ -419,7 +419,7 @@ function stageClass(stage: string) {
   border-radius: 999px;
   background: rgba(6, 214, 160, 0.1);
   border: 1px solid rgba(6, 214, 160, 0.22);
-  color: #06d6a0;
+  color: var(--fsd-success);
   font-size: 11px;
   font-weight: 700;
 }
@@ -428,7 +428,7 @@ function stageClass(stage: string) {
   margin-left: auto;
   font-size: 12px;
   font-weight: 700;
-  color: #58b6ff;
+  color: var(--fsd-accent);
   text-decoration: none;
 }
 
@@ -449,21 +449,21 @@ function stageClass(stage: string) {
 .summary-cell label {
   display: block;
   font-size: 10px;
-  color: #6f88a2;
+  color: var(--fsd-text-secondary);
   margin-bottom: 4px;
 }
 
 .summary-cell strong {
   display: block;
   font-size: 13px;
-  color: #eaf2fb;
+  color: var(--fsd-text-primary);
 }
 
 .summary-cell span {
   display: block;
   margin-top: 2px;
   font-size: 11px;
-  color: #5a7a9a;
+  color: var(--fsd-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -484,12 +484,12 @@ function stageClass(stage: string) {
   padding: 8px 4px;
   border-radius: 12px;
   font-size: 10px;
-  color: #5a7a9a;
+  color: var(--fsd-text-secondary);
   text-align: center;
 }
 
 .timeline-step.active {
-  color: #ffd166;
+  color: var(--fsd-warning);
   background: rgba(255, 183, 3, 0.08);
 }
 
@@ -511,7 +511,7 @@ function stageClass(stage: string) {
 .completed-cta p {
   margin: 0 0 10px;
   font-size: 13px;
-  color: #8fb4d9;
+  color: var(--fsd-text-secondary);
   line-height: 1.5;
 }
 
@@ -520,8 +520,8 @@ function stageClass(stage: string) {
   height: 44px;
   border: none;
   border-radius: 14px;
-  background: linear-gradient(135deg, #06d6a0, #00b4d8);
-  color: #041018;
+  background: linear-gradient(135deg, var(--fsd-success), var(--fsd-accent));
+  color: var(--fsd-bg-deep);
   font-size: 14px;
   font-weight: 800;
 }

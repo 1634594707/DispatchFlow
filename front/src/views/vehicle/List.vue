@@ -83,7 +83,7 @@
         <template v-else-if="column.dataIndex === 'batteryLevel'">
           <a-progress
             :percent="record.batteryLevel"
-            :stroke-color="record.batteryLevel < 20 ? '#FF3D71' : '#00E676'"
+            :stroke-color="record.batteryLevel < 20 ? '#FF5C7C' : '#2DE08A'"
             size="small"
             :style="{ width: '80px' }"
           />
@@ -422,6 +422,6 @@ watch(
 }
 
 :deep(.row-offline-alert) {
-  background: #FFF2F0 !important;
+  background: rgba(255, 92, 124, 0.08) !important;
 }
 </style>

@@ -250,23 +250,23 @@ const dropoffPreview = computed(() => {
   display: block;
   font-size: 16px;
   font-weight: 800;
-  color: #f4f8fc;
+  color: var(--fsd-text-heading);
 }
 
 .panel-sub {
   display: block;
   margin-top: 4px;
   font-size: 12px;
-  color: #6f88a2;
+  color: var(--fsd-text-secondary);
 }
 
 .park-lock {
   flex-shrink: 0;
   padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(0, 180, 216, 0.1);
-  border: 1px solid rgba(0, 180, 216, 0.22);
-  color: #74c2ff;
+  background: rgba(34, 199, 230, 0.1);
+  border: 1px solid rgba(34, 199, 230, 0.22);
+  color: var(--fsd-accent);
   font-size: 11px;
   font-weight: 700;
 }
@@ -283,15 +283,15 @@ const dropoffPreview = computed(() => {
   border-radius: 12px;
   border: 1px solid rgba(62, 166, 255, 0.14);
   background: rgba(4, 8, 16, 0.55);
-  color: #8fb4d9;
+  color: var(--fsd-text-secondary);
   font-size: 13px;
   font-weight: 800;
 }
 
 .mode-chip.active {
-  border-color: rgba(0, 180, 216, 0.35);
-  background: rgba(0, 180, 216, 0.12);
-  color: #74c2ff;
+  border-color: rgba(34, 199, 230, 0.35);
+  background: rgba(34, 199, 230, 0.12);
+  color: var(--fsd-accent);
 }
 
 .route-cards {
@@ -316,7 +316,7 @@ const dropoffPreview = computed(() => {
 
 .route-card:active:not(:disabled) {
   transform: scale(0.99);
-  border-color: rgba(0, 180, 216, 0.35);
+  border-color: rgba(34, 199, 230, 0.35);
 }
 
 .route-card:disabled {
@@ -327,14 +327,14 @@ const dropoffPreview = computed(() => {
   grid-column: 1;
   font-size: 15px;
   font-weight: 800;
-  color: #eaf2fb;
+  color: var(--fsd-text-primary);
 }
 
 .route-codes {
   grid-column: 1;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  color: #6f88a2;
+  color: var(--fsd-text-secondary);
 }
 
 .route-action {
@@ -343,8 +343,8 @@ const dropoffPreview = computed(() => {
   align-self: center;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(0, 180, 216, 0.14);
-  color: #74c2ff;
+  background: rgba(34, 199, 230, 0.14);
+  color: var(--fsd-accent);
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
@@ -364,7 +364,7 @@ const dropoffPreview = computed(() => {
   cursor: pointer;
   font-size: 13px;
   font-weight: 700;
-  color: #8fb4d9;
+  color: var(--fsd-text-secondary);
   user-select: none;
 
   &::-webkit-details-marker {
@@ -377,7 +377,7 @@ const dropoffPreview = computed(() => {
   font-size: 18px;
   transform: rotate(90deg);
   transition: transform 0.2s;
-  color: #58b6ff;
+  color: var(--fsd-accent);
 }
 
 .chevron.open {
@@ -401,16 +401,16 @@ const dropoffPreview = computed(() => {
   border-radius: 12px;
   border: 1px solid rgba(62, 166, 255, 0.12);
   background: rgba(6, 12, 22, 0.5);
-  color: #8fb4d9;
+  color: var(--fsd-text-secondary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
   font-weight: 700;
 }
 
 .priority-chip.active {
-  border-color: rgba(0, 180, 216, 0.35);
-  background: rgba(0, 180, 216, 0.12);
-  color: #74c2ff;
+  border-color: rgba(34, 199, 230, 0.35);
+  background: rgba(34, 199, 230, 0.12);
+  color: var(--fsd-accent);
 }
 
 .route-preview {
@@ -424,20 +424,20 @@ const dropoffPreview = computed(() => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 16px;
   font-weight: 800;
-  color: #eaf2fb;
+  color: var(--fsd-text-primary);
 }
 
 .arrow {
-  color: #ffb703;
+  color: var(--fsd-warning);
 }
 
 .submit-btn {
   width: 100%;
   height: 48px;
-  border: 1px solid rgba(0, 180, 216, 0.28);
+  border: 1px solid rgba(34, 199, 230, 0.28);
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(0, 180, 216, 0.22), rgba(62, 166, 255, 0.1));
-  color: #b8dcff;
+  background: linear-gradient(135deg, rgba(34, 199, 230, 0.22), rgba(62, 166, 255, 0.1));
+  color: var(--fsd-accent);
   font-size: 15px;
   font-weight: 800;
 }
@@ -447,7 +447,7 @@ const dropoffPreview = computed(() => {
 }
 
 :deep(.ant-form-item-label > label) {
-  color: #9ab0c6;
+  color: var(--fsd-text-secondary);
 }
 
 :deep(.ant-select-selector),
@@ -455,11 +455,11 @@ const dropoffPreview = computed(() => {
 :deep(.ant-input-affix-wrapper) {
   background: rgba(6, 12, 22, 0.6) !important;
   border-color: rgba(62, 166, 255, 0.14) !important;
-  color: #d8e4f2 !important;
+  color: var(--fsd-text-primary) !important;
 }
 
 :deep(.ant-select-selection-placeholder),
 :deep(.ant-input::placeholder) {
-  color: #5a7a9a !important;
+  color: var(--fsd-text-secondary) !important;
 }
 </style>

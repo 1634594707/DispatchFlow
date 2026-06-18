@@ -135,7 +135,7 @@ onUnmounted(() => {
   width: 100%;
   height: calc(100vh - 64px);
   min-height: 520px;
-  background: #0d1117;
+  background: var(--fsd-bg-deep);
 }
 
 .overview-map {
@@ -173,7 +173,7 @@ onUnmounted(() => {
   }
 
   code {
-    color: #7ee787;
+    color: var(--fsd-success);
   }
 }
 
@@ -184,7 +184,7 @@ onUnmounted(() => {
   width: 300px;
   padding: 16px;
   border-radius: 12px;
-  background: rgba(13, 17, 23, 0.92);
+  background: rgba(11, 16, 24, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: #fff;
 
@@ -246,7 +246,7 @@ onUnmounted(() => {
 .tracking-link {
   display: inline-block;
   font-size: 13px;
-  color: #58a6ff;
+  color: var(--fsd-accent);
   text-decoration: none;
 
   &.secondary {

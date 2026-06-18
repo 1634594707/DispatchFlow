@@ -695,10 +695,10 @@ onUnmounted(() => {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   background:
-    radial-gradient(circle at 12% 0%, rgba(0, 180, 216, 0.12), transparent 34%),
+    radial-gradient(circle at 12% 0%, rgba(34, 199, 230, 0.12), transparent 34%),
     radial-gradient(circle at 88% 8%, rgba(255, 183, 3, 0.08), transparent 28%),
-    linear-gradient(180deg, #07111f 0%, #04080f 100%);
-  color: #d8e4f2;
+    linear-gradient(180deg, var(--fsd-bg-deep) 0%, var(--fsd-bg-deep) 100%);
+  color: var(--fsd-text-primary);
 }
 
 .mobile-header {
@@ -717,7 +717,7 @@ onUnmounted(() => {
 .header-back {
   display: inline-block;
   margin-bottom: 10px;
-  color: #58b6ff;
+  color: var(--fsd-accent);
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
@@ -728,11 +728,11 @@ onUnmounted(() => {
   font-size: 22px;
   line-height: 1.15;
   letter-spacing: -0.03em;
-  color: #f4f8fc;
+  color: var(--fsd-text-heading);
 }
 
 .header-eyebrow {
-  color: #ffb703;
+  color: var(--fsd-warning);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -752,7 +752,7 @@ onUnmounted(() => {
   border: 1px solid rgba(62, 166, 255, 0.14);
   font-size: 11px;
   font-weight: 700;
-  color: #8fb4d9;
+  color: var(--fsd-text-secondary);
 }
 
 .mobile-main {
@@ -774,12 +774,12 @@ onUnmounted(() => {
   border-radius: 16px;
   border: 1px solid rgba(255, 183, 3, 0.26);
   background: rgba(255, 183, 3, 0.1);
-  color: #ffd166;
+  color: var(--fsd-warning);
   font-size: 13px;
 }
 
 .tracking-connection-alert strong {
-  color: #ffb703;
+  color: var(--fsd-warning);
 }
 
 .settings-panel {
@@ -787,13 +787,13 @@ onUnmounted(() => {
   border-radius: 16px;
   border: 1px dashed rgba(62, 166, 255, 0.18);
   background: rgba(6, 12, 22, 0.45);
-  color: #6f88a2;
+  color: var(--fsd-text-secondary);
   font-size: 12px;
 
   summary {
     cursor: pointer;
     font-weight: 700;
-    color: #8fb4d9;
+    color: var(--fsd-text-secondary);
     list-style: none;
 
     &::-webkit-details-marker {
@@ -810,7 +810,7 @@ onUnmounted(() => {
 
   span {
     font-size: 11px;
-    color: #6f88a2;
+    color: var(--fsd-text-secondary);
   }
 
   input {
@@ -820,7 +820,7 @@ onUnmounted(() => {
     border-radius: 12px;
     border: 1px solid rgba(62, 166, 255, 0.14);
     background: rgba(4, 8, 16, 0.72);
-    color: #e8f2ff;
+    color: var(--fsd-text-primary);
     font-size: 13px;
     outline: none;
   }
@@ -829,13 +829,13 @@ onUnmounted(() => {
 .api-key-note {
   margin: 8px 0 0;
   font-size: 11px;
-  color: #5a7a9a;
+  color: var(--fsd-text-secondary);
 }
 
 .history-empty {
   padding: 32px;
   text-align: center;
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
 }
 
 .history-item {
@@ -844,7 +844,7 @@ onUnmounted(() => {
   margin-bottom: 8px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(13, 17, 23, 0.6);
+  background: rgba(11, 16, 24, 0.6);
   text-align: left;
   cursor: pointer;
 }
@@ -854,18 +854,18 @@ onUnmounted(() => {
   justify-content: space-between;
   font-size: 13px;
   font-weight: 600;
-  color: #e6edf3;
+  color: var(--fsd-text-primary);
 }
 
 .history-stage {
   font-size: 11px;
-  color: #00b4d8;
+  color: var(--fsd-accent);
 }
 
 .history-route {
   margin: 6px 0 0;
   font-size: 12px;
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
 }
 
 @media (max-width: 420px) {
@@ -883,7 +883,7 @@ onUnmounted(() => {
 }
 
 .ant-select-item {
-  color: #d8e4f2 !important;
+  color: var(--fsd-text-primary) !important;
 }
 
 .ant-select-item-option-active {
@@ -892,11 +892,11 @@ onUnmounted(() => {
 
 .ant-select-item-option-selected {
   background: rgba(62, 166, 255, 0.18) !important;
-  color: #74c2ff !important;
+  color: var(--fsd-accent) !important;
 }
 
 .ant-select-item-group {
-  color: #58b6ff !important;
+  color: var(--fsd-accent) !important;
   font-weight: 700;
 }
 </style>

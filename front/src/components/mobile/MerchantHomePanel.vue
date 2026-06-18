@@ -126,8 +126,8 @@ function stageClass(stage: string) {
   gap: 14px;
   padding: 16px;
   border-radius: 16px;
-  border: 1px solid rgba(0, 180, 216, 0.2);
-  background: linear-gradient(160deg, rgba(0, 180, 216, 0.08) 0%, rgba(13, 17, 23, 0.6) 100%);
+  border: 1px solid rgba(34, 199, 230, 0.2);
+  background: linear-gradient(160deg, rgba(34, 199, 230, 0.08) 0%, rgba(11, 16, 24, 0.6) 100%);
 }
 
 .merchant-home-head {
@@ -140,7 +140,7 @@ function stageClass(stage: string) {
   margin: 0;
   font-size: 16px;
   font-weight: 700;
-  color: #eaf4ff;
+  color: var(--fsd-text-primary);
 }
 
 .history-btn {
@@ -151,7 +151,7 @@ function stageClass(stage: string) {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
-  color: #b8c5d0;
+  color: var(--fsd-text-secondary);
   font-size: 12px;
   cursor: pointer;
 }
@@ -159,8 +159,8 @@ function stageClass(stage: string) {
 .history-count {
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(0, 180, 216, 0.2);
-  color: #00b4d8;
+  background: rgba(34, 199, 230, 0.2);
+  color: var(--fsd-accent);
   font-size: 11px;
 }
 
@@ -183,7 +183,7 @@ function stageClass(stage: string) {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
   text-transform: uppercase;
 }
 
@@ -195,22 +195,22 @@ function stageClass(stage: string) {
 }
 
 .stage-active {
-  color: #00b4d8;
-  background: rgba(0, 180, 216, 0.15);
+  color: var(--fsd-accent);
+  background: rgba(34, 199, 230, 0.15);
 }
 
 .stage-success {
-  color: #00e676;
-  background: rgba(0, 230, 118, 0.12);
+  color: var(--fsd-success);
+  background: rgba(45, 224, 138, 0.12);
 }
 
 .stage-danger {
-  color: #ff3d71;
-  background: rgba(255, 61, 113, 0.12);
+  color: var(--fsd-error);
+  background: rgba(255, 92, 124, 0.12);
 }
 
 .stage-default {
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
   background: rgba(139, 148, 158, 0.12);
 }
 
@@ -218,7 +218,7 @@ function stageClass(stage: string) {
   margin: 0 0 8px;
   font-size: 15px;
   font-weight: 600;
-  color: #e6edf3;
+  color: var(--fsd-text-primary);
   line-height: 1.4;
 }
 
@@ -227,7 +227,7 @@ function stageClass(stage: string) {
   gap: 12px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
   margin-bottom: 12px;
 }
 
@@ -242,15 +242,15 @@ function stageClass(stage: string) {
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
-  color: #c9d1d9;
+  color: var(--fsd-text-secondary);
   font-size: 13px;
   cursor: pointer;
   text-decoration: none;
 
   &.primary {
-    border-color: rgba(0, 180, 216, 0.4);
-    background: rgba(0, 180, 216, 0.15);
-    color: #00b4d8;
+    border-color: rgba(34, 199, 230, 0.4);
+    background: rgba(34, 199, 230, 0.15);
+    color: var(--fsd-accent);
   }
 }
 
@@ -259,7 +259,7 @@ function stageClass(stage: string) {
 
   p {
     margin: 0 0 12px;
-    color: #8b949e;
+    color: var(--fsd-text-secondary);
     font-size: 14px;
   }
 }
@@ -268,7 +268,7 @@ function stageClass(stage: string) {
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: #6e7681;
+  color: var(--fsd-text-tertiary);
   margin-bottom: 8px;
   letter-spacing: 0.04em;
 }
@@ -287,7 +287,7 @@ function stageClass(stage: string) {
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(13, 17, 23, 0.6);
+  background: rgba(11, 16, 24, 0.6);
   cursor: pointer;
   text-align: left;
 }
@@ -295,12 +295,12 @@ function stageClass(stage: string) {
 .route-chip-name {
   font-size: 13px;
   font-weight: 600;
-  color: #e6edf3;
+  color: var(--fsd-text-primary);
 }
 
 .route-chip-fee {
   font-size: 11px;
-  color: #ffb020;
+  color: var(--fsd-warning);
 }
 
 .merchant-quick-links {
@@ -318,14 +318,14 @@ function stageClass(stage: string) {
   border-radius: 10px;
   border: 1px dashed rgba(255, 255, 255, 0.12);
   background: transparent;
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
   font-size: 13px;
   cursor: pointer;
   text-decoration: none;
 
   &.contact {
     border-color: rgba(255, 176, 32, 0.25);
-    color: #ffb020;
+    color: var(--fsd-warning);
   }
 }
 

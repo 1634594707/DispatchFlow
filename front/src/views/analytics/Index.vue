@@ -44,7 +44,7 @@
             v-if="exceptionAnalysis"
             :points="exceptionAnalysis.exceptionTrend"
             metric="totalCount"
-            color="#FF3D71"
+            color="#FF5C7C"
             clickable
             @bar-click="drillDownException"
           />
@@ -341,7 +341,7 @@ watch(
   div {
     padding: 10px;
     border-radius: 8px;
-    background: rgba(22, 27, 34, 0.45);
+    background: rgba(18, 24, 33, 0.45);
     border: 1px solid var(--fsd-border);
 
     span {
@@ -356,8 +356,8 @@ watch(
       font-size: 18px;
       color: var(--fsd-text-primary);
 
-      &.positive { color: #00e676; }
-      &.negative { color: #ff3d71; }
+      &.positive { color: var(--fsd-success); }
+      &.negative { color: var(--fsd-error); }
     }
   }
 }

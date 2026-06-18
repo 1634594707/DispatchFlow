@@ -154,7 +154,7 @@ async function handleLogin() {
 .glow-1 {
   width: 420px;
   height: 420px;
-  background: #22c7e6;
+  background: var(--fsd-accent);
   top: -120px;
   right: 8%;
 }
@@ -162,7 +162,7 @@ async function handleLogin() {
 .glow-2 {
   width: 320px;
   height: 320px;
-  background: #2d8bf0;
+  background: var(--fsd-accent);
   bottom: -60px;
   left: 12%;
 }
@@ -201,7 +201,7 @@ async function handleLogin() {
     font-size: 26px;
     font-weight: 700;
     letter-spacing: -0.02em;
-    background: linear-gradient(90deg, #eef3f9 0%, #b7e9f4 100%);
+    background: linear-gradient(90deg, var(--fsd-text-primary) 0%, var(--fsd-accent) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;

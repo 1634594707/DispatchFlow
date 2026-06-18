@@ -83,14 +83,14 @@ const routeMapPoints = computed(() => form.stationIds
     label: `${index + 1}. ${s!.stationName}`,
     x: Number(s!.coordX),
     y: Number(s!.coordY),
-    color: index === 0 ? '#52c41a' : index === form.stationIds.length - 1 ? '#1677ff' : '#faad14',
+    color: index === 0 ? '#2DE08A' : index === form.stationIds.length - 1 ? '#22C7E6' : '#FFC04D',
   })))
 
 const routeMapSegments = computed(() => {
   const points = routeMapPoints.value
   const segments: { from: string; to: string; color?: string }[] = []
   for (let i = 0; i < points.length - 1; i++) {
-    segments.push({ from: points[i].code, to: points[i + 1].code, color: '#00B4D8' })
+    segments.push({ from: points[i].code, to: points[i + 1].code, color: '#22C7E6' })
   }
   return segments
 })

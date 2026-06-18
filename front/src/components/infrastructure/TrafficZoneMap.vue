@@ -65,7 +65,7 @@ function draw() {
   const invX = (px: number) => (px - offsetX) / scale
   const invY = (py: number) => (py - offsetY) / scale
 
-  ctx.fillStyle = '#0d1117'
+  ctx.fillStyle = '#0B1018'
   ctx.fillRect(0, 0, width, height)
 
   const nodeMap = new Map((layout.roadNodes || []).map((n) => [n.code, n]))
@@ -170,7 +170,7 @@ onUnmounted(() => resizeObserver?.disconnect())
   border: 1px solid var(--fsd-border);
   border-radius: var(--fsd-radius-lg);
   overflow: hidden;
-  background: #0d1117;
+  background: var(--fsd-bg-deep);
 }
 
 .zone-canvas {

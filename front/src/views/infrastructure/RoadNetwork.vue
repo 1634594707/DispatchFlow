@@ -198,7 +198,7 @@ const mapPoints = computed(() =>
       label: n.nodeCode,
       x: Number(n.coordX),
       y: Number(n.coordY),
-      color: n.status === 'ACTIVE' ? '#58a6ff' : '#6e7681',
+      color: n.status === 'ACTIVE' ? '#22C7E6' : '#6B7787',
     }))
 )
 
@@ -213,10 +213,10 @@ const mapSegments = computed(() =>
 )
 
 function segmentCongestionColor(level: number) {
-  if (level >= 3) return '#FF3D71'
-  if (level === 2) return '#FFAA00'
-  if (level === 1) return '#FFD666'
-  return '#58a6ff'
+  if (level >= 3) return '#FF5C7C'
+  if (level === 2) return '#FFC04D'
+  if (level === 1) return '#FFC04D'
+  return '#22C7E6'
 }
 
 const nodeForm = reactive({

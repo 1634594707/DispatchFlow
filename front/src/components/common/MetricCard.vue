@@ -86,12 +86,12 @@ const props = withDefaults(
 const emit = defineEmits<{ click: [] }>()
 
 const colorMap: Record<ColorTheme, { bg: string; color: string }> = {
-  cyan:    { bg: 'rgba(34, 199, 230, 0.10)', color: '#22C7E6' },
-  green:   { bg: 'rgba(45, 224, 138, 0.10)', color: '#2DE08A' },
-  amber:   { bg: 'rgba(255, 192, 77, 0.10)',  color: '#FFC04D' },
-  red:     { bg: 'rgba(255, 92, 124, 0.10)',  color: '#FF5C7C' },
-  neutral: { bg: 'rgba(155, 168, 184, 0.08)', color: '#9BA8B8' },
-  info:    { bg: 'rgba(34, 199, 230, 0.08)',  color: '#22C7E6' },
+  cyan:    { bg: 'rgba(34, 199, 230, 0.10)', color: 'var(--fsd-accent)' },
+  green:   { bg: 'rgba(45, 224, 138, 0.10)', color: 'var(--fsd-success)' },
+  amber:   { bg: 'rgba(255, 192, 77, 0.10)',  color: 'var(--fsd-warning)' },
+  red:     { bg: 'rgba(255, 92, 124, 0.10)',  color: 'var(--fsd-error)' },
+  neutral: { bg: 'rgba(155, 168, 184, 0.08)', color: 'var(--fsd-text-secondary)' },
+  info:    { bg: 'rgba(34, 199, 230, 0.08)',  color: 'var(--fsd-accent)' },
 }
 
 const resolvedColor = computed(() => {

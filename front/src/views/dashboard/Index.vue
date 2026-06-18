@@ -214,8 +214,8 @@ const navItems = [
     desc: '任务池 · 派车 · 异常处置',
     link: '/workbench',
     icon: markRaw(ControlOutlined),
-    iconBg: 'rgba(0, 180, 216, 0.12)',
-    iconColor: '#00B4D8',
+    iconBg: 'rgba(34, 199, 230, 0.12)',
+    iconColor: '#22C7E6',
     primary: true,
   },
   {
@@ -224,8 +224,8 @@ const navItems = [
     desc: '实时地图 · 车队态势',
     link: '/vehicle-tracking',
     icon: markRaw(HeatMapOutlined),
-    iconBg: 'rgba(0, 230, 118, 0.1)',
-    iconColor: '#00E676',
+    iconBg: 'rgba(45, 224, 138, 0.1)',
+    iconColor: '#2DE08A',
     primary: false,
   },
   {
@@ -234,8 +234,8 @@ const navItems = [
     desc: '创建与查询运输订单',
     link: '/orders',
     icon: markRaw(FileTextOutlined),
-    iconBg: 'rgba(0, 180, 216, 0.08)',
-    iconColor: '#00B4D8',
+    iconBg: 'rgba(34, 199, 230, 0.08)',
+    iconColor: '#22C7E6',
     primary: false,
   },
   {
@@ -244,8 +244,8 @@ const navItems = [
     desc: '历史异常查询与归档',
     link: '/exceptions',
     icon: markRaw(UnorderedListOutlined),
-    iconBg: 'rgba(255, 61, 113, 0.08)',
-    iconColor: '#FF3D71',
+    iconBg: 'rgba(255, 92, 124, 0.08)',
+    iconColor: '#FF5C7C',
     primary: false,
   },
 ]
@@ -414,15 +414,15 @@ onMounted(() => {
   padding: 14px var(--fsd-space-4);
   border: 1px solid var(--fsd-border);
   border-radius: var(--fsd-radius);
-  background: rgba(22, 27, 34, 0.4);
+  background: rgba(18, 24, 33, 0.4);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.2s var(--fsd-ease), background 0.2s var(--fsd-ease);
   min-height: var(--fsd-touch-target-min);
 
   &:hover {
-    border-color: rgba(0, 180, 216, 0.35);
-    background: rgba(0, 180, 216, 0.06);
+    border-color: rgba(34, 199, 230, 0.35);
+    background: rgba(34, 199, 230, 0.06);
   }
 
   &:active {
@@ -430,8 +430,8 @@ onMounted(() => {
   }
 
   &--primary {
-    border-color: rgba(0, 180, 216, 0.25);
-    background: rgba(0, 180, 216, 0.08);
+    border-color: rgba(34, 199, 230, 0.25);
+    background: rgba(34, 199, 230, 0.08);
   }
 }
 

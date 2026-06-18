@@ -98,7 +98,7 @@ function formatTime(value: string) {
   cursor: pointer;
 
   &:hover {
-    color: #7ee8ff;
+    color: var(--fsd-accent);
   }
 }
 
@@ -115,15 +115,15 @@ function formatTime(value: string) {
   padding: 12px 14px;
   border: 1px solid var(--fsd-border);
   border-radius: var(--fsd-radius-sm);
-  background: rgba(22, 27, 34, 0.5);
+  background: rgba(18, 24, 33, 0.5);
   text-align: left;
   cursor: pointer;
   transition: border-color 0.2s var(--fsd-ease), background 0.2s var(--fsd-ease);
   min-height: 44px;
 
   &:hover {
-    border-color: rgba(0, 180, 216, 0.35);
-    background: rgba(0, 180, 216, 0.08);
+    border-color: rgba(34, 199, 230, 0.35);
+    background: rgba(34, 199, 230, 0.08);
   }
 }
 

@@ -52,7 +52,10 @@
       </template>
     </QueryFilterCard>
 
+    <!-- V9-UI3: Skeleton screen for initial load -->
+    <SkeletonLoader v-if="store.loading && store.list.length === 0" variant="table" :rows="6" />
     <a-table
+      v-else
       :columns="columns"
       :data-source="store.list"
       :loading="store.loading"
@@ -220,6 +223,7 @@ import PageContainer from '@/components/common/PageContainer.vue'
 import QueryFilterCard from '@/components/common/QueryFilterCard.vue'
 import type { FilterChip } from '@/components/common/QueryFilterCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useTaskStore } from '@/stores/task'
 import { useParkScopeStore } from '@/stores/parkScope'

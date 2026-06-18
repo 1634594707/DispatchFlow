@@ -14,11 +14,14 @@
           ref="inputRef"
           :value="keyword"
           class="palette-input"
-          placeholder="查车、查单、派车、打开页面…"
+          placeholder="查车、查单、派车、打开页面… (Ctrl+K)"
           @input="onInput"
           @keydown.stop
         />
-        <span class="palette-kbd">ESC</span>
+        <span class="palette-kbd-group">
+          <span class="palette-kbd palette-kbd--accent">⌘K</span>
+          <span class="palette-kbd">ESC</span>
+        </span>
       </div>
       <a-spin :spinning="loading">
         <div class="palette-list">
@@ -98,7 +101,7 @@ function onInput(event: Event) {
   align-items: center;
   gap: 10px;
   padding: 4px 2px 12px;
-  border-bottom: 1px solid var(--fsd-border, #e8eef3);
+  border-bottom: 1px solid var(--fsd-border, rgba(255, 255, 255, 0.07));
 }
 
 .palette-input {
@@ -109,12 +112,26 @@ function onInput(event: Event) {
   background: transparent;
 }
 
+.palette-kbd-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .palette-kbd {
   font-size: 11px;
-  color: #8c9bab;
-  border: 1px solid #d7e0e8;
+  color: var(--fsd-text-tertiary);
+  border: 1px solid var(--fsd-border);
   border-radius: 4px;
   padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.palette-kbd--accent {
+  background: rgba(34, 199, 230, 0.12);
+  border-color: rgba(34, 199, 230, 0.3);
+  color: var(--fsd-accent);
+  font-weight: 600;
 }
 
 .palette-list {
@@ -139,12 +156,12 @@ function onInput(event: Event) {
 
 .palette-item.active,
 .palette-item:hover {
-  background: rgba(0, 119, 182, 0.08);
+  background: rgba(34, 199, 230, 0.08);
 }
 
 .palette-group {
   font-size: 11px;
-  color: #6b7c8f;
+  color: var(--fsd-text-tertiary);
 }
 
 .palette-label {
@@ -153,26 +170,26 @@ function onInput(event: Event) {
 
 .palette-hint {
   font-size: 12px;
-  color: #8c9bab;
+  color: var(--fsd-text-secondary);
 }
 
 .palette-empty {
   padding: 24px;
   text-align: center;
-  color: #8c9bab;
+  color: var(--fsd-text-secondary);
 }
 
 .palette-footer {
   display: flex;
   gap: 16px;
   padding-top: 10px;
-  border-top: 1px solid var(--fsd-border, #e8eef3);
+  border-top: 1px solid var(--fsd-border, rgba(255, 255, 255, 0.07));
   font-size: 12px;
-  color: #8c9bab;
+  color: var(--fsd-text-secondary);
 }
 
 .palette-footer kbd {
-  border: 1px solid #d7e0e8;
+  border: 1px solid var(--fsd-border);
   border-radius: 4px;
   padding: 1px 5px;
   margin: 0 2px;

@@ -97,7 +97,7 @@ function draw() {
   const ty = (y: number) => offsetY + y * scale
   lastTransform = { offsetX, offsetY, scale }
 
-  ctx.fillStyle = '#0d1117'
+  ctx.fillStyle = '#0B1018'
   ctx.fillRect(0, 0, width, height)
 
   const nodeMap = new Map(data.roadNodes.map((n) => [n.code, n]))
@@ -121,11 +121,11 @@ function draw() {
 
   for (const point of props.points) {
     ctx.beginPath()
-    ctx.fillStyle = dragging?.code === point.code ? '#ffd666' : (point.color || '#00b4d8')
+    ctx.fillStyle = dragging?.code === point.code ? '#FFC04D' : (point.color || '#22C7E6')
     ctx.arc(tx(point.x), ty(point.y), 6, 0, Math.PI * 2)
     ctx.fill()
     if (point.label) {
-      ctx.fillStyle = '#c9d1d9'
+      ctx.fillStyle = '#9BA8B8'
       ctx.font = '11px sans-serif'
       ctx.fillText(point.label, tx(point.x) + 8, ty(point.y) + 4)
     }

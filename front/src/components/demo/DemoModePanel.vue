@@ -58,12 +58,12 @@ function manualNext() {
   padding: 8px 14px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(13, 17, 23, 0.6);
+  background: rgba(11, 16, 24, 0.6);
   transition: border-color 0.2s, background 0.2s;
 
   &.active {
-    border-color: rgba(0, 230, 118, 0.25);
-    background: rgba(0, 230, 118, 0.06);
+    border-color: rgba(45, 224, 138, 0.25);
+    background: rgba(45, 224, 138, 0.06);
   }
 }
 
@@ -80,16 +80,16 @@ function manualNext() {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   white-space: nowrap;
 
   &.running {
-    border-color: rgba(0, 230, 118, 0.3);
-    background: rgba(0, 230, 118, 0.08);
-    color: #3ddc97;
+    border-color: rgba(45, 224, 138, 0.3);
+    background: rgba(45, 224, 138, 0.08);
+    color: var(--fsd-success);
   }
 }
 
@@ -117,14 +117,14 @@ function manualNext() {
 
 .demo-info-label {
   font-size: 11px;
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
 }
 
 .demo-info-value {
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   font-weight: 600;
-  color: #e6edf3;
+  color: var(--fsd-text-primary);
   font-variant-numeric: tabular-nums;
 }
 

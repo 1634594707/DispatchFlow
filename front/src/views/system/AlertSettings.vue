@@ -69,8 +69,8 @@
           <a-timeline v-if="smsHistory.length > 0">
             <a-timeline-item v-for="item in smsHistory" :key="item.id" :color="item.status === 'success' ? 'green' : 'red'">
               <template #dot>
-                <CheckCircleOutlined v-if="item.status === 'success'" style="color: #52c41a" />
-                <CloseCircleOutlined v-else style="color: #ff4d4f" />
+                <CheckCircleOutlined v-if="item.status === 'success'" style="color: #2DE08A" />
+                <CloseCircleOutlined v-else style="color: #FF5C7C" />
               </template>
               <div class="sms-history-item">
                 <span class="sms-history-phone">{{ item.phone }}</span>

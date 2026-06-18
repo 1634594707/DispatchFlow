@@ -48,7 +48,10 @@
       <a-button @click="handleReset">重置</a-button>
     </div>
 
+    <!-- V9-UI3: Skeleton screen for initial load -->
+    <SkeletonLoader v-if="store.loading && store.list.length === 0" variant="table" :rows="6" />
     <a-table
+      v-else
       :columns="columns"
       :data-source="store.list"
       :loading="store.loading"
@@ -188,6 +191,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useExceptionStore } from '@/stores/exception'
 import { useParkScopeStore } from '@/stores/parkScope'

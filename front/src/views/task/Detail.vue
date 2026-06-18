@@ -78,7 +78,7 @@
                 <a-descriptions-item label="电量">
                   <a-progress
                     :percent="vehicleDetail.batteryLevel"
-                    :stroke-color="vehicleDetail.batteryLevel < 20 ? '#FF3D71' : '#00E676'"
+                    :stroke-color="vehicleDetail.batteryLevel < 20 ? '#FF5C7C' : '#2DE08A'"
                     size="small"
                   />
                 </a-descriptions-item>

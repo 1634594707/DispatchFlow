@@ -33,7 +33,7 @@ const props = withDefaults(
   }>(),
   {
     metric: 'completionRate',
-    color: '#00B4D8',
+    color: '#22C7E6',
     clickable: false,
   },
 )
@@ -89,7 +89,7 @@ function onBarClick(point: AnalyticsTrendPoint) {
     padding: 2px 4px;
     margin: -2px -4px;
     &:hover {
-      background: rgba(0, 180, 216, 0.08);
+      background: rgba(34, 199, 230, 0.08);
     }
   }
 }

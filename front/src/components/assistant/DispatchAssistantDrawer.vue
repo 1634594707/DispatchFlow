@@ -164,7 +164,7 @@ onUnmounted(() => recognition?.stop())
 
 <style scoped>
 .assistant-tip {
-  color: #6b7c8f;
+  color: var(--fsd-text-tertiary);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -191,7 +191,7 @@ onUnmounted(() => recognition?.stop())
 
 .assistant-suggestions {
   padding-left: 18px;
-  color: #4a5b6c;
+  color: var(--fsd-text-tertiary);
 }
 
 .assistant-action-list {

@@ -146,7 +146,7 @@ watch(
   width: 100%;
   height: 100%;
   min-height: 360px;
-  background: #0d1117;
+  background: var(--fsd-bg-deep);
 }
 
 .amap-geo-map__host {
@@ -163,27 +163,27 @@ watch(
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: rgba(13, 17, 23, 0.92);
-  color: #e6edf3;
+  background: rgba(11, 16, 24, 0.92);
+  color: var(--fsd-text-primary);
   font-size: 14px;
   z-index: 2;
 }
 
 .amap-geo-map__overlay--error {
-  color: #ff8fa3;
+  color: var(--fsd-error);
 }
 
 .amap-geo-map__hint {
   font-size: 12px;
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
   code {
-    color: #79c0ff;
+    color: var(--fsd-accent);
   }
 }
 
 .amap-geo-map__check-link {
   font-size: 13px;
-  color: #58a6ff;
+  color: var(--fsd-accent);
   text-decoration: none;
 
   &:hover {

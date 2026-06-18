@@ -15,8 +15,8 @@ export const PILOT_BOUNDARY_POLYGON: GeoMapPolygon[] = [
   {
     id: 'zjf-pilot',
     path: TEXTILE_PARK_GEO.pilotPolygon.map((p) => [p[0], p[1]] as [number, number]),
-    strokeColor: '#00d4aa',
-    fillColor: 'rgba(0, 212, 170, 0.12)',
+    strokeColor: '#2DE08A',
+    fillColor: 'rgba(45, 224, 138, 0.12)',
   },
 ]
 

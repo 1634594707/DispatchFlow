@@ -109,9 +109,9 @@ export class AmapProvider implements MapProvider {
         polygons = nextPolygons.map((item) => {
           const polygon = new AMap.Polygon({
             path: item.path,
-            strokeColor: item.strokeColor ?? '#00d4aa',
+            strokeColor: item.strokeColor ?? '#2DE08A',
             strokeWeight: item.strokeWeight ?? 2,
-            fillColor: item.fillColor ?? 'rgba(0, 212, 170, 0.12)',
+            fillColor: item.fillColor ?? 'rgba(45, 224, 138, 0.12)',
             fillOpacity: item.fillOpacity ?? 0.35,
             zIndex: item.zIndex ?? 10,
           })
@@ -124,7 +124,7 @@ export class AmapProvider implements MapProvider {
         polylines = nextPolylines.map((item) => {
           const polyline = new AMap.Polyline({
             path: item.path,
-            strokeColor: item.strokeColor ?? '#3ea6ff',
+            strokeColor: item.strokeColor ?? '#22C7E6',
             strokeWeight: item.strokeWeight ?? 4,
             strokeOpacity: item.strokeOpacity ?? 0.85,
             strokeStyle: item.lineDash?.length ? 'dashed' : 'solid',

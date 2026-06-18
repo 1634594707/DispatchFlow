@@ -334,7 +334,7 @@ watch(
   font-weight: var(--fsd-font-bold);
   letter-spacing: -0.01em;
   line-height: 1.2;
-  background: linear-gradient(90deg, #eef3f9 0%, #b7e9f4 100%);
+  background: linear-gradient(90deg, var(--fsd-text-primary) 0%, var(--fsd-accent) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -549,7 +549,7 @@ watch(
   top: 50%;
   transform: translateY(-50%);
   padding: 6px 12px;
-  background: #1a2332;
+  background: var(--fsd-bg-elevated);
   color: var(--fsd-text-primary);
   font-size: 12px;
   font-weight: var(--fsd-font-medium);
@@ -579,7 +579,7 @@ watch(
   left: calc(100% + 8px);
   top: 0;
   min-width: 180px;
-  background: #141e2b;
+  background: var(--fsd-bg-elevated);
   border-radius: var(--fsd-radius-lg, 10px);
   padding: 8px;
   z-index: 70;
@@ -663,7 +663,7 @@ watch(
   transition: background var(--fsd-duration-normal) var(--fsd-ease);
 
   &.online {
-    background: var(--fsd-success, #2de08a);
+    background: var(--fsd-success);
     box-shadow: 0 0 8px rgba(45, 224, 138, 0.5);
   }
 }

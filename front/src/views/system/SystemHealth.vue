@@ -486,15 +486,15 @@ onUnmounted(() => {
 }
 
 .metric-card.card-ok {
-  border-left: 4px solid var(--ant-success-color, #52c41a);
+  border-left: 4px solid var(--fsd-success);
 }
 
 .metric-card.card-warning {
-  border-left: 4px solid var(--ant-warning-color, #faad14);
+  border-left: 4px solid var(--fsd-warning);
 }
 
 .metric-card.card-critical {
-  border-left: 4px solid var(--ant-error-color, #ff4d4f);
+  border-left: 4px solid var(--fsd-error);
 }
 
 .metric-header {
@@ -581,15 +581,15 @@ onUnmounted(() => {
 }
 
 .trend-bar.bar-ok {
-  background: var(--ant-success-color, #52c41a);
+  background: var(--fsd-success);
 }
 
 .trend-bar.bar-warning {
-  background: var(--ant-warning-color, #faad14);
+  background: var(--fsd-warning);
 }
 
 .trend-bar.bar-critical {
-  background: var(--ant-error-color, #ff4d4f);
+  background: var(--fsd-error);
 }
 
 .trend-labels {
@@ -643,17 +643,17 @@ onUnmounted(() => {
 
 .timeline-dot.dot-up,
 .timeline-dot.dot-ok {
-  background: var(--ant-success-color, #52c41a);
+  background: var(--fsd-success);
 }
 
 .timeline-dot.dot-degraded,
 .timeline-dot.dot-warning {
-  background: var(--ant-warning-color, #faad14);
+  background: var(--fsd-warning);
 }
 
 .timeline-dot.dot-down,
 .timeline-dot.dot-critical {
-  background: var(--ant-error-color, #ff4d4f);
+  background: var(--fsd-error);
 }
 
 .timeline-content {

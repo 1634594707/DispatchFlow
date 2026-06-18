@@ -266,7 +266,7 @@ onMounted(loadData)
   margin-bottom: 16px;
   border-radius: var(--fsd-radius-lg);
   border: 1px solid var(--fsd-border);
-  background: linear-gradient(135deg, rgba(0, 119, 182, 0.08) 0%, rgba(13, 17, 23, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(34, 199, 230, 0.08) 0%, rgba(11, 16, 24, 0.6) 100%);
 }
 
 .pile-summary-item {
@@ -290,15 +290,15 @@ onMounted(loadData)
   }
 
   &.free {
-    color: #00e676;
+    color: var(--fsd-success);
   }
 
   &.occupied {
-    color: #ffb020;
+    color: var(--fsd-warning);
   }
 
   &.fault {
-    color: #ff3d71;
+    color: var(--fsd-error);
   }
 }
 

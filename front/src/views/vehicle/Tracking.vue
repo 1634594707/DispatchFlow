@@ -450,9 +450,9 @@
           <div class="predictive-meta">
             <span class="predictive-minutes">预计 {{ alert.predictedMinutes }} 分钟后低于 30%</span>
             <span class="trend-indicator">
-              <ArrowUpOutlined v-if="alert.trend === 'stable'" style="color: #52c41a" />
-              <ArrowRightOutlined v-else-if="alert.trend === 'slight_decline'" style="color: #faad14" />
-              <ArrowDownOutlined v-else style="color: #ff4d4f" />
+              <ArrowUpOutlined v-if="alert.trend === 'stable'" style="color: var(--fsd-success)" />
+              <ArrowRightOutlined v-else-if="alert.trend === 'slight_decline'" style="color: var(--fsd-warning)" />
+              <ArrowDownOutlined v-else style="color: var(--fsd-error)" />
               {{ alert.trend === 'stable' ? '稳定' : alert.trend === 'slight_decline' ? '缓慢下降' : '快速下降' }}
             </span>
           </div>
@@ -464,9 +464,9 @@
       <div class="trend-detail">
         <p>车辆 {{ selectedPredictiveVehicleId }}</p>
         <p>趋势方向：
-          <ArrowUpOutlined v-if="getVehicleTrend(selectedPredictiveVehicleId) === 'stable'" style="color: #52c41a" />
-          <ArrowRightOutlined v-else-if="getVehicleTrend(selectedPredictiveVehicleId) === 'slight_decline'" style="color: #faad14" />
-          <ArrowDownOutlined v-else style="color: #ff4d4f" />
+          <ArrowUpOutlined v-if="getVehicleTrend(selectedPredictiveVehicleId) === 'stable'" style="color: var(--fsd-success)" />
+          <ArrowRightOutlined v-else-if="getVehicleTrend(selectedPredictiveVehicleId) === 'slight_decline'" style="color: var(--fsd-warning)" />
+          <ArrowDownOutlined v-else style="color: var(--fsd-error)" />
           {{ getVehicleTrend(selectedPredictiveVehicleId) === 'stable' ? '稳定 ↑' : getVehicleTrend(selectedPredictiveVehicleId) === 'slight_decline' ? '缓慢下降 →' : '快速下降 ↓' }}
         </p>
       </div>
@@ -852,8 +852,8 @@ const geoPolygons = computed((): GeoMapPolygon[] =>
     .map((fence) => ({
       id: String(fence.id),
       path: fence.polygon.map((point) => [Number(point[0]), Number(point[1])] as [number, number]),
-      strokeColor: fence.fenceType === 'RESTRICTED' ? '#ff6b6b' : '#00d4aa',
-      fillColor: fence.fenceType === 'RESTRICTED' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(0, 212, 170, 0.12)',
+      strokeColor: fence.fenceType === 'RESTRICTED' ? '#FF5C7C' : '#2DE08A',
+      fillColor: fence.fenceType === 'RESTRICTED' ? 'rgba(255, 92, 124, 0.15)' : 'rgba(45, 224, 138, 0.12)',
       zIndex: 10,
     })),
 )
@@ -982,18 +982,18 @@ function toggleL0Circles() {
 }
 
 function markerColor(vehicle: ParkVehicleSnapshot) {
-  if (vehicle.onlineStatus === 'OFFLINE') return '#ff4d6d'
-  if (vehicle.charging) return '#ffb020'
-  if (vehicle.lowBattery) return '#ff7a45'
-  if (vehicle.dispatchStatus === 'BUSY') return '#3ea6ff'
-  return '#00d68f'
+  if (vehicle.onlineStatus === 'OFFLINE') return '#FF5C7C'
+  if (vehicle.charging) return '#FFC04D'
+  if (vehicle.lowBattery) return '#FF5C7C'
+  if (vehicle.dispatchStatus === 'BUSY') return '#22C7E6'
+  return '#2DE08A'
 }
 
 function orderColor(stage: string) {
-  if (stage === 'COMPLETED') return '#00d68f'
-  if (stage === 'FAILED' || stage === 'MANUAL_PENDING') return '#ff4d6d'
-  if (stage === 'LOADING' || stage === 'UNLOADING' || stage === 'CHARGING') return '#ffb020'
-  return '#3ea6ff'
+  if (stage === 'COMPLETED') return '#2DE08A'
+  if (stage === 'FAILED' || stage === 'MANUAL_PENDING') return '#FF5C7C'
+  if (stage === 'LOADING' || stage === 'UNLOADING' || stage === 'CHARGING') return '#FFC04D'
+  return '#22C7E6'
 }
 
 function shortVehicleCode(code: string) {
@@ -1068,7 +1068,7 @@ function createVehicleIcon(vehicle: ParkVehicleSnapshot, expanded = false, slot 
 
 function createStationIcon(station: ParkStation) {
   const isPickup = station.area === 'A'
-  const color = isPickup ? '#00d68f' : '#ff4d6d'
+  const color = isPickup ? '#2DE08A' : '#FF5C7C'
   const label = isPickup ? '取货站' : '送货站'
   return L.divIcon({
     className: 'station-marker-wrap',
@@ -1084,7 +1084,7 @@ function createStationIcon(station: ParkStation) {
 }
 
 function createParkingIcon(code: string, mode: 'idle' | 'charging' | 'normal') {
-  const color = mode === 'charging' ? '#ffb020' : mode === 'idle' ? '#3ea6ff' : '#8ba2bd'
+  const color = mode === 'charging' ? '#FFC04D' : mode === 'idle' ? '#22C7E6' : '#9BA8B8'
   const label = mode === 'charging' ? '停车充电位' : '停车位'
   return L.divIcon({
     className: 'parking-marker-wrap',
@@ -1100,7 +1100,7 @@ function createParkingIcon(code: string, mode: 'idle' | 'charging' | 'normal') {
 }
 
 function createChargeVehicleIcon(vehicle: ParkVehicleSnapshot) {
-  const color = vehicle.charging ? '#ffb020' : '#3ea6ff'
+  const color = vehicle.charging ? '#FFC04D' : '#22C7E6'
   const text = vehicle.charging ? `充电 ${vehicle.batteryLevel}%` : `待命 ${vehicle.batteryLevel}%`
   return L.divIcon({
     className: 'charge-vehicle-wrap',
@@ -1586,35 +1586,22 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  --track-bg-deep: #06090f;
-  --track-bg-panel: rgba(13, 17, 23, 0.94);
-  --track-border: rgba(33, 38, 45, 0.9);
-  --track-border-accent: rgba(0, 180, 216, 0.22);
-  --track-text: #e6edf3;
-  --track-text-muted: #8b949e;
-  --track-text-dim: #6e7681;
-  --track-accent: #00b4d8;
-  --track-accent-soft: rgba(0, 180, 216, 0.1);
-  --track-success: #3ddc97;
-  --track-busy: #6cb6ff;
-  --track-warning: #e3b341;
-  --track-danger: #ff7b9c;
   background:
-    radial-gradient(ellipse 80% 50% at 15% 0%, rgba(0, 180, 216, 0.06), transparent 50%),
-    radial-gradient(ellipse 60% 40% at 85% 10%, rgba(0, 230, 118, 0.04), transparent 45%),
-    linear-gradient(180deg, #070b12 0%, var(--track-bg-deep) 100%);
+    radial-gradient(ellipse 80% 50% at 15% 0%, rgba(34, 199, 230, 0.06), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 85% 10%, rgba(45, 224, 138, 0.04), transparent 45%),
+    linear-gradient(180deg, var(--fsd-bg-deep) 0%, var(--fsd-bg-deep) 100%);
   --map-marker-scale: 1;
   --map-line-weight-scale: 1;
 }
 
 .screen-mode-incident {
   .side-panel .panel-content {
-    border-left-color: rgba(255, 61, 113, 0.35);
+    border-left-color: rgba(255, 92, 124, 0.35);
   }
 
   .stat-item.low-battery .stat-value,
   .vehicle-card.offline .vehicle-id-block strong {
-    color: var(--track-danger);
+    color: var(--fsd-error);
   }
 }
 
@@ -1622,8 +1609,8 @@ onUnmounted(() => {
   padding: 10px 14px;
   margin: 0 12px 8px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 61, 113, 0.25);
-  background: rgba(255, 61, 113, 0.08);
+  border: 1px solid rgba(255, 92, 124, 0.25);
+  background: rgba(255, 92, 124, 0.08);
 }
 
 .incident-toolbar-head {
@@ -1636,12 +1623,12 @@ onUnmounted(() => {
 .incident-title {
   font-size: 13px;
   font-weight: 700;
-  color: var(--track-danger);
+  color: var(--fsd-error);
 }
 
 .incident-hint {
   font-size: 11px;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
 }
 
 .incident-actions {
@@ -1651,8 +1638,8 @@ onUnmounted(() => {
 }
 
 .ops-panel-incident {
-  border: 1px solid rgba(255, 61, 113, 0.2);
-  background: rgba(255, 61, 113, 0.05);
+  border: 1px solid rgba(255, 92, 124, 0.2);
+  background: rgba(255, 92, 124, 0.05);
 }
 
 .map-container {
@@ -1667,11 +1654,11 @@ onUnmounted(() => {
 
   :deep(.amap-marker-label) {
     padding: 5px 9px;
-    border: 1px solid rgba(0, 180, 216, 0.38);
+    border: 1px solid rgba(34, 199, 230, 0.38);
     border-radius: 999px;
-    background: rgba(6, 9, 15, 0.88);
+    background: rgba(11, 16, 24, 0.88);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-    color: var(--track-text);
+    color: var(--fsd-text-primary);
     font-size: 11px;
     font-weight: 700;
     line-height: 1;
@@ -1687,16 +1674,16 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(ellipse 70% 45% at 50% 40%, rgba(0, 180, 216, 0.08), transparent 55%),
-    linear-gradient(180deg, #070b12 0%, var(--track-bg-deep) 100%);
+    radial-gradient(ellipse 70% 45% at 50% 40%, rgba(34, 199, 230, 0.08), transparent 55%),
+    linear-gradient(180deg, var(--fsd-bg-deep) 0%, var(--fsd-bg-deep) 100%);
 }
 
 .geo-map-unconfigured__body {
   max-width: 420px;
   padding: 28px 32px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 143, 163, 0.28);
-  background: rgba(13, 17, 23, 0.92);
+  border: 1px solid rgba(255, 92, 124, 0.28);
+  background: rgba(11, 16, 24, 0.92);
   text-align: center;
 }
 
@@ -1704,17 +1691,17 @@ onUnmounted(() => {
   margin: 0 0 12px;
   font-size: 16px;
   font-weight: 700;
-  color: #ff8fa3;
+  color: var(--fsd-error);
 }
 
 .geo-map-unconfigured__hint {
   margin: 0 0 8px;
   font-size: 12px;
   line-height: 1.6;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
 
   code {
-    color: #79c0ff;
+    color: var(--fsd-accent);
   }
 }
 
@@ -1722,7 +1709,7 @@ onUnmounted(() => {
   display: inline-block;
   margin-top: 12px;
   font-size: 13px;
-  color: #58a6ff;
+  color: var(--fsd-accent);
   text-decoration: none;
 
   &:hover {
@@ -1747,14 +1734,14 @@ onUnmounted(() => {
   padding: 2px 10px;
   font-size: 12px;
   line-height: 20px;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
   background: transparent;
   cursor: pointer;
   transition: color 120ms ease, background 120ms ease;
 
   &.active {
-    color: var(--track-text);
-    background: rgba(0, 180, 216, 0.18);
+    color: var(--fsd-text-primary);
+    background: rgba(34, 199, 230, 0.18);
   }
 
   &.disabled,
@@ -1765,14 +1752,14 @@ onUnmounted(() => {
 }
 
 :deep(.leaflet-container) {
-  background: #070b12;
+  background: var(--fsd-bg-deep);
   font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
 }
 
 :deep(.leaflet-control-zoom a) {
   background: rgba(6, 12, 22, 0.9) !important;
-  color: #d8e4f2 !important;
-  border-color: rgba(62, 166, 255, 0.22) !important;
+  color: var(--fsd-text-primary) !important;
+  border-color: rgba(34, 199, 230, 0.22) !important;
 }
 
 :deep(.vehicle-marker-wrap),
@@ -1834,7 +1821,7 @@ onUnmounted(() => {
   border-radius: 999px;
   background: rgba(5, 9, 19, 0.88);
   border: 1px solid color-mix(in srgb, var(--marker-color) 40%, transparent);
-  color: #ebf2fb;
+  color: var(--fsd-text-primary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 600;
@@ -1862,7 +1849,7 @@ onUnmounted(() => {
 }
 
 :deep(.vehicle-battery) {
-  color: #9fb4ca;
+  color: var(--fsd-text-secondary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
 }
@@ -1936,7 +1923,7 @@ onUnmounted(() => {
 }
 
 :deep(.charge-vehicle-code) {
-  color: #eaf4ff;
+  color: var(--fsd-text-primary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 700;
@@ -1973,26 +1960,26 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 1px solid var(--track-border);
+  border: 1px solid var(--fsd-border);
   border-left: none;
   border-radius: 0 8px 8px 0;
-  background: rgba(13, 17, 23, 0.95);
-  color: var(--track-text-muted);
+  background: rgba(11, 16, 24, 0.95);
+  color: var(--fsd-text-secondary);
   cursor: pointer;
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 
   &:hover {
-    color: var(--track-accent);
-    border-color: var(--track-border-accent);
-    background: rgba(13, 17, 23, 0.98);
+    color: var(--fsd-accent);
+    border-color: var(--fsd-accent-border);
+    background: rgba(11, 16, 24, 0.98);
   }
 }
 
 .side-panel.collapsed .panel-toggle {
   right: auto;
   left: 16px;
-  border-left: 1px solid var(--track-border);
+  border-left: 1px solid var(--fsd-border);
   border-right: none;
   border-radius: 8px 0 0 8px;
   box-shadow: -2px 0 12px rgba(0, 0, 0, 0.25);
@@ -2004,9 +1991,9 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0;
   padding: 16px;
-  border: 1px solid var(--track-border);
+  border: 1px solid var(--fsd-border);
   border-radius: 16px;
-  background: var(--track-bg-panel);
+  background: var(--fsd-bg-base);
   backdrop-filter: blur(16px);
   box-shadow:
     0 16px 40px rgba(0, 0, 0, 0.35),
@@ -2066,9 +2053,9 @@ onUnmounted(() => {
   gap: 12px;
   padding: 10px 16px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 122, 69, 0.35);
+  border: 1px solid rgba(255, 92, 124, 0.35);
   background: rgba(42, 14, 8, 0.92);
-  color: #ffd5c4;
+  color: var(--fsd-warning);
   font-size: 13px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(12px);
@@ -2078,34 +2065,34 @@ onUnmounted(() => {
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: #ff7a45;
-  box-shadow: 0 0 12px #ff7a45;
+  background: var(--fsd-error);
+  box-shadow: 0 0 12px var(--fsd-error);
 }
 
 .api-alert-dot.warning {
-  background: #ffb020;
-  box-shadow: 0 0 12px #ffb020;
+  background: var(--fsd-warning);
+  box-shadow: 0 0 12px var(--fsd-warning);
 }
 
 .road-route-warning {
   top: 60px;
-  border-color: rgba(255, 176, 32, 0.35);
+  border-color: rgba(255, 192, 77, 0.35);
   background: rgba(40, 30, 10, 0.92);
-  color: #ffe2a8;
+  color: var(--fsd-warning);
 }
 
 .api-alert-retry {
   padding: 4px 12px;
-  border: 1px solid rgba(255, 176, 32, 0.4);
+  border: 1px solid rgba(255, 192, 77, 0.4);
   border-radius: 999px;
-  background: rgba(255, 176, 32, 0.12);
-  color: #ffe2a8;
+  background: rgba(255, 192, 77, 0.12);
+  color: var(--fsd-warning);
   cursor: pointer;
 }
 
 .header-title {
   margin: 0;
-  color: var(--track-text);
+  color: var(--fsd-text-primary);
   font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -2117,7 +2104,7 @@ onUnmounted(() => {
 
 .header-sub {
   margin: 0;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
   font-size: 12px;
   line-height: 1.5;
   display: flex;
@@ -2126,7 +2113,7 @@ onUnmounted(() => {
   gap: 6px 10px;
 
   .stream-latency {
-    color: #3ecf8e;
+    color: var(--fsd-success);
     font-variant-numeric: tabular-nums;
   }
 }
@@ -2153,7 +2140,7 @@ onUnmounted(() => {
   width: 100%;
   font-size: 11px;
   line-height: 1.45;
-  color: var(--track-warning);
+  color: var(--fsd-warning);
 }
 
 .pilot-badge {
@@ -2163,13 +2150,13 @@ onUnmounted(() => {
   border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
-  color: #7ee787;
-  background: rgba(0, 214, 170, 0.12);
-  border: 1px solid rgba(0, 214, 170, 0.35);
+  color: var(--fsd-success);
+  background: rgba(45, 224, 138, 0.12);
+  border: 1px solid rgba(45, 224, 138, 0.35);
 }
 
 .map-scope-hint.geo {
-  color: var(--track-accent);
+  color: var(--fsd-accent);
 }
 
 .mode-toggle {
@@ -2178,7 +2165,7 @@ onUnmounted(() => {
   gap: 8px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
 }
 
 .live-badge {
@@ -2187,24 +2174,24 @@ onUnmounted(() => {
   gap: 6px;
   padding: 3px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 61, 113, 0.28);
-  background: rgba(255, 61, 113, 0.08);
-  color: #ff8fab;
+  border: 1px solid rgba(255, 92, 124, 0.28);
+  background: rgba(255, 92, 124, 0.08);
+  color: var(--fsd-error);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
 }
 
 .live-badge.live {
-  border-color: rgba(61, 220, 151, 0.3);
-  background: rgba(61, 220, 151, 0.08);
-  color: #3ddc97;
+  border-color: rgba(45, 224, 138, 0.3);
+  background: rgba(45, 224, 138, 0.08);
+  color: var(--fsd-success);
 }
 
 .live-badge.stream {
-  border-color: rgba(0, 180, 216, 0.4);
-  background: rgba(0, 180, 216, 0.12);
-  color: #00b4d8;
+  border-color: rgba(34, 199, 230, 0.4);
+  background: rgba(34, 199, 230, 0.12);
+  color: var(--fsd-accent);
 }
 
 .live-pulse {
@@ -2221,7 +2208,7 @@ onUnmounted(() => {
 .panel-toolbar {
   margin-top: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--track-border);
+  border-bottom: 1px solid var(--fsd-border);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2235,7 +2222,7 @@ onUnmounted(() => {
 }
 
 .toolbar-label {
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
   font-size: 12px;
   flex-shrink: 0;
   width: 36px;
@@ -2247,8 +2234,8 @@ onUnmounted(() => {
 }
 
 :deep(.scene-segment.ant-segmented) {
-  background: rgba(22, 27, 34, 0.9);
-  border: 1px solid var(--track-border);
+  background: rgba(11, 16, 24, 0.9);
+  border: 1px solid var(--fsd-border);
 }
 
 :deep(.scene-segment .ant-segmented-item-label) {
@@ -2262,9 +2249,9 @@ onUnmounted(() => {
 }
 
 :deep(.park-select .ant-select-selector) {
-  background: rgba(22, 27, 34, 0.9) !important;
-  border-color: var(--track-border) !important;
-  color: var(--track-text) !important;
+  background: rgba(11, 16, 24, 0.9) !important;
+  border-color: var(--fsd-border) !important;
+  color: var(--fsd-text-primary) !important;
   font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif !important;
 }
 
@@ -2276,9 +2263,9 @@ onUnmounted(() => {
 .mobile-entry {
   padding: 6px 10px;
   border-radius: 8px;
-  background: var(--track-accent-soft);
-  border: 1px solid var(--track-border-accent);
-  color: var(--track-accent);
+  background: var(--fsd-accent-bg);
+  border: 1px solid var(--fsd-accent-border);
+  color: var(--fsd-accent);
   text-decoration: none;
   font-size: 11px;
   font-weight: 500;
@@ -2287,8 +2274,8 @@ onUnmounted(() => {
   transition: background 0.2s ease, border-color 0.2s ease;
 
   &:hover {
-    background: rgba(0, 180, 216, 0.16);
-    color: #7ee8ff;
+    background: rgba(34, 199, 230, 0.16);
+    color: var(--fsd-accent);
   }
 }
 
@@ -2296,16 +2283,16 @@ onUnmounted(() => {
 .detail-close {
   width: 34px;
   height: 34px;
-  border: 1px solid var(--track-border);
+  border: 1px solid var(--fsd-border);
   border-radius: 8px;
-  background: rgba(22, 27, 34, 0.6);
-  color: var(--track-text-muted);
+  background: rgba(11, 16, 24, 0.6);
+  color: var(--fsd-text-secondary);
   cursor: pointer;
   transition: color 0.2s ease, border-color 0.2s ease;
 
   &:hover {
-    color: var(--track-accent);
-    border-color: var(--track-border-accent);
+    color: var(--fsd-accent);
+    border-color: var(--fsd-accent-border);
   }
 }
 
@@ -2326,43 +2313,43 @@ onUnmounted(() => {
   align-items: center;
   gap: 2px;
   padding: 8px 4px;
-  border: 1px solid var(--track-border);
+  border: 1px solid var(--fsd-border);
   border-radius: 10px;
-  background: rgba(22, 27, 34, 0.45);
-  color: var(--track-text);
+  background: rgba(11, 16, 24, 0.45);
+  color: var(--fsd-text-primary);
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease;
   text-align: center;
 }
 
 .stat-item:hover {
-  border-color: rgba(48, 54, 61, 1);
+  border-color: var(--fsd-border);
   background: rgba(28, 33, 40, 0.7);
 }
 
 .stat-item.active {
-  border-color: var(--track-border-accent);
-  background: var(--track-accent-soft);
+  border-color: var(--fsd-accent-border);
+  background: var(--fsd-accent-bg);
 }
 
 .stat-item.online.active {
-  border-color: rgba(61, 220, 151, 0.35);
-  background: rgba(61, 220, 151, 0.08);
+  border-color: rgba(45, 224, 138, 0.35);
+  background: rgba(45, 224, 138, 0.08);
 }
 
 .stat-item.busy.active {
-  border-color: rgba(108, 182, 255, 0.35);
-  background: rgba(0, 180, 216, 0.08);
+  border-color: rgba(34, 199, 230, 0.35);
+  background: rgba(34, 199, 230, 0.08);
 }
 
 .stat-item.charging.active {
-  border-color: rgba(227, 179, 65, 0.35);
-  background: rgba(255, 176, 32, 0.08);
+  border-color: rgba(255, 192, 77, 0.35);
+  background: rgba(255, 192, 77, 0.08);
 }
 
 .stat-item.low-battery.active {
-  border-color: rgba(255, 122, 69, 0.4);
-  background: rgba(255, 122, 69, 0.08);
+  border-color: rgba(255, 92, 124, 0.4);
+  background: rgba(255, 92, 124, 0.08);
 }
 
 .stat-item .stat-value {
@@ -2373,28 +2360,28 @@ onUnmounted(() => {
 }
 
 .stat-item.total .stat-value {
-  color: var(--track-text);
+  color: var(--fsd-text-primary);
 }
 
 .stat-item.online .stat-value {
-  color: var(--track-success);
+  color: var(--fsd-success);
 }
 
 .stat-item.busy .stat-value {
-  color: var(--track-busy);
+  color: var(--fsd-info);
 }
 
 .stat-item.low-battery .stat-value {
-  color: #ff7a45;
+  color: var(--fsd-error);
 }
 
 .stat-item.charging .stat-value {
-  color: var(--track-warning);
+  color: var(--fsd-warning);
 }
 
 .stat-item .stat-label {
   font-size: 10px;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
   letter-spacing: 0.02em;
 }
 
@@ -2413,25 +2400,25 @@ onUnmounted(() => {
 
 .filter-chip {
   padding: 5px 10px;
-  border: 1px solid var(--track-border);
+  border: 1px solid var(--fsd-border);
   border-radius: 999px;
-  background: rgba(22, 27, 34, 0.5);
-  color: var(--track-text-muted);
+  background: rgba(11, 16, 24, 0.5);
+  color: var(--fsd-text-secondary);
   cursor: pointer;
   font-size: 11px;
   line-height: 1.2;
   transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
 
   &:hover {
-    color: var(--track-text);
-    border-color: rgba(48, 54, 61, 1);
+    color: var(--fsd-text-primary);
+    border-color: var(--fsd-border);
   }
 }
 
 .filter-chip.active {
-  border-color: var(--track-border-accent);
-  background: var(--track-accent-soft);
-  color: var(--track-accent);
+  border-color: var(--fsd-accent-border);
+  background: var(--fsd-accent-bg);
+  color: var(--fsd-accent);
 }
 
 .filter-chip-layer {
@@ -2456,7 +2443,7 @@ onUnmounted(() => {
 .panel-section-orders {
   margin-top: 4px;
   padding-top: 16px;
-  border-top: 1px solid var(--track-border);
+  border-top: 1px solid var(--fsd-border);
 }
 
 .section-head {
@@ -2466,7 +2453,7 @@ onUnmounted(() => {
 }
 
 .section-title {
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -2480,9 +2467,9 @@ onUnmounted(() => {
   height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(22, 27, 34, 0.8);
-  border: 1px solid var(--track-border);
-  color: var(--track-text-dim);
+  background: rgba(11, 16, 24, 0.8);
+  border: 1px solid var(--fsd-border);
+  color: var(--fsd-text-tertiary);
   font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
   font-weight: 600;
@@ -2501,11 +2488,11 @@ onUnmounted(() => {
 .info-card {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid var(--track-border);
+  border: 1px solid var(--fsd-border);
   border-radius: 10px;
-  background: rgba(22, 27, 34, 0.45);
+  background: rgba(11, 16, 24, 0.45);
   text-align: left;
-  color: var(--track-text);
+  color: var(--fsd-text-primary);
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
@@ -2513,15 +2500,15 @@ onUnmounted(() => {
   cursor: pointer;
 
   &:hover {
-    border-color: rgba(48, 54, 61, 1);
+    border-color: var(--fsd-border);
     background: rgba(28, 33, 40, 0.65);
   }
 }
 
 .vehicle-card.selected {
-  border-color: var(--track-border-accent);
-  background: var(--track-accent-soft);
-  box-shadow: inset 2px 0 0 var(--track-accent);
+  border-color: var(--fsd-accent-border);
+  background: var(--fsd-accent-bg);
+  box-shadow: inset 2px 0 0 var(--fsd-accent);
 }
 
 .vehicle-card.offline {
@@ -2537,12 +2524,12 @@ onUnmounted(() => {
   strong {
     font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
-    color: var(--track-text);
+    color: var(--fsd-text-primary);
   }
 }
 
 .vehicle-name {
-  color: var(--track-text-dim);
+  color: var(--fsd-text-tertiary);
   font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
@@ -2557,7 +2544,7 @@ onUnmounted(() => {
 }
 
 .meta-dispatch {
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
   font-size: 11px;
 }
 
@@ -2565,18 +2552,18 @@ onUnmounted(() => {
   margin-left: auto;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
 }
 
 .meta-battery.low {
-  color: var(--track-warning);
+  color: var(--fsd-warning);
 }
 
 .route-line {
   margin-top: 6px;
   gap: 6px;
   justify-content: flex-start;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
   font-size: 12px;
   font-family: 'JetBrains Mono', monospace;
 }
@@ -2584,7 +2571,7 @@ onUnmounted(() => {
 .order-card-foot {
   margin-top: 6px;
   font-size: 11px;
-  color: var(--track-text-dim);
+  color: var(--fsd-text-tertiary);
 }
 
 .card-tags {
@@ -2609,20 +2596,20 @@ onUnmounted(() => {
 }
 
 .target-tag {
-  background: rgba(62, 166, 255, 0.1);
-  color: #8bcfff;
+  background: rgba(34, 199, 230, 0.1);
+  color: var(--fsd-accent);
 }
 
 .charging-tag,
 .detail-flag.active {
-  background: rgba(255, 176, 32, 0.12);
-  color: #ffb020;
+  background: rgba(255, 192, 77, 0.12);
+  color: var(--fsd-warning);
 }
 
 .risk-tag,
 .detail-flag.danger {
-  background: rgba(255, 122, 69, 0.14);
-  color: #ff9f6b;
+  background: rgba(255, 92, 124, 0.14);
+  color: var(--fsd-error);
 }
 
 .status-dot {
@@ -2631,8 +2618,8 @@ onUnmounted(() => {
   border-radius: 999px;
 }
 
-.dot-online { background: #00d68f; }
-.dot-offline { background: #ff4d6d; }
+.dot-online { background: var(--fsd-success); }
+.dot-offline { background: var(--fsd-error); }
 
 .link-mode-pill {
   margin-left: 6px;
@@ -2645,18 +2632,18 @@ onUnmounted(() => {
 }
 
 .link-sim {
-  background: rgba(0, 180, 216, 0.14);
-  color: #5fd4ff;
+  background: rgba(34, 199, 230, 0.14);
+  color: var(--fsd-accent);
 }
 
 .link-real {
-  background: rgba(255, 176, 32, 0.16);
-  color: #ffc857;
+  background: rgba(255, 192, 77, 0.16);
+  color: var(--fsd-warning);
 }
 
 .link-vda5050 {
-  background: rgba(177, 102, 255, 0.16);
-  color: #c792ff;
+  background: rgba(34, 199, 230, 0.16);
+  color: var(--fsd-accent);
 }
 
 .stage-pill {
@@ -2667,33 +2654,33 @@ onUnmounted(() => {
 }
 
 .stage-idle {
-  background: rgba(61, 220, 151, 0.12);
-  color: var(--track-success);
+  background: rgba(45, 224, 138, 0.12);
+  color: var(--fsd-success);
 }
 
 .stage-moving {
-  background: rgba(0, 180, 216, 0.12);
-  color: var(--track-busy);
+  background: rgba(34, 199, 230, 0.12);
+  color: var(--fsd-info);
 }
 
 .stage-loading {
-  background: rgba(255, 176, 32, 0.12);
-  color: var(--track-warning);
+  background: rgba(255, 192, 77, 0.12);
+  color: var(--fsd-warning);
 }
 
 .stage-charging {
-  background: rgba(255, 176, 32, 0.1);
-  color: #e3b341;
+  background: rgba(255, 192, 77, 0.1);
+  color: var(--fsd-warning);
 }
 
 .stage-risk {
-  background: rgba(255, 61, 113, 0.12);
-  color: var(--track-danger);
+  background: rgba(255, 92, 124, 0.12);
+  color: var(--fsd-error);
 }
 
 .stage-default {
-  background: rgba(110, 118, 129, 0.15);
-  color: var(--track-text-muted);
+  background: rgba(107, 119, 135, 0.15);
+  color: var(--fsd-text-secondary);
 }
 
 .order-card-head {
@@ -2708,14 +2695,14 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #eaf4ff;
+  color: var(--fsd-text-primary);
   text-decoration: none;
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
 }
 
 .route-arrow {
-  color: #58b6ff;
+  color: var(--fsd-accent);
 }
 
 .empty-state {
@@ -2724,21 +2711,21 @@ onUnmounted(() => {
   justify-content: center;
   gap: 8px;
   padding: 18px 10px;
-  color: #6f88a2;
+  color: var(--fsd-text-secondary);
 }
 
 .panel-footer {
   flex-shrink: 0;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid var(--track-border);
-  color: var(--track-text-dim);
+  border-top: 1px solid var(--fsd-border);
+  color: var(--fsd-text-tertiary);
   font-size: 11px;
 }
 
 .footer-time {
   font-family: 'JetBrains Mono', monospace;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
 }
 
 .legend {
@@ -2749,9 +2736,9 @@ onUnmounted(() => {
   gap: 12px;
   flex-wrap: wrap;
   padding: 10px 14px;
-  border: 1px solid var(--track-border);
+  border: 1px solid var(--fsd-border);
   border-radius: 12px;
-  background: rgba(13, 17, 23, 0.88);
+  background: rgba(11, 16, 24, 0.88);
   backdrop-filter: blur(12px);
   z-index: 1000;
 }
@@ -2760,7 +2747,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
   font-size: 11px;
 }
 
@@ -2772,23 +2759,23 @@ onUnmounted(() => {
 }
 
 .legend-dot.station-a {
-  background: var(--track-success);
+  background: var(--fsd-success);
 }
 
 .legend-dot.station-b {
-  background: var(--track-danger);
+  background: var(--fsd-error);
 }
 
 .legend-dot.parking {
-  background: var(--track-accent);
+  background: var(--fsd-accent);
 }
 
 .legend-dot.legend-dot-charging {
-  background: var(--track-warning);
+  background: var(--fsd-warning);
 }
 
 .legend-dot.legend-dot-busy {
-  background: var(--track-busy);
+  background: var(--fsd-info);
 }
 
 .detail-mask {
@@ -2804,7 +2791,7 @@ onUnmounted(() => {
 .detail-card {
   width: 320px;
   pointer-events: auto;
-  border: 1px solid rgba(62, 166, 255, 0.16);
+  border: 1px solid rgba(34, 199, 230, 0.16);
   border-radius: 18px;
   background: rgba(7, 13, 24, 0.92);
   backdrop-filter: blur(18px);
@@ -2817,7 +2804,7 @@ onUnmounted(() => {
 }
 
 .detail-code {
-  color: #f1f6fb;
+  color: var(--fsd-text-primary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 16px;
   font-weight: 700;
@@ -2825,7 +2812,7 @@ onUnmounted(() => {
 
 .detail-name {
   margin-top: 4px;
-  color: #8aa4be;
+  color: var(--fsd-text-secondary);
   font-size: 13px;
 }
 
@@ -2834,11 +2821,11 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 12px;
   padding: 16px 18px 18px;
-  color: #d9e6f2;
+  color: var(--fsd-text-primary);
 }
 
 .detail-row span:first-child {
-  color: #88a1b8;
+  color: var(--fsd-text-secondary);
 }
 
 @keyframes spin {
@@ -2867,7 +2854,7 @@ onUnmounted(() => {
 }
 .ops-line {
   font-size: 12px;
-  color: #8b949e;
+  color: var(--fsd-text-secondary);
   padding: 2px 0;
 }
 
@@ -2906,33 +2893,33 @@ onUnmounted(() => {
 }
 
 .sse-connected {
-  background: rgba(0, 230, 118, 0.08);
-  color: #00e676;
+  background: rgba(45, 224, 138, 0.08);
+  color: var(--fsd-success);
 }
 
 .sse-connected .sse-status-dot {
-  background: #00e676;
-  box-shadow: 0 0 8px rgba(0, 230, 118, 0.6);
+  background: var(--fsd-success);
+  box-shadow: 0 0 8px rgba(45, 224, 138, 0.6);
 }
 
 .sse-reconnecting {
-  background: rgba(255, 202, 40, 0.08);
-  color: #ffca28;
+  background: rgba(255, 192, 77, 0.08);
+  color: var(--fsd-warning);
 }
 
 .sse-reconnecting .sse-status-dot {
-  background: #ffca28;
-  box-shadow: 0 0 8px rgba(255, 202, 40, 0.4);
+  background: var(--fsd-warning);
+  box-shadow: 0 0 8px rgba(255, 192, 77, 0.4);
   animation: sse-pulse 1.2s ease-in-out infinite;
 }
 
 .sse-disconnected {
-  background: rgba(255, 61, 113, 0.08);
-  color: #ff3d71;
+  background: rgba(255, 92, 124, 0.08);
+  color: var(--fsd-error);
 }
 
 .sse-disconnected .sse-status-dot {
-  background: #ff3d71;
+  background: var(--fsd-error);
 }
 
 @keyframes sse-pulse {
@@ -2950,25 +2937,25 @@ onUnmounted(() => {
 .predictive-card {
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid var(--track-border);
-  background: rgba(22, 27, 34, 0.45);
+  border: 1px solid var(--fsd-border);
+  background: rgba(11, 16, 24, 0.45);
   cursor: pointer;
   transition: border-color 0.2s;
 
   &:hover {
-    border-color: var(--track-border-accent);
+    border-color: var(--fsd-accent-border);
   }
 
   &.trend-rapid_decline {
-    border-left: 3px solid #ff4d4f;
+    border-left: 3px solid var(--fsd-error);
   }
 
   &.trend-slight_decline {
-    border-left: 3px solid #faad14;
+    border-left: 3px solid var(--fsd-warning);
   }
 
   &.trend-stable {
-    border-left: 3px solid #52c41a;
+    border-left: 3px solid var(--fsd-success);
   }
 }
 
@@ -2981,7 +2968,7 @@ onUnmounted(() => {
   strong {
     font-family: 'JetBrains Mono', monospace;
     font-size: 14px;
-    color: var(--track-text);
+    color: var(--fsd-text-primary);
   }
 }
 
@@ -2989,7 +2976,7 @@ onUnmounted(() => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 16px;
   font-weight: 700;
-  color: #faad14;
+  color: var(--fsd-warning);
 }
 
 .predictive-meta {
@@ -3002,7 +2989,7 @@ onUnmounted(() => {
 
 .predictive-minutes {
   font-size: 12px;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
 }
 
 .trend-indicator {
@@ -3010,15 +2997,15 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
 }
 
 .trend-detail {
   padding: 12px;
   border-radius: 8px;
-  background: rgba(22, 27, 34, 0.45);
+  background: rgba(11, 16, 24, 0.45);
   font-size: 13px;
-  color: var(--track-text-muted);
+  color: var(--fsd-text-secondary);
 
   p {
     margin: 4px 0;

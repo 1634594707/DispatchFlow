@@ -6,10 +6,10 @@
       :color="timelineColor(event.status)"
     >
       <template #dot v-if="event.status === 'error'">
-        <WarningFilled style="color: #ff4d4f" />
+        <WarningFilled style="color: #FF5C7C" />
       </template>
       <template #dot v-else-if="event.status === 'active'">
-        <SyncOutlined spin style="color: #1890ff" />
+        <SyncOutlined spin style="color: #22C7E6" />
       </template>
       <div class="timeline-event">
         <div class="event-header">

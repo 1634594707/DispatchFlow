@@ -119,10 +119,10 @@ export function workbenchStationRole(station: Pick<ParkStation, 'stationCode'>):
 }
 
 const WORKBENCH_STATION_COLORS: Record<WorkbenchStationRole, string> = {
-  pickup: '#00b4d8',
-  dropoff: '#ffb703',
-  express: '#06d6a0',
-  idle: '#8b949e',
+  pickup: '#22C7E6',
+  dropoff: '#FFC04D',
+  express: '#2DE08A',
+  idle: '#9BA8B8',
   charging: '#9d4edd',
 }
 

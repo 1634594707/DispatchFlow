@@ -85,6 +85,23 @@
         </a-card>
 
         <a-card title="配送进度" size="small" style="margin-top: 16px;">
+          <!-- V9-UI2: Delivery stage progress visualization -->
+          <div v-if="store.detail.runtimeStage" class="delivery-progress">
+            <a-steps
+              :current="deliveryStepIndex"
+              :status="deliveryStepStatus"
+              size="small"
+              :direction="stepsDirection"
+            >
+              <a-step title="待派车" />
+              <a-step title="已派车" />
+              <a-step title="前往取货" />
+              <a-step title="装货" />
+              <a-step title="配送中" />
+              <a-step title="卸货" />
+              <a-step title="已完成" />
+            </a-steps>
+          </div>
           <a-spin :spinning="timelineLoading">
             <OrderTimeline :events="timelineEvents" />
           </a-spin>
@@ -102,6 +119,7 @@ import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import OrderTimeline from '@/components/analytics/OrderTimeline.vue'
 import { useOrderStore } from '@/stores/order'
+import { useResponsive } from '@/composables/useResponsive'
 import { orderStatusMap } from '@/constants/statusMap'
 import { buildGeoTrackingLink, parkDeliveryStageLabel } from '@/constants/parkDelivery'
 import { getOrderTimeline, type TimelineEvent } from '@/api/analytics'
@@ -110,8 +128,47 @@ import dayjs from 'dayjs'
 const router = useRouter()
 const route = useRoute()
 const store = useOrderStore()
+const resp = useResponsive()
 const timelineLoading = ref(false)
 const timelineEvents = ref<TimelineEvent[]>([])
+
+// V9-UI2: Delivery stage → step index mapping
+const STAGE_STEP_MAP: Record<string, number> = {
+  PENDING_ASSIGNMENT: 0,
+  WAITING_DISPATCH: 0,
+  DISPATCHED: 1,
+  HEADING_TO_PICKUP: 2,
+  TO_PICKUP: 2,
+  LOADING: 3,
+  HEADING_TO_DROPOFF: 4,
+  TO_DROPOFF: 4,
+  UNLOADING: 5,
+  COMPLETED: 6,
+}
+
+const ABNORMAL_STAGES = new Set([
+  'FAILED',
+  'MANUAL_PENDING',
+  'EMERGENCY_PARKING',
+])
+
+const deliveryStepIndex = computed(() => {
+  const stage = store.detail?.runtimeStage
+  if (!stage) return 0
+  return STAGE_STEP_MAP[stage] ?? 0
+})
+
+const deliveryStepStatus = computed<'process' | 'finish' | 'error' | 'wait'>(() => {
+  const stage = store.detail?.runtimeStage
+  if (!stage) return 'wait'
+  if (stage === 'COMPLETED') return 'finish'
+  if (ABNORMAL_STAGES.has(stage)) return 'error'
+  return 'process'
+})
+
+const stepsDirection = computed<'horizontal' | 'vertical'>(() =>
+  resp.isPhone.value ? 'vertical' : 'horizontal'
+)
 
 const trackingLink = computed(() =>
   buildGeoTrackingLink(store.detail?.orderId, store.detail?.vehicleId ?? undefined),
@@ -176,5 +233,12 @@ watch(() => route.params.orderId, fetchData)
 .text-secondary {
   color: var(--fsd-text-secondary);
   font-size: 12px;
+}
+
+/* V9-UI2: Delivery progress steps */
+.delivery-progress {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--fsd-border);
 }
 </style>

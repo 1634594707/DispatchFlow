@@ -185,7 +185,7 @@ onMounted(loadData)
   padding: 16px 20px;
   border-radius: var(--fsd-radius-lg);
   border: 1px solid var(--fsd-border);
-  background: linear-gradient(135deg, rgba(0, 119, 182, 0.08) 0%, rgba(13, 17, 23, 0.6) 100%);
+  background: linear-gradient(135deg, rgba(34, 199, 230, 0.08) 0%, rgba(11, 16, 24, 0.6) 100%);
 }
 
 .station-info-item {
@@ -211,15 +211,15 @@ onMounted(loadData)
   color: var(--fsd-accent);
 
   &.fast {
-    color: #ffb020;
+    color: var(--fsd-warning);
   }
 
   &.slow {
-    color: #3ea6ff;
+    color: var(--fsd-accent);
   }
 
   &.free {
-    color: #00e676;
+    color: var(--fsd-success);
   }
 }
 

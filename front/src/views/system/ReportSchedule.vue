@@ -303,7 +303,7 @@ onMounted(load)
 .toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
 
 .text-muted {
-  color: var(--fsd-text-tertiary, #999);
+  color: var(--fsd-text-tertiary, #6B7787);
 }
 
 /* V5-S4: 状态指示点 */
@@ -316,17 +316,17 @@ onMounted(load)
 }
 
 .status-dot.dot-success {
-  background-color: var(--ant-success-color, #52c41a);
-  box-shadow: 0 0 4px var(--ant-success-color, #52c41a);
+  background-color: var(--fsd-success);
+  box-shadow: 0 0 4px var(--fsd-success);
 }
 
 .status-dot.dot-failure {
-  background-color: var(--ant-error-color, #ff4d4f);
-  box-shadow: 0 0 4px var(--ant-error-color, #ff4d4f);
+  background-color: var(--fsd-error);
+  box-shadow: 0 0 4px var(--fsd-error);
 }
 
 .status-dot.dot-pending {
-  background-color: var(--fsd-border, #d9d9d9);
+  background-color: var(--fsd-border, rgba(255, 255, 255, 0.07));
 }
 
 /* V5-S4: Cron 预览 */
@@ -334,7 +334,7 @@ onMounted(load)
   margin: 0;
   padding-left: 16px;
   font-size: 12px;
-  color: var(--fsd-text-secondary, #666);
+  color: var(--fsd-text-secondary, #9BA8B8);
   line-height: 1.8;
 }
 
@@ -351,7 +351,7 @@ onMounted(load)
 }
 
 .history-time {
-  color: var(--fsd-text-tertiary, #999);
+  color: var(--fsd-text-tertiary, #6B7787);
   font-size: 12px;
 }
 
@@ -360,11 +360,11 @@ onMounted(load)
   flex-wrap: wrap;
   gap: 8px;
   font-size: 12px;
-  color: var(--fsd-text-secondary, #666);
+  color: var(--fsd-text-secondary, #9BA8B8);
 }
 
 .history-error {
-  color: var(--ant-error-color, #ff4d4f);
+  color: var(--fsd-error);
 }
 
 @media (max-width: 768px) {
