@@ -135,5 +135,11 @@ networks:
 
 volumes:
   mysql-data:
+    external: true
+    name: back_mysql-data
   redis-data:
+    external: true
+    name: back_redis-data
   rabbitmq-data:
+    external: true
+    name: back_rabbitmq-data
