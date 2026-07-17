@@ -97,7 +97,8 @@ class DispatchFlowIntegrationTest {
 
     @Test
     void shouldCompleteMainFlowFromOrderToTaskSuccess() {
-        insertVehicle("PARK-001", "Vehicle 1", "ONLINE", "IDLE", 220.0, 170.0);
+        // 车辆停放在 A1 取货站（GPS 与 schematic 双坐标对齐，确保 Phase 4 haversine 距离计算有效）
+        insertVehicle("PARK-001", "Vehicle 1", "ONLINE", "IDLE", 121.0744, 31.9604);
 
         OrderCreateRequest orderRequest = new OrderCreateRequest();
         orderRequest.setExternalOrderNo("EXT-001");

@@ -282,9 +282,19 @@ public class ParkPilotServiceImpl implements ParkPilotService {
         ParkPointResponse previous = route.get(0);
         for (int i = 1; i < route.size(); i++) {
             ParkPointResponse current = route.get(i);
-            total += Math.hypot(
-                    current.getX().doubleValue() - previous.getX().doubleValue(),
-                    current.getY().doubleValue() - previous.getY().doubleValue());
+            // Phase 4：当两端均携带 GPS 时用 haversine（米），否则回退 schematic 欧几里得。
+            if (previous.getLongitude() != null && previous.getLatitude() != null
+                    && current.getLongitude() != null && current.getLatitude() != null) {
+                total += com.fsd.dispatch.geo.GeoPolygonUtils.haversineMeters(
+                        new com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint(
+                                previous.getLongitude(), previous.getLatitude()),
+                        new com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint(
+                                current.getLongitude(), current.getLatitude()));
+            } else {
+                total += Math.hypot(
+                        current.getX().doubleValue() - previous.getX().doubleValue(),
+                        current.getY().doubleValue() - previous.getY().doubleValue());
+            }
             previous = current;
         }
         return total;

@@ -1,6 +1,7 @@
 package com.fsd.dispatch.fleet.real;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.dto.VehicleTelemetryRequest;
 import com.fsd.dispatch.entity.BatterySwapCabinetEntity;
@@ -10,6 +11,7 @@ import com.fsd.dispatch.mapper.BatterySwapCabinetMapper;
 import com.fsd.dispatch.service.BatterySwapSessionService;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import com.fsd.vehicle.entity.VehicleEntity;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -77,12 +79,13 @@ public class RealFleetSwapCoordinator {
 
     private Optional<BatterySwapCabinetEntity> resolveCabinet(String targetCode, long parkId) {
         if (targetCode != null && !targetCode.isBlank()) {
-            BatterySwapCabinetEntity byCode = swapCabinetMapper.selectOne(new LambdaQueryWrapper<BatterySwapCabinetEntity>()
+            Page<BatterySwapCabinetEntity> byCodePage = swapCabinetMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<BatterySwapCabinetEntity>()
                     .eq(BatterySwapCabinetEntity::getDeleted, 0)
                     .eq(BatterySwapCabinetEntity::getStatus, "ACTIVE")
                     .eq(BatterySwapCabinetEntity::getParkId, parkId)
-                    .eq(BatterySwapCabinetEntity::getCabinetCode, targetCode)
-                    .last("limit 1"));
+                    .eq(BatterySwapCabinetEntity::getCabinetCode, targetCode));
+            List<BatterySwapCabinetEntity> byCodeRecords = byCodePage.getRecords();
+            BatterySwapCabinetEntity byCode = byCodeRecords.isEmpty() ? null : byCodeRecords.get(0);
             if (byCode != null) {
                 return Optional.of(byCode);
             }
@@ -91,10 +94,11 @@ public class RealFleetSwapCoordinator {
     }
 
     private Optional<BatterySwapCabinetEntity> findSwapCabinet(long parkId) {
-        return Optional.ofNullable(swapCabinetMapper.selectOne(new LambdaQueryWrapper<BatterySwapCabinetEntity>()
+        Page<BatterySwapCabinetEntity> page = swapCabinetMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<BatterySwapCabinetEntity>()
                 .eq(BatterySwapCabinetEntity::getDeleted, 0)
                 .eq(BatterySwapCabinetEntity::getStatus, "ACTIVE")
-                .eq(BatterySwapCabinetEntity::getParkId, parkId)
-                .last("limit 1")));
+                .eq(BatterySwapCabinetEntity::getParkId, parkId));
+        List<BatterySwapCabinetEntity> records = page.getRecords();
+        return Optional.ofNullable(records.isEmpty() ? null : records.get(0));
     }
 }

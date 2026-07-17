@@ -46,6 +46,11 @@ final class IntegrationTestSchema {
                     vehicle_speed_px_per_second DECIMAL(10,2),
                     center_lng DECIMAL(10,6),
                     center_lat DECIMAL(10,6),
+                    anchor_lng DECIMAL(10,6),
+                    anchor_lat DECIMAL(10,6),
+                    park_width_meters INT,
+                    park_height_meters INT,
+                    scenario_code VARCHAR(64),
                     map_provider VARCHAR(32),
                     status VARCHAR(32) NOT NULL,
                     default_flag TINYINT NOT NULL DEFAULT 0,
@@ -72,10 +77,13 @@ final class IntegrationTestSchema {
                     status VARCHAR(32) NOT NULL,
                     sort_order INT DEFAULT 0,
                     capacity_limit INT,
+                    service_hours VARCHAR(32),
+                    avg_service_seconds INT,
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     version INT DEFAULT 0,
+                    delivery_zone VARCHAR(32) DEFAULT 'GENERAL',
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -87,6 +95,8 @@ final class IntegrationTestSchema {
                     fence_code VARCHAR(64) NOT NULL,
                     fence_name VARCHAR(128) NOT NULL,
                     fence_type VARCHAR(32) NOT NULL DEFAULT 'BOUNDARY',
+                    response_level VARCHAR(32) DEFAULT 'WARN',
+                    buffer_meters DECIMAL(10,2),
                     polygon_json CLOB NOT NULL,
                     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
                     remark VARCHAR(255),
@@ -116,6 +126,8 @@ final class IntegrationTestSchema {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     version INT DEFAULT 0,
+                    delivery_zone VARCHAR(32),
+                    weight DECIMAL(10,2),
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -166,6 +178,9 @@ final class IntegrationTestSchema {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     version INT DEFAULT 0,
+                    delivery_zone VARCHAR(32) DEFAULT 'BOTH',
+                    max_load_capacity INT,
+                    current_load INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -321,6 +336,8 @@ final class IntegrationTestSchema {
                     node_code VARCHAR(64) NOT NULL,
                     coord_x DECIMAL(12,4) NOT NULL,
                     coord_y DECIMAL(12,4) NOT NULL,
+                    coord_lng DECIMAL(10,6),
+                    coord_lat DECIMAL(10,6),
                     status VARCHAR(32) NOT NULL,
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -336,6 +353,8 @@ final class IntegrationTestSchema {
                     park_id BIGINT NOT NULL,
                     from_node_code VARCHAR(64) NOT NULL,
                     to_node_code VARCHAR(64) NOT NULL,
+                    direction VARCHAR(16) DEFAULT 'BIDIRECTIONAL',
+                    connecting_park_id BIGINT,
                     status VARCHAR(32) NOT NULL,
                     speed_limit_kmh INT DEFAULT 15,
                     congestion_level INT NOT NULL DEFAULT 0,
@@ -447,10 +466,10 @@ final class IntegrationTestSchema {
                 """);
         jdbcTemplate.update("""
                 INSERT INTO t_station (
-                    id, park_id, station_code, station_name, station_type, coord_x, coord_y, area, status, sort_order, version, deleted
+                    id, park_id, station_code, station_name, station_type, coord_x, coord_y, coord_lng, coord_lat, area, status, sort_order, version, deleted
                 ) VALUES
-                (101, 1, 'A1', 'A1 Pickup', 'PICKUP', 220, 170, 'A', 'ACTIVE', 1, 0, 0),
-                (201, 1, 'B1', 'B1 Dropoff', 'DROPOFF', 220, 620, 'B', 'ACTIVE', 11, 0, 0)
+                (101, 1, 'A1', 'A1 Pickup', 'PICKUP', 220, 170, 121.074400, 31.960400, 'A', 'ACTIVE', 1, 0, 0),
+                (201, 1, 'B1', 'B1 Dropoff', 'DROPOFF', 220, 620, 121.079700, 31.963600, 'B', 'ACTIVE', 11, 0, 0)
                 """);
     }
 }

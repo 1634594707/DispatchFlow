@@ -106,3 +106,50 @@ export function createParkOrder(data: ParkOrderCreateRequest, mobileApiKey?: str
     headers: key ? { 'X-Mobile-Api-Key': key } : undefined,
   })
 }
+
+/** Phase 5 任务 5.3：GCJ-02 ↔ 园区 schematic x/y 坐标互转。 */
+export interface GeoTransformResult {
+  parkX: number
+  parkY: number
+  longitude: number
+  latitude: number
+}
+
+/**
+ * 阶段七 7.3：园区元数据（替代硬编码 ZJF_PILOT_GEO）。
+ * 后端 GET /api/admin/park/metadata 返回园区锚点/尺寸/场景标识等元数据。
+ */
+export interface ParkMetadata {
+  parkId: number
+  parkCode: string
+  parkName: string
+  scenarioCode?: string | null
+  anchorLng: number | null
+  anchorLat: number | null
+  centerLng: number | null
+  centerLat: number | null
+  parkWidthPx: number | null
+  parkHeightPx: number | null
+  parkWidthMeters: number | null
+  parkHeightMeters: number | null
+  mapProvider?: string | null
+}
+
+export function getParkMetadata(parkId?: number) {
+  return request.get<any, ApiResponse<ParkMetadata>>('/admin/park/metadata', {
+    params: parkId != null ? { parkId } : undefined,
+    headers: mobileApiHeaders(),
+  })
+}
+
+export function transformGeoCoordinates(params: {
+  parkX?: number
+  parkY?: number
+  longitude?: number
+  latitude?: number
+}) {
+  return request.get<any, ApiResponse<GeoTransformResult>>('/admin/park/geo/transform', {
+    params,
+    headers: mobileApiHeaders(),
+  })
+}

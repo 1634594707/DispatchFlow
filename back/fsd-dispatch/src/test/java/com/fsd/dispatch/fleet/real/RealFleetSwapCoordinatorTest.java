@@ -1,5 +1,6 @@
 package com.fsd.dispatch.fleet.real;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -8,7 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.dto.VehicleTelemetryRequest;
 import com.fsd.dispatch.entity.BatterySwapCabinetEntity;
@@ -51,8 +54,9 @@ class RealFleetSwapCoordinatorTest {
         BatterySwapCabinetEntity cabinet = cabinet(9L, "SWAP-01");
         when(fleetChargePolicy.isActivelySwapping("SWAPPING")).thenReturn(true);
         when(swapSessionService.findActiveByVehicle(1L)).thenReturn(Optional.empty());
-        when(swapCabinetMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<BatterySwapCabinetEntity>>any()))
-                .thenReturn(cabinet);
+        Page<BatterySwapCabinetEntity> cabinetPage = new Page<>();
+        cabinetPage.setRecords(java.util.List.of(cabinet));
+        when(swapCabinetMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(cabinetPage);
 
         coordinator.onTelemetry(vehicle, telemetry("SWAPPING", "SWAP-01", 18), null);
 
@@ -77,8 +81,9 @@ class RealFleetSwapCoordinatorTest {
         FleetEnergyProperties energy = new FleetEnergyProperties();
         energy.setEnergyRecoveryMode("SWAP");
         when(strategyRuntimeService.energyForAssign(1L)).thenReturn(energy);
-        when(swapCabinetMapper.selectOne(ArgumentMatchers.<LambdaQueryWrapper<BatterySwapCabinetEntity>>any()))
-                .thenReturn(cabinet(1L, "SWAP-01"));
+        Page<BatterySwapCabinetEntity> cabinetPage = new Page<>();
+        cabinetPage.setRecords(java.util.List.of(cabinet(1L, "SWAP-01")));
+        when(swapCabinetMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(cabinetPage);
 
         boolean prefers = coordinator.prefersSwapRecovery(vehicle(2L), 1L);
 

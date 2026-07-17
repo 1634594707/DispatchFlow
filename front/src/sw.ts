@@ -46,6 +46,29 @@ registerRoute(
   }),
 )
 
+// 阶段七 7.6：高德地图瓦片离线缓存。
+// 使用 StaleWhileRevalidate 策略：优先使用缓存瓦片（弱网/离线可用），
+// 同时在后台更新缓存。高德瓦片域名包括 webapi.amap.com、*.autonavi.com 等。
+// 缓存上限 500 张瓦片，过期 30 天（瓦片更新频率低）。
+registerRoute(
+  ({ url }) => {
+    const host = url.hostname.toLowerCase()
+    return host.endsWith('.amap.com')
+        || host.endsWith('.autonavi.com')
+        || host === 'webapi.amap.com'
+        || host === 'restapi.amap.com'
+  },
+  new StaleWhileRevalidate({
+    cacheName: 'amap-tiles-cache',
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 500,
+        maxAgeSeconds: 60 * 60 * 24 * 30, // 30 天
+      }),
+    ],
+  }),
+)
+
 // ── Push Notifications ──────────────────────────────────────────
 
 self.addEventListener('push', (event) => {

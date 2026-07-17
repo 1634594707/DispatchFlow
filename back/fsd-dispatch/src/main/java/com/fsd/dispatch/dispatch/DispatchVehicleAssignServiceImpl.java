@@ -238,18 +238,11 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         }
         List<ParkPointResponse> route = parkRoutePlannerService.buildRoute(
                 parkId, currentX, currentY, station.getX(), station.getY());
-        double schematicDistance = pathLength(route);
-        // ALG-16: when geo coordinates are available, prefer the real road-network
-        // distance (haversine meters) over the abstract schematic-grid distance. The
-        // schematic grid is fine for MAPF conflict avoidance inside the park, but using
-        // it for SOC estimation underestimates real-world energy consumption on the
-        // ~1570m×470m Dieshiqiao pilot site.
-        Double realWorldDistance = estimateRealWorldDistanceMeters(vehicle.getCurrentLongitude(),
-                vehicle.getCurrentLatitude(), station.getCoordLng(), station.getCoordLat());
-        if (realWorldDistance != null) {
-            return realWorldDistance;
-        }
-        return schematicDistance;
+        // Phase 4：补全 START/END 的 GPS 坐标，使 pathLength 全程使用 haversine（米）。
+        // 车辆 currentLongitude/currentLatitude 实际存储 schematic x/y，需通过
+        // DispatchGeoDistanceService 解析为真实 GCJ-02；站点直接取 coordLng/coordLat。
+        enrichRouteEndpointsGeo(route, vehicle, station);
+        return pathLength(route);
     }
 
     private double estimateRouteDistance(Long parkId, ParkStationResponse from, ParkStationResponse to) {
@@ -258,34 +251,55 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         }
         List<ParkPointResponse> route = parkRoutePlannerService.buildRoute(
                 parkId, from.getX(), from.getY(), to.getX(), to.getY());
-        double schematicDistance = pathLength(route);
-        // ALG-16: prefer real-world haversine meters when geo coords are present.
-        Double realWorldDistance = estimateRealWorldDistanceMeters(from.getCoordLng(), from.getCoordLat(),
-                to.getCoordLng(), to.getCoordLat());
-        if (realWorldDistance != null) {
-            return realWorldDistance;
-        }
-        return schematicDistance;
+        // Phase 4：站点间路径同样补全 GPS 端点，pathLength 返回真实路网距离（米）。
+        enrichRouteEndpointsGeo(route, from, to);
+        return pathLength(route);
     }
 
     /**
-     * ALG-16: compute the haversine distance (meters) between two geo coordinates.
-     * Returns null when either endpoint lacks geo coordinates, signalling the caller
-     * to fall back to the schematic-grid distance.
+     * Phase 4：为路径的 START/END 端点补全 GPS 坐标。中间节点已由 buildRouteFromNodePath
+     * 携带 coordLng/coordLat。补全后 pathLength 可全程使用 haversine，避免米与像素混用。
+     * GPS 解析为尽力而为：失败时回退到 schematic 欧几里得（仅 START→node 段受影响）。
      */
-    private Double estimateRealWorldDistanceMeters(BigDecimal fromLng, BigDecimal fromLat,
-                                                    BigDecimal toLng, BigDecimal toLat) {
-        if (fromLng == null || fromLat == null || toLng == null || toLat == null) {
-            return null;
+    private void enrichRouteEndpointsGeo(List<ParkPointResponse> route, VehicleEntity vehicle,
+                                         ParkStationResponse station) {
+        if (route == null || route.isEmpty()) {
+            return;
         }
-        // Haversine gives the great-circle distance. For in-park routing this is a slight
-        // under-estimate (roads aren't straight), so apply a 1.3x road-network factor to
-        // bias toward conservative SOC estimates. This matches the typical Manhattan
-        // distance / haversine ratio observed in dense urban grids.
-        double meters = com.fsd.dispatch.geo.GeoPolygonUtils.haversineMeters(
-                new com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint(fromLng, fromLat),
-                new com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint(toLng, toLat));
-        return meters * 1.3D;
+        ParkPointResponse start = route.get(0);
+        if (start.getLongitude() == null) {
+            try {
+                dispatchGeoDistanceService.resolveVehicleGeo(vehicle).ifPresent(geo -> {
+                    start.setLongitude(geo.longitude());
+                    start.setLatitude(geo.latitude());
+                });
+            } catch (RuntimeException ex) {
+                // GPS 解析依赖未就绪（如 fleetGeoResolver 未配置）时回退到 schematic
+            }
+        }
+        enrichEnd(route, station.getCoordLng(), station.getCoordLat());
+    }
+
+    private void enrichRouteEndpointsGeo(List<ParkPointResponse> route,
+                                         ParkStationResponse from, ParkStationResponse to) {
+        if (route == null || route.isEmpty()) {
+            return;
+        }
+        ParkPointResponse start = route.get(0);
+        if (start.getLongitude() == null && from.getCoordLng() != null && from.getCoordLat() != null) {
+            start.setLongitude(from.getCoordLng());
+            start.setLatitude(from.getCoordLat());
+        }
+        enrichEnd(route, to.getCoordLng(), to.getCoordLat());
+    }
+
+    private void enrichEnd(List<ParkPointResponse> route, BigDecimal endLng, BigDecimal endLat) {
+        int last = route.size() - 1;
+        ParkPointResponse end = route.get(last);
+        if (end.getLongitude() == null && endLng != null && endLat != null) {
+            end.setLongitude(endLng);
+            end.setLatitude(endLat);
+        }
     }
 
     private boolean canCompleteTaskWithSoc(Long parkId, VehicleEntity vehicle,
@@ -308,18 +322,17 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         // run out of charge before reaching a charger, leaving it stranded.
         double returnToChargerMeters = chargingSessionService.estimateDistanceToNearestChargingPile(
                 parkId, dropoff.getCoordLng(), dropoff.getCoordLat());
-        // Convert the geo haversine distance (meters) into the same units used by
-        // pickupDist/dropoffDist (which are path lengths in the configured coordinate
-        // system). For geo-enabled parks we use meters directly; for schematic parks the
-        // blend is approximate but conservative (over-estimating drain is safer).
         double returnDist = returnToChargerMeters;
         if (Double.isInfinite(returnDist) || returnDist >= Double.MAX_VALUE / 2) {
             // No charging piles configured: fall back to a fixed 200m reserve estimate
             // so we don't reject all assignments in environments without chargers.
             returnDist = 200D;
         }
-        // 每单位距离耗电0.05%
-        int consumedSoc = (int) Math.ceil((pickupDist + dropoffDist + returnDist) * 0.05);
+        // Phase 4：距离已统一为米（pathLength 使用 haversine）。使用 busyDrainMetersPerPercent
+        // （每 1% SOC 可行驶米数）计算耗电，与 ChargingSessionServiceImpl/Simulation 保持一致。
+        // 历史硬编码 0.05 系 schematic 像素时代的值，切换到米后会导致 SOC 估算严重偏高。
+        double drainRate = 1.0D / Math.max(50D, energy.getBusyDrainMetersPerPercent());
+        int consumedSoc = (int) Math.ceil((pickupDist + dropoffDist + returnDist) * drainRate);
         return soc - consumedSoc >= energy.getMinAssignableSoc();
     }
 
@@ -422,9 +435,19 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         ParkPointResponse previous = route.get(0);
         for (int i = 1; i < route.size(); i++) {
             ParkPointResponse current = route.get(i);
-            total += Math.hypot(
-                    current.getX().doubleValue() - previous.getX().doubleValue(),
-                    current.getY().doubleValue() - previous.getY().doubleValue());
+            // Phase 4：当两端均携带 GPS 时用 haversine（米），否则回退 schematic 欧几里得。
+            if (previous.getLongitude() != null && previous.getLatitude() != null
+                    && current.getLongitude() != null && current.getLatitude() != null) {
+                total += com.fsd.dispatch.geo.GeoPolygonUtils.haversineMeters(
+                        new com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint(
+                                previous.getLongitude(), previous.getLatitude()),
+                        new com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint(
+                                current.getLongitude(), current.getLatitude()));
+            } else {
+                total += Math.hypot(
+                        current.getX().doubleValue() - previous.getX().doubleValue(),
+                        current.getY().doubleValue() - previous.getY().doubleValue());
+            }
             previous = current;
         }
         return total;

@@ -1,6 +1,7 @@
 package com.fsd.dispatch.event.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -91,9 +92,10 @@ public class DispatchEventOutboxServiceImpl implements DispatchEventOutboxServic
     }
 
     private DispatchEventOutboxEntity findByEventId(String eventId) {
-        DispatchEventOutboxEntity entity = outboxMapper.selectOne(new LambdaQueryWrapper<DispatchEventOutboxEntity>()
-                .eq(DispatchEventOutboxEntity::getEventId, eventId)
-                .last("limit 1"));
+        Page<DispatchEventOutboxEntity> page = outboxMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<DispatchEventOutboxEntity>()
+                .eq(DispatchEventOutboxEntity::getEventId, eventId));
+        List<DispatchEventOutboxEntity> records = page.getRecords();
+        DispatchEventOutboxEntity entity = records.isEmpty() ? null : records.get(0);
         if (entity == null) {
             throw new BusinessException("DISPATCH_EVENT_NOT_FOUND", "Dispatch event outbox record not found");
         }

@@ -11,12 +11,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
 import com.fsd.dispatch.event.DispatchEventPublisher;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicyImpl;
+import com.fsd.dispatch.fleet.policy.FleetEnergyThresholdResolver;
 import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.geo.FleetGeoResolver;
 import com.fsd.dispatch.geo.ParkGeoTransformService;
@@ -50,7 +53,8 @@ class Phase1AcceptanceTest {
     private static final String UI_LABEL_STANDBY = "待命中";
 
     private final FleetChargePolicyImpl fleetChargePolicy =
-            new FleetChargePolicyImpl(new FleetEnergyProperties());
+            new FleetChargePolicyImpl(new FleetEnergyProperties(),
+                    new FleetEnergyThresholdResolver(null, new FleetEnergyProperties()));
 
     @Nested
     @DisplayName("1. 无订单：满电插枪待命、不掉电、可派单")
@@ -205,7 +209,12 @@ class Phase1AcceptanceTest {
             existing.setExceptionType("AUTO_ASSIGN_NO_VEHICLE");
             existing.setExceptionStatus("OPEN");
             existing.setAggCount(1);
-            when(exceptionRecordMapper.selectOne(any())).thenReturn(null, existing);
+            Page<DispatchExceptionRecordEntity> emptyPage = new Page<>();
+            emptyPage.setRecords(List.of());
+            Page<DispatchExceptionRecordEntity> existingPage = new Page<>();
+            existingPage.setRecords(List.of(existing));
+            when(exceptionRecordMapper.selectPage(any(Page.class), any(Wrapper.class)))
+                    .thenReturn(emptyPage, existingPage);
             when(exceptionRecordMapper.insert(any(DispatchExceptionRecordEntity.class))).thenReturn(1);
 
             DispatchExceptionService service = new DispatchExceptionServiceImpl(

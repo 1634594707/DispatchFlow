@@ -112,6 +112,18 @@
             </a-form-item>
           </a-col>
         </a-row>
+        <!-- Phase 5 任务 5.3：地图选点工具 -->
+        <a-form-item label="地图选点">
+          <a-collapse :bordered="false" ghost>
+            <a-collapse-panel key="picker" header="点击地图选择站点位置（自动填充经纬度和园区坐标）">
+              <AmapPointPicker
+                v-if="modalOpen"
+                :model-value="pickerPoint"
+                @update:model-value="onPickPoint"
+              />
+            </a-collapse-panel>
+          </a-collapse>
+        </a-form-item>
         <a-row :gutter="16">
           <a-col :span="8">
             <a-form-item label="容量上限">
@@ -142,9 +154,17 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import ParkInfraPreview from '@/components/infrastructure/ParkInfraPreview.vue'
+import AmapPointPicker from '@/components/infrastructure/AmapPointPicker.vue'
 import { useParkOptions } from '@/composables/useParkOptions'
 import * as infraApi from '@/api/infrastructure'
 import type { AdminStation } from '@/types/infrastructure'
+
+interface PickedPoint {
+  lng: number
+  lat: number
+  x?: number
+  y?: number
+}
 
 const { parkOptions } = useParkOptions()
 const loading = ref(false)
@@ -224,6 +244,20 @@ function typeColor(type: string) {
   return map[type] || 'default'
 }
 
+/** Phase 5 任务 5.3：地图选点 picker 状态。 */
+const pickerPoint = ref<PickedPoint | null>(null)
+
+function onPickPoint(point: PickedPoint | null) {
+  if (!point) return
+  pickerPoint.value = point
+  form.coordLng = point.lng
+  form.coordLat = point.lat
+  if (point.x != null && point.y != null) {
+    form.coordX = point.x
+    form.coordY = point.y
+  }
+}
+
 async function loadData() {
   loading.value = true
   try {
@@ -248,6 +282,7 @@ function openCreate() {
   form.status = 'ACTIVE'
   form.sortOrder = 0
   form.remark = ''
+  pickerPoint.value = null
   modalOpen.value = true
 }
 
@@ -266,6 +301,9 @@ function openEdit(record: AdminStation) {
   form.status = record.status
   form.sortOrder = record.sortOrder ?? 0
   form.remark = record.remark ?? ''
+  pickerPoint.value = (record.coordLng != null && record.coordLat != null)
+    ? { lng: Number(record.coordLng), lat: Number(record.coordLat), x: Number(record.coordX), y: Number(record.coordY) }
+    : null
   modalOpen.value = true
 }
 

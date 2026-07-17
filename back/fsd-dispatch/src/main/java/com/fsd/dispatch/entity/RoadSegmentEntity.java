@@ -19,6 +19,18 @@ public class RoadSegmentEntity {
 
     private String toNodeCode;
 
+    /**
+     * 阶段七 7.1：通行方向。
+     * BIDIRECTIONAL = 双向通行（默认）；FORWARD = 仅 from→to；REVERSE = 仅 to→from。
+     */
+    private String direction;
+
+    /**
+     * 阶段七 7.4：跨园区连接段的对端园区 ID。
+     * NULL 表示园内路段；非 NULL 表示该路段连接 park_id 与 connectingParkId。
+     */
+    private Long connectingParkId;
+
     private String status;
 
     private Integer speedLimitKmh;

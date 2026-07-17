@@ -50,5 +50,15 @@ export const useRealtimeStore = defineStore('realtime', () => {
     connected.value = false
   }
 
-  return { connected, start, stop }
+  /**
+   * 阶段八 8.2：销毁 realtime 流客户端，用于 BasicLayout onUnmounted 最终清理。
+   * 调用后需要重新调用 start() 创建新客户端。
+   */
+  function destroy() {
+    client?.destroy()
+    client = null
+    connected.value = false
+  }
+
+  return { connected, start, stop, destroy }
 })

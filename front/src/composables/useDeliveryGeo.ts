@@ -7,18 +7,20 @@
  */
 import { computed } from 'vue'
 import { parkXYToGcj02, toAvGeoMarker, TEXTILE_PARK_GEO, ZJF_L0_COVERAGE, buildGeoPolylines, collectRouteFitPoints } from '@/maps'
+import { PILOT_ZONE_POLYGONS } from '@/maps/zjfPilotGeo'
 import type { GeoMapMarker, GeoMapPolygon, GeoMapPolyline, GeoMapCircle } from '@/maps'
 import type { ParkVehicleSnapshot, ParkOrderSnapshot, ParkStation } from '@/types/park'
 
-/** Pilot zone boundary polygon (叠石桥 L1 试点) */
-export const PILOT_BOUNDARY_POLYGON: GeoMapPolygon[] = [
-  {
-    id: 'zjf-pilot',
-    path: TEXTILE_PARK_GEO.pilotPolygon.map((p) => [p[0], p[1]] as [number, number]),
-    strokeColor: '#2DE08A',
-    fillColor: 'rgba(45, 224, 138, 0.12)',
-  },
-]
+/**
+ * Pilot zone boundary polygons (叠石桥 L1 试点)
+ * Phase 3：替换单一大矩形为 5 个配送分区多边形，每分区不同颜色。
+ */
+export const PILOT_BOUNDARY_POLYGON: GeoMapPolygon[] = PILOT_ZONE_POLYGONS.map((zone) => ({
+  id: zone.id,
+  path: zone.path.map((p) => [p[0], p[1]] as [number, number]),
+  strokeColor: zone.strokeColor,
+  fillColor: zone.fillColor,
+}))
 
 /** L0 coverage circles (产业带图例) */
 export const L0_COVERAGE_CIRCLES: GeoMapCircle[] = [

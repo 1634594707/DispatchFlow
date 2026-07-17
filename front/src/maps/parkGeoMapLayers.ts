@@ -2,7 +2,20 @@ import type { ParkGeofence, ParkOrderSnapshot, ParkStation, ParkVehicleSnapshot 
 import { parkXYToGcj02, toAvGeoMarker } from './index'
 import type { GeoMapCircle, GeoMapMarker, GeoMapPolygon, GeoMapPolyline } from './types'
 import { ZJF_L0_COVERAGE, ZJF_PILOT_GEO } from './zjfPilotGeo'
+import { ZJF_DELIVERY_ZONES } from './zjfStationAnchors'
 import { shouldDrawPlannedRoute } from './routeValidation'
+
+/**
+ * Phase 3：5 分区颜色映射表。
+ * ZJF-ZONE-* 围栏使用各自分配的颜色；其他围栏按类型着色（BOUNDARY 绿色 / RESTRICTED 红色）。
+ */
+const ZONE_COLOR_MAP: Record<string, { stroke: string; fill: string }> = ZJF_DELIVERY_ZONES.reduce(
+  (acc, zone) => {
+    acc[zone.code] = { stroke: zone.color, fill: zone.color + '20' }
+    return acc
+  },
+  {} as Record<string, { stroke: string; fill: string }>,
+)
 
 export function vehicleGeoPosition(vehicle: ParkVehicleSnapshot): [number, number] {
   if (vehicle.longitude != null && vehicle.latitude != null) {
@@ -148,13 +161,21 @@ export function buildGeoPolylines(
 export function buildGeofencePolygons(geofences: ParkGeofence[]): GeoMapPolygon[] {
   return geofences
     .filter((fence) => fence.status === 'ACTIVE' && fence.polygon?.length >= 3)
-    .map((fence) => ({
-      id: String(fence.id),
-      path: fence.polygon.map((point) => [Number(point[0]), Number(point[1])] as [number, number]),
-      strokeColor: fence.fenceType === 'RESTRICTED' ? '#FF5C7C' : '#2DE08A',
-      fillColor: fence.fenceType === 'RESTRICTED' ? 'rgba(255, 92, 124, 0.15)' : 'rgba(45, 224, 138, 0.12)',
-      zIndex: 10,
-    }))
+    .map((fence) => {
+      // Phase 3：ZJF-ZONE-* 分区使用各自分配的颜色
+      const zoneColor = ZONE_COLOR_MAP[fence.fenceCode]
+      const strokeColor = zoneColor?.stroke
+        ?? (fence.fenceType === 'RESTRICTED' ? '#FF5C7C' : '#2DE08A')
+      const fillColor = zoneColor?.fill
+        ?? (fence.fenceType === 'RESTRICTED' ? 'rgba(255, 92, 124, 0.15)' : 'rgba(45, 224, 138, 0.12)')
+      return {
+        id: String(fence.id),
+        path: fence.polygon.map((point) => [Number(point[0]), Number(point[1])] as [number, number]),
+        strokeColor,
+        fillColor,
+        zIndex: 10,
+      }
+    })
 }
 
 export function buildL0CoverageCircles(): GeoMapCircle[] {

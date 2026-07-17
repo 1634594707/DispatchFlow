@@ -49,8 +49,11 @@ public class AdminStreamController {
     @GetMapping({"/dispatch/stream", "/fleet/telemetry/stream"})
     @SecurityRequirement(name = "")
     @Operation(summary = "Open admin SSE stream with a short-lived ticket")
-    public SseEmitter stream(@RequestParam String ticket,
+    public SseEmitter stream(@RequestParam(required = false) String ticket,
                              @RequestParam(required = false) Long parkId) {
+        // 拦截器对 SSE 路径放行（EventSource 无法设置 Header），此处强制校验 ticket。
+        // 缺失/无效 ticket 由 AdminSseTicketService.consume 抛 BusinessException，
+        // GlobalExceptionHandler 映射为 401。
         AdminAuthContext context = ticketService.consume(ticket);
         return dispatchStreamService.createStream(context, parkId);
     }

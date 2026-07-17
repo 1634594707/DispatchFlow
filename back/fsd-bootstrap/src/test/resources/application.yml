@@ -42,6 +42,16 @@ fsd:
         x: 220
         y: 620
         area: B
+    road-nodes:
+      - code: R1
+        x: 220
+        y: 170
+      - code: R2
+        x: 220
+        y: 620
+    road-segments:
+      - from: R1
+        to: R2
   dispatch:
     outbox:
       retry-delay-ms: 30000

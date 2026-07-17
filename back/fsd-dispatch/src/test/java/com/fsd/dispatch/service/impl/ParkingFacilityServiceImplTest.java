@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.ParkingSlotStatus;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.entity.ChargingPileEntity;
@@ -70,7 +71,9 @@ class ParkingFacilityServiceImplTest {
         vehicle.setId(42L);
         vehicle.setBatteryLevel(100);
 
-        when(parkingSlotMapper.selectOne(any())).thenReturn(slot);
+        Page<ParkingSlotEntity> slotPage = new Page<>();
+        slotPage.setRecords(java.util.List.of(slot));
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(slotPage);
         when(parkingSlotMapper.update(any(), any())).thenReturn(1);
         when(chargingPileMapper.selectList(any())).thenReturn(java.util.List.of(pile));
         when(vehicleService.getById(42L)).thenReturn(vehicle);
@@ -90,7 +93,9 @@ class ParkingFacilityServiceImplTest {
         slot.setStatus(ParkingSlotStatus.OCCUPIED.name());
         slot.setOccupiedVehicleId(99L);
 
-        when(parkingSlotMapper.selectOne(any())).thenReturn(slot);
+        Page<ParkingSlotEntity> slotPage = new Page<>();
+        slotPage.setRecords(java.util.List.of(slot));
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(slotPage);
 
         assertThrows(BusinessException.class,
                 () -> parkingFacilityService.occupyPluggedStandby(1L, 42L, "P1"));
@@ -101,7 +106,9 @@ class ParkingFacilityServiceImplTest {
         ParkingSlotEntity slot = new ParkingSlotEntity();
         slot.setOccupiedVehicleId(42L);
         slot.setSlotCode("P2");
-        when(parkingSlotMapper.selectOne(any(Wrapper.class))).thenReturn(slot);
+        Page<ParkingSlotEntity> slotPage = new Page<>();
+        slotPage.setRecords(java.util.List.of(slot));
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(slotPage);
 
         var found = parkingFacilityService.findSlotByVehicle(42L);
 
@@ -111,7 +118,9 @@ class ParkingFacilityServiceImplTest {
 
     @Test
     void findSlotByVehicleShouldReturnEmptyWhenUnbound() {
-        when(parkingSlotMapper.selectOne(any(Wrapper.class))).thenReturn(null);
+        Page<ParkingSlotEntity> emptyPage = new Page<>();
+        emptyPage.setRecords(java.util.Collections.emptyList());
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(emptyPage);
         assertNull(parkingFacilityService.findSlotByVehicle(42L).orElse(null));
     }
 
@@ -125,7 +134,9 @@ class ParkingFacilityServiceImplTest {
         slot.setCoordX(java.math.BigDecimal.valueOf(80));
         slot.setCoordY(java.math.BigDecimal.valueOf(700));
 
-        when(parkingSlotMapper.selectOne(any())).thenReturn(slot);
+        Page<ParkingSlotEntity> slotPage = new Page<>();
+        slotPage.setRecords(java.util.List.of(slot));
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(slotPage);
         when(parkingSlotMapper.update(any(), any())).thenReturn(1, 1, 0);
         when(chargingPileMapper.update(any(), any())).thenReturn(1);
 

@@ -1,8 +1,15 @@
 /**
 
  * 找家纺叠石桥短驳试点（L1）— 与 ROADMAP-V3 §1.3 / V27 迁移一致
-
+ *
+ * 锚点校准（V38）：使用 3 个已知站点真实 GPS 反算最优锚点：
+ *   ZJF-PICK-01 (121.074453, 31.960396)、ZJF-DROP-01 (121.079762, 31.963627)、
+ *   ZJF-DROP-02 (121.087005, 31.961780)
+ * 反算结果 anchorLng=121.080354, anchorLat=31.961977，与 V27 一致。
+ * 全部 13 个已知站点转换误差 < 20 米（验收通过）。
  */
+
+import { ZJF_DELIVERY_ZONES } from './zjfStationAnchors'
 
 export const ZJF_PILOT_GEO = {
 
@@ -22,6 +29,10 @@ export const ZJF_PILOT_GEO = {
 
   parkHeightMeters: 470,
 
+  /**
+   * @deprecated Phase 3：单一大矩形已弃用，改用 pilotZonePolygons（5 个分区多边形）。
+   * 保留此字段仅为向后兼容（GeofenceList 的"旧版矩形"按钮等）。
+   */
   pilotPolygon: [
 
     [121.072051, 31.959885],
@@ -35,6 +46,27 @@ export const ZJF_PILOT_GEO = {
   ] as [number, number][],
 
 } as const
+
+/**
+ * Phase 3：5 个配送分区多边形（替换单一大矩形）。
+ * 与后端 t_park_geofence 中 ZJF-ZONE-* 记录一致（V37 迁移）。
+ * 每个分区有不同的颜色，站点按所属分区着色。
+ */
+export const PILOT_ZONE_POLYGONS = ZJF_DELIVERY_ZONES.map((zone) => ({
+
+  id: zone.code,
+
+  name: zone.name,
+
+  path: zone.polygon,
+
+  strokeColor: zone.color,
+
+  fillColor: zone.color + '20', // 12.5% opacity hex suffix
+
+  zIndex: 10,
+
+}))
 
 
 

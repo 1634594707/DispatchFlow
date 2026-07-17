@@ -30,20 +30,20 @@ import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
 // V5-D3: Shared geo logic also available via useDeliveryGeo composable (front/src/composables/useDeliveryGeo.ts)
 import { getParkVehicles } from '@/api/park'
 import { isAmapConfigured, parkXYToGcj02, TEXTILE_PARK_GEO, toAvGeoMarker } from '@/maps'
+import { PILOT_ZONE_POLYGONS } from '@/maps/zjfPilotGeo'
 import type { GeoMapMarker, GeoMapPolygon } from '@/maps'
 import type { ParkVehicleSnapshot } from '@/types/park'
 
 const configured = isAmapConfigured()
 const vehicleCount = ref(0)
 const vehicleMarkers = ref<GeoMapMarker[]>([])
-const pilotPolygon = ref<GeoMapPolygon[]>([
-  {
-    id: 'zjf-pilot',
-    path: TEXTILE_PARK_GEO.pilotPolygon.map((p) => [p[0], p[1]] as [number, number]),
-    strokeColor: '#2DE08A',
-    fillColor: 'rgba(45, 224, 138, 0.12)',
-  },
-])
+// Phase 3：5 个配送分区多边形替换单一大矩形
+const pilotPolygon = ref<GeoMapPolygon[]>(PILOT_ZONE_POLYGONS.map((zone) => ({
+  id: zone.id,
+  path: zone.path.map((p) => [p[0], p[1]] as [number, number]),
+  strokeColor: zone.strokeColor,
+  fillColor: zone.fillColor,
+})))
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 function toMarker(vehicle: ParkVehicleSnapshot): GeoMapMarker {

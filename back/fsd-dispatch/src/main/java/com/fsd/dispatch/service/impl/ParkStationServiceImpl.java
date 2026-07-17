@@ -1,6 +1,7 @@
 package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.ParkStatus;
 import com.fsd.common.enums.StationStatus;
 import com.fsd.common.exception.BusinessException;
@@ -54,31 +55,34 @@ public class ParkStationServiceImpl implements ParkStationService {
 
     @Override
     public ParkEntity requireDefaultPark() {
-        ParkEntity park = parkMapper.selectOne(new LambdaQueryWrapper<ParkEntity>()
+        Page<ParkEntity> defaultFlagPage = parkMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<ParkEntity>()
                 .eq(ParkEntity::getDefaultFlag, 1)
                 .eq(ParkEntity::getStatus, ParkStatus.ACTIVE.name())
-                .eq(ParkEntity::getDeleted, 0)
-                .last("LIMIT 1"));
+                .eq(ParkEntity::getDeleted, 0));
+        List<ParkEntity> defaultFlagRecords = defaultFlagPage.getRecords();
+        ParkEntity park = defaultFlagRecords.isEmpty() ? null : defaultFlagRecords.get(0);
         if (park != null) {
             return park;
         }
         String defaultCode = parkPilotProperties.getDefaultParkCode();
         if (defaultCode != null && !defaultCode.isBlank()) {
-            park = parkMapper.selectOne(new LambdaQueryWrapper<ParkEntity>()
+            Page<ParkEntity> codePage = parkMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<ParkEntity>()
                     .eq(ParkEntity::getParkCode, defaultCode)
                     .eq(ParkEntity::getStatus, ParkStatus.ACTIVE.name())
-                    .eq(ParkEntity::getDeleted, 0)
-                    .last("LIMIT 1"));
+                    .eq(ParkEntity::getDeleted, 0));
+            List<ParkEntity> codeRecords = codePage.getRecords();
+            park = codeRecords.isEmpty() ? null : codeRecords.get(0);
             if (park != null) {
                 return park;
             }
         }
-        park = parkMapper.selectOne(new LambdaQueryWrapper<ParkEntity>()
+        Page<ParkEntity> anyActivePage = parkMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<ParkEntity>()
                 .eq(ParkEntity::getStatus, ParkStatus.ACTIVE.name())
                 .eq(ParkEntity::getDeleted, 0)
                 .orderByDesc(ParkEntity::getDefaultFlag)
-                .orderByAsc(ParkEntity::getId)
-                .last("LIMIT 1"));
+                .orderByAsc(ParkEntity::getId));
+        List<ParkEntity> anyActiveRecords = anyActivePage.getRecords();
+        park = anyActiveRecords.isEmpty() ? null : anyActiveRecords.get(0);
         if (park != null) {
             return park;
         }

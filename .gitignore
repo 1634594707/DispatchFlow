@@ -18,6 +18,8 @@ debug_issues.py
 check_amap.py
 scripts/git_commit.py
 scripts/git_commit.sh
+deploy_p0p1_fixes.py
+verify_deployment.py
 
 # Documentation (not uploaded)
 docs/

@@ -12,13 +12,21 @@ public class FleetEnergyProperties {
     /** 地图低电量展示阈值（%） */
     private int lowSocThreshold = 20;
 
-    /** 自动回充触发阈值（%） */
-    private int returnToChargeThreshold = 15;
+    /**
+     * 自动回充触发阈值（%）。统一阈值：SOC 低于 20% 的 IDLE 车辆自动进入充电队列。
+     * 历史值 15% 偏低，导致车辆在临界状态下仍被派单，增加抛锚风险。
+     */
+    private int returnToChargeThreshold = 20;
 
     /** 危急电量驻车阈值（%） */
     private int criticalSocThreshold = 5;
 
-    private int minAssignableSoc = 25;
+    /**
+     * 最低可派单 SOC（%）。统一阈值：SOC 低于 30% 的车辆不再派新任务。
+     * 历史值 25% 与 returnToChargeThreshold(15%) 之间只有 10% 余量，
+     * 在长路径任务中容易耗尽电量；提升至 30% 给 10% 安全垫。
+     */
+    private int minAssignableSoc = 30;
 
     private int fullSoc = 100;
 

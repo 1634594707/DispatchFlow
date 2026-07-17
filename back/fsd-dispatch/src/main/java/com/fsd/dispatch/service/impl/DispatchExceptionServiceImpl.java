@@ -1,6 +1,7 @@
 package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.ExceptionSeverity;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.dto.DispatchExceptionResolveRequest;
@@ -231,7 +232,9 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         if (vehicleId != null) {
             wrapper.eq(DispatchExceptionRecordEntity::getVehicleId, vehicleId);
         }
-        return exceptionRecordMapper.selectOne(wrapper.last("LIMIT 1"));
+        Page<DispatchExceptionRecordEntity> page = exceptionRecordMapper.selectPage(new Page<>(1, 1, false), wrapper);
+        List<DispatchExceptionRecordEntity> records = page.getRecords();
+        return records.isEmpty() ? null : records.get(0);
     }
 
     private Map<String, Object> buildPayload(DispatchExceptionRecordEntity entity) {

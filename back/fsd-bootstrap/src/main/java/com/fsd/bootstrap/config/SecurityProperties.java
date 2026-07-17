@@ -14,7 +14,12 @@ public class SecurityProperties {
 
     @Data
     public static class AdminSecurity {
-        private boolean enabled = false;
+        /**
+         * Production default: authentication MUST be enabled. Set to false only for
+         * local development via YAML profile. SEC-02 hardening: even when disabled,
+         * an explicit JVM property (-Dfsd.admin.unsafe-no-auth=true) is required.
+         */
+        private boolean enabled = true;
         /**
          * SEC-01 fix: static YAML token mapping removed. All admin authentication MUST
          * go through DB-backed sessions managed by AdminAuthService. This field is kept

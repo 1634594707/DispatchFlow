@@ -111,6 +111,26 @@ fsd:
       park-width-meters: ${FSD_PARK_GEO_WIDTH_M:1570}
       park-height-meters: ${FSD_PARK_GEO_HEIGHT_M:470}
       scenario: ${FSD_PARK_GEO_SCENARIO:ZJF_DIESHIQIAO_PILOT}
+      # Phase 4：4 点仿射变换参考点（schematic x/y ↔ GCJ-02 lng/lat）
+      # 坐标来自 V38 迁移公式：x=(lng-121.072)*77000, y=(31.9645-lat)*150000
+      # 选点覆盖西南/东/西北/东北四个方位，确保仿射变换在全园区内误差 < 10 米
+      reference-points:
+        - x: 188.881
+          y: 615.600
+          lng: 121.074453
+          lat: 31.960396
+        - x: 1155.385
+          y: 408.000
+          lng: 121.087005
+          lat: 31.961780
+        - x: 182.259
+          y: 142.800
+          lng: 121.074367
+          lat: 31.963548
+        - x: 915.761
+          y: 250.050
+          lng: 121.083893
+          lat: 31.962833
     x-field-alias: currentLongitude
     y-field-alias: currentLatitude
     parking-spots:
@@ -351,8 +371,9 @@ fsd:
     telemetry:
       scheduler-enabled: ${FSD_FLEET_TELEMETRY_SCHEDULER_ENABLED:true}
     energy:
-      low-soc-threshold: ${FSD_FLEET_ENERGY_LOW_SOC_THRESHOLD:25}
-      min-assignable-soc: ${FSD_FLEET_ENERGY_MIN_ASSIGNABLE_SOC:25}
+      low-soc-threshold: ${FSD_FLEET_ENERGY_LOW_SOC_THRESHOLD:20}
+      return-to-charge-threshold: ${FSD_FLEET_ENERGY_RETURN_TO_CHARGE_THRESHOLD:20}
+      min-assignable-soc: ${FSD_FLEET_ENERGY_MIN_ASSIGNABLE_SOC:30}
       full-soc: ${FSD_FLEET_ENERGY_FULL_SOC:100}
       charge-rate-per-tick: ${FSD_FLEET_ENERGY_CHARGE_RATE_PER_TICK:4}
       reserve-soc-floor: ${FSD_FLEET_ENERGY_RESERVE_SOC_FLOOR:8}

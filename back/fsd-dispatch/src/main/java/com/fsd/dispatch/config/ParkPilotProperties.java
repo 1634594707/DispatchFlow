@@ -60,6 +60,25 @@ public class ParkPilotProperties {
 
         /** Path to pilot_osm_geo.json; empty = auto-detect data/pilot_osm_geo.json */
         private String osmGeoPath = "";
+
+        /**
+         * Phase 4：4 点仿射变换参考点。至少 3 个非共线点可计算最小二乘仿射变换，
+         * 替代单点锚点+均匀缩放，消除 schematic→GPS 转换的旋转/倾斜误差。
+         * 验收：围栏内/外判定误差 < 10 米。
+         */
+        private List<GeoReferencePoint> referencePoints = new ArrayList<>();
+    }
+
+    @Data
+    public static class GeoReferencePoint {
+        /** Schematic x (与 t_park_station.coord_x 一致) */
+        private BigDecimal x;
+        /** Schematic y */
+        private BigDecimal y;
+        /** GCJ-02 经度 */
+        private BigDecimal lng;
+        /** GCJ-02 纬度 */
+        private BigDecimal lat;
     }
 
     @Data

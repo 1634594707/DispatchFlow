@@ -7,6 +7,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.dto.DispatchExceptionResolveRequest;
 import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
@@ -39,7 +41,9 @@ class DispatchExceptionServiceImplTest {
         existing.setExceptionType("AUTO_ASSIGN_NO_VEHICLE");
         existing.setExceptionStatus("OPEN");
         existing.setAggCount(1);
-        when(exceptionRecordMapper.selectOne(any())).thenReturn(existing);
+        Page<DispatchExceptionRecordEntity> existingPage = new Page<>();
+        existingPage.setRecords(java.util.List.of(existing));
+        when(exceptionRecordMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(existingPage);
 
         dispatchExceptionService.recordException(10L, 20L, 30L, "AUTO_ASSIGN_NO_VEHICLE", "duplicate");
 

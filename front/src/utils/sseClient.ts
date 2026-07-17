@@ -31,6 +31,8 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
   let retryTimer: ReturnType<typeof setTimeout> | null = null
   let watchdogTimer: ReturnType<typeof setTimeout> | null = null
   let stopped = false
+  /** 阶段八 8.2：destroy 后永久不可用，防止组件卸载后被误调用 start() */
+  let destroyed = false
   let unregister: (() => void) | null = null
 
   function handlePayload(event: MessageEvent) {
@@ -142,6 +144,10 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
   }
 
   function start() {
+    if (destroyed) {
+      console.warn('[SSE] Cannot start: client has been destroyed. Create a new client instead.')
+      return
+    }
     stopped = false
     retryCount = 0
     unregister?.()
@@ -163,6 +169,16 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
     }
     teardownEventSource()
     onClose?.()
+  }
+
+  /**
+   * 阶段八 8.2：销毁 SSE 客户端，用于 Vue 组件 onUnmounted 最终清理。
+   * 调用后客户端永久不可用，start() 将拒绝执行。
+   * 内部清理逻辑与 stop() 一致，但额外标记 destroyed 防止误用。
+   */
+  function destroy() {
+    destroyed = true
+    stop()
   }
 
   function isConnected(): boolean {
@@ -195,5 +211,5 @@ export function createSSEClient(options: SSEClientOptions): SSEClient {
     }
   }
 
-  return { start, stop, isConnected, getRetryCount, resetRetryCount }
+  return { start, stop, destroy, isConnected, getRetryCount, resetRetryCount }
 }

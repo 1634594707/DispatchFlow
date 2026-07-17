@@ -2,14 +2,18 @@ package com.fsd.vehicle.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.VehicleDispatchStatus;
+import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.common.enums.VehicleOnlineStatus;
 import com.fsd.common.exception.BusinessException;
+import com.fsd.common.geo.Wgs84Gcj02Converter;
 import com.fsd.vehicle.dto.VehicleReportRequest;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
 import com.fsd.vehicle.service.VehicleService;
 import com.fsd.vehicle.vo.VehicleSummaryResponse;
+import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,10 +38,11 @@ public class VehicleServiceImpl implements VehicleService {
 
     @Override
     public VehicleEntity getByVehicleCode(String vehicleCode) {
-        VehicleEntity vehicleEntity = vehicleMapper.selectOne(new LambdaQueryWrapper<VehicleEntity>()
+        Page<VehicleEntity> page = vehicleMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<VehicleEntity>()
                 .eq(VehicleEntity::getVehicleCode, vehicleCode)
-                .eq(VehicleEntity::getDeleted, 0)
-                .last("limit 1"));
+                .eq(VehicleEntity::getDeleted, 0));
+        List<VehicleEntity> records = page.getRecords();
+        VehicleEntity vehicleEntity = records.isEmpty() ? null : records.get(0);
         if (vehicleEntity == null) {
             throw new BusinessException("VEHICLE_NOT_FOUND", "Vehicle not found");
         }
@@ -83,16 +88,42 @@ public class VehicleServiceImpl implements VehicleService {
 
     @Override
     @Transactional
+    public void markUnavailable(Long vehicleId) {
+        vehicleMapper.update(null, new LambdaUpdateWrapper<VehicleEntity>()
+                .eq(VehicleEntity::getId, vehicleId)
+                .eq(VehicleEntity::getDeleted, 0)
+                .set(VehicleEntity::getDispatchStatus, VehicleDispatchStatus.UNAVAILABLE.name()));
+    }
+
+    @Override
+    @Transactional
     public VehicleEntity updateSnapshot(VehicleReportRequest request) {
         VehicleEntity vehicleEntity = getByVehicleCode(request.getVehicleCode());
         vehicleEntity.setOnlineStatus(request.getOnlineStatus());
         vehicleEntity.setDispatchStatus(request.getDispatchStatus());
-        vehicleEntity.setCurrentLatitude(request.getLatitude());
-        vehicleEntity.setCurrentLongitude(request.getLongitude());
+        // Phase 5 任务 5.1：真实车辆（linkMode 非 SIM）上报的经纬度为 WGS-84，
+        // 需在入库前转 GCJ-02 以保证高德地图显示位置正确；
+        // 仿真车辆（linkMode=SIM）上报的是 schematic x/y，跳过转换。
+        if (!isSimulationVehicle(vehicleEntity)) {
+            BigDecimal[] gcj = Wgs84Gcj02Converter.wgs84ToGcj02(
+                    request.getLongitude(), request.getLatitude());
+            vehicleEntity.setCurrentLongitude(gcj[0]);
+            vehicleEntity.setCurrentLatitude(gcj[1]);
+        } else {
+            vehicleEntity.setCurrentLatitude(request.getLatitude());
+            vehicleEntity.setCurrentLongitude(request.getLongitude());
+        }
         vehicleEntity.setBatteryLevel(request.getBatteryLevel());
         vehicleEntity.setLastReportTime(request.getReportTime());
         vehicleMapper.updateById(vehicleEntity);
         return vehicleEntity;
+    }
+
+    /** 仿真车辆 linkMode=SIM 或为空（向后兼容历史数据）。 */
+    private boolean isSimulationVehicle(VehicleEntity vehicleEntity) {
+        String linkMode = vehicleEntity.getLinkMode();
+        return linkMode == null || linkMode.isBlank()
+                || VehicleLinkMode.SIM.name().equals(linkMode);
     }
 
     @Override

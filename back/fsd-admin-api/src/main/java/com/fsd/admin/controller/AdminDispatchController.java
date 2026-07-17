@@ -1,5 +1,6 @@
 package com.fsd.admin.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.admin.dto.AdminExceptionQueryRequest;
 import com.fsd.admin.dto.AdminOrderQueryRequest;
 import com.fsd.admin.dto.AdminTaskQueryRequest;
@@ -25,6 +26,8 @@ import com.fsd.dispatch.vo.DispatchExceptionListItemResponse;
 import com.fsd.dispatch.vo.DispatchInterventionQueueResponse;
 import com.fsd.dispatch.vo.DispatchWorkbenchResponse;
 import com.fsd.dispatch.dto.ParkOrderCreateRequest;
+import com.fsd.dispatch.entity.ParkEntity;
+import com.fsd.dispatch.mapper.ParkMapper;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
@@ -97,6 +100,7 @@ public class AdminDispatchController {
     private final MobileOrderAuthService mobileOrderAuthService;
     private final AdminAuthService adminAuthService;
     private final CoordinateTransformService coordinateTransformService;
+    private final ParkMapper parkMapper;
 
     public AdminDispatchController(OrderAdminQueryService orderAdminQueryService,
                                    OrderQueryService orderQueryService,
@@ -115,7 +119,8 @@ public class AdminDispatchController {
                                    TaskPriorityAdminService taskPriorityAdminService,
                                    MobileOrderAuthService mobileOrderAuthService,
                                    AdminAuthService adminAuthService,
-                                   CoordinateTransformService coordinateTransformService) {
+                                   CoordinateTransformService coordinateTransformService,
+                                   ParkMapper parkMapper) {
         this.orderAdminQueryService = orderAdminQueryService;
         this.orderStateService = orderStateService;
         this.orderAdminDetailService = orderAdminDetailService;
@@ -133,6 +138,7 @@ public class AdminDispatchController {
         this.mobileOrderAuthService = mobileOrderAuthService;
         this.adminAuthService = adminAuthService;
         this.coordinateTransformService = coordinateTransformService;
+        this.parkMapper = parkMapper;
     }
 
     @GetMapping("/orders")
@@ -513,6 +519,43 @@ public class AdminDispatchController {
                     .orElseGet(() -> ApiResponse.failure("GEO_TRANSFORM_DISABLED", "Geo transform is disabled"));
         }
         return ApiResponse.failure("GEO_TRANSFORM_INVALID", "Provide parkX/parkY or longitude/latitude");
+    }
+
+    @GetMapping("/park/metadata")
+    @Operation(summary = "Get park geo metadata", description = "阶段七 7.3：返回园区锚点/尺寸/场景标识等元数据，供前端替代硬编码 ZJF_PILOT_GEO")
+    @SecurityRequirement(name = "")
+    public ApiResponse<java.util.Map<String, Object>> getParkMetadata(@RequestParam(required = false) Long parkId,
+                                                                       HttpServletRequest request) {
+        requireAdminOrMobileOrderKey(request);
+        ParkEntity park;
+        if (parkId != null) {
+            park = parkMapper.selectById(parkId);
+        } else {
+            Page<ParkEntity> parkPage = parkMapper.selectPage(new Page<>(1, 1, false),
+                    com.baomidou.mybatisplus.core.toolkit.Wrappers.<ParkEntity>lambdaQuery()
+                            .eq(ParkEntity::getDefaultFlag, 1)
+                            .eq(ParkEntity::getDeleted, 0));
+            List<ParkEntity> parkRecords = parkPage.getRecords();
+            park = parkRecords.isEmpty() ? null : parkRecords.get(0);
+        }
+        if (park == null) {
+            return ApiResponse.failure("PARK_NOT_FOUND", "Park not found");
+        }
+        java.util.Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("parkId", park.getId());
+        metadata.put("parkCode", park.getParkCode());
+        metadata.put("parkName", park.getParkName());
+        metadata.put("scenarioCode", park.getScenarioCode());
+        metadata.put("anchorLng", park.getAnchorLng());
+        metadata.put("anchorLat", park.getAnchorLat());
+        metadata.put("centerLng", park.getCenterLng());
+        metadata.put("centerLat", park.getCenterLat());
+        metadata.put("parkWidthPx", park.getMapWidth());
+        metadata.put("parkHeightPx", park.getMapHeight());
+        metadata.put("parkWidthMeters", park.getParkWidthMeters());
+        metadata.put("parkHeightMeters", park.getParkHeightMeters());
+        metadata.put("mapProvider", park.getMapProvider());
+        return ApiResponse.success(metadata);
     }
 
     @GetMapping("/park/stations")

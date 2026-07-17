@@ -1,5 +1,6 @@
 package com.fsd.dispatch.service.impl;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.dispatch.entity.ParkGeofenceEntity;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.geo.GeoPolygonUtils;
@@ -17,6 +18,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -24,9 +27,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class GeofenceBreachServiceImpl implements GeofenceBreachService {
 
+    private static final Logger log = LoggerFactory.getLogger(GeofenceBreachServiceImpl.class);
     private static final Duration BREACH_COOLDOWN = Duration.ofMinutes(5);
     private static final String KEY_PREFIX = "geofence:breach:";
-    private static final double GPS_BUFFER_METERS = 15.0;
+    /** 阶段六 6.2：默认 GPS 缓冲距离，作为围栏未配置 buffer_meters 时的兜底值。 */
+    private static final double DEFAULT_GPS_BUFFER_METERS = 15.0;
+    /** 阶段六 6.1：默认响应级别，作为围栏未配置 response_level 时的兜底值。 */
+    private static final String DEFAULT_RESPONSE_LEVEL = "WARN";
 
     private final ParkGeofenceMapper geofenceMapper;
     private final DispatchExceptionService dispatchExceptionService;
@@ -103,10 +110,27 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
         if (breachType == null || !markIfFirstBreach(vehicle.getId(), fence.getId(), breachType)) {
             return;
         }
-        if ("GEOFENCE_EXIT".equals(breachType) && isWithinGpsBuffer(polygon, longitude, latitude)) {
+        // 阶段六 6.2：使用围栏独立的 buffer_meters 进行 GPS 缓冲判定，替代原硬编码常量。
+        double bufferMeters = resolveBufferMeters(fence);
+        if ("GEOFENCE_EXIT".equals(breachType) && isWithinGpsBuffer(polygon, longitude, latitude, bufferMeters)) {
             return;
         }
+        // 围栏"无任务不告警"：IDLE 车辆越过 BOUNDARY 围栏时降级为 INFO 日志，
+        // 不记录异常、不触发自动化规则。显著减少异常队列 GEOFENCE_EXIT 噪音。
+        if (isIdleBoundaryExit(vehicle, fence, breachType)) {
+            log.info("GEOFENCE_EXIT suppressed (IDLE vehicle, no active task): vehicle={}, fence={}",
+                    vehicle.getVehicleCode(), fence.getFenceCode());
+            return;
+        }
+        // 阶段六 6.1：按围栏 response_level 分级响应。
+        String responseLevel = resolveResponseLevel(fence);
         String message = buildMessage(vehicle, fence, breachType);
+        if ("INFO".equals(responseLevel)) {
+            // INFO：仅记录日志，不写异常、不触发自动化规则。
+            log.info("Geofence breach (INFO level): vehicle={}, fence={}, breachType={}",
+                    vehicle.getVehicleCode(), fence.getFenceCode(), breachType);
+            return;
+        }
         Long taskId = findCurrentTaskId(vehicle.getId());
         if (taskId != null) {
             dispatchExceptionService.recordException(taskId, null, vehicle.getId(), breachType, message);
@@ -114,9 +138,66 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
             dispatchExceptionService.recordVehicleException(vehicle.getId(), breachType, message);
         }
         automationRuleService.evaluateGeofenceBreach(fence.getParkId(), vehicle, fence.getFenceCode(), breachType);
+        if ("BLOCK".equals(responseLevel)) {
+            // BLOCK：触发紧急停车，将车辆置为 UNAVAILABLE，阻止后续派单。
+            log.warn("Geofence breach (BLOCK level) triggering emergency stop: vehicle={}, fence={}, breachType={}",
+                    vehicle.getVehicleCode(), fence.getFenceCode(), breachType);
+            vehicleService.markUnavailable(vehicle.getId());
+        }
     }
 
-    private boolean isWithinGpsBuffer(List<double[]> polygon, BigDecimal longitude, BigDecimal latitude) {
+    /**
+     * 阶段六 6.1：解析围栏响应级别，缺省时按围栏类型给出合理默认值
+     * （RESTRICTED→BLOCK，其余→WARN），并兜底 DEFAULT_RESPONSE_LEVEL。
+     */
+    private String resolveResponseLevel(ParkGeofenceEntity fence) {
+        String level = fence.getResponseLevel();
+        if (level != null && !level.isBlank()) {
+            return level.trim().toUpperCase(Locale.ROOT);
+        }
+        String fenceType = fence.getFenceType() == null ? "" : fence.getFenceType().trim().toUpperCase(Locale.ROOT);
+        if ("RESTRICTED".equals(fenceType)) {
+            return "BLOCK";
+        }
+        return DEFAULT_RESPONSE_LEVEL;
+    }
+
+    /**
+     * 阶段六 6.2：解析围栏 GPS 缓冲距离，缺省时回退到 DEFAULT_GPS_BUFFER_METERS。
+     */
+    private double resolveBufferMeters(ParkGeofenceEntity fence) {
+        if (fence.getBufferMeters() != null) {
+            double v = fence.getBufferMeters().doubleValue();
+            if (v > 0D) {
+                return v;
+            }
+        }
+        return DEFAULT_GPS_BUFFER_METERS;
+    }
+
+    /**
+     * 判定是否为"IDLE 车辆越过 BOUNDARY 围栏"——此类事件降级为 INFO 不记录异常。
+     * 仅对 BOUNDARY 围栏生效；RESTRICTED 围栏进入仍然需要告警（安全风险）。
+     */
+    private boolean isIdleBoundaryExit(VehicleEntity vehicle, ParkGeofenceEntity fence, String breachType) {
+        if (!"GEOFENCE_EXIT".equals(breachType)) {
+            return false;
+        }
+        String fenceType = fence.getFenceType() == null ? "" : fence.getFenceType().trim().toUpperCase(Locale.ROOT);
+        if (!"BOUNDARY".equals(fenceType)) {
+            return false;
+        }
+        String dispatchStatus = vehicle.getDispatchStatus();
+        boolean idle = dispatchStatus == null
+                || "IDLE".equalsIgnoreCase(dispatchStatus);
+        if (!idle) {
+            return false;
+        }
+        // 二次确认：无活跃任务才降级，避免 IDLE 状态滞后的在途车辆被漏报
+        return findCurrentTaskId(vehicle.getId()) == null;
+    }
+
+    private boolean isWithinGpsBuffer(List<double[]> polygon, BigDecimal longitude, BigDecimal latitude, double bufferMeters) {
         if (polygon == null || polygon.size() < 3) {
             return false;
         }
@@ -127,7 +208,7 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
             GeoPoint segStart = new GeoPoint(BigDecimal.valueOf(curr[0]), BigDecimal.valueOf(curr[1]));
             GeoPoint segEnd = new GeoPoint(BigDecimal.valueOf(next[0]), BigDecimal.valueOf(next[1]));
             double distance = GeoPolygonUtils.distancePointToSegmentMeters(point, segStart, segEnd);
-            if (distance < GPS_BUFFER_METERS) {
+            if (distance < bufferMeters) {
                 return true;
             }
         }
@@ -135,13 +216,14 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
     }
 
     private Long findCurrentTaskId(Long vehicleId) {
-        DispatchTaskEntity task = dispatchTaskMapper.selectOne(
+        Page<DispatchTaskEntity> page = dispatchTaskMapper.selectPage(new Page<>(1, 1, false),
                 com.baomidou.mybatisplus.core.toolkit.Wrappers.<DispatchTaskEntity>lambdaQuery()
                         .eq(DispatchTaskEntity::getVehicleId, vehicleId)
                         .in(DispatchTaskEntity::getStatus, "ASSIGNED", "IN_PROGRESS", "GOING_TO_PICKUP")
                         .eq(DispatchTaskEntity::getDeleted, 0)
-                        .orderByDesc(DispatchTaskEntity::getAssignTime)
-                        .last("LIMIT 1"));
+                        .orderByDesc(DispatchTaskEntity::getAssignTime));
+        List<DispatchTaskEntity> records = page.getRecords();
+        DispatchTaskEntity task = records.isEmpty() ? null : records.get(0);
         return task != null ? task.getId() : null;
     }
 

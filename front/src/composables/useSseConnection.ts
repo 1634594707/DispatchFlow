@@ -91,8 +91,22 @@ export function useSseConnection(options?: {
     sseReconnecting.value = false
   }
 
-  // 组件卸载时关闭 EventSource，防止内存泄漏与幽灵连接
-  onBeforeUnmount(stopStream)
+  /**
+   * 阶段八 8.2：组件卸载时销毁 SSE 客户端，防止内存泄漏与幽灵连接。
+   * 使用 destroy() 而非 stop()，明确表达"不再使用"的语义，
+   * 并防止组件被复用时误调用 start()。
+   */
+  function destroyStream() {
+    if (sseClient) {
+      sseClient.destroy()
+      sseClient = null
+    }
+    streamConnected.value = false
+    sseReconnecting.value = false
+  }
+
+  // 组件卸载时销毁 EventSource，防止内存泄漏与幽灵连接
+  onBeforeUnmount(destroyStream)
 
   return {
     streamConnected,

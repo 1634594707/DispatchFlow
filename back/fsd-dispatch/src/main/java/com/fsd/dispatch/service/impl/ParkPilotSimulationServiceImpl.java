@@ -1,6 +1,7 @@
 package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.enums.VehicleDispatchStatus;
 import com.fsd.common.enums.VehicleLinkMode;
@@ -718,11 +719,12 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private BatterySwapCabinetEntity findSwapCabinet(Long parkId) {
-        return batterySwapCabinetMapper.selectOne(new LambdaQueryWrapper<BatterySwapCabinetEntity>()
+        Page<BatterySwapCabinetEntity> page = batterySwapCabinetMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<BatterySwapCabinetEntity>()
                 .eq(BatterySwapCabinetEntity::getDeleted, 0)
                 .eq(BatterySwapCabinetEntity::getStatus, "ACTIVE")
-                .eq(BatterySwapCabinetEntity::getParkId, parkId)
-                .last("limit 1"));
+                .eq(BatterySwapCabinetEntity::getParkId, parkId));
+        List<BatterySwapCabinetEntity> records = page.getRecords();
+        return records.isEmpty() ? null : records.get(0);
     }
 
     private void bindSwap(VehicleEntity vehicle, SimulationMotionState state) {

@@ -4,6 +4,8 @@ import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
@@ -20,12 +22,13 @@ public class Vda5050VehicleRegistry {
         if (manufacturer == null || manufacturer.isBlank() || serialNumber == null || serialNumber.isBlank()) {
             return Optional.empty();
         }
-        VehicleEntity vehicle = vehicleMapper.selectOne(new LambdaQueryWrapper<VehicleEntity>()
+        Page<VehicleEntity> vehiclePage = vehicleMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<VehicleEntity>()
                 .eq(VehicleEntity::getDeleted, 0)
                 .eq(VehicleEntity::getLinkMode, VehicleLinkMode.VDA5050.name())
                 .eq(VehicleEntity::getVdaManufacturer, manufacturer.trim())
-                .eq(VehicleEntity::getVdaSerialNumber, serialNumber.trim())
-                .last("limit 1"));
+                .eq(VehicleEntity::getVdaSerialNumber, serialNumber.trim()));
+        List<VehicleEntity> vehicleRecords = vehiclePage.getRecords();
+        VehicleEntity vehicle = vehicleRecords.isEmpty() ? null : vehicleRecords.get(0);
         return Optional.ofNullable(vehicle);
     }
 

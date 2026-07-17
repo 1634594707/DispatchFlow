@@ -608,7 +608,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  realtimeStore.stop()
+  // 阶段八 8.2：使用 destroy() 进行最终清理，防止组件卸载后残留事件监听
+  realtimeStore.destroy()
 })
 </script>
 

@@ -63,7 +63,8 @@ public class GlobalExceptionHandler {
             return HttpStatus.BAD_REQUEST;
         }
         return switch (code) {
-            case "ADMIN_AUTH_REQUIRED", "ADMIN_AUTH_FAILED" -> HttpStatus.UNAUTHORIZED;
+            case "ADMIN_AUTH_REQUIRED", "ADMIN_AUTH_FAILED",
+                 "ADMIN_SSE_TICKET_REQUIRED", "ADMIN_SSE_TICKET_INVALID" -> HttpStatus.UNAUTHORIZED;
             case "ADMIN_FORBIDDEN" -> HttpStatus.FORBIDDEN;
             default -> HttpStatus.BAD_REQUEST;
         };

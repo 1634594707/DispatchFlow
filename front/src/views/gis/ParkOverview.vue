@@ -2,9 +2,9 @@
   <div class="park-overview-page">
     <AmapGeoMap
       v-if="geoMapAvailable"
+      v-model:map-level="mapLevel"
       class="overview-map"
       :center="mapCenter"
-      :zoom="15"
       :markers="geoMarkers"
       :polygons="geoPolygons"
       :polylines="geoPolylines"
@@ -20,7 +20,7 @@
 
     <aside class="overview-panel">
       <h1>找家纺试点总览</h1>
-      <p class="subtitle">{{ ZJF_PILOT_GEO.label }} · L1 1570m×470m</p>
+      <p class="subtitle">{{ parkSubtitle }}</p>
       <div class="fleet-stats">
         <span>全网 {{ ZJF_FLEET_STATS.fleetSize }} 辆</span>
         <span>试点 {{ geoVehicles.length }} 辆</span>
@@ -62,7 +62,10 @@ import {
 } from '@/maps'
 import { routeAnomalyWarning } from '@/maps/routeValidation'
 import { filterGeoDeliverySimVehicles } from '@/maps/stationLayers'
+import { useParkMetadata } from '@/composables/useParkMetadata'
 import type { ParkGeofence, ParkOrderSnapshot, ParkOverviewItem, ParkVehicleSnapshot } from '@/types/park'
+
+type MapLevel = 'L0' | 'L1' | 'L2'
 
 const loading = ref(false)
 const overview = ref<ParkOverviewItem[]>([])
@@ -70,14 +73,30 @@ const vehicles = ref<ParkVehicleSnapshot[]>([])
 const parkOrders = ref<ParkOrderSnapshot[]>([])
 const parkGeofences = ref<ParkGeofence[]>([])
 const geoMapAvailable = isAmapConfigured()
+const mapLevel = ref<MapLevel>('L1')
+const { metadata: parkMetadata, anchor: parkAnchor } = useParkMetadata()
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const mapCenter = computed((): [number, number] => {
+  // 阶段七 7.3：优先使用后端元数据锚点，其次园区列表 center，最后回退 ZJF_PILOT_GEO
+  const metaAnchor = parkAnchor()
+  if (metaAnchor) return metaAnchor
   const first = overview.value.find((park) => park.centerLng != null && park.centerLat != null)
   if (first?.centerLng != null && first?.centerLat != null) {
     return [Number(first.centerLng), Number(first.centerLat)]
   }
   return pilotMapCenter()
+})
+
+const parkSubtitle = computed(() => {
+  const m = parkMetadata.value
+  if (m?.parkName) {
+    const sizePart = m.parkWidthMeters != null && m.parkHeightMeters != null
+      ? ` · L1 ${m.parkWidthMeters}m×${m.parkHeightMeters}m`
+      : ''
+    return `${m.parkName}${sizePart}`
+  }
+  return `${ZJF_PILOT_GEO.label} · L1 ${ZJF_PILOT_GEO.parkWidthMeters}m×${ZJF_PILOT_GEO.parkHeightMeters}m`
 })
 
 const geoVehicles = computed(() => filterGeoDeliverySimVehicles(vehicles.value))

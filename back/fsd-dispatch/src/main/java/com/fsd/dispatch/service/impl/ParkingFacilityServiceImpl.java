@@ -2,6 +2,7 @@ package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.ParkingSlotStatus;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.entity.ChargingPileEntity;
@@ -44,10 +45,11 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
         if (vehicleId == null) {
             return Optional.empty();
         }
-        return Optional.ofNullable(parkingSlotMapper.selectOne(new QueryWrapper<ParkingSlotEntity>()
+        Page<ParkingSlotEntity> page = parkingSlotMapper.selectPage(new Page<>(1, 1, false), new QueryWrapper<ParkingSlotEntity>()
                 .eq("occupied_vehicle_id", vehicleId)
-                .eq("deleted", 0)
-                .last("limit 1")));
+                .eq("deleted", 0));
+        List<ParkingSlotEntity> records = page.getRecords();
+        return Optional.ofNullable(records.isEmpty() ? null : records.get(0));
     }
 
     @Override
@@ -91,11 +93,12 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
             return false;
         }
         releaseReservation(vehicleId);
-        ParkingSlotEntity slot = parkingSlotMapper.selectOne(new QueryWrapper<ParkingSlotEntity>()
+        Page<ParkingSlotEntity> slotPage = parkingSlotMapper.selectPage(new Page<>(1, 1, false), new QueryWrapper<ParkingSlotEntity>()
                 .eq("park_id", parkId)
                 .eq("slot_code", slotCode)
-                .eq("deleted", 0)
-                .last("limit 1"));
+                .eq("deleted", 0));
+        List<ParkingSlotEntity> slotRecords = slotPage.getRecords();
+        ParkingSlotEntity slot = slotRecords.isEmpty() ? null : slotRecords.get(0);
         if (slot == null) {
             return false;
         }
@@ -225,11 +228,12 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
     }
 
     private ParkingSlotEntity requireSlot(Long parkId, String slotCode) {
-        ParkingSlotEntity slot = parkingSlotMapper.selectOne(new QueryWrapper<ParkingSlotEntity>()
+        Page<ParkingSlotEntity> slotPage = parkingSlotMapper.selectPage(new Page<>(1, 1, false), new QueryWrapper<ParkingSlotEntity>()
                 .eq("park_id", parkId)
                 .eq("slot_code", slotCode)
-                .eq("deleted", 0)
-                .last("limit 1"));
+                .eq("deleted", 0));
+        List<ParkingSlotEntity> slotRecords = slotPage.getRecords();
+        ParkingSlotEntity slot = slotRecords.isEmpty() ? null : slotRecords.get(0);
         if (slot == null) {
             throw new BusinessException("PARKING_SLOT_NOT_FOUND", "Parking slot not found: " + slotCode);
         }

@@ -32,6 +32,21 @@ public class ParkEntity {
 
     private BigDecimal centerLat;
 
+    /** 阶段七 7.3：坐标转换锚点经度（GCJ-02），用于 schematic↔GPS 转换。 */
+    private BigDecimal anchorLng;
+
+    /** 阶段七 7.3：坐标转换锚点纬度（GCJ-02）。 */
+    private BigDecimal anchorLat;
+
+    /** 阶段七 7.3：园区真实宽度（米）。 */
+    private BigDecimal parkWidthMeters;
+
+    /** 阶段七 7.3：园区真实高度（米）。 */
+    private BigDecimal parkHeightMeters;
+
+    /** 阶段七 7.3：场景编码（如 ZJF_DIESHIQIAO_PILOT）。 */
+    private String scenarioCode;
+
     private String mapProvider;
 
     private String status;

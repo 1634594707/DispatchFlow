@@ -83,6 +83,9 @@ public class MapfReservationService {
         }
         // ALG-01: also reserve the starting node for the very first bucket to prevent
         // another vehicle from jumping onto the same start node while we begin traversing.
+        // 阶段六 6.4 修复：无论 setIfAbsent 是否首次成功，只要 holder 是本车辆（或为空），
+        // 都应将 startNodeKey 加入 acquiredKeys，以便回滚时清理。原代码仅在 else 分支
+        // （首次 setIfAbsent 成功）加入，导致 holder 为同一车辆的复用场景下回滚遗漏。
         String startNodeKey = buildNodeKey(parkId, fromNode, startBucket);
         Boolean startNodeAcquired = stringRedisTemplate.opsForValue().setIfAbsent(startNodeKey, vid, ttl);
         if (!Boolean.TRUE.equals(startNodeAcquired)) {
@@ -91,9 +94,8 @@ public class MapfReservationService {
                 rollback(acquiredKeys);
                 return false;
             }
-        } else {
-            acquiredKeys.add(startNodeKey);
         }
+        acquiredKeys.add(startNodeKey);
         return true;
     }
 

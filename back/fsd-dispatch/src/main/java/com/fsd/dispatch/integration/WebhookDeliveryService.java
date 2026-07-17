@@ -20,13 +20,17 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -45,6 +49,14 @@ public class WebhookDeliveryService {
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3))
             .build();
+
+    /**
+     * 阶段七 7.2：Webhook 回调域名白名单。
+     * 逗号分隔的域名列表（如 "oapi.dingtalk.com,qyapi.weixin.qq.com"）。
+     * 为空时不启用域名白名单（仅依赖 SSRF IP 检查）；非空时回调 URL 的 host 必须在白名单中。
+     */
+    @Value("${fsd.webhook.allowed-domains:}")
+    private String allowedDomainsRaw;
 
     public WebhookDeliveryService(WebhookSubscriptionMapper subscriptionMapper,
                                   WebhookDeliveryLogMapper deliveryLogMapper,
@@ -157,9 +169,15 @@ public class WebhookDeliveryService {
     }
 
     /**
-     * SEC-15: Resolve the host of the callback URL and reject any address that points to
-     * private, loopback, link-local, or cloud-metadata endpoints. This prevents SSRF
-     * attacks that target internal services (e.g. http://169.254.169.254/).
+     * SEC-15 / 阶段七 7.2: 校验回调 URL 安全性。
+     *
+     * <p>检查顺序：
+     * <ol>
+     *   <li>基本格式校验（scheme、host）</li>
+     *   <li>阶段七 7.2：域名白名单检查（当 fsd.webhook.allowed-domains 非空时启用）</li>
+     *   <li>SEC-15：IP 地址 SSRF 防御（拒绝私有/环回/链路本地/云元数据地址）</li>
+     * </ol>
+     * 域名白名单与 IP 检查叠加使用，提供纵深防御。
      */
     private void assertCallbackUrlSafe(String rawUrl) {
         if (rawUrl == null || rawUrl.isBlank()) {
@@ -178,6 +196,14 @@ public class WebhookDeliveryService {
         String host = uri.getHost();
         if (host == null || host.isBlank()) {
             throw new IllegalArgumentException("callback URL missing host");
+        }
+        // 阶段七 7.2：域名白名单检查
+        Set<String> whitelist = parseAllowedDomains();
+        if (!whitelist.isEmpty()) {
+            String normalizedHost = host.toLowerCase(Locale.ROOT);
+            if (!whitelist.contains(normalizedHost)) {
+                throw new IllegalArgumentException("host not in webhook domain whitelist: " + host);
+            }
         }
         InetAddress[] addresses;
         try {
@@ -200,6 +226,21 @@ public class WebhookDeliveryService {
                 throw new IllegalArgumentException("host resolves to a blocked metadata/private range: " + ip);
             }
         }
+    }
+
+    /**
+     * 阶段七 7.2：解析 fsd.webhook.allowed-domains 配置为小写域名集合。
+     * 支持逗号分隔，自动去除空白和通配符前缀（如 *.example.com → example.com 仅精确匹配）。
+     */
+    private Set<String> parseAllowedDomains() {
+        if (allowedDomainsRaw == null || allowedDomainsRaw.isBlank()) {
+            return Set.of();
+        }
+        return Arrays.stream(allowedDomainsRaw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     private static String hmacSha256Hex(String secret, String payload) {

@@ -1,6 +1,7 @@
 package com.fsd.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.admin.dto.AdminDispatchStrategyUpsertRequest;
 import com.fsd.admin.service.DispatchStrategyAdminService;
 import com.fsd.admin.vo.AdminDispatchStrategyResponse;
@@ -43,10 +44,9 @@ public class DispatchStrategyAdminServiceImpl implements DispatchStrategyAdminSe
 
     @Override
     public List<AdminStrategyChangeLogResponse> listChangeLogs() {
-        return changeLogMapper.selectList(new LambdaQueryWrapper<DispatchStrategyChangeLogEntity>()
-                        .orderByDesc(DispatchStrategyChangeLogEntity::getCreatedAt)
-                        .last("LIMIT 100"))
-                .stream()
+        Page<DispatchStrategyChangeLogEntity> page = changeLogMapper.selectPage(new Page<>(1, 100, false), new LambdaQueryWrapper<DispatchStrategyChangeLogEntity>()
+                        .orderByDesc(DispatchStrategyChangeLogEntity::getCreatedAt));
+        return page.getRecords().stream()
                 .map(log -> AdminStrategyChangeLogResponse.builder()
                         .id(log.getId())
                         .profileId(log.getProfileId())

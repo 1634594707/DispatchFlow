@@ -3,22 +3,28 @@ package com.fsd.dispatch.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.ChargingSessionStatus;
 import com.fsd.common.enums.ParkingSlotStatus;
 import com.fsd.common.enums.VehicleDispatchStatus;
 import com.fsd.common.enums.VehicleOnlineStatus;
+import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.entity.ChargingPileEntity;
 import com.fsd.dispatch.entity.ChargingSessionEntity;
 import com.fsd.dispatch.entity.ParkingSlotEntity;
 import com.fsd.dispatch.geo.GeoPolygonUtils;
+import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
 import com.fsd.dispatch.mapper.ChargingPileMapper;
 import com.fsd.dispatch.mapper.ChargingSessionMapper;
 import com.fsd.dispatch.mapper.ParkingSlotMapper;
 import com.fsd.dispatch.service.ChargingSessionService;
+import com.fsd.dispatch.service.ParkRoutePlannerService;
+import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -49,17 +55,23 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
     private final ParkingSlotMapper parkingSlotMapper;
     private final VehicleMapper vehicleMapper;
     private final FleetEnergyProperties fleetEnergyProperties;
+    private final ParkRoutePlannerService parkRoutePlannerService;
+    private final ParkGeoTransformService parkGeoTransformService;
 
     public ChargingSessionServiceImpl(ChargingSessionMapper chargingSessionMapper,
                                       ChargingPileMapper chargingPileMapper,
                                       ParkingSlotMapper parkingSlotMapper,
                                       VehicleMapper vehicleMapper,
-                                      FleetEnergyProperties fleetEnergyProperties) {
+                                      FleetEnergyProperties fleetEnergyProperties,
+                                      ParkRoutePlannerService parkRoutePlannerService,
+                                      ParkGeoTransformService parkGeoTransformService) {
         this.chargingSessionMapper = chargingSessionMapper;
         this.chargingPileMapper = chargingPileMapper;
         this.parkingSlotMapper = parkingSlotMapper;
         this.vehicleMapper = vehicleMapper;
         this.fleetEnergyProperties = fleetEnergyProperties;
+        this.parkRoutePlannerService = parkRoutePlannerService;
+        this.parkGeoTransformService = parkGeoTransformService;
     }
 
     @Override
@@ -101,11 +113,12 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
         if (vehicleId == null) {
             return Optional.empty();
         }
-        return Optional.ofNullable(chargingSessionMapper.selectOne(new QueryWrapper<ChargingSessionEntity>()
+        Page<ChargingSessionEntity> page = chargingSessionMapper.selectPage(new Page<>(1, 1, false), new QueryWrapper<ChargingSessionEntity>()
                 .eq("vehicle_id", vehicleId)
                 .eq("session_status", ChargingSessionStatus.ACTIVE.name())
-                .eq("deleted", 0)
-                .last("limit 1")));
+                .eq("deleted", 0));
+        List<ChargingSessionEntity> records = page.getRecords();
+        return Optional.ofNullable(records.isEmpty() ? null : records.get(0));
     }
 
     @Override
@@ -158,27 +171,66 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
                 || vehicle.getCurrentLatitude() == null) {
             return null;
         }
-        GeoPoint vehicleGeo = new GeoPoint(vehicle.getCurrentLongitude(), vehicle.getCurrentLatitude());
+        // Phase 4：车辆 currentLongitude/currentLatitude 实际存储 schematic x/y。
+        // 解析真实 GPS 用于端点补全；schematic x/y 用于路网 buildRoute。
+        BigDecimal vehicleX = vehicle.getCurrentLongitude();
+        BigDecimal vehicleY = vehicle.getCurrentLatitude();
+        Optional<GeoPoint> vehicleGeoOpt = parkGeoTransformService.toGcj02(vehicleX, vehicleY);
 
         List<ChargingPileEntity> freePiles = chargingPileMapper.selectList(new QueryWrapper<ChargingPileEntity>()
                 .eq("status", ParkingSlotStatus.FREE.name())
                 .eq("deleted", 0));
+        if (freePiles.isEmpty()) {
+            return null;
+        }
 
-        Long nearestPileId = null;
-        double nearestDistance = Double.MAX_VALUE;
+        // Phase 5 任务 5.5：消除 N+1 查询，批量获取所有相关车位坐标。
+        List<Long> slotIds = freePiles.stream()
+                .map(ChargingPileEntity::getParkingSlotId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        java.util.Map<Long, ParkingSlotEntity> slotById = parkingSlotMapper
+                .selectBatchIds(slotIds)
+                .stream()
+                .collect(Collectors.toMap(ParkingSlotEntity::getId, s -> s));
+
+        // Phase 5 任务 5.5：负载均衡因子。统计每个 parkId 的活跃充电会话数，
+        // 推荐时优先选择负载低的园区，使利用率方差 < 20%。
+        java.util.Map<Long, Long> activeSessionsByPark = countActiveChargingSessionsByPark();
+
+        Long bestPileId = null;
+        double bestScore = Double.MAX_VALUE;
         for (ChargingPileEntity pile : freePiles) {
-            ParkingSlotEntity slot = parkingSlotMapper.selectById(pile.getParkingSlotId());
+            ParkingSlotEntity slot = slotById.get(pile.getParkingSlotId());
             if (slot == null || slot.getCoordLng() == null || slot.getCoordLat() == null) {
                 continue;
             }
-            GeoPoint pileGeo = new GeoPoint(slot.getCoordLng(), slot.getCoordLat());
-            double distance = GeoPolygonUtils.haversineMeters(vehicleGeo, pileGeo);
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearestPileId = pile.getId();
+            // Phase 4：改用路网 A* 距离替代直线 haversine
+            double distance = roadNetworkDistanceMeters(slot.getParkId(),
+                    vehicleX, vehicleY, slot.getCoordX(), slot.getCoordY(),
+                    vehicleGeoOpt.orElse(null), new GeoPoint(slot.getCoordLng(), slot.getCoordLat()));
+            // Phase 5 任务 5.5：综合评分 = 距离 * (1 + 负载因子)
+            // 负载因子 = 该园区活跃充电会话数 / 10（归一化），负载越高评分越差
+            long activeCount = activeSessionsByPark.getOrDefault(slot.getParkId(), 0L);
+            double loadFactor = activeCount / 10.0D;
+            double score = distance * (1.0D + loadFactor);
+            if (score < bestScore) {
+                bestScore = score;
+                bestPileId = pile.getId();
             }
         }
-        return nearestPileId;
+        return bestPileId;
+    }
+
+    /** Phase 5 任务 5.5：按 parkId 统计当前活跃充电会话数，用于负载均衡。 */
+    private java.util.Map<Long, Long> countActiveChargingSessionsByPark() {
+        return chargingSessionMapper.selectList(new LambdaQueryWrapper<ChargingSessionEntity>()
+                        .eq(ChargingSessionEntity::getSessionStatus, ChargingSessionStatus.ACTIVE.name())
+                        .eq(ChargingSessionEntity::getDeleted, 0))
+                .stream()
+                .filter(s -> s.getParkId() != null)
+                .collect(Collectors.groupingBy(ChargingSessionEntity::getParkId, Collectors.counting()));
     }
 
     @Override
@@ -192,6 +244,12 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
                 .filter(v -> v.getBatteryLevel() != null && v.getBatteryLevel() < threshold)
                 .toList();
 
+        // Phase 5 任务 5.4：纳入 BUSY 车辆的 SOC 预估。
+        // BUSY 车辆当前 SOC 可能高于阈值，但完成任务后 SOC 将低于阈值；
+        // 用预测 SOC（按 busyDrainMetersPerPercent + 平均速度推算）排序，
+        // 排在 IDLE 低电量车辆之后（IDLE 立即可充，BUSY 需等任务结束）。
+        List<VehicleEntity> busyPredictedLow = predictBusyVehiclesBelowThreshold(threshold);
+
         Comparator<VehicleEntity> bySocAsc = Comparator.comparingInt(VehicleEntity::getBatteryLevel);
 
         List<VehicleEntity> sorted;
@@ -204,14 +262,41 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
                     .filter(v -> v.getBatteryLevel() == null || v.getBatteryLevel() <= PEAK_HIGH_SOC_THRESHOLD)
                     .sorted(bySocAsc)
                     .forEach(highSoc::add);
+            // 高峰期 BUSY 预测低电量车辆排到最后
+            busyPredictedLow.stream()
+                    .sorted(bySocAsc)
+                    .forEach(highSoc::add);
             sorted = highSoc;
         } else {
-            sorted = lowSocVehicles.stream()
+            List<VehicleEntity> merged = lowSocVehicles.stream()
                     .sorted(bySocAsc)
-                    .toList();
+                    .collect(Collectors.toCollection(ArrayList::new));
+            busyPredictedLow.stream()
+                    .sorted(bySocAsc)
+                    .forEach(merged::add);
+            sorted = merged;
         }
 
         return sorted.stream().map(VehicleEntity::getId).toList();
+    }
+
+    /**
+     * Phase 5 任务 5.4：预测 BUSY 车辆在完成当前任务后 SOC 是否会低于阈值。
+     * 估算窗口 = 30 分钟（与 predictChargingDemand 的 lookahead 对齐）。
+     */
+    private List<VehicleEntity> predictBusyVehiclesBelowThreshold(int threshold) {
+        int lookaheadMinutes = 30;
+        double metersPerPercent = Math.max(50D, fleetEnergyProperties.getBusyDrainMetersPerPercent());
+        double drainPerMinute = (AVG_SPEED_MPS * 60D) / metersPerPercent;
+        double estimatedDrain = drainPerMinute * lookaheadMinutes;
+
+        return vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
+                        .eq(VehicleEntity::getDeleted, 0)
+                        .eq(VehicleEntity::getDispatchStatus, VehicleDispatchStatus.BUSY.name()))
+                .stream()
+                .filter(v -> v.getBatteryLevel() != null && v.getBatteryLevel() >= threshold)
+                .filter(v -> (v.getBatteryLevel() - estimatedDrain) < threshold)
+                .toList();
     }
 
     @Override
@@ -221,6 +306,8 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
             return Double.MAX_VALUE;
         }
         GeoPoint fromGeo = new GeoPoint(fromLng, fromLat);
+        // Phase 4：将 GPS 转换为 schematic x/y 以便路网 buildRoute 使用
+        Optional<ParkGeoTransformService.ParkPoint> fromXY = parkGeoTransformService.fromGcj02(fromLng, fromLat);
         // Consider all charging piles regardless of status — when evaluating whether a
         // vehicle can complete a task, the pile might be free by the time it returns.
         List<ChargingPileEntity> piles = chargingPileMapper.selectList(new QueryWrapper<ChargingPileEntity>()
@@ -232,7 +319,11 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
                 continue;
             }
             GeoPoint pileGeo = new GeoPoint(slot.getCoordLng(), slot.getCoordLat());
-            double distance = GeoPolygonUtils.haversineMeters(fromGeo, pileGeo);
+            BigDecimal fromX = fromXY.map(ParkGeoTransformService.ParkPoint::x).orElse(null);
+            BigDecimal fromY = fromXY.map(ParkGeoTransformService.ParkPoint::y).orElse(null);
+            // Phase 4：改用路网 A* 距离（米），回退到直线 haversine
+            double distance = roadNetworkDistanceMeters(parkId,
+                    fromX, fromY, slot.getCoordX(), slot.getCoordY(), fromGeo, pileGeo);
             if (distance < nearest) {
                 nearest = distance;
             }
@@ -288,5 +379,68 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
         boolean morningPeak = !now.isBefore(PEAK_MORNING_START) && now.isBefore(PEAK_MORNING_END);
         boolean eveningPeak = !now.isBefore(PEAK_EVENING_START) && now.isBefore(PEAK_EVENING_END);
         return morningPeak || eveningPeak;
+    }
+
+    /**
+     * Phase 4：使用路网 A* 距离（米）替代直线 haversine。
+     * 当路网不可用（空图/不可达/缺 schematic 坐标）时回退到直线 haversine。
+     */
+    private double roadNetworkDistanceMeters(Long parkId,
+                                              BigDecimal fromX, BigDecimal fromY,
+                                              BigDecimal toX, BigDecimal toY,
+                                              GeoPoint fromGeo, GeoPoint toGeo) {
+        if (fromX == null || fromY == null || toX == null || toY == null) {
+            return haversineOrMax(fromGeo, toGeo);
+        }
+        try {
+            List<ParkPointResponse> route = parkRoutePlannerService.buildRoute(parkId, fromX, fromY, toX, toY);
+            if (route == null || route.size() < 2) {
+                return haversineOrMax(fromGeo, toGeo);
+            }
+            // 端点补全 GPS，使 pathLength 全程使用 haversine（米）
+            ParkPointResponse start = route.get(0);
+            if (start.getLongitude() == null && fromGeo != null) {
+                start.setLongitude(fromGeo.longitude());
+                start.setLatitude(fromGeo.latitude());
+            }
+            ParkPointResponse end = route.get(route.size() - 1);
+            if (end.getLongitude() == null && toGeo != null) {
+                end.setLongitude(toGeo.longitude());
+                end.setLatitude(toGeo.latitude());
+            }
+            return pathLengthMeters(route);
+        } catch (BusinessException ex) {
+            // PARK_ROAD_NETWORK_EMPTY / PARK_ROUTE_NOT_FOUND → 回退直线距离
+            return haversineOrMax(fromGeo, toGeo);
+        }
+    }
+
+    private static double haversineOrMax(GeoPoint from, GeoPoint to) {
+        if (from == null || to == null) {
+            return Double.MAX_VALUE;
+        }
+        return GeoPolygonUtils.haversineMeters(from, to);
+    }
+
+    private static double pathLengthMeters(List<ParkPointResponse> route) {
+        if (route == null || route.size() < 2) {
+            return 0D;
+        }
+        double total = 0D;
+        ParkPointResponse prev = route.get(0);
+        for (int i = 1; i < route.size(); i++) {
+            ParkPointResponse curr = route.get(i);
+            if (prev.getLongitude() != null && prev.getLatitude() != null
+                    && curr.getLongitude() != null && curr.getLatitude() != null) {
+                total += GeoPolygonUtils.haversineMeters(
+                        new GeoPoint(prev.getLongitude(), prev.getLatitude()),
+                        new GeoPoint(curr.getLongitude(), curr.getLatitude()));
+            } else if (prev.getX() != null && prev.getY() != null && curr.getX() != null && curr.getY() != null) {
+                total += Math.hypot(curr.getX().doubleValue() - prev.getX().doubleValue(),
+                        curr.getY().doubleValue() - prev.getY().doubleValue());
+            }
+            prev = curr;
+        }
+        return total;
     }
 }

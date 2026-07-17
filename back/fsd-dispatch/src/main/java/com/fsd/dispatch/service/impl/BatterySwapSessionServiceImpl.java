@@ -2,10 +2,12 @@ package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.dispatch.entity.BatterySwapSessionEntity;
 import com.fsd.dispatch.mapper.BatterySwapSessionMapper;
 import com.fsd.dispatch.service.BatterySwapSessionService;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,9 +54,10 @@ public class BatterySwapSessionServiceImpl implements BatterySwapSessionService 
         if (vehicleId == null) {
             return Optional.empty();
         }
-        return Optional.ofNullable(swapSessionMapper.selectOne(new QueryWrapper<BatterySwapSessionEntity>()
+        Page<BatterySwapSessionEntity> page = swapSessionMapper.selectPage(new Page<>(1, 1, false), new QueryWrapper<BatterySwapSessionEntity>()
                 .eq("vehicle_id", vehicleId)
-                .eq("status", "IN_PROGRESS")
-                .last("limit 1")));
+                .eq("status", "IN_PROGRESS"));
+        List<BatterySwapSessionEntity> records = page.getRecords();
+        return Optional.ofNullable(records.isEmpty() ? null : records.get(0));
     }
 }

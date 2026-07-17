@@ -11,6 +11,8 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers): Di
   let retryCount = 0
   let retryTimer: ReturnType<typeof setTimeout> | null = null
   let stopped = false
+  /** 阶段八 8.2：destroy 后永久不可用 */
+  let destroyed = false
   let unregister: (() => void) | null = null
   const maxRetries = 10
   const baseDelay = 1000
@@ -90,6 +92,10 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers): Di
   }
 
   function start() {
+    if (destroyed) {
+      console.warn('[DispatchStream] Cannot start: client has been destroyed. Create a new client instead.')
+      return
+    }
     stopped = false
     retryCount = 0
     unregister?.()
@@ -109,9 +115,18 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers): Di
     handlers.onClose?.()
   }
 
+  /**
+   * 阶段八 8.2：销毁客户端，用于 Vue 组件 onUnmounted 最终清理。
+   * 调用后客户端永久不可用，start() 将拒绝执行。
+   */
+  function destroy() {
+    destroyed = true
+    stop()
+  }
+
   function isConnected() {
     return eventSource?.readyState === EventSource.OPEN
   }
 
-  return { start, stop, isConnected }
+  return { start, stop, destroy, isConnected }
 }

@@ -1,6 +1,7 @@
 package com.fsd.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.admin.service.AnalyticsAdminService;
 import com.fsd.admin.service.AdminParkScopeService;
 import com.fsd.admin.vo.AdminAnalyticsChargingHistoryItem;
@@ -273,12 +274,13 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         long totalPiles = piles.size();
         long occupied = activeSessions.stream().map(ChargingSessionEntity::getChargingPileId).distinct().count();
 
-        List<ChargingSessionEntity> recentCompleted = chargingSessionMapper.selectList(
+        Page<ChargingSessionEntity> recentCompletedPage = chargingSessionMapper.selectPage(
+                new Page<>(1, 20, false),
                 new LambdaQueryWrapper<ChargingSessionEntity>()
                         .eq(ChargingSessionEntity::getDeleted, 0)
                         .eq(ChargingSessionEntity::getSessionStatus, ChargingSessionStatus.COMPLETED.name())
-                        .orderByDesc(ChargingSessionEntity::getEndTime)
-                        .last("LIMIT 20"));
+                        .orderByDesc(ChargingSessionEntity::getEndTime));
+        List<ChargingSessionEntity> recentCompleted = recentCompletedPage.getRecords();
 
         List<AdminAnalyticsChargingHistoryItem> history = recentCompleted.stream()
                 .map(session -> toHistoryItem(session, vehicles, piles))
@@ -294,11 +296,12 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         List<BatterySwapSessionEntity> activeSwaps = batterySwapSessionMapper.selectList(
                 new LambdaQueryWrapper<BatterySwapSessionEntity>()
                         .eq(BatterySwapSessionEntity::getStatus, "IN_PROGRESS"));
-        List<BatterySwapSessionEntity> completedSwaps = batterySwapSessionMapper.selectList(
+        Page<BatterySwapSessionEntity> completedSwapsPage = batterySwapSessionMapper.selectPage(
+                new Page<>(1, 20, false),
                 new LambdaQueryWrapper<BatterySwapSessionEntity>()
                         .eq(BatterySwapSessionEntity::getStatus, "COMPLETED")
-                        .orderByDesc(BatterySwapSessionEntity::getFinishedAt)
-                        .last("LIMIT 20"));
+                        .orderByDesc(BatterySwapSessionEntity::getFinishedAt));
+        List<BatterySwapSessionEntity> completedSwaps = completedSwapsPage.getRecords();
         double chargeDuration = history.stream()
                 .map(AdminAnalyticsChargingHistoryItem::getDurationMinutes)
                 .filter(Objects::nonNull)

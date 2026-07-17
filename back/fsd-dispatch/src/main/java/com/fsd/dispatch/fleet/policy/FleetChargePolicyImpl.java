@@ -9,9 +9,17 @@ import org.springframework.stereotype.Component;
 public class FleetChargePolicyImpl implements FleetChargePolicy {
 
     private final FleetEnergyProperties fleetEnergyProperties;
+    /**
+     * 阶段八 8.4：充电触发阈值热更新解析器。
+     * 4 个阈值（returnToCharge / minAssignableSoc / chargeCompleteSoc / criticalSoc）
+     * 支持 Redis 动态配置，修改后 5s 内生效，无需重启。
+     */
+    private final FleetEnergyThresholdResolver thresholdResolver;
 
-    public FleetChargePolicyImpl(FleetEnergyProperties fleetEnergyProperties) {
+    public FleetChargePolicyImpl(FleetEnergyProperties fleetEnergyProperties,
+                                 FleetEnergyThresholdResolver thresholdResolver) {
         this.fleetEnergyProperties = fleetEnergyProperties;
+        this.thresholdResolver = thresholdResolver;
     }
 
     @Override
@@ -21,12 +29,14 @@ public class FleetChargePolicyImpl implements FleetChargePolicy {
 
     @Override
     public boolean shouldReturnToCharge(Integer batteryLevel) {
-        return normalizeSoc(batteryLevel) <= fleetEnergyProperties.getReturnToChargeThreshold();
+        // 阶段八 8.4：使用 Redis 热更新阈值
+        return normalizeSoc(batteryLevel) <= thresholdResolver.getReturnToChargeThreshold();
     }
 
     @Override
     public boolean isCriticalSoc(Integer batteryLevel) {
-        return normalizeSoc(batteryLevel) <= fleetEnergyProperties.getCriticalSocThreshold();
+        // 阶段八 8.4：使用 Redis 热更新阈值
+        return normalizeSoc(batteryLevel) <= thresholdResolver.getCriticalSocThreshold();
     }
 
     @Override
@@ -36,12 +46,14 @@ public class FleetChargePolicyImpl implements FleetChargePolicy {
 
     @Override
     public boolean isChargeSessionComplete(Integer batteryLevel) {
-        return normalizeSoc(batteryLevel) >= fleetEnergyProperties.getChargeCompleteSoc();
+        // 阶段八 8.4：使用 Redis 热更新阈值
+        return normalizeSoc(batteryLevel) >= thresholdResolver.getChargeCompleteSoc();
     }
 
     @Override
     public boolean isAssignable(VehicleEntity vehicle) {
-        return normalizeSoc(vehicle.getBatteryLevel()) >= fleetEnergyProperties.getMinAssignableSoc();
+        // 阶段八 8.4：使用 Redis 热更新阈值
+        return normalizeSoc(vehicle.getBatteryLevel()) >= thresholdResolver.getMinAssignableSoc();
     }
 
     @Override

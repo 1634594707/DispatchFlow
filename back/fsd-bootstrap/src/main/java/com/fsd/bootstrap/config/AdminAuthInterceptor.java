@@ -43,6 +43,13 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
+        // SSE 流路径：EventSource API 无法设置自定义 Header，因此拦截器不要求
+        // X-Admin-Token，但 Controller 内会通过一次性 ticket 校验身份。无效/缺失
+        // ticket 将在 Controller 内抛 401（见 AdminStreamController + GlobalExceptionHandler）。
+        if (isStreamPath(path)) {
+            return true;
+        }
+
         // SEC-02: auth-disable now requires both config flag AND explicit JVM property,
         // preventing accidental disablement via a single environment variable.
         boolean authEnabled = securityProperties.getAdmin().isEnabled()
@@ -85,9 +92,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
 
     /** 无需强制登录；凭证在 Controller 内校验（管理员 token 或 X-Mobile-Api-Key）。 */
     private boolean isOptionalAuthPath(String path, HttpServletRequest request) {
-        if ("/api/admin/auth/login".equals(path)
-                || "/api/admin/dispatch/stream".equals(path)
-                || "/api/admin/fleet/telemetry/stream".equals(path)) {
+        if ("/api/admin/auth/login".equals(path)) {
             return true;
         }
         if ("/api/admin/park/orders".equals(path)
@@ -103,6 +108,15 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
             return true;
         }
         return false;
+    }
+
+    /**
+     * SSE 流路径：EventSource 无法携带 X-Admin-Token Header，拦截器放行由 Controller
+     * 内通过一次性 ticket 校验。见 AdminStreamController#stream。
+     */
+    private boolean isStreamPath(String path) {
+        return "/api/admin/dispatch/stream".equals(path)
+                || "/api/admin/fleet/telemetry/stream".equals(path);
     }
 
     private static String resolveAdminToken(HttpServletRequest request) {

@@ -21,6 +21,7 @@ import com.fsd.common.model.ApiResponse;
 import com.fsd.dispatch.vo.DispatchExceptionListItemResponse;
 import com.fsd.dispatch.vo.DispatchInterventionQueueResponse;
 import com.fsd.dispatch.dto.ParkOrderCreateRequest;
+import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
@@ -251,6 +252,13 @@ class AdminDispatchControllerTest {
         request.setResolverName("dispatcher");
         request.setAction("MARK_FAILED");
         request.setRemark("done");
+
+        // 控制器对 getException 返回值有非空校验（commit 224b7d3 增加 null guard），需桩定非空实体。
+        DispatchExceptionRecordEntity entity = new DispatchExceptionRecordEntity();
+        entity.setId(1L);
+        entity.setTaskId(100L);
+        entity.setExceptionStatus("OPEN");
+        when(dispatchExceptionService.getException(1L)).thenReturn(entity);
 
         ApiResponse<Void> response = adminDispatchController.resolveException(1L, request, httpServletRequest);
 

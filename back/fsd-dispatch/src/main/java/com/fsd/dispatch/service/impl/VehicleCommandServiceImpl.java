@@ -2,6 +2,7 @@ package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fsd.common.enums.DispatchTaskStatus;
@@ -28,6 +29,7 @@ import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.service.VehicleService;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -106,11 +108,12 @@ public class VehicleCommandServiceImpl implements VehicleCommandService {
     @Transactional
     public VehicleCommandResponse pollNextCommand(String vehicleCode) {
         VehicleEntity vehicle = vehicleService.getByVehicleCode(vehicleCode);
-        VehicleCommandEntity command = vehicleCommandMapper.selectOne(new LambdaQueryWrapper<VehicleCommandEntity>()
+        Page<VehicleCommandEntity> page = vehicleCommandMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<VehicleCommandEntity>()
                 .eq(VehicleCommandEntity::getVehicleId, vehicle.getId())
                 .eq(VehicleCommandEntity::getCommandStatus, VehicleCommandStatus.PENDING.name())
-                .orderByAsc(VehicleCommandEntity::getIssuedAt)
-                .last("limit 1"));
+                .orderByAsc(VehicleCommandEntity::getIssuedAt));
+        List<VehicleCommandEntity> records = page.getRecords();
+        VehicleCommandEntity command = records.isEmpty() ? null : records.get(0);
         if (command == null) {
             return null;
         }

@@ -22,6 +22,12 @@ public class RoadNodeEntity {
 
     private BigDecimal coordY;
 
+    /** 真实 GPS 经度（GCJ-02）。Phase 2 路网校准新增，Phase 4 起 edgeCost 使用此字段计算 haversine 距离。 */
+    private BigDecimal coordLng;
+
+    /** 真实 GPS 纬度（GCJ-02）。 */
+    private BigDecimal coordLat;
+
     private String status;
 
     private String remark;

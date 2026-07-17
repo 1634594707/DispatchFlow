@@ -1569,7 +1569,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (sseClient) {
-    sseClient.stop()
+    // 阶段八 8.2：使用 destroy() 而非 stop()，明确表达组件卸载时的最终清理
+    sseClient.destroy()
     sseClient = null
   }
   stopFallbackPoll()

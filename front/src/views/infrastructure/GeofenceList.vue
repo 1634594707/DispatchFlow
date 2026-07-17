@@ -41,7 +41,7 @@
       v-model:open="modalOpen"
       :title="editing ? '编辑围栏' : '新建围栏'"
       :confirm-loading="saving"
-      width="640px"
+      width="780px"
       @ok="handleSave"
     >
       <a-form layout="vertical">
@@ -70,12 +70,25 @@
           </a-col>
         </a-row>
         <a-form-item label="多边形 JSON（[[lng,lat],...]）" required>
-          <a-textarea v-model:value="form.polygonJson" :rows="6" placeholder="[[121.052,31.902],[121.072,31.902],...]" />
+          <a-textarea v-model:value="form.polygonJson" :rows="5" placeholder="[[121.052,31.902],[121.072,31.902],...]" />
         </a-form-item>
         <a-space style="margin-bottom: 8px">
           <a-button size="small" type="primary" @click="fillPilotRectangle">填充叠石桥试点（1570m×470m）</a-button>
           <a-button size="small" @click="fillLegacyRectangle">旧版 2km 矩形</a-button>
+          <a-button size="small" @click="fillZoneSouth">填充南排分区</a-button>
+          <a-button size="small" @click="fillZoneHub">填充代发仓分区</a-button>
         </a-space>
+        <!-- Phase 3：围栏可视化预览地图 -->
+        <a-form-item label="围栏预览地图">
+          <div class="geofence-map-preview">
+            <AmapGeoMap
+              :polygons="previewPolygons"
+              :center="previewCenter"
+              :zoom="15"
+              style="height: 280px"
+            />
+          </div>
+        </a-form-item>
         <a-form-item label="备注" style="margin-top: 12px">
           <a-input v-model:value="form.remark" />
         </a-form-item>
@@ -90,9 +103,11 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
 import { createGeofence, deleteGeofence, fetchGeofences, fetchParks, updateGeofence } from '@/api/infrastructure'
 import type { AdminGeofence } from '@/types/infrastructure'
-import { ZJF_PILOT_GEO } from '@/maps/zjfPilotGeo'
+import { ZJF_PILOT_GEO, PILOT_ZONE_POLYGONS } from '@/maps/zjfPilotGeo'
+import type { GeoMapPolygon } from '@/maps'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -193,6 +208,55 @@ function fillLegacyRectangle() {
     [121.05228, 31.92245],
   ])
 }
+
+/** Phase 3：填充南排分区多边形 */
+function fillZoneSouth() {
+  const zone = PILOT_ZONE_POLYGONS.find((z) => z.id === 'ZJF-ZONE-CORE-SOUTH')
+  if (zone) {
+    form.polygonJson = JSON.stringify(zone.path)
+    form.fenceName = form.fenceName || '家纺城核心南排区'
+  }
+}
+
+/** Phase 3：填充代发仓分区多边形 */
+function fillZoneHub() {
+  const zone = PILOT_ZONE_POLYGONS.find((z) => z.id === 'ZJF-ZONE-HUB')
+  if (zone) {
+    form.polygonJson = JSON.stringify(zone.path)
+    form.fenceName = form.fenceName || '代发仓集散区'
+  }
+}
+
+/** Phase 3：围栏预览地图多边形 */
+const previewPolygons = computed<GeoMapPolygon[]>(() => {
+  try {
+    const parsed = JSON.parse(form.polygonJson)
+    if (!Array.isArray(parsed) || parsed.length < 3) return []
+    return [{
+      id: 'preview',
+      path: parsed.map((p: number[]) => [Number(p[0]), Number(p[1])] as [number, number]),
+      strokeColor: form.fenceType === 'RESTRICTED' ? '#FF5C7C' : '#1677ff',
+      fillColor: form.fenceType === 'RESTRICTED' ? 'rgba(255, 92, 124, 0.15)' : 'rgba(22, 119, 255, 0.12)',
+    }]
+  } catch {
+    return []
+  }
+})
+
+/** Phase 3：预览地图中心点 */
+const previewCenter = computed<[number, number]>(() => {
+  try {
+    const parsed = JSON.parse(form.polygonJson)
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return [ZJF_PILOT_GEO.anchorLng, ZJF_PILOT_GEO.anchorLat]
+    }
+    const lng = parsed.reduce((sum: number, p: number[]) => sum + Number(p[0]), 0) / parsed.length
+    const lat = parsed.reduce((sum: number, p: number[]) => sum + Number(p[1]), 0) / parsed.length
+    return [lng, lat]
+  } catch {
+    return [ZJF_PILOT_GEO.anchorLng, ZJF_PILOT_GEO.anchorLat]
+  }
+})
 
 async function handleSave() {
   if (!filterParkId.value) return

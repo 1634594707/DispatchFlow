@@ -49,10 +49,9 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
         }
         ParkRoadGraph graph = resolveGraph(parkId);
         if (graph.isEmpty()) {
-            return List.of(
-                    point("START", startX, startY),
-                    point("END", endX, endY)
-            );
+            // Phase 4：空路网不再返回直线，直接抛异常提示派单失败
+            throw new BusinessException("PARK_ROAD_NETWORK_EMPTY",
+                    "园区路网数据为空，无法规划路径，请先配置路网节点和路段");
         }
 
         String startNode = nearestNode(graph, startX, startY);
@@ -67,14 +66,16 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
                                                           BigDecimal endX, BigDecimal endY,
                                                           List<String> nodePath) {
         List<ParkPointResponse> route = new ArrayList<>();
-        route.add(point("START", startX, startY));
+        // Phase 4：START/END 仅携带 schematic x/y（调用方未提供 GPS），中间节点携带 GPS 坐标，
+        // 供下游 pathLength 使用 haversine 计算真实路径长度（米）。
+        route.add(point("START", startX, startY, null, null));
         for (String code : nodePath) {
             ParkRoadGraph.NodeView node = graph.node(code);
             if (node != null) {
-                route.add(point(code, node.x(), node.y()));
+                route.add(point(code, node.x(), node.y(), node.coordLng(), node.coordLat()));
             }
         }
-        route.add(point("END", endX, endY));
+        route.add(point("END", endX, endY, null, null));
         return route;
     }
 
@@ -123,12 +124,15 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
 
     ParkRoadGraph resolveGraph(Long parkId) {
         Long resolvedParkId = parkId != null ? parkId : parkStationService.requireDefaultPark().getId();
+        // Phase 4：查询时过滤 status=ACTIVE，避免加载 DISABLED 节点/路段
         List<RoadNodeEntity> dbNodes = roadNodeMapper.selectList(new QueryWrapper<RoadNodeEntity>()
                 .eq("park_id", resolvedParkId)
+                .eq("status", "ACTIVE")
                 .eq("deleted", 0));
         if (!dbNodes.isEmpty()) {
             List<RoadSegmentEntity> dbSegments = roadSegmentMapper.selectList(new QueryWrapper<RoadSegmentEntity>()
                     .eq("park_id", resolvedParkId)
+                    .eq("status", "ACTIVE")
                     .eq("deleted", 0));
             return ParkRoadGraph.fromDatabase(dbNodes, dbSegments);
         }
@@ -191,11 +195,13 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
                 .orElseThrow(() -> new BusinessException("PARK_ROUTE_NODE_NOT_FOUND", "Park route node not found"));
     }
 
-    private ParkPointResponse point(String code, BigDecimal x, BigDecimal y) {
+    private ParkPointResponse point(String code, BigDecimal x, BigDecimal y, BigDecimal lng, BigDecimal lat) {
         return ParkPointResponse.builder()
                 .code(code)
                 .x(x)
                 .y(y)
+                .longitude(lng)
+                .latitude(lat)
                 .build();
     }
 
