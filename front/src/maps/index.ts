@@ -29,12 +29,22 @@ export { defaultMapCenter, parkXYToGcj02, TEXTILE_PARK_GEO } from './textilePark
 export { toAvGeoMarker, resolveAvMapStatus, avMapIconUrl } from './vehicleMapIcon'
 export { ZJF_PILOT_GEO, ZJF_L0_COVERAGE, ZJF_FLEET_STATS } from './zjfPilotGeo'
 export {
+  ZJF_STATION_ANCHORS,
+  ZJF_ROAD_CORRIDORS,
+  ZJF_DELIVERY_ZONES,
+  type ZjfStationAnchor,
+  type ZjfStationRole,
+  type ZjfDeliveryZone,
+} from './zjfStationAnchors'
+export {
   GEO_DELIVERY_AREA,
   buildGroupedMobileStationOptions,
   filterGeoDeliveryOrders,
   filterGeoDeliveryStations,
   filterMobileOrderStations,
   filterSchematicOrderStations,
+  filterStationsByDeliveryZone,
+  filterVehiclesByDeliveryZone,
   findMobileOrderStation,
   orderableStationsForMode,
   syncDefaultMobileOrderStations,

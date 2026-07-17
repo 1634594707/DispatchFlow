@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -84,5 +85,10 @@ public class FleetTelemetryStreamServiceImpl implements FleetTelemetryStreamServ
                 emitters.remove(key);
             }
         }
+    }
+
+    @Scheduled(fixedDelay = 300000L)
+    public void cleanupStaleEmitters() {
+        emitters.entrySet().removeIf(entry -> entry.getValue().isEmpty());
     }
 }

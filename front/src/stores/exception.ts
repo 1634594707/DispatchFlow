@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { queryExceptions, resolveException } from '@/api/exception'
+import { queryExceptions, resolveException, batchResolveExceptions } from '@/api/exception'
 import type { ExceptionAdminListItem, ExceptionQueryRequest, ResolveExceptionRequest } from '@/types/exception'
 import type { PageResponse } from '@/types/api'
 import type { EscalationRecord } from '@/types/alert'
@@ -46,6 +46,10 @@ export const useExceptionStore = defineStore('exception', () => {
     await resolveException(exceptionId, data)
   }
 
+  async function handleBatchResolve(exceptionIds: number[], data: ResolveExceptionRequest) {
+    await batchResolveExceptions(exceptionIds, data)
+  }
+
   // V5-N6: 升级检查
   function checkEscalation() {
     if (escalationRules.value.length === 0) return
@@ -75,5 +79,5 @@ export const useExceptionStore = defineStore('exception', () => {
     escalationNeeded.value = escalated
   }
 
-  return { list, total, loading, openCount, escalationRules, escalationNeeded, fetchList, fetchOpenCount, handleResolve, checkEscalation }
+  return { list, total, loading, openCount, escalationRules, escalationNeeded, fetchList, fetchOpenCount, handleResolve, handleBatchResolve, checkEscalation }
 })

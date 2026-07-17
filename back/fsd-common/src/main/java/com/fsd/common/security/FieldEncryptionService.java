@@ -95,7 +95,7 @@ public class FieldEncryptionService {
             byte[] keyBytes = digest.digest(rawKey.getBytes(StandardCharsets.UTF_8));
             return new SecretKeySpec(keyBytes, "AES");
         } catch (GeneralSecurityException ex) {
-            return null;
+            throw new IllegalStateException("Failed to derive field encryption key via SHA-256", ex);
         }
     }
 }

@@ -1,10 +1,9 @@
 <template>
   <div class="mobile-order-page">
     <header class="mobile-header">
-      <router-link class="header-back" to="/vehicle-tracking">← 大屏</router-link>
       <div class="header-brand">
         <span class="header-eyebrow">找家纺网 · 叠石桥 L1 试点</span>
-        <h1>像看外卖一样看短驳配送</h1>
+        <h1>短驳配送</h1>
       </div>
       <div class="header-stats">
         <span>{{ orderableStationCount }} 站</span>
@@ -24,7 +23,7 @@
         @track="onMerchantTrack"
         @order-again="onMerchantOrderAgain"
         @select-route="onMerchantSelectRoute"
-        @open-history="historyDrawerOpen = true"
+        @open-history="goToOrdersPage"
         @quick-order="scrollToQuickOrder"
       />
 
@@ -63,6 +62,8 @@
         :pickup-station-id="form.pickupStationId"
         :dropoff-station-id="form.dropoffStationId"
         :priority="form.priority || 'P1'"
+        :order-priority="form.orderPriority || 'NORMAL'"
+        :weight="form.weight"
         :remark="form.remark || ''"
         :loading-parks="loadingParks"
         :loading-stations="loadingStations"
@@ -72,62 +73,27 @@
         @update:pickup-station-id="form.pickupStationId = $event"
         @update:dropoff-station-id="form.dropoffStationId = $event"
         @update:priority="form.priority = $event"
+        @update:order-priority="form.orderPriority = $event"
+        @update:weight="form.weight = $event"
         @update:remark="form.remark = $event"
+        @quick-fill="quickFillDefaults"
         @submit-demo="submitDemoRoute"
         @submit-custom="submitOrder"
       />
-
-      <details v-if="showApiKeySettings" class="settings-panel">
-        <summary>开发者设置 · API Key</summary>
-        <label class="api-key-field" for="mobile-api-key">
-          <span>X-Mobile-Api-Key</span>
-          <input
-            id="mobile-api-key"
-            v-model="mobileApiKey"
-            type="password"
-            autocomplete="off"
-            placeholder="留空则使用 VITE_MOBILE_API_KEY"
-            @change="persistMobileApiKey"
-          />
-        </label>
-        <p class="api-key-note">仅本地开发可见；生产环境请配置环境变量。</p>
-      </details>
     </main>
 
-    <a-drawer
-      v-model:open="historyDrawerOpen"
-      title="订单历史"
-      placement="bottom"
-      height="70vh"
-      class="order-history-drawer"
-    >
-      <div v-if="orderHistory.length === 0" class="history-empty">暂无历史订单</div>
-      <button
-        v-for="order in orderHistory"
-        :key="order.orderId"
-        type="button"
-        class="history-item"
-        @click="selectHistoryOrder(order.orderId)"
-      >
-        <div class="history-item-head">
-          <span>#{{ order.orderId }}</span>
-          <span class="history-stage">{{ order.runtimeStage }}</span>
-        </div>
-        <p class="history-route">
-          {{ order.pickupStation.stationCode }} → {{ order.dropoffStation.stationCode }}
-        </p>
-      </button>
-    </a-drawer>
+    <MobileTabBar :active-order-count="activeOrders.length" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import OrderTrackingPanel from '@/components/mobile/OrderTrackingPanel.vue'
 import QuickOrderPanel from '@/components/mobile/QuickOrderPanel.vue'
 import MerchantHomePanel from '@/components/mobile/MerchantHomePanel.vue'
+import MobileTabBar from '@/components/mobile/MobileTabBar.vue'
 import type { FavoriteRoute } from '@/components/mobile/MerchantHomePanel.vue'
 import type { DemoRoutePreset } from '@/components/mobile/QuickOrderPanel.vue'
 import { parkDeliveryDemoRoutes, parkSchematicDemoRoutes, loadMobileOrderMode, persistMobileOrderMode } from '@/constants/parkDelivery'
@@ -188,11 +154,10 @@ const trackedOrderId = ref<number | null>(null)
 const mobileApiKey = ref('')
 const orderMode = ref<MobileOrderMode>(loadMobileOrderMode())
 const geoMapAvailable = isAmapConfigured()
-const showApiKeySettings = import.meta.env.DEV
 const trackingPanelRef = ref<InstanceType<typeof OrderTrackingPanel> | null>(null)
 const quickOrderPanelRef = ref<InstanceType<typeof QuickOrderPanel> | null>(null)
-const historyDrawerOpen = ref(false)
 const router = useRouter()
+const route = useRoute()
 const lastTrackingUpdatedAt = ref<Date | null>(null)
 const trackingFailureCount = ref(0)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
@@ -200,7 +165,7 @@ let pollingStopped = false
 
 function resolveDefaultMobileApiKey() {
   return (
-    localStorage.getItem('fsd_mobile_api_key')?.trim() ||
+    sessionStorage.getItem('fsd_mobile_api_key')?.trim() ||
     (import.meta.env.VITE_MOBILE_API_KEY as string | undefined)?.trim() ||
     ''
   )
@@ -208,8 +173,8 @@ function resolveDefaultMobileApiKey() {
 
 function persistMobileApiKey() {
   const trimmed = mobileApiKey.value.trim()
-  if (trimmed) localStorage.setItem('fsd_mobile_api_key', trimmed)
-  else localStorage.removeItem('fsd_mobile_api_key')
+  if (trimmed) sessionStorage.setItem('fsd_mobile_api_key', trimmed)
+  else sessionStorage.removeItem('fsd_mobile_api_key')
 }
 
 const form = reactive<ParkOrderCreateRequest>({
@@ -219,6 +184,8 @@ const form = reactive<ParkOrderCreateRequest>({
   dropoffStationId: undefined as unknown as number,
   routeId: undefined as number | undefined,
   priority: 'P1',
+  orderPriority: 'NORMAL',
+  weight: undefined as number | undefined,
   remark: '',
 })
 
@@ -421,10 +388,8 @@ async function onMerchantSelectRoute(route: FavoriteRoute) {
   scrollToQuickOrder()
 }
 
-function selectHistoryOrder(orderId: number) {
-  trackedOrderId.value = orderId
-  historyDrawerOpen.value = false
-  void nextTick(() => trackingPanelRef.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+function goToOrdersPage() {
+  router.push('/mobile/orders')
 }
 
 const remainingDeliveryLabel = computed(() => {
@@ -476,6 +441,17 @@ function applyDefaultStations() {
   })
   if (synced.pickupStationId) form.pickupStationId = synced.pickupStationId
   if (synced.dropoffStationId) form.dropoffStationId = synced.dropoffStationId
+}
+
+/** 快速下单：一键填充默认取货点和送货点 */
+function quickFillDefaults() {
+  if (!stations.value.length) {
+    message.warning('站点尚未加载，请稍后重试')
+    return
+  }
+  applyDefaultStations()
+  message.success('已填入默认取货点与送货点，可直接提交')
+  scrollToQuickOrder()
 }
 
 function resolveStationIds(pickupCode: string, dropoffCode: string) {
@@ -648,6 +624,8 @@ async function submitOrder() {
         dropoffStationId: form.dropoffStationId,
         routeId: form.routeId,
         priority: form.priority || 'P1',
+        orderPriority: form.orderPriority || 'NORMAL',
+        weight: form.weight,
         remark: form.remark?.trim() || undefined,
       },
       mobileApiKey.value,
@@ -679,6 +657,15 @@ onMounted(async () => {
   await fetchParks()
   await Promise.all([fetchStations(), fetchLayout(), fetchGeofences()])
   await refreshTrackingSnapshot()
+  // 支持从订单页跳转时指定追踪订单
+  const queryOrderId = route.query.orderId
+  if (queryOrderId) {
+    const orderId = Number(queryOrderId)
+    if (orderId > 0) {
+      trackedOrderId.value = orderId
+      void nextTick(() => trackingPanelRef.value?.$el.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
+  }
 })
 
 onUnmounted(() => {
@@ -688,215 +675,195 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="less">
+/* 浅色主题变量覆盖 —— 仅作用于本页面容器，子组件（MerchantHomePanel /
+   QuickOrderPanel / OrderTrackingPanel）通过 var(--fsd-*) 自动继承浅色值。
+   参考：顺丰 / 京东物流移动端，#1989fa 主色 + #f5f6fa 底色 + 卡片化白底。 */
 .mobile-order-page {
-  min-height: 100vh;
-  min-height: 100dvh;
+  --fsd-bg-deep:     #f5f6fa;
+  --fsd-bg-base:     #ffffff;
+  --fsd-bg-elevated: #ffffff;
+  --fsd-bg-hover:    #f5f5f5;
+  --fsd-bg-active:   #e6f4ff;
+  --fsd-bg-spotlight:#ffffff;
+
+  --fsd-text-primary:   #1a1a1a;
+  --fsd-text-secondary: #666666;
+  --fsd-text-tertiary:  #999999;
+  --fsd-text-heading:   #1a1a1a;
+  --fsd-text-muted:     #cccccc;
+
+  --fsd-border:         rgba(0, 0, 0, 0.06);
+  --fsd-border-active:  rgba(0, 0, 0, 0.12);
+  --fsd-border-split:   rgba(0, 0, 0, 0.04);
+  --fsd-border-strong:  rgba(0, 0, 0, 0.18);
+
+  --fsd-accent:         #1989fa;
+  --fsd-accent-strong:  #096dd9;
+  --fsd-accent-muted:   #1989fa;
+  --fsd-accent-deep:    #0050b3;
+  --fsd-accent-glow:    rgba(25, 137, 250, 0.12);
+  --fsd-accent-bg:      rgba(25, 137, 250, 0.08);
+  --fsd-accent-border:  rgba(25, 137, 250, 0.40);
+  --fsd-accent-subtle:  rgba(25, 137, 250, 0.04);
+
+  --fsd-success: #52c41a;
+  --fsd-warning: #faad14;
+  --fsd-error:   #ff4d4f;
+  --fsd-info:    #1989fa;
+
+  --fsd-shadow-card:     0 1px 4px rgba(0, 0, 0, 0.04);
+  --fsd-shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --fsd-shadow-soft:     0 1px 2px rgba(0, 0, 0, 0.04);
+
+  /* 关键修复：使用固定 height 而非 min-height，让 overflow-y:auto 生效。
+     原因：global.less 中 html/body/#app 均为 height:100% + overflow:hidden，
+     若用 min-height:100vh，元素会被内容撑高并超出 #app，超出部分被裁剪，
+     导致不能滚动。改为固定高度后，元素成为真正的滚动容器。 */
+  height: 100vh;
+  height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  background:
-    radial-gradient(circle at 12% 0%, rgba(34, 199, 230, 0.12), transparent 34%),
-    radial-gradient(circle at 88% 8%, rgba(255, 183, 3, 0.08), transparent 28%),
-    linear-gradient(180deg, var(--fsd-bg-deep) 0%, var(--fsd-bg-deep) 100%);
-  color: var(--fsd-text-primary);
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  background: #f5f6fa;
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
 }
 
 .mobile-header {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: var(--fsd-z-header);
   padding:
-    calc(12px + env(safe-area-inset-top, 0px))
-    16px
-    14px;
-  border-bottom: 1px solid rgba(62, 166, 255, 0.1);
-  background: rgba(4, 8, 16, 0.88);
-  backdrop-filter: blur(16px);
+    calc(14px + env(safe-area-inset-top, 0px))
+    20px
+    16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #ffffff;
 }
 
 .header-back {
-  display: inline-block;
-  margin-bottom: 10px;
-  color: var(--fsd-accent);
-  font-size: 13px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 4px 0;
+  color: #666;
+  font-size: 12px;
+  font-weight: 500;
   text-decoration: none;
+  transition: color var(--fsd-transition-fast);
+
+  &:hover {
+    color: #1989fa;
+  }
 }
 
 .header-brand h1 {
   margin: 6px 0 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
   font-size: 22px;
-  line-height: 1.15;
-  letter-spacing: -0.03em;
-  color: var(--fsd-text-heading);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  color: #1a1a1a;
+  font-weight: 600;
 }
 
 .header-eyebrow {
-  color: var(--fsd-warning);
-  font-size: 11px;
-  letter-spacing: 0.1em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #faad14;
+  font-size: 10px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  font-weight: 600;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: var(--fsd-radius-full);
+    background: #faad14;
+    box-shadow: 0 0 8px rgba(250, 173, 20, 0.5);
+    animation: var(--fsd-anim-pulse-glow);
+  }
 }
 
 .header-stats {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 14px;
   flex-wrap: wrap;
 }
 
 .header-stats span {
   padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(62, 166, 255, 0.08);
-  border: 1px solid rgba(62, 166, 255, 0.14);
+  border-radius: var(--fsd-radius-full);
+  background: #f5f5f5;
+  border: 1px solid #f0f0f0;
   font-size: 11px;
-  font-weight: 700;
-  color: var(--fsd-text-secondary);
+  font-weight: 600;
+  color: #666;
+  font-feature-settings: 'tnum';
+  font-family: var(--fsd-font-mono);
 }
 
 .mobile-main {
-  width: min(100%, 560px);
+  width: min(100%, var(--fsd-mobile-max-width));
   margin: 0 auto;
   padding:
+    20px
     16px
-    16px
-    calc(24px + env(safe-area-inset-bottom, 0px));
+    calc(80px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-.tracking-connection-alert {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 183, 3, 0.26);
-  background: rgba(255, 183, 3, 0.1);
-  color: var(--fsd-warning);
-  font-size: 13px;
-}
-
-.tracking-connection-alert strong {
-  color: var(--fsd-warning);
-}
-
-.settings-panel {
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px dashed rgba(62, 166, 255, 0.18);
-  background: rgba(6, 12, 22, 0.45);
-  color: var(--fsd-text-secondary);
-  font-size: 12px;
-
-  summary {
-    cursor: pointer;
-    font-weight: 700;
-    color: var(--fsd-text-secondary);
-    list-style: none;
-
-    &::-webkit-details-marker {
-      display: none;
-    }
-  }
-}
-
-.api-key-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
-
-  span {
-    font-size: 11px;
-    color: var(--fsd-text-secondary);
-  }
-
-  input {
-    width: 100%;
-    height: 40px;
-    padding: 0 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(62, 166, 255, 0.14);
-    background: rgba(4, 8, 16, 0.72);
-    color: var(--fsd-text-primary);
-    font-size: 13px;
-    outline: none;
-  }
-}
-
-.api-key-note {
-  margin: 8px 0 0;
-  font-size: 11px;
-  color: var(--fsd-text-secondary);
-}
-
-.history-empty {
-  padding: 32px;
-  text-align: center;
-  color: var(--fsd-text-secondary);
-}
-
-.history-item {
-  width: 100%;
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(11, 16, 24, 0.6);
-  text-align: left;
-  cursor: pointer;
-}
-
-.history-item-head {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--fsd-text-primary);
-}
-
-.history-stage {
-  font-size: 11px;
-  color: var(--fsd-accent);
-}
-
-.history-route {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--fsd-text-secondary);
+  gap: 14px;
 }
 
 @media (max-width: 420px) {
   .header-brand h1 {
     font-size: 20px;
   }
+  .mobile-main {
+    padding: 16px 14px calc(76px + env(safe-area-inset-bottom, 0px));
+  }
 }
 </style>
 
 <style lang="less">
+/* 浅色主题：Ant Design 下拉/输入框全局覆盖（仅影响本页 .mobile-order-page 内的下拉，
+   因为本页容器覆盖了 --fsd-* 变量，但 ant-select-dropdown 渲染在 body 下，
+   需要单独使用浅色样式） */
 .ant-select-dropdown {
-  background: rgba(8, 17, 29, 0.96) !important;
-  border: 1px solid rgba(62, 166, 255, 0.14) !important;
-  backdrop-filter: blur(12px);
+  background: #ffffff !important;
+  border: 1px solid #e8e8e8 !important;
+  backdrop-filter: blur(16px);
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
 }
 
 .ant-select-item {
-  color: var(--fsd-text-primary) !important;
+  color: #333 !important;
+  border-radius: 8px !important;
 }
 
 .ant-select-item-option-active {
-  background: rgba(62, 166, 255, 0.1) !important;
+  background: #f5f5f5 !important;
 }
 
 .ant-select-item-option-selected {
-  background: rgba(62, 166, 255, 0.18) !important;
-  color: var(--fsd-accent) !important;
+  background: #e6f4ff !important;
+  color: #1989fa !important;
+  font-weight: 600;
 }
 
 .ant-select-item-group {
-  color: var(--fsd-accent) !important;
-  font-weight: 700;
+  color: #1989fa !important;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 </style>

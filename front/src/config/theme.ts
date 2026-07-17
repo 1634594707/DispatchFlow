@@ -3,8 +3,9 @@
  * 
  * 设计权威来源：docs/DESIGN-SYSTEM.md
  * CSS 令牌同步源：src/styles/tokens.css → src/config/tokens.ts
- * 主色调：信号青 #22C7E6（暗色指挥中心风格）
- * 字体排印：Plus Jakarta Sans + JetBrains Mono
+ * 设计语言：Operational Elegance（Linear/Cursor/Vercel 风格）
+ * 主色调：信号青 #22D3EE（refined SaaS）
+ * 字体排印：Geist + Geist Mono
  * 间距基线：4px
  */
 
@@ -23,8 +24,8 @@ export const themeConfig = {
   token: {
     // ── Brand (from tokens.ts accent) ────────────────────
     colorPrimary:        accent.primary,
-    colorPrimaryHover:   accent.muted,
-    colorPrimaryActive:  '#0B8299',
+    colorPrimaryHover:   accent.strong,
+    colorPrimaryActive:  accent.deep,
     colorPrimaryBg:      accent.glowBg,
     colorPrimaryBgHover: accent.glow,
     colorPrimaryBorder:  accent.glowBorder,
@@ -43,15 +44,15 @@ export const themeConfig = {
     colorBgContainer:  bg.base,
     colorBgElevated:   bg.elevated,
     colorBgLayout:     bg.deep,
-    colorBgSpotlight:  bg.elevated,
-    colorBgMask:       'rgba(6, 9, 15, 0.55)',
+    colorBgSpotlight:  bg.spotlight,
+    colorBgMask:       'rgba(8, 9, 12, 0.65)',
 
     // ── Text (from tokens.ts text) ───────────────────────
     colorTextBase:       text.primary,
     colorText:           text.primary,
     colorTextSecondary:  text.secondary,
     colorTextTertiary:   text.tertiary,
-    colorTextQuaternary: 'rgba(154, 168, 184, 0.45)',
+    colorTextQuaternary: 'rgba(148, 163, 184, 0.45)',
 
     // ── Border (from tokens.ts border) ───────────────────
     colorBorder:        border.base,
@@ -78,6 +79,7 @@ export const themeConfig = {
     borderRadiusSM:  parseInt(radius.sm),
     borderRadiusLG:  parseInt(radius.lg),
     borderRadiusXS:  parseInt(radius.xs),
+    borderRadiusOuter: parseInt(radius.xs),
 
     // ── Spacing / Padding (from tokens.ts space) ─────────
     paddingXS:     parseInt(space['1']),
@@ -113,7 +115,7 @@ export const themeConfig = {
     controlOutline:    accent.glow,
     controlOutlineWidth: 3,
     colorLink:    accent.strong,
-    colorLinkHover: '#B3EDF7',
+    colorLinkHover: '#A5F3FC',
     colorLinkActive: accent.muted,
   },
 
@@ -121,9 +123,9 @@ export const themeConfig = {
   components: {
     Button: {
       colorPrimary:        accent.primary,
-      colorPrimaryHover:   accent.muted,
-      colorPrimaryActive:  '#0B8299',
-      primaryShadow:       '0 2px 10px rgba(34, 199, 230, 0.24)',
+      colorPrimaryHover:   accent.strong,
+      colorPrimaryActive:  accent.deep,
+      primaryShadow:       '0 2px 10px rgba(34, 211, 238, 0.24)',
       fontWeight:          fontWeight.semibold,
       defaultBg:           bg.elevated,
       defaultBorderColor:  border.base,
@@ -149,8 +151,8 @@ export const themeConfig = {
       headerBg:           bg.elevated,
       headerColor:        text.secondary,
       headerSplitColor:   border.base,
-      rowHoverBg:         'rgba(34, 199, 230, 0.05)',
-      rowSelectedBg:      'rgba(34, 199, 230, 0.08)',
+      rowHoverBg:         'rgba(34, 211, 238, 0.05)',
+      rowSelectedBg:      'rgba(34, 211, 238, 0.08)',
       rowExpandedBg:      bg.elevated,
       borderColor:        border.base,
       cellPaddingBlock:   12,
@@ -173,6 +175,8 @@ export const themeConfig = {
       paddingLG:          32,
       boxShadow:          shadow.card,
       boxShadowTertiary:  shadow.elevated,
+      headerBg:           'transparent',
+      headerFontSize:     parseInt(fontSize.lg),
     },
 
     Menu: {
@@ -310,10 +314,10 @@ export const themeConfig = {
  */
 export const guardModeTokens = {
   token: {
-    colorPrimary:    '#4A9EB3',
-    colorSuccess:    '#3D9A6A',
-    colorWarning:    '#B8892A',
-    colorError:      '#C43D5A',
-    colorInfo:       '#4A9EB3',
+    colorPrimary:    '#5E9BAB',
+    colorSuccess:    '#4A9A75',
+    colorWarning:    '#C29440',
+    colorError:      '#C45868',
+    colorInfo:       '#5E9BAB',
   },
 }

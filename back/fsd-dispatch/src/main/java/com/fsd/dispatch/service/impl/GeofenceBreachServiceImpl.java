@@ -1,12 +1,17 @@
 package com.fsd.dispatch.service.impl;
 
 import com.fsd.dispatch.entity.ParkGeofenceEntity;
+import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.geo.GeoPolygonUtils;
+import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
 import com.fsd.dispatch.mapper.ParkGeofenceMapper;
+import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.DispatchAutomationRuleService;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.GeofenceBreachService;
+import com.fsd.common.exception.BusinessException;
 import com.fsd.vehicle.entity.VehicleEntity;
+import com.fsd.vehicle.service.VehicleService;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -21,11 +26,14 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
 
     private static final Duration BREACH_COOLDOWN = Duration.ofMinutes(5);
     private static final String KEY_PREFIX = "geofence:breach:";
+    private static final double GPS_BUFFER_METERS = 15.0;
 
     private final ParkGeofenceMapper geofenceMapper;
     private final DispatchExceptionService dispatchExceptionService;
     private final DispatchAutomationRuleService automationRuleService;
     private final StringRedisTemplate stringRedisTemplate;
+    private final VehicleService vehicleService;
+    private final DispatchTaskMapper dispatchTaskMapper;
 
     @Value("${fsd.automation.default-park-id:1}")
     private Long defaultParkId;
@@ -33,11 +41,15 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
     public GeofenceBreachServiceImpl(ParkGeofenceMapper geofenceMapper,
                                      DispatchExceptionService dispatchExceptionService,
                                      DispatchAutomationRuleService automationRuleService,
-                                     StringRedisTemplate stringRedisTemplate) {
+                                     StringRedisTemplate stringRedisTemplate,
+                                     VehicleService vehicleService,
+                                     DispatchTaskMapper dispatchTaskMapper) {
         this.geofenceMapper = geofenceMapper;
         this.dispatchExceptionService = dispatchExceptionService;
         this.automationRuleService = automationRuleService;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.vehicleService = vehicleService;
+        this.dispatchTaskMapper = dispatchTaskMapper;
     }
 
     @Override
@@ -56,16 +68,81 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
         }
     }
 
+    @Override
+    public boolean isWithinAllowedArea(Long vehicleId, BigDecimal longitude, BigDecimal latitude) {
+        if (vehicleId == null || longitude == null || latitude == null) {
+            return true;
+        }
+        try {
+            vehicleService.getById(vehicleId);
+        } catch (BusinessException ignored) {
+            return true;
+        }
+        List<ParkGeofenceEntity> fences = geofenceMapper.selectList(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<ParkGeofenceEntity>lambdaQuery()
+                        .eq(ParkGeofenceEntity::getParkId, defaultParkId)
+                        .eq(ParkGeofenceEntity::getStatus, "ACTIVE")
+                        .eq(ParkGeofenceEntity::getFenceType, "BOUNDARY")
+                        .eq(ParkGeofenceEntity::getDeleted, 0));
+        if (fences.isEmpty()) {
+            return true;
+        }
+        for (ParkGeofenceEntity fence : fences) {
+            if (GeoPolygonUtils.contains(parsePolygon(fence.getPolygonJson()), longitude, latitude)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void evaluateFence(VehicleEntity vehicle, ParkGeofenceEntity fence,
                                BigDecimal longitude, BigDecimal latitude) {
-        boolean inside = GeoPolygonUtils.contains(parsePolygon(fence.getPolygonJson()), longitude, latitude);
+        List<double[]> polygon = parsePolygon(fence.getPolygonJson());
+        boolean inside = GeoPolygonUtils.contains(polygon, longitude, latitude);
         String breachType = resolveBreachType(fence.getFenceType(), inside);
         if (breachType == null || !markIfFirstBreach(vehicle.getId(), fence.getId(), breachType)) {
             return;
         }
+        if ("GEOFENCE_EXIT".equals(breachType) && isWithinGpsBuffer(polygon, longitude, latitude)) {
+            return;
+        }
         String message = buildMessage(vehicle, fence, breachType);
-        dispatchExceptionService.recordVehicleException(vehicle.getId(), breachType, message);
+        Long taskId = findCurrentTaskId(vehicle.getId());
+        if (taskId != null) {
+            dispatchExceptionService.recordException(taskId, null, vehicle.getId(), breachType, message);
+        } else {
+            dispatchExceptionService.recordVehicleException(vehicle.getId(), breachType, message);
+        }
         automationRuleService.evaluateGeofenceBreach(fence.getParkId(), vehicle, fence.getFenceCode(), breachType);
+    }
+
+    private boolean isWithinGpsBuffer(List<double[]> polygon, BigDecimal longitude, BigDecimal latitude) {
+        if (polygon == null || polygon.size() < 3) {
+            return false;
+        }
+        GeoPoint point = new GeoPoint(longitude, latitude);
+        for (int i = 0; i < polygon.size(); i++) {
+            double[] curr = polygon.get(i);
+            double[] next = polygon.get((i + 1) % polygon.size());
+            GeoPoint segStart = new GeoPoint(BigDecimal.valueOf(curr[0]), BigDecimal.valueOf(curr[1]));
+            GeoPoint segEnd = new GeoPoint(BigDecimal.valueOf(next[0]), BigDecimal.valueOf(next[1]));
+            double distance = GeoPolygonUtils.distancePointToSegmentMeters(point, segStart, segEnd);
+            if (distance < GPS_BUFFER_METERS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Long findCurrentTaskId(Long vehicleId) {
+        DispatchTaskEntity task = dispatchTaskMapper.selectOne(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<DispatchTaskEntity>lambdaQuery()
+                        .eq(DispatchTaskEntity::getVehicleId, vehicleId)
+                        .in(DispatchTaskEntity::getStatus, "ASSIGNED", "IN_PROGRESS", "GOING_TO_PICKUP")
+                        .eq(DispatchTaskEntity::getDeleted, 0)
+                        .orderByDesc(DispatchTaskEntity::getAssignTime)
+                        .last("LIMIT 1"));
+        return task != null ? task.getId() : null;
     }
 
     private static String resolveBreachType(String fenceType, boolean inside) {

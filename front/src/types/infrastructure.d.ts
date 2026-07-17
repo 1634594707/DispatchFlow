@@ -39,6 +39,7 @@ export interface AdminStation {
   coordLng?: number | null
   coordLat?: number | null
   area?: string
+  deliveryZone?: 'GEO_DELIVERY' | 'SCHEMATIC' | 'GENERAL'
   status: 'ACTIVE' | 'INACTIVE'
   sortOrder?: number
   capacityLimit?: number
@@ -57,6 +58,7 @@ export interface AdminStationUpsertPayload {
   coordLng?: number | null
   coordLat?: number | null
   area?: string
+  deliveryZone?: 'GEO_DELIVERY' | 'SCHEMATIC' | 'GENERAL'
   status?: string
   sortOrder?: number
   capacityLimit?: number

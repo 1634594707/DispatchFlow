@@ -13,3 +13,10 @@ export function queryExceptions(data: ExceptionQueryRequest) {
 export function resolveException(exceptionId: number, data: ResolveExceptionRequest) {
   return request.post<any, ApiResponse<null>>(`/admin/exceptions/${exceptionId}/resolve`, data)
 }
+
+export function batchResolveExceptions(exceptionIds: number[], data: ResolveExceptionRequest) {
+  return request.post<any, ApiResponse<null>>('/admin/exceptions/batch-resolve', {
+    exceptionIds,
+    ...data,
+  })
+}

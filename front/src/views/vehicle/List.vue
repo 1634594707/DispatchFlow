@@ -32,6 +32,16 @@
           {{ cfg.label }}
         </a-select-option>
       </a-select>
+      <a-select
+        v-model:value="queryForm.deliveryZone"
+        placeholder="配送区域"
+        allow-clear
+        style="width: 140px;"
+      >
+        <a-select-option value="GEO_DELIVERY">地理配送</a-select-option>
+        <a-select-option value="SCHEMATIC">园区内部</a-select-option>
+        <a-select-option value="BOTH">通用</a-select-option>
+      </a-select>
       <a-input
         v-model:value="queryForm.vehicleCode"
         placeholder="车辆编号"
@@ -69,6 +79,11 @@
         </template>
         <template v-else-if="column.dataIndex === 'dispatchStatus'">
           <StatusBadge :status="record.dispatchStatus" type="dispatch" />
+        </template>
+        <template v-else-if="column.dataIndex === 'deliveryZone'">
+          <a-tag v-if="record.deliveryZone === 'GEO_DELIVERY'" color="processing">地理配送</a-tag>
+          <a-tag v-else-if="record.deliveryZone === 'SCHEMATIC'" color="success">园区内部</a-tag>
+          <a-tag v-else>通用</a-tag>
         </template>
         <template v-else-if="column.dataIndex === 'currentTaskId'">
           <router-link
@@ -151,7 +166,7 @@ import { DEFAULT_PAGE_SIZE } from '@/config'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
-import type { VehicleAdminListItem } from '@/types/vehicle'
+import type { VehicleAdminListItem, VehicleDeliveryZone } from '@/types/vehicle'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
@@ -185,6 +200,7 @@ const linkModeOptions = [
 const queryForm = reactive({
   onlineStatus: undefined as OnlineStatus | undefined,
   dispatchStatus: undefined as DispatchStatus | undefined,
+  deliveryZone: undefined as VehicleDeliveryZone | undefined,
   vehicleCode: '',
 })
 
@@ -201,6 +217,7 @@ const columns = [
   { title: '车辆名称', dataIndex: 'vehicleName', width: 140 },
   { title: '在线状态', dataIndex: 'onlineStatus', width: 100 },
   { title: '调度状态', dataIndex: 'dispatchStatus', width: 100 },
+  { title: '配送区域', dataIndex: 'deliveryZone', width: 110 },
   { title: '当前任务', dataIndex: 'currentTaskId', width: 100 },
   { title: '电量', dataIndex: 'batteryLevel', width: 140 },
   { title: '最后回传', dataIndex: 'lastReportTime', width: 160 },
@@ -251,6 +268,7 @@ function handleSearch() {
 function handleReset() {
   queryForm.onlineStatus = undefined
   queryForm.dispatchStatus = undefined
+  queryForm.deliveryZone = undefined
   queryForm.vehicleCode = ''
   pageNo.value = 1
   fetchData()

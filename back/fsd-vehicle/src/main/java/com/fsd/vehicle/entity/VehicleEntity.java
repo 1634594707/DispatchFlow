@@ -52,5 +52,14 @@ public class VehicleEntity {
 
     private Integer version;
 
+    /** 配送区域: GEO_DELIVERY / SCHEMATIC / BOTH */
+    private String deliveryZone;
+
+    /** 最大载重(kg) */
+    private Integer maxLoadCapacity;
+
+    /** 当前载重(kg) */
+    private Integer currentLoad;
+
     private Integer deleted;
 }

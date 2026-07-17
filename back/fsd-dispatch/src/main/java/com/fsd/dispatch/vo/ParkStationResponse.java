@@ -30,4 +30,16 @@ public class ParkStationResponse {
     private BigDecimal coordLat;
 
     private String area;
+
+    /** 营业时间窗口，例如 "06:00-22:00" */
+    private String serviceHours;
+
+    /** 平均服务时长（秒） */
+    private Integer avgServiceSeconds;
+
+    /** 站点承载上限 */
+    private Integer capacityLimit;
+
+    /** 配送区域: GEO_DELIVERY / SCHEMATIC / GENERAL */
+    private String deliveryZone;
 }

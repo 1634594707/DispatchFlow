@@ -3,6 +3,7 @@ package com.fsd.order.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Data;
 
@@ -44,6 +45,12 @@ public class OrderEntity {
     private LocalDateTime updatedAt;
 
     private Integer version;
+
+    /** 配送区域 */
+    private String deliveryZone;
+
+    /** 货物重量(kg) */
+    private BigDecimal weight;
 
     private Integer deleted;
 }

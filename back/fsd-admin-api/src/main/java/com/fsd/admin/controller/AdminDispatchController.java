@@ -388,7 +388,10 @@ public class AdminDispatchController {
                                               HttpServletRequest httpRequest) {
         AdminAuthSupport.requireAuth(httpRequest);
         DispatchExceptionRecordEntity exception = dispatchExceptionService.getException(exceptionId);
-        if (exception != null && "RESOLVED".equals(exception.getExceptionStatus())) {
+        if (exception == null) {
+            throw new BusinessException("DISPATCH_EXCEPTION_NOT_FOUND", "Dispatch exception not found");
+        }
+        if ("RESOLVED".equals(exception.getExceptionStatus())) {
             throw new BusinessException("DISPATCH_EXCEPTION_ALREADY_RESOLVED", "Dispatch exception already resolved");
         }
         if ("REASSIGN".equals(request.getAction())) {
@@ -406,6 +409,20 @@ public class AdminDispatchController {
             dispatchTaskService.reassignTask(exception.getTaskId(), assignRequest);
         }
         dispatchExceptionService.resolveException(exceptionId, request.toDispatchRequest());
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/exceptions/batch-resolve")
+    @Operation(summary = "Batch resolve dispatch exceptions")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Exceptions resolved"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Validation error"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
+    public ApiResponse<Void> batchResolveExceptions(@Valid @RequestBody AdminDispatchExceptionBatchResolveRequest request,
+                                                    HttpServletRequest httpRequest) {
+        AdminAuthSupport.requireAuth(httpRequest);
+        dispatchExceptionService.resolveExceptions(request.getExceptionIds(), request.toDispatchRequest());
         return ApiResponse.success(null);
     }
 

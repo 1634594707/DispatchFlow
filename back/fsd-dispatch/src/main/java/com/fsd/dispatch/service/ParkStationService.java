@@ -27,5 +27,12 @@ public interface ParkStationService {
     /** 站点 GCJ-02 须落在园区 ACTIVE BOUNDARY 围栏内（找家纺 L1 试点）。 */
     void assertStationWithinDeliveryZone(Long stationId, Long parkId);
 
+    /**
+     * 检查站点是否在公共道路旁（可配送）
+     * @param stationId 站点ID
+     * @return true如果站点可达
+     */
+    boolean isStationRoadAccessible(Long stationId);
+
     ParkStationResponse toStationResponse(ParkEntity park, StationEntity station);
 }

@@ -185,6 +185,28 @@ public class ParkStationServiceImpl implements ParkStationService {
         }
     }
 
+    @Override
+    public boolean isStationRoadAccessible(Long stationId) {
+        StationEntity station = requireStationEntity(stationId);
+        if (station.getCoordLng() == null || station.getCoordLat() == null) {
+            return true;
+        }
+        List<ParkGeofenceEntity> boundaries = geofenceMapper.selectList(
+                new LambdaQueryWrapper<ParkGeofenceEntity>()
+                        .eq(ParkGeofenceEntity::getParkId, station.getParkId())
+                        .eq(ParkGeofenceEntity::getStatus, "ACTIVE")
+                        .eq(ParkGeofenceEntity::getFenceType, "BOUNDARY")
+                        .eq(ParkGeofenceEntity::getDeleted, 0));
+        if (boundaries.isEmpty()) {
+            return true;
+        }
+        return boundaries.stream()
+                .anyMatch(fence -> GeoPolygonUtils.contains(
+                        parseFenceVertices(fence.getPolygonJson()),
+                        station.getCoordLng(),
+                        station.getCoordLat()));
+    }
+
     private List<double[]> parseFenceVertices(String polygonJson) {
         if (polygonJson == null || polygonJson.isBlank()) {
             return List.of();
@@ -222,6 +244,10 @@ public class ParkStationServiceImpl implements ParkStationService {
                 .coordLng(station.getCoordLng())
                 .coordLat(station.getCoordLat())
                 .area(station.getArea())
+                .serviceHours(station.getServiceHours())
+                .avgServiceSeconds(station.getAvgServiceSeconds())
+                .capacityLimit(station.getCapacityLimit())
+                .deliveryZone(station.getDeliveryZone())
                 .build();
     }
 

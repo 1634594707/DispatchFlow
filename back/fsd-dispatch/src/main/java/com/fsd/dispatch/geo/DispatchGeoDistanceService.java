@@ -1,9 +1,11 @@
 package com.fsd.dispatch.geo;
 
 import com.fsd.dispatch.config.AmapProperties;
+import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
 import com.fsd.dispatch.geo.amap.AmapLogisticsDistanceService;
+import com.fsd.dispatch.mapper.ParkMapper;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.vehicle.entity.VehicleEntity;
 import java.util.ArrayList;
@@ -23,15 +25,18 @@ public class DispatchGeoDistanceService {
     private final FleetRuntimeService fleetRuntimeService;
     private final AmapLogisticsDistanceService amapLogisticsDistanceService;
     private final AmapProperties amapProperties;
+    private final ParkMapper parkMapper;
 
     public DispatchGeoDistanceService(FleetGeoResolver fleetGeoResolver,
                                       FleetRuntimeService fleetRuntimeService,
                                       AmapLogisticsDistanceService amapLogisticsDistanceService,
-                                      AmapProperties amapProperties) {
+                                      AmapProperties amapProperties,
+                                      ParkMapper parkMapper) {
         this.fleetGeoResolver = fleetGeoResolver;
         this.fleetRuntimeService = fleetRuntimeService;
         this.amapLogisticsDistanceService = amapLogisticsDistanceService;
         this.amapProperties = amapProperties;
+        this.parkMapper = parkMapper;
     }
 
     public boolean isGeoBlendEnabled() {
@@ -91,5 +96,27 @@ public class DispatchGeoDistanceService {
             result.add(blended.getOrDefault(i, parkDistancesPx.get(i)));
         }
         return result;
+    }
+
+    /**
+     * 计算跨园区配送距离
+     * @param fromParkId 起始园区ID
+     * @param toParkId 目标园区ID
+     * @return 距离（米），如果不可达返回 Double.MAX_VALUE
+     */
+    public double calculateCrossParkDistance(Long fromParkId, Long toParkId) {
+        if (fromParkId == null || toParkId == null) {
+            return Double.MAX_VALUE;
+        }
+        ParkEntity fromPark = parkMapper.selectById(fromParkId);
+        ParkEntity toPark = parkMapper.selectById(toParkId);
+        if (fromPark == null || toPark == null
+                || fromPark.getCenterLng() == null || fromPark.getCenterLat() == null
+                || toPark.getCenterLng() == null || toPark.getCenterLat() == null) {
+            return Double.MAX_VALUE;
+        }
+        GeoPoint from = new GeoPoint(fromPark.getCenterLng(), fromPark.getCenterLat());
+        GeoPoint to = new GeoPoint(toPark.getCenterLng(), toPark.getCenterLat());
+        return GeoPolygonUtils.haversineMeters(from, to);
     }
 }

@@ -4,7 +4,7 @@
  * Extracted from Tracking.vue SSE lifecycle logic.
  * Manages stream connection, reconnection, and fallback polling.
  */
-import { ref, computed, type Ref } from 'vue'
+import { ref, computed, onBeforeUnmount, type Ref } from 'vue'
 import { getFleetTelemetryStreamUrl } from '@/api/dispatch'
 import { createSSEClient } from '@/utils/sseClient'
 import type { SSEClient } from '@/types/stream'
@@ -90,6 +90,9 @@ export function useSseConnection(options?: {
     streamConnected.value = false
     sseReconnecting.value = false
   }
+
+  // 组件卸载时关闭 EventSource，防止内存泄漏与幽灵连接
+  onBeforeUnmount(stopStream)
 
   return {
     streamConnected,

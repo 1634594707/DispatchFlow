@@ -27,6 +27,11 @@
         <template v-if="column.key === 'stationType'">
           <a-tag :color="typeColor(record.stationType)">{{ typeLabel(record.stationType) }}</a-tag>
         </template>
+        <template v-else-if="column.key === 'deliveryZone'">
+          <a-tag v-if="record.deliveryZone === 'GEO_DELIVERY'" color="processing">地理配送</a-tag>
+          <a-tag v-else-if="record.deliveryZone === 'SCHEMATIC'" color="success">园区内部</a-tag>
+          <a-tag v-else>通用</a-tag>
+        </template>
         <template v-else-if="column.key === 'status'">
           <StatusBadge :status="record.status" type="infra" />
         </template>
@@ -113,6 +118,11 @@
               <a-input-number v-model:value="form.capacityLimit" :min="1" placeholder="枢纽/缓冲" style="width: 100%" />
             </a-form-item>
           </a-col>
+          <a-col :span="8">
+            <a-form-item label="配送区域">
+              <a-select v-model:value="form.deliveryZone" :options="deliveryZoneOptions" />
+            </a-form-item>
+          </a-col>
         </a-row>
         <a-form-item label="状态">
           <a-select v-model:value="form.status" :options="statusOptions" />
@@ -166,6 +176,7 @@ const form = reactive({
   coordLng: undefined as number | undefined,
   coordLat: undefined as number | undefined,
   area: '',
+  deliveryZone: 'GENERAL' as 'GEO_DELIVERY' | 'SCHEMATIC' | 'GENERAL',
   status: 'ACTIVE',
   sortOrder: 0,
   capacityLimit: undefined as number | undefined,
@@ -177,6 +188,7 @@ const columns = [
   { title: '名称', dataIndex: 'stationName', key: 'stationName' },
   { title: '园区', dataIndex: 'parkName', key: 'parkName', width: 140 },
   { title: '类型', key: 'stationType', width: 100 },
+  { title: '配送区域', key: 'deliveryZone', width: 110 },
   { title: '坐标', key: 'coord', width: 140 },
   { title: '状态', key: 'status', width: 90 },
   { title: '操作', key: 'actions', width: 80 },
@@ -194,6 +206,12 @@ const typeOptions = [
 const statusOptions = [
   { label: '可用', value: 'ACTIVE' },
   { label: '维护中', value: 'INACTIVE' },
+]
+
+const deliveryZoneOptions = [
+  { label: '地理配送', value: 'GEO_DELIVERY' },
+  { label: '园区内部', value: 'SCHEMATIC' },
+  { label: '通用', value: 'GENERAL' },
 ]
 
 function typeLabel(type: string) {
@@ -226,6 +244,7 @@ function openCreate() {
   form.coordLng = undefined
   form.coordLat = undefined
   form.area = ''
+  form.deliveryZone = 'GENERAL'
   form.status = 'ACTIVE'
   form.sortOrder = 0
   form.remark = ''
@@ -243,6 +262,7 @@ function openEdit(record: AdminStation) {
   form.coordLng = record.coordLng != null ? Number(record.coordLng) : undefined
   form.coordLat = record.coordLat != null ? Number(record.coordLat) : undefined
   form.area = record.area ?? ''
+  form.deliveryZone = record.deliveryZone ?? 'GENERAL'
   form.status = record.status
   form.sortOrder = record.sortOrder ?? 0
   form.remark = record.remark ?? ''
@@ -266,6 +286,7 @@ async function handleSave() {
       coordLng: form.coordLng,
       coordLat: form.coordLat,
       area: form.area || undefined,
+      deliveryZone: form.deliveryZone,
       status: form.status,
       sortOrder: form.sortOrder,
       remark: form.remark || undefined,

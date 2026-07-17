@@ -33,6 +33,7 @@ public class GlobalSearchAdminServiceImpl implements GlobalSearchAdminService {
     @Override
     public AdminGlobalSearchResponse search(String keyword, int limit) {
         String normalized = keyword == null ? "" : keyword.trim();
+        // perType 为服务端计算的边界整数（3-10），非用户输入，下方 .last("LIMIT " + perType) 拼接无 SQL 注入风险
         int perType = Math.max(3, Math.min(limit, 30) / 3);
         List<AdminGlobalSearchItem> items = new ArrayList<>();
         if (!StringUtils.hasText(normalized)) {

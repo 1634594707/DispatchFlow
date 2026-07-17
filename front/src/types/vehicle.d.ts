@@ -1,9 +1,13 @@
 import type { OnlineStatus, DispatchStatus } from '@/constants/enums'
 
+/** 车辆配送区域：地理配送 / 园区内部 / 通用 */
+export type VehicleDeliveryZone = 'GEO_DELIVERY' | 'SCHEMATIC' | 'BOTH'
+
 export interface VehicleQueryRequest {
   vehicleCode?: string
   onlineStatus?: OnlineStatus
   dispatchStatus?: DispatchStatus
+  deliveryZone?: VehicleDeliveryZone
   parkId?: number
   pageNo: number
   pageSize: number
@@ -20,6 +24,9 @@ export interface VehicleAdminListItem {
   currentLatitude: number | null
   currentLongitude: number | null
   batteryLevel: number
+  deliveryZone?: VehicleDeliveryZone
+  maxLoadCapacity?: number | null
+  currentLoad?: number | null
   lastReportTime: string
 }
 
@@ -39,6 +46,9 @@ export interface VehicleDetailResponse {
   currentLatitude: number
   currentLongitude: number
   batteryLevel: number
+  deliveryZone?: VehicleDeliveryZone
+  maxLoadCapacity?: number | null
+  currentLoad?: number | null
   lastReportTime: string
   remark: string | null
 }

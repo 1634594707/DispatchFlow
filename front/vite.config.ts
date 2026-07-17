@@ -45,7 +45,9 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
       },
       devOptions: {
-        enabled: true,
+        // 开发环境禁用 SW 注册，避免 sw.ts 在 dev 下被作为模块加载导致的 MIME 类型错误；
+        // 生产环境仍通过构建产物正常注册。
+        enabled: false,
         type: 'module',
         navigateFallback: 'index.html',
       },

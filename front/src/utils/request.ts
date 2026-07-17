@@ -6,8 +6,8 @@ import { API_BASE, REQUEST_TIMEOUT } from '@/config'
 import type { ApiResponse } from '@/types/api'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useApiErrorsStore } from '@/stores/apiErrors'
-
-const TOKEN_KEY = 'fsd_admin_token'
+import router from '@/router'
+import { TOKEN_KEY } from '@/stores/auth'
 
 declare module 'axios' {
   interface AxiosRequestConfig {
@@ -24,11 +24,25 @@ const instance: AxiosInstance = axios.create({
   },
 })
 
+/**
+ * 读取指定名称的 cookie 值（用于 CSRF 双提交 cookie 模式）。
+ */
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]+)'))
+  return match ? decodeURIComponent(match[2]) : null
+}
+
 instance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem(TOKEN_KEY)
+    const token = sessionStorage.getItem(TOKEN_KEY)
     if (token) {
       config.headers['X-Admin-Token'] = token
+    }
+    // CSRF: 双提交 cookie 模式，从 cookie 读取 XSRF-TOKEN 并设置到请求头
+    // 需后端在登录等响应中 Set-Cookie: XSRF-TOKEN=... 配合
+    const xsrfToken = getCookie('XSRF-TOKEN')
+    if (xsrfToken) {
+      config.headers['X-XSRF-TOKEN'] = xsrfToken
     }
     return config
   },
@@ -57,20 +71,24 @@ instance.interceptors.response.use(
         method: (response.config.method || 'GET').toUpperCase(),
         status: response.status,
       })
+    } else {
+      console.warn('[request] pinia 未初始化，跳过 API 错误记录')
     }
     if (data.code === 'PARK_NOT_FOUND') {
       localStorage.removeItem('fsd_selected_park_id')
       const pinia = getActivePinia()
       if (pinia) {
         useParkScopeStore(pinia).setParkId(undefined)
+      } else {
+        console.warn('[request] pinia 未初始化，跳过园区作用域重置')
       }
       return Promise.reject(new Error('PARK_NOT_FOUND'))
     }
     if (data.code === 'ADMIN_AUTH_REQUIRED' || data.code === 'ADMIN_AUTH_FAILED') {
-      localStorage.removeItem(TOKEN_KEY)
-      localStorage.removeItem('fsd_admin_user')
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login'
+      sessionStorage.removeItem(TOKEN_KEY)
+      sessionStorage.removeItem('fsd_admin_user')
+      if (!router.currentRoute.value.path.startsWith('/login')) {
+        router.replace('/login')
       }
     }
     if (!response.config.skipErrorToast) {
@@ -96,6 +114,8 @@ instance.interceptors.response.use(
           method: (error.config?.method || 'GET').toUpperCase(),
           status,
         })
+      } else if (!pinia) {
+        console.warn('[request] pinia 未初始化，跳过 API 错误记录')
       }
     } else if (error.code === 'ECONNABORTED') {
       if (!error.config?.skipErrorToast) message.error('网络超时，请检查网络后重试')

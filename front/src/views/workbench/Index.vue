@@ -717,7 +717,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkbenchShortcuts } from '@/composables/useWorkbenchShortcuts'
 import { message } from 'ant-design-vue'
@@ -815,7 +815,7 @@ const batchCancelConfirmVisible = ref(false)
 const batchAutoConfirmVisible = ref(false)
 const batchReassignConfirmVisible = ref(false)
 
-// ── V5-W5 操作撤销 ──
+// ── V5-W5 操作撤销（P1-3 扩展：取消操作支持撤销） ──
 type BatchOpType = 'AUTO_ASSIGN' | 'CANCEL' | 'REASSIGN'
 interface LastBatchOp {
   type: BatchOpType
@@ -824,16 +824,16 @@ interface LastBatchOp {
   originalVehicles?: Map<number, number | null> // taskId -> vehicleId (for reassign undo)
   label: string
   timestamp: number
+  // CANCEL 类型专用：延迟提交模式，30s 内可撤销
+  delayedCommit?: () => Promise<void>
 }
 const lastBatchOp = ref<LastBatchOp | null>(null)
 const undoTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
+// 待提交的取消操作定时器（延迟提交模式）
+const pendingCancelTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const pendingCancelMessageKey = ref<string | null>(null)
 
 function showUndoNotification(op: LastBatchOp) {
-  // Cancel operations cannot be undone - show plain success message without undo button
-  if (op.type === 'CANCEL') {
-    message.success(`${op.label} 成功`)
-    return
-  }
   // Clear previous timeout
   if (undoTimeout.value) clearTimeout(undoTimeout.value)
   lastBatchOp.value = op
@@ -841,7 +841,7 @@ function showUndoNotification(op: LastBatchOp) {
   message.success({
     content: () =>
       h('div', { class: 'undo-notify' }, [
-        h('span', `${op.label} 成功`),
+        h('span', op.type === 'CANCEL' ? `${op.label}（30s 后执行，可撤销）` : `${op.label} 成功`),
         h('a-button', {
           size: 'small',
           type: 'primary',
@@ -867,6 +867,20 @@ async function executeUndo(messageKey: string) {
   message.destroy(messageKey)
   lastBatchOp.value = null
   if (undoTimeout.value) clearTimeout(undoTimeout.value)
+
+  // CANCEL 类型：撤销 = 取消延迟提交定时器，不调用 API
+  if (op.type === 'CANCEL') {
+    if (pendingCancelTimer.value) {
+      clearTimeout(pendingCancelTimer.value)
+      pendingCancelTimer.value = null
+    }
+    if (pendingCancelMessageKey.value) {
+      message.destroy(pendingCancelMessageKey.value)
+      pendingCancelMessageKey.value = null
+    }
+    message.success(`已撤销${op.label}（${op.taskIds.length} 项未执行）`)
+    return
+  }
 
   batchLoading.value = true
   try {
@@ -894,9 +908,6 @@ async function executeUndo(messageKey: string) {
         await batchUnassignTasks(unassignedTaskIds, '撤销改派')
       }
       message.success(`已撤销改派（${op.taskIds.length} 项）`)
-    } else if (op.type === 'CANCEL') {
-      message.warning('取消失败的操作无法撤销')
-      return
     }
     await refreshAll()
   } catch {
@@ -1459,24 +1470,43 @@ function handleBatchCancelPreConfirm() {
 }
 
 async function executeBatchCancel() {
-  batchLoading.value = true
   batchCancelConfirmVisible.value = false
-  try {
-    const taskIds = [...selectedTaskIds.value]
-    const res = await batchCancelTasks(taskIds)
-    batchResult.value = res.data
-    batchResultVisible.value = true
-    clearSelection()
-    showUndoNotification({
-      type: 'CANCEL',
-      taskIds,
-      label: '批量取消',
-      timestamp: Date.now(),
-    })
-    await refreshAll()
-  } finally {
-    batchLoading.value = false
+  const taskIds = [...selectedTaskIds.value]
+  clearSelection()
+
+  // P1-3: 取消操作延迟提交模式 —— 30s 内可撤销
+  if (pendingCancelTimer.value) {
+    clearTimeout(pendingCancelTimer.value)
+    pendingCancelTimer.value = null
   }
+
+  // 立即显示撤销通知，实际 API 调用延迟 30s 执行
+  showUndoNotification({
+    type: 'CANCEL',
+    taskIds,
+    label: '批量取消',
+    timestamp: Date.now(),
+  })
+
+  // 记录 message key 以便撤销时销毁
+  pendingCancelMessageKey.value = `undo-${Date.now()}`
+
+  pendingCancelTimer.value = setTimeout(async () => {
+    pendingCancelTimer.value = null
+    pendingCancelMessageKey.value = null
+    batchLoading.value = true
+    try {
+      const res = await batchCancelTasks(taskIds)
+      batchResult.value = res.data
+      batchResultVisible.value = true
+      message.success(`批量取消已执行（${taskIds.length} 项）`)
+      await refreshAll()
+    } catch {
+      // interceptor handles
+    } finally {
+      batchLoading.value = false
+    }
+  }, 30000)
 }
 
 function openBatchReassign() {
@@ -1708,6 +1738,92 @@ async function onDispatchPauseChange(checked: boolean) {
   message.success(checked ? '已暂停新派单' : '已恢复新派单')
 }
 
+// ── P1-2: 任务池自动刷新（30s，页面可见时） ──
+const AUTO_REFRESH_INTERVAL = 30000
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+const lastPendingCount = ref(0)
+const lastManualPendingCount = ref(0)
+const lastOpenExceptionCount = ref(0)
+
+async function silentRefresh() {
+  // 页面不可见时跳过，节省资源
+  if (document.visibilityState !== 'visible') return
+  const prevPending = lastPendingCount.value
+  const prevManual = lastManualPendingCount.value
+  const prevException = lastOpenExceptionCount.value
+  await store.fetchQueue({ silent: true })
+  // 检测新增待处理任务，触发浏览器通知
+  const newPending = store.pendingCount
+  const newManual = store.manualPendingCount
+  const newException = store.openExceptionCount
+  if (newPending > prevPending || newManual > prevManual || newException > prevException) {
+    notifyNewTasks(newPending - prevPending, newManual - prevManual, newException - prevException)
+  }
+  lastPendingCount.value = newPending
+  lastManualPendingCount.value = newManual
+  lastOpenExceptionCount.value = newException
+}
+
+function notifyNewTasks(deltaPending: number, deltaManual: number, deltaException: number) {
+  const parts: string[] = []
+  if (deltaPending > 0) parts.push(`待派单 +${deltaPending}`)
+  if (deltaManual > 0) parts.push(`人工待处理 +${deltaManual}`)
+  if (deltaException > 0) parts.push(`异常 +${deltaException}`)
+  if (parts.length === 0) return
+  const body = parts.join('，')
+  // 浏览器通知
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification('DispatchFlow 新任务提醒', { body })
+    } catch {
+      // 通知 API 不可用时静默失败
+    }
+  }
+  // 页面标题闪烁提示
+  flashTitle(body)
+}
+
+let titleFlashTimer: ReturnType<typeof setInterval> | null = null
+const originalTitle = '调度工作台 · DispatchFlow'
+function flashTitle(alertText: string) {
+  if (titleFlashTimer) clearInterval(titleFlashTimer)
+  let toggle = false
+  titleFlashTimer = setInterval(() => {
+    document.title = toggle ? originalTitle : `【新任务】${alertText}`
+    toggle = !toggle
+  }, 1000)
+  // 10s 后停止闪烁
+  setTimeout(() => {
+    if (titleFlashTimer) {
+      clearInterval(titleFlashTimer)
+      titleFlashTimer = null
+    }
+    document.title = originalTitle
+  }, 10000)
+}
+
+function startAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer)
+  autoRefreshTimer = setInterval(silentRefresh, AUTO_REFRESH_INTERVAL)
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+    autoRefreshTimer = null
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    // 重新可见时立即刷新一次
+    void silentRefresh()
+    startAutoRefresh()
+  } else {
+    stopAutoRefresh()
+  }
+}
+
 onMounted(() => {
   refreshAll()
   void loadDispatchPause()
@@ -1717,6 +1833,26 @@ onMounted(() => {
   // V5-T5: 再来一单 → 打开创建订单弹窗
   if (route.query.reorder === '1') {
     createOrderModalOpen.value = true
+  }
+  // P1-2: 请求通知权限 + 启动自动刷新
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => { /* 静默 */ })
+  }
+  lastPendingCount.value = store.pendingCount
+  lastManualPendingCount.value = store.manualPendingCount
+  lastOpenExceptionCount.value = store.openExceptionCount
+  startAutoRefresh()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+onBeforeUnmount(() => {
+  stopAutoRefresh()
+  if (titleFlashTimer) clearInterval(titleFlashTimer)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  // 清理待提交的取消操作定时器
+  if (pendingCancelTimer.value) {
+    clearTimeout(pendingCancelTimer.value)
+    pendingCancelTimer.value = null
   }
 })
 

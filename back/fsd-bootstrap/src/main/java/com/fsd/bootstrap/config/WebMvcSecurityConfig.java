@@ -1,5 +1,6 @@
 package com.fsd.bootstrap.config;
 
+import java.util.Arrays;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -38,12 +39,16 @@ public class WebMvcSecurityConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         String[] origins = (allowedOrigins == null || allowedOrigins.isBlank())
                 ? new String[0]
-                : allowedOrigins.split(",");
+                : Arrays.stream(allowedOrigins.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .toArray(String[]::new);
         if (origins.length == 0) {
             return;
         }
+        // allowedOriginPatterns (not allowedOrigins("*")) is required when allowCredentials=true
         registry.addMapping("/api/**")
-                .allowedOrigins(origins)
+                .allowedOriginPatterns(origins)
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("Content-Type", "X-Admin-Token", "X-Api-Key",
                         "X-Vehicle-Code", "X-Vehicle-Token", "X-Mobile-Api-Key")

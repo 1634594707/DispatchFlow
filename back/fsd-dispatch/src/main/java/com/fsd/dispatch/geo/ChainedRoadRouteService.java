@@ -44,18 +44,13 @@ public class ChainedRoadRouteService implements RoadRouteService {
         if (origin == null || destination == null) {
             return straightLine(origin, destination);
         }
+        // 高德API返回的是真实道路路径，直接使用，不用本地道路图验证
         if (amapService.isAvailable()) {
-            RoadRouteResult result = collisionValidator.applyValidation(
-                    amapService.planDrivingRoute(origin, destination));
-            if (result.fromAmap() && result.polyline().size() >= 4 && !result.invalid()) {
+            RoadRouteResult result = amapService.planDrivingRoute(origin, destination);
+            if (result.fromAmap() && result.polyline().size() >= 4) {
                 return result;
             }
-            if (result.invalid()) {
-                log.info("Amap route rejected by collision check (building={}, river={}), falling back to local graph",
-                        result.crossesBuilding(), result.crossesRiver());
-            } else {
-                log.debug("Amap route returned {} vertices, falling back to local graph", result.polyline().size());
-            }
+            log.debug("Amap route returned {} vertices, falling back to local graph", result.polyline().size());
         }
         if (localGraphService.isAvailable()) {
             RoadRouteResult result = collisionValidator.applyValidation(

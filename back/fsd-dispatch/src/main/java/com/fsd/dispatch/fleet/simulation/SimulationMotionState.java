@@ -31,6 +31,8 @@ public class SimulationMotionState {
     public int swapTicks;
     public LocalDateTime holdUntil;
     public LocalDateTime offlineUntil;
+    /** 当前阶段开始时间，用于阶段超时判断（如 TO_PICKUP 超时转入 EMERGENCY_PARKING）。 */
+    public LocalDateTime stageStartedAt;
     public List<ParkPointResponse> route = List.of();
     public int routeIndex;
     public int busyMoveTicks;

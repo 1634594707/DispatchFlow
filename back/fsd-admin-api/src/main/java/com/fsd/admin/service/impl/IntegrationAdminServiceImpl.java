@@ -145,13 +145,20 @@ public class IntegrationAdminServiceImpl implements IntegrationAdminService {
         return AdminExternalApiKeyResponse.builder()
                 .id(entity.getId())
                 .keyName(entity.getKeyName())
-                .apiKey(entity.getApiKey())
+                .apiKey(maskApiKey(entity.getApiKey()))
                 .status(entity.getStatus())
                 .rateLimitPerMinute(entity.getRateLimitPerMinute())
                 .totalCalls(entity.getTotalCalls())
                 .rateLimitHits(entity.getRateLimitHits())
                 .lastUsedAt(entity.getLastUsedAt())
                 .build();
+    }
+
+    private String maskApiKey(String apiKey) {
+        if (apiKey == null || apiKey.length() <= 8) {
+            return "****";
+        }
+        return apiKey.substring(0, 4) + "****" + apiKey.substring(apiKey.length() - 4);
     }
 
     private AdminWebhookDeliveryLogResponse toDeliveryLog(WebhookDeliveryLogEntity entity) {

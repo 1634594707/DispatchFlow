@@ -2,67 +2,76 @@
    DispatchFlow Design Tokens — Single Source of Truth
    ==========================================================================
    这是所有视觉属性的唯一权威来源。禁止在各组件中硬编码色值/尺寸。
-   同步文件：src/config/theme.ts (Ant Design Vue)、docs/DESIGN-SYSTEM.md
+   同步文件：src/config/theme.ts (Ant Design Vue)、src/config/tokens.ts、docs/DESIGN-SYSTEM.md
 
+   设计语言：Operational Elegance
+   灵感来源：Linear / Cursor / Vercel — 深邃黑底 + 信号青强调 + 精致克制
    基线：4px 网格 · 暗色优先 · WCAG AA · OKLCH 感知色彩空间
+   字体：Geist (UI) + Geist Mono (数据) — 与 Codefolio 保持品牌一致性
    ========================================================================== */
 
 /* ── Color: Background Layers ───────────────────────────── */
 :root {
-  --fsd-bg-deep:     #0B1018;   /* 页面底层 (body bg)            */
-  --fsd-bg-base:     #121821;   /* 卡片 / 侧边 / 表格            */
-  --fsd-bg-elevated: #1A2230;   /* 输入框 / 下拉 / 模态          */
-  --fsd-bg-hover:    #222C3C;   /* 悬停态                        */
-  --fsd-bg-active:   #283447;   /* 按下 / 选中态                 */
+  --fsd-bg-deep:     #08090C;   /* 页面底层 (body bg) — 接近纯黑，略带冷调  */
+  --fsd-bg-base:     #0F1218;   /* 卡片 / 侧边 / 表格                       */
+  --fsd-bg-elevated: #161A22;   /* 输入框 / 下拉 / 模态                     */
+  --fsd-bg-hover:    #1E232D;   /* 悬停态                                   */
+  --fsd-bg-active:   #262C38;   /* 按下 / 选中态                            */
+  --fsd-bg-spotlight:#1B2129;   /* 高亮聚光区域（active 卡片强调）          */
 }
 
 /* ── Color: Text ────────────────────────────────────────── */
 :root {
-  --fsd-text-primary:   #EEF3F9;   /* 正文 / 标题 (contrast ~14:1)  */
-  --fsd-text-secondary: #9BA8B8;   /* 辅助文字 (contrast ~5.4:1)    */
-  --fsd-text-tertiary:  #6B7787;   /* 提示 / placeholder            */
-  --fsd-text-heading:   #F4F8FC;   /* 页面标题增强                  */
+  --fsd-text-primary:   #F1F5F9;   /* 正文 / 标题 (contrast ~15:1)  */
+  --fsd-text-secondary: #94A3B8;   /* 辅助文字 (contrast ~5.6:1)     */
+  --fsd-text-tertiary:  #64748B;   /* 提示 / placeholder             */
+  --fsd-text-heading:   #F8FAFC;   /* 页面标题增强                   */
+  --fsd-text-muted:     #475569;   /* 已禁用 / 弱化标签              */
 }
 
 /* ── Color: Border ──────────────────────────────────────── */
 :root {
-  --fsd-border:        rgba(255, 255, 255, 0.07);  /* 默认边框     */
-  --fsd-border-active: rgba(255, 255, 255, 0.14);  /* 悬停/激活边框 */
-  --fsd-border-split:  rgba(255, 255, 255, 0.05);  /* 分割线       */
+  --fsd-border:         rgba(241, 245, 249, 0.07);  /* 默认边框     */
+  --fsd-border-active:  rgba(241, 245, 249, 0.14);  /* 悬停/激活边框 */
+  --fsd-border-split:   rgba(241, 245, 249, 0.05);  /* 分割线       */
+  --fsd-border-strong:  rgba(241, 245, 249, 0.22);  /* 强调边框     */
 }
 
-/* ── Color: Accent (Signal Cyan) ────────────────────────── */
+/* ── Color: Accent (Signal Cyan — refined SaaS) ─────────── */
 :root {
-  --fsd-accent:        #22C7E6;   /* 品牌主色                        */
-  --fsd-accent-strong: #38D9F2;   /* 主色增亮 (hover/active)          */
-  --fsd-accent-muted:  #0FA8C6;   /* 主色加深 (按下)                 */
-  --fsd-accent-glow:   rgba(34, 199, 230, 0.16); /* 发光效果         */
-  --fsd-accent-bg:     rgba(34, 199, 230, 0.10); /* 浅底背景         */
-  --fsd-accent-border: rgba(34, 199, 230, 0.30); /* 边框强调         */
+  --fsd-accent:         #22D3EE;   /* 品牌主色 — Tailwind cyan-400           */
+  --fsd-accent-strong:  #67E8F9;   /* 主色增亮 (hover) — cyan-300            */
+  --fsd-accent-muted:   #06B6D4;   /* 主色加深 (active) — cyan-500           */
+  --fsd-accent-deep:    #0891B2;   /* 极深主色 — cyan-600 (gradient end)     */
+  --fsd-accent-glow:    rgba(34, 211, 238, 0.16);  /* 发光效果              */
+  --fsd-accent-bg:      rgba(34, 211, 238, 0.08);  /* 浅底背景              */
+  --fsd-accent-border:  rgba(34, 211, 238, 0.30);  /* 边框强调              */
+  --fsd-accent-subtle:  rgba(34, 211, 238, 0.04);  /* 极浅底（hover 渐变层） */
 }
 
 /* ── Color: Semantic ────────────────────────────────────── */
 :root {
-  --fsd-success: #2DE08A;   /* 已调度 / 已完成 / 在线              */
-  --fsd-warning: #FFC04D;   /* 低电量 / 拥堵 / 待处理              */
-  --fsd-error:   #FF5C7C;   /* 异常告警 / 离线 / 碰撞              */
-  --fsd-info:    #22C7E6;   /* 进行中 / 已派车 / 行驶中            */
+  --fsd-success: #34D399;   /* 已调度 / 已完成 / 在线 — emerald-400      */
+  --fsd-warning: #FBBF24;   /* 低电量 / 拥堵 / 待处理 — amber-400        */
+  --fsd-error:   #F87171;   /* 异常告警 / 离线 / 碰撞 — red-400          */
+  --fsd-info:    #22D3EE;   /* 进行中 / 已派车 / 行驶中 — 同主色         */
 }
 
 /* ── Color: Risk Status (调度风险标识) ───────────────────── */
 :root {
-  --fsd-risk-critical: #FF5C7C;   /* 严重 — 需立即处理               */
-  --fsd-risk-warning:  #FFC04D;   /* 警告 — 需关注                   */
-  --fsd-risk-active:   #22C7E6;   /* 进行中 — 正常范围               */
-  --fsd-risk-normal:   #2DE08A;   /* 正常 — 无风险                   */
-  --fsd-risk-muted:    #6B7787;   /* 已归档 — 不活跃                 */
+  --fsd-risk-critical: #F87171;   /* 严重 — 需立即处理               */
+  --fsd-risk-warning:  #FBBF24;   /* 警告 — 需关注                   */
+  --fsd-risk-active:   #22D3EE;   /* 进行中 — 正常范围               */
+  --fsd-risk-normal:   #34D399;   /* 正常 — 无风险                   */
+  --fsd-risk-muted:    #64748B;   /* 已归档 — 不活跃                 */
 }
 
 /* ── Typography ─────────────────────────────────────────── */
 :root {
-  --fsd-font-sans: 'Plus Jakarta Sans', 'PingFang SC', 'Microsoft YaHei',
+  --fsd-font-sans: 'Geist', 'Plus Jakarta Sans', 'PingFang SC', 'Microsoft YaHei',
     'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --fsd-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --fsd-font-mono: 'Geist Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --fsd-font-display: 'Geist', 'Plus Jakarta Sans', 'PingFang SC', sans-serif;
 
   /* Modular scale: 12 → 13 → 14 → 15 → 18 → 20 → 24 */
   --fsd-text-xs:   12px;   /* labels, badges, chart annotations   */
@@ -73,20 +82,23 @@
   --fsd-text-xl:   20px;   /* panel title (h2)                    */
   --fsd-text-2xl:  24px;   /* page title (h1), dashboard heading  */
 
-  --fsd-leading-tight:  1.3;   /* headings             */
-  --fsd-leading-snug:   1.4;   /* panel titles         */
-  --fsd-leading-normal: 1.5;   /* sub-headings         */
-  --fsd-leading-relaxed:1.6;   /* body / long text     */
+  --fsd-leading-tight:   1.2;   /* headings             */
+  --fsd-leading-snug:    1.35;  /* panel titles         */
+  --fsd-leading-normal:  1.5;   /* sub-headings         */
+  --fsd-leading-relaxed: 1.6;   /* body / long text     */
 
-  --fsd-font-regular:  400;
-  --fsd-font-medium:   500;
-  --fsd-font-semibold: 600;
-  --fsd-font-bold:     700;
-  --fsd-font-extrabold:800;
+  --fsd-font-regular:   400;
+  --fsd-font-medium:    500;
+  --fsd-font-semibold:  600;
+  --fsd-font-bold:      700;
+  --fsd-font-extrabold: 800;
 
   /* Letter spacing */
-  --fsd-tracking-tight: -0.02em;   /* large headings */
-  --fsd-tracking-normal: 0;
+  --fsd-tracking-tight:   -0.02em;   /* large headings */
+  --fsd-tracking-tighter: -0.03em;   /* hero headings  */
+  --fsd-tracking-normal:  0;
+  --fsd-tracking-wide:    0.04em;    /* eyebrow labels  */
+  --fsd-tracking-wider:   0.08em;    /* uppercase meta  */
 }
 
 /* ── Spacing (4px 基线网格) ─────────────────────────────── */
@@ -107,19 +119,25 @@
 :root {
   --fsd-radius-xs:  6px;    /* badge, indicator            */
   --fsd-radius-sm:  8px;    /* input, tag, button          */
-  --fsd-radius:    10px;    /* card, panel, default        */
+  --fsd-radius:    12px;    /* card, panel, default        */
+  --fsd-radius-md: 12px;    /* alias — 与 radius 同步       */
   --fsd-radius-lg: 16px;    /* modal, drawer               */
   --fsd-radius-xl: 20px;    /* hero card, large container  */
+  --fsd-radius-2xl:24px;    /* featured card               */
+  --fsd-radius-full: 9999px;/* pill, avatar                */
 }
 
 /* ── Elevation / Shadow ─────────────────────────────────── */
 :root {
-  --fsd-shadow-card:    0 1px 2px rgba(0, 0, 0, 0.24),
-                        0 4px 16px rgba(0, 0, 0, 0.18);   /* 卡片 */
-  --fsd-shadow-elevated: 0 12px 36px rgba(0, 0, 0, 0.42),
-                         0 2px 8px rgba(0, 0, 0, 0.28);   /* 模态/抽屉 */
-  --fsd-shadow-glow:    0 0 0 1px rgba(34, 199, 230, 0.16),
-                        0 8px 28px rgba(34, 199, 230, 0.16); /* 品牌发光 */
+  --fsd-shadow-card:     0 1px 2px rgba(0, 0, 0, 0.28),
+                         0 4px 16px rgba(0, 0, 0, 0.20);   /* 卡片 */
+  --fsd-shadow-elevated: 0 12px 36px rgba(0, 0, 0, 0.48),
+                         0 2px 8px rgba(0, 0, 0, 0.32);    /* 模态/抽屉 */
+  --fsd-shadow-glow:     0 0 0 1px rgba(34, 211, 238, 0.16),
+                         0 8px 28px rgba(34, 211, 238, 0.20); /* 品牌发光 */
+  --fsd-shadow-soft:     0 1px 2px rgba(0, 0, 0, 0.18);   /* 轻量阴影   */
+  --fsd-shadow-popover:  0 12px 32px rgba(0, 0, 0, 0.48),
+                         0 0 0 1px rgba(241, 245, 249, 0.06); /* 弹层 */
 }
 
 /* ── Motion / Easing ────────────────────────────────────── */
@@ -128,20 +146,27 @@
   --fsd-ease-in:       cubic-bezier(0.55, 0.06, 0.68, 0.19);   /* 缓入     */
   --fsd-ease-in-out:   cubic-bezier(0.65, 0.05, 0.36, 1);      /* 缓入缓出 */
   --fsd-ease-bounce:   cubic-bezier(0.34, 1.56, 0.64, 1);      /* 弹性缓出 */
+  --fsd-ease-spring:   cubic-bezier(0.16, 1, 0.3, 1);          /* Linear风弹性 */
 
   --fsd-duration-fast:   150ms;
-  --fsd-duration-normal: 250ms;
+  --fsd-duration-base:   220ms;
+  --fsd-duration-normal: 280ms;
   --fsd-duration-slow:   400ms;
+  --fsd-transition-fast:   150ms var(--fsd-ease);
+  --fsd-transition-base:   220ms var(--fsd-ease);
+  --fsd-transition-slow:   400ms var(--fsd-ease);
+  --fsd-transition-spring: 500ms var(--fsd-ease-spring);
 }
 
 /* ── Sizing ─────────────────────────────────────────────── */
 :root {
   --fsd-control-height-sm: 32px;   /* 小号控件 (按钮/输入)     */
-  --fsd-control-height:    38px;   /* 常规控件                  */
-  --fsd-control-height-lg: 44px;   /* 大号控件                  */
+  --fsd-control-height:    40px;   /* 常规控件 (移动端触摸优化) */
+  --fsd-control-height-lg: 48px;   /* 大号控件 (主 CTA)        */
   --fsd-touch-target-min:  44px;   /* 最小触摸目标 (WCAG)       */
   --fsd-sidebar-collapsed: 64px;   /* 折叠侧边栏宽              */
   --fsd-sidebar-expanded: 208px;   /* 展开侧边栏宽              */
+  --fsd-mobile-max-width:  560px;  /* 手机端内容最大宽度        */
 }
 
 /* ── Z-Index Scale ──────────────────────────────────────── */
@@ -153,12 +178,58 @@
   --fsd-z-popover:    980;
   --fsd-z-tooltip:    970;
   --fsd-z-toast:     1060;
+  --fsd-z-header:     100;
+  --fsd-z-fab:         90;
 }
 
 /* ── Gradient Presets ───────────────────────────────────── */
 :root {
-  --fsd-gradient-card:  linear-gradient(135deg, rgba(34, 199, 230, 0.05) 0%, rgba(18, 24, 33, 0) 60%);
-  --fsd-gradient-accent: linear-gradient(135deg, #22C7E6 0%, #2D8BF0 100%);
-  --fsd-gradient-danger: linear-gradient(135deg, #FF5C7C 0%, #FF8A65 100%);
-  --fsd-gradient-success: linear-gradient(135deg, #2DE08A 0%, #00E676 100%);
+  --fsd-gradient-card:    linear-gradient(135deg, rgba(34, 211, 238, 0.05) 0%, rgba(15, 18, 24, 0) 60%);
+  --fsd-gradient-accent:  linear-gradient(135deg, #22D3EE 0%, #06B6D4 100%);
+  --fsd-gradient-accent-deep: linear-gradient(135deg, #22D3EE 0%, #0891B2 100%);
+  --fsd-gradient-danger:  linear-gradient(135deg, #F87171 0%, #EF4444 100%);
+  --fsd-gradient-success: linear-gradient(135deg, #34D399 0%, #10B981 100%);
+  --fsd-gradient-warning: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
+  --fsd-gradient-hero:    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.10), transparent 50%),
+                          radial-gradient(circle at 100% 20%, rgba(125, 211, 252, 0.06), transparent 45%);
+}
+
+/* ── Keyframe Animations ────────────────────────────────── */
+:root {
+  --fsd-anim-fade-in:        fadeIn 220ms var(--fsd-ease);
+  --fsd-anim-fade-in-up:     fadeInUp 320ms var(--fsd-ease-spring);
+  --fsd-anim-scale-in:       scaleIn 220ms var(--fsd-ease-bounce);
+  --fsd-anim-shimmer:        shimmer 1.6s linear infinite;
+  --fsd-anim-pulse-glow:     pulseGlow 2.4s var(--fsd-ease-in-out) infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
 }

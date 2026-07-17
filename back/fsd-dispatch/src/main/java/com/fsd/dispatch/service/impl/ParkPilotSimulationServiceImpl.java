@@ -286,10 +286,25 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         vehicle.setDispatchStatus(VehicleDispatchStatus.BUSY.name());
         switch (state.stage) {
             case "TO_PICKUP" -> {
+                if (isToPickupTimedOut(state)) {
+                    submitVehicleReport(vehicle, "TASK_FAILED", "TO_PICKUP stage timed out");
+                    VehicleEntity latest = vehicleMapper.selectById(vehicle.getId());
+                    vehicle.setDispatchStatus(latest.getDispatchStatus());
+                    vehicle.setCurrentTaskId(latest.getCurrentTaskId());
+                    vehicle.setCurrentOrderId(latest.getCurrentOrderId());
+                    state.taskId = null;
+                    state.orderId = null;
+                    state.stage = "EMERGENCY_PARKING";
+                    state.stageStartedAt = LocalDateTime.now();
+                    state.route = List.of();
+                    state.routeIndex = 0;
+                    break;
+                }
                 moveVehicleAlongRoute(vehicle, state);
                 if (state.routeIndex >= state.route.size()) {
                     submitVehicleReport(vehicle, "START_EXECUTE", "Arrived at pickup station");
                     state.stage = "LOADING";
+                    state.stageStartedAt = LocalDateTime.now();
                     state.holdUntil = LocalDateTime.now().plusSeconds(3);
                     rotateDropoffTarget(state, vehicle);
                 }
@@ -297,12 +312,14 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             case "LOADING" -> {
                 if (state.holdUntil != null && !LocalDateTime.now().isBefore(state.holdUntil)) {
                     state.stage = "TO_DROPOFF";
+                    state.stageStartedAt = LocalDateTime.now();
                 }
             }
             case "TO_DROPOFF" -> {
                 moveVehicleAlongRoute(vehicle, state);
                 if (state.routeIndex >= state.route.size()) {
                     state.stage = "UNLOADING";
+                    state.stageStartedAt = LocalDateTime.now();
                     state.holdUntil = LocalDateTime.now().plusSeconds(3);
                 }
             }
@@ -319,12 +336,26 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                     routeAfterDelivery(vehicle, state);
                 }
             }
-            default -> state.stage = "TO_PICKUP";
+            default -> {
+                state.stage = "TO_PICKUP";
+                state.stageStartedAt = LocalDateTime.now();
+            }
         }
         reduceBattery(vehicle, true, state);
         vehicle.setLastReportTime(LocalDateTime.now());
         vehicleMapper.updateById(vehicle);
         recordPoint(state, vehicle);
+    }
+
+    private boolean isToPickupTimedOut(SimulationMotionState state) {
+        if (state.stageStartedAt == null) {
+            return false;
+        }
+        int timeoutSeconds = parkPilotProperties.getSimulation().getToPickupTimeoutSeconds();
+        if (timeoutSeconds <= 0) {
+            return false;
+        }
+        return LocalDateTime.now().isAfter(state.stageStartedAt.plusSeconds(timeoutSeconds));
     }
 
     private boolean hasActiveAssignment(VehicleEntity vehicle) {
@@ -465,6 +496,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         ParkStationResponse pickup = getStation(order.getPickupPointId());
         ParkStationResponse dropoff = getStation(order.getDropoffPointId());
         state.stage = "TO_PICKUP";
+        state.stageStartedAt = LocalDateTime.now();
         state.taskId = vehicle.getCurrentTaskId();
         state.orderId = vehicle.getCurrentOrderId();
         state.targetX = pickup.getX();
@@ -771,6 +803,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             return false;
         }
         state.stage = "EMERGENCY_PARKING";
+        state.stageStartedAt = LocalDateTime.now();
         state.route = List.of();
         state.routeIndex = 0;
         vehicle.setOnlineStatus(VehicleOnlineStatus.ONLINE.name());
@@ -1043,6 +1076,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.standbyPoint = schematic ? getStandbySpot(index) : getGeoStandbySpot(index);
         state.chargingPoint = getChargingSpot(vehicle, index, schematic);
         state.stage = "STANDBY";
+        state.stageStartedAt = LocalDateTime.now();
         state.targetCode = state.standbyPoint.getCode();
         state.targetType = "STANDBY";
         state.targetX = state.standbyPoint.getX();

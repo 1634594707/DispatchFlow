@@ -7,6 +7,20 @@
       <a-button @click="handleExport">
         <DownloadOutlined /> 导出
       </a-button>
+      <a-divider type="vertical" />
+      <a-button
+        v-if="selectedRowKeys.length > 0"
+        type="primary"
+        @click="handleBatchClose"
+      >
+        批量关闭 ({{ selectedRowKeys.length }})
+      </a-button>
+      <a-button
+        v-if="selectedRowKeys.length > 0"
+        @click="handleBatchReassign"
+      >
+        批量重新派车 ({{ selectedRowKeys.length }})
+      </a-button>
     </template>
 
     <div class="search-bar">
@@ -58,6 +72,15 @@
       :pagination="pagination"
       row-key="id"
       size="middle"
+      :row-selection="{
+        selectedRowKeys,
+        onChange: onSelectionChange,
+        hideDefaultSelections: true,
+        selections: [
+          { key: 'all', text: '全选' },
+          { key: 'none', text: '取消全选' },
+        ],
+      }"
       :scroll="{ x: 'max-content' }"
       @change="handleTableChange"
     >
@@ -69,9 +92,10 @@
           </span>
         </template>
         <template v-else-if="column.dataIndex === 'taskId'">
-          <router-link :to="`/tasks/${record.taskId}`" class="link-cell">
+          <router-link v-if="record.taskId" :to="`/tasks/${record.taskId}`" class="link-cell">
             {{ record.taskId }}
           </router-link>
+          <span v-else class="text-secondary">无</span>
         </template>
         <template v-else-if="column.dataIndex === 'exceptionMsg'">
           <a-tooltip :title="record.exceptionMsg">
@@ -101,9 +125,10 @@
             >
               处理
             </a-button>
-            <a-button type="link" size="small" @click="router.push(`/tasks/${record.taskId}`)">
+            <a-button v-if="record.taskId" type="link" size="small" @click="router.push(`/tasks/${record.taskId}`)">
               查看任务
             </a-button>
+            <span v-else size="small" class="text-secondary">无关联任务</span>
           </div>
         </template>
       </template>
@@ -125,12 +150,14 @@
             </a-descriptions-item>
             <a-descriptions-item label="关联任务">
               <router-link
+                v-if="currentException.taskId"
                 :to="`/tasks/${currentException.taskId}`"
                 class="link"
                 @click="drawerVisible = false"
               >
                 任务#{{ currentException.taskId }}
               </router-link>
+              <span v-else class="text-secondary">无关联任务</span>
             </a-descriptions-item>
             <a-descriptions-item label="发生时间">
               {{ formatTime(currentException.occurTime) }}
@@ -148,10 +175,24 @@
           <a-form layout="vertical">
             <a-form-item label="处理结果" required>
               <a-radio-group v-model:value="resolveForm.action">
-                <a-radio value="REASSIGN">重新派单</a-radio>
+                <a-radio :disabled="!currentException?.taskId" value="REASSIGN">
+                  <template #label>
+                    <span>重新派单</span>
+                    <a-tooltip v-if="!currentException?.taskId" title="无关联任务，无法重新派单">
+                      <InfoCircleOutlined style="margin-left: 4px; color: #999;" />
+                    </a-tooltip>
+                  </template>
+                </a-radio>
                 <a-radio value="IGNORE">忽略异常</a-radio>
                 <a-radio value="CONTACT">联系现场</a-radio>
-                <a-radio value="MARK_FAILED">标记失败</a-radio>
+                <a-radio :disabled="!currentException?.taskId" value="MARK_FAILED">
+                  <template #label>
+                    <span>标记失败</span>
+                    <a-tooltip v-if="!currentException?.taskId" title="无关联任务">
+                      <InfoCircleOutlined style="margin-left: 4px; color: #999;" />
+                    </a-tooltip>
+                  </template>
+                </a-radio>
               </a-radio-group>
             </a-form-item>
 
@@ -189,7 +230,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined, DownloadOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined, DownloadOutlined, InfoCircleOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
@@ -297,6 +338,59 @@ const resolveForm = reactive({
   remark: '',
   vehicleId: undefined as number | undefined,
 })
+
+const selectedRowKeys = ref<number[]>([])
+const batchResolveLoading = ref(false)
+
+function onSelectionChange(keys: number[]) {
+  selectedRowKeys.value = keys
+}
+
+async function handleBatchClose() {
+  if (selectedRowKeys.value.length === 0) return
+  const confirmed = await window.confirm(`确定要批量关闭 ${selectedRowKeys.value.length} 个异常吗？`)
+  if (!confirmed) return
+  batchResolveLoading.value = true
+  try {
+    await store.handleBatchResolve(selectedRowKeys.value, {
+      resolverId: 'u1001',
+      resolverName: '管理员',
+      action: 'IGNORE',
+      remark: '批量关闭异常',
+    })
+    message.success(`已批量关闭 ${selectedRowKeys.value.length} 个异常`)
+    selectedRowKeys.value = []
+    fetchData()
+    store.fetchOpenCount()
+  } catch {
+    // handled by interceptor
+  } finally {
+    batchResolveLoading.value = false
+  }
+}
+
+async function handleBatchReassign() {
+  if (selectedRowKeys.value.length === 0) return
+  const confirmed = await window.confirm(`确定要对 ${selectedRowKeys.value.length} 个异常执行批量重新派车吗？`)
+  if (!confirmed) return
+  batchResolveLoading.value = true
+  try {
+    await store.handleBatchResolve(selectedRowKeys.value, {
+      resolverId: 'u1001',
+      resolverName: '管理员',
+      action: 'REASSIGN',
+      remark: '批量重新派车',
+    })
+    message.success(`已批量处理 ${selectedRowKeys.value.length} 个异常`)
+    selectedRowKeys.value = []
+    fetchData()
+    store.fetchOpenCount()
+  } catch {
+    // handled by interceptor
+  } finally {
+    batchResolveLoading.value = false
+  }
+}
 
 function openResolveDrawer(record: ExceptionAdminListItem) {
   currentException.value = record

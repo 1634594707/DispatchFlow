@@ -124,6 +124,9 @@ public class ParkPilotProperties {
 
         /** Idle drain probability per tick (0-1). */
         private double idleDrainProbability = 0.06D;
+
+        /** TO_PICKUP 阶段最大时长（秒），超过后自动转入 EMERGENCY_PARKING。 */
+        private int toPickupTimeoutSeconds = 300;
     }
 
     @Data

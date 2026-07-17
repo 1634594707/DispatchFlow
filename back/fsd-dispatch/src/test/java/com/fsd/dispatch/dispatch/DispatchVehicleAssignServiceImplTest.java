@@ -65,7 +65,7 @@ class DispatchVehicleAssignServiceImplTest {
     private DispatchAutomationRuleService automationRuleService;
 
     private final DispatchGeoDistanceService dispatchGeoDistanceService = new DispatchGeoDistanceService(
-            null, null, null, null) {
+            null, null, null, null, null) {
         @Override
         public boolean isGeoBlendEnabled() {
             return false;

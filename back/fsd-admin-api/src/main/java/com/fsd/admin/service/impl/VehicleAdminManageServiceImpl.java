@@ -145,6 +145,12 @@ public class VehicleAdminManageServiceImpl implements VehicleAdminManageService 
         entity.setDeleted(0);
         entity.setVersion(0);
         vehicleMaintenanceMapper.insert(entity);
+        // 进入维保（PLANNED）时将车辆置为 UNAVAILABLE，避免被选车逻辑命中
+        if ("PLANNED".equals(entity.getStatus())
+                && !VehicleDispatchStatus.BUSY.name().equals(vehicle.getDispatchStatus())) {
+            vehicle.setDispatchStatus(VehicleDispatchStatus.UNAVAILABLE.name());
+            vehicleMapper.updateById(vehicle);
+        }
         return toMaintenanceResponse(entity, vehicle);
     }
 

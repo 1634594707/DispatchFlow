@@ -26,6 +26,15 @@
           {{ cfg.label }}
         </a-select-option>
       </a-select>
+      <a-select
+        v-model:value="queryForm.deliveryZone"
+        placeholder="配送区域"
+        allow-clear
+        style="width: 140px;"
+      >
+        <a-select-option value="GEO_DELIVERY">地理配送</a-select-option>
+        <a-select-option value="SCHEMATIC">园区内部</a-select-option>
+      </a-select>
       <a-input
         v-model:value="queryForm.orderNo"
         placeholder="订单编号"
@@ -72,6 +81,11 @@
           <a-tag :color="priorityColor(record.priority)">
             {{ record.priority }}
           </a-tag>
+        </template>
+        <template v-else-if="column.dataIndex === 'deliveryZone'">
+          <a-tag v-if="record.deliveryZone === 'GEO_DELIVERY'" color="processing">地理配送</a-tag>
+          <a-tag v-else-if="record.deliveryZone === 'SCHEMATIC'" color="success">园区内部</a-tag>
+          <span v-else class="text-muted">-</span>
         </template>
         <template v-else-if="column.dataIndex === 'dispatchTaskId'">
           <router-link
@@ -136,7 +150,7 @@ import { OrderStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
 import { cancelOrder } from '@/api/order'
 import dayjs from 'dayjs'
-import type { OrderAdminListItem } from '@/types/order'
+import type { OrderAdminListItem, OrderDeliveryZone } from '@/types/order'
 
 const router = useRouter()
 const route = useRoute()
@@ -146,6 +160,7 @@ const authStore = useAuthStore()
 
 const queryForm = reactive({
   status: undefined as OrderStatus | undefined,
+  deliveryZone: undefined as OrderDeliveryZone | undefined,
   orderNo: '',
 })
 
@@ -164,6 +179,7 @@ const columns = [
   { title: '订单编号', dataIndex: 'orderNo', width: 220 },
   { title: '状态', dataIndex: 'status', width: 120 },
   { title: '优先级', dataIndex: 'priority', width: 80 },
+  { title: '配送区域', dataIndex: 'deliveryZone', width: 110 },
   { title: '关联任务', dataIndex: 'dispatchTaskId', width: 100 },
   { title: '创建时间', dataIndex: 'createdAt', width: 180 },
   { title: '更新时间', dataIndex: 'updatedAt', width: 180 },
@@ -188,6 +204,10 @@ const activeFilterChips = computed((): FilterChip[] => {
       label: `状态：${orderStatusMap[queryForm.status]?.label || queryForm.status}`,
     })
   }
+  if (queryForm.deliveryZone) {
+    const zoneLabel = queryForm.deliveryZone === 'GEO_DELIVERY' ? '地理配送' : '园区内部'
+    chips.push({ key: 'deliveryZone', label: `配送区域：${zoneLabel}` })
+  }
   if (queryForm.orderNo.trim()) {
     chips.push({ key: 'orderNo', label: `编号：${queryForm.orderNo.trim()}` })
   }
@@ -196,6 +216,7 @@ const activeFilterChips = computed((): FilterChip[] => {
 
 function removeFilterChip(key: string) {
   if (key === 'status') queryForm.status = undefined
+  if (key === 'deliveryZone') queryForm.deliveryZone = undefined
   if (key === 'orderNo') queryForm.orderNo = ''
   handleSearch()
 }
@@ -229,6 +250,7 @@ function handleSearch() {
 
 function handleReset() {
   queryForm.status = undefined
+  queryForm.deliveryZone = undefined
   queryForm.orderNo = ''
   pageNo.value = 1
   fetchData()

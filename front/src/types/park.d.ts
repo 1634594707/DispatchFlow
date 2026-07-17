@@ -15,6 +15,9 @@ export interface ParkSummary {
   defaultPark: boolean
 }
 
+/** 站点配送区域：地理配送 / 园区内部 / 通用 */
+export type StationDeliveryZone = 'GEO_DELIVERY' | 'SCHEMATIC' | 'GENERAL'
+
 export interface ParkStation {
   parkId: number
   parkCode: string
@@ -27,6 +30,7 @@ export interface ParkStation {
   coordLng?: number | null
   coordLat?: number | null
   area: string
+  deliveryZone?: StationDeliveryZone
 }
 
 export interface ParkRoadNode {
@@ -82,6 +86,9 @@ export interface ParkVehicleSnapshot {
   charging: boolean
   lowBattery: boolean
   linkMode: 'SIM' | 'REAL' | 'VDA5050'
+  deliveryZone?: 'GEO_DELIVERY' | 'SCHEMATIC' | 'BOTH'
+  maxLoadCapacity?: number | null
+  currentLoad?: number | null
   trajectory: ParkPoint[]
   geoTrajectory?: ParkPoint[]
   plannedRouteGeo?: ParkPoint[]
@@ -125,6 +132,9 @@ export interface ParkOrderSnapshot {
   runtimeStage: string
   pickupStation: ParkStation
   dropoffStation: ParkStation
+  deliveryZone?: 'GEO_DELIVERY' | 'SCHEMATIC'
+  weight?: number | null
+  estimatedArrivalTime?: string | null
   assignTime: string | null
   startTime: string | null
   finishTime: string | null
@@ -138,6 +148,9 @@ export interface ParkOrderCreateRequest {
   pickupStationId: number
   dropoffStationId: number
   priority?: string
+  orderPriority?: 'HIGH' | 'NORMAL' | 'LOW'
+  deliveryZone?: 'GEO_DELIVERY' | 'SCHEMATIC'
+  weight?: number
   remark?: string
 }
 

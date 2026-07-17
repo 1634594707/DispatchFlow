@@ -28,7 +28,7 @@
           <a-input
             v-model:value="form.username"
             size="large"
-            placeholder="admin"
+            placeholder="请输入用户名"
             autocomplete="username"
           >
             <template #prefix><UserOutlined /></template>
@@ -70,10 +70,6 @@
           登录
         </a-button>
       </a-form>
-
-      <div v-if="showDefaultAccountHint" class="login-hint">
-        <span>默认账号：admin / admin123</span>
-      </div>
     </div>
   </div>
 </template>
@@ -97,7 +93,21 @@ const form = reactive({
 })
 
 const needsTotp = ref(false)
-const showDefaultAccountHint = import.meta.env.DEV
+
+/**
+ * 校验 redirect 参数是否安全：仅允许相对路径（以 / 开头且不以 // 开头）或同源 URL，
+ * 拒绝外部域名 URL，防止开放重定向漏洞。
+ */
+function isSafeRedirect(redirect: string): boolean {
+  if (!redirect) return false
+  if (redirect.startsWith('/') && !redirect.startsWith('//')) return true
+  try {
+    const url = new URL(redirect, window.location.origin)
+    return url.origin === window.location.origin
+  } catch {
+    return false
+  }
+}
 
 async function handleLogin() {
   try {
@@ -109,9 +119,12 @@ async function handleLogin() {
     }
     message.success('登录成功')
     const redirect = (route.query.redirect as string) || '/workbench'
-    router.replace(redirect)
+    router.replace(isSafeRedirect(redirect) ? redirect : '/workbench')
   } catch {
-    // error handled by request interceptor
+    message.error('登录失败，请检查账号密码或验证码')
+    if (needsTotp.value) {
+      form.totpCode = ''
+    }
   }
 }
 </script>
@@ -221,14 +234,5 @@ async function handleLogin() {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.04em;
-}
-
-.login-hint {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--fsd-border);
-  text-align: center;
-  font-size: 12px;
-  color: var(--fsd-text-tertiary);
 }
 </style>

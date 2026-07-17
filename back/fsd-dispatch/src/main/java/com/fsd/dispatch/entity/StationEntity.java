@@ -38,6 +38,12 @@ public class StationEntity {
 
     private Integer capacityLimit;
 
+    /** 营业时间窗口，例如 "06:00-22:00" */
+    private String serviceHours;
+
+    /** 平均服务时长（秒），用于 ETA 与队列估算 */
+    private Integer avgServiceSeconds;
+
     private String remark;
 
     private LocalDateTime createdAt;
@@ -45,6 +51,9 @@ public class StationEntity {
     private LocalDateTime updatedAt;
 
     private Integer version;
+
+    /** 配送区域: GEO_DELIVERY / SCHEMATIC / GENERAL */
+    private String deliveryZone;
 
     private Integer deleted;
 }

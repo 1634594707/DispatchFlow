@@ -124,102 +124,154 @@ function stageClass(stage: string) {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(34, 199, 230, 0.2);
-  background: linear-gradient(160deg, rgba(34, 199, 230, 0.08) 0%, rgba(11, 16, 24, 0.6) 100%);
+  padding: 18px;
+  border-radius: var(--fsd-radius-xl);
+  border: 1px solid var(--fsd-border);
+  background:
+    radial-gradient(circle at 0% 0%, var(--fsd-accent-subtle), transparent 50%),
+    var(--fsd-bg-base);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--fsd-accent-glow), transparent 60%);
+    filter: blur(40px);
+    pointer-events: none;
+    opacity: 0.5;
+  }
 }
 
 .merchant-home-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: relative;
 }
 
 .merchant-home-title {
   margin: 0;
+  font-family: var(--fsd-font-display);
   font-size: 16px;
-  font-weight: 700;
-  color: var(--fsd-text-primary);
+  font-weight: 600;
+  color: var(--fsd-text-heading);
+  letter-spacing: -0.015em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: var(--fsd-radius-full);
+    background: var(--fsd-accent);
+    box-shadow: 0 0 8px var(--fsd-accent-muted);
+  }
 }
 
 .history-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  padding: 5px 10px;
+  border-radius: var(--fsd-radius-full);
+  border: 1px solid var(--fsd-border);
+  background: var(--fsd-bg-elevated);
   color: var(--fsd-text-secondary);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
+  transition: all var(--fsd-transition-fast);
+
+  &:hover {
+    border-color: var(--fsd-border-active);
+    color: var(--fsd-text-primary);
+  }
 }
 
 .history-count {
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(34, 199, 230, 0.2);
+  padding: 1px 6px;
+  border-radius: var(--fsd-radius-full);
+  background: var(--fsd-accent-bg);
   color: var(--fsd-accent);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--fsd-font-mono);
+  border: 1px solid var(--fsd-accent-border);
 }
 
 .current-order-card,
 .empty-current {
-  padding: 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(6, 9, 15, 0.5);
+  padding: 16px;
+  border-radius: var(--fsd-radius-lg);
+  border: 1px solid var(--fsd-border);
+  background: var(--fsd-bg-elevated);
+  position: relative;
 }
 
 .current-order-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .current-order-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--fsd-text-secondary);
+  letter-spacing: 0.08em;
+  color: var(--fsd-text-tertiary);
   text-transform: uppercase;
 }
 
 .stage-pill {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
+  padding: 3px 8px;
+  border-radius: var(--fsd-radius-full);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .stage-active {
   color: var(--fsd-accent);
-  background: rgba(34, 199, 230, 0.15);
+  background: var(--fsd-accent-bg);
+  border: 1px solid var(--fsd-accent-border);
 }
 
 .stage-success {
   color: var(--fsd-success);
-  background: rgba(45, 224, 138, 0.12);
+  background: rgba(52, 211, 153, 0.10);
+  border: 1px solid rgba(52, 211, 153, 0.22);
 }
 
 .stage-danger {
   color: var(--fsd-error);
-  background: rgba(255, 92, 124, 0.12);
+  background: rgba(248, 113, 113, 0.10);
+  border: 1px solid rgba(248, 113, 113, 0.22);
 }
 
 .stage-default {
   color: var(--fsd-text-secondary);
-  background: rgba(139, 148, 158, 0.12);
+  background: rgba(148, 163, 184, 0.10);
+  border: 1px solid var(--fsd-border-active);
 }
 
 .current-order-route {
-  margin: 0 0 8px;
-  font-size: 15px;
+  margin: 0 0 10px;
+  font-family: var(--fsd-font-display);
+  font-size: 16px;
   font-weight: 600;
-  color: var(--fsd-text-primary);
+  color: var(--fsd-text-heading);
   line-height: 1.4;
+  letter-spacing: -0.015em;
 }
 
 .current-order-meta {
@@ -228,49 +280,81 @@ function stageClass(stage: string) {
   flex-wrap: wrap;
   font-size: 12px;
   color: var(--fsd-text-secondary);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  font-family: var(--fsd-font-mono);
+  letter-spacing: -0.01em;
 }
 
 .current-order-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .action-btn {
-  padding: 6px 14px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  padding: 7px 14px;
+  border-radius: var(--fsd-radius-sm);
+  border: 1px solid var(--fsd-border);
+  background: var(--fsd-bg-base);
   color: var(--fsd-text-secondary);
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   text-decoration: none;
+  transition: all var(--fsd-transition-fast);
+
+  &:hover {
+    border-color: var(--fsd-border-active);
+    color: var(--fsd-text-primary);
+    background: var(--fsd-bg-hover);
+  }
 
   &.primary {
-    border-color: rgba(34, 199, 230, 0.4);
-    background: rgba(34, 199, 230, 0.15);
+    border-color: var(--fsd-accent-border);
+    background: var(--fsd-accent-bg);
     color: var(--fsd-accent);
+
+    &:hover {
+      background: rgba(34, 211, 238, 0.14);
+      border-color: var(--fsd-accent);
+    }
+  }
+
+  &.link {
+    background: transparent;
+    border-color: transparent;
+    color: var(--fsd-text-secondary);
+    text-decoration: underline;
+    text-decoration-color: var(--fsd-border-active);
+    text-underline-offset: 3px;
+
+    &:hover {
+      color: var(--fsd-accent);
+      text-decoration-color: var(--fsd-accent);
+      background: transparent;
+    }
   }
 }
 
 .empty-current {
   text-align: center;
+  padding: 24px 16px;
 
   p {
-    margin: 0 0 12px;
+    margin: 0 0 14px;
     color: var(--fsd-text-secondary);
-    font-size: 14px;
+    font-size: 13px;
   }
 }
 
 .section-label {
   display: block;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--fsd-text-tertiary);
   margin-bottom: 8px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .route-chips {
@@ -283,24 +367,38 @@ function stageClass(stage: string) {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(11, 16, 24, 0.6);
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: var(--fsd-radius-md);
+  border: 1px solid var(--fsd-border);
+  background: var(--fsd-bg-base);
   cursor: pointer;
   text-align: left;
+  transition: all var(--fsd-transition-fast);
+
+  &:hover {
+    border-color: var(--fsd-accent-border);
+    background: var(--fsd-bg-elevated);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
 }
 
 .route-chip-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--fsd-text-primary);
+  letter-spacing: -0.01em;
 }
 
 .route-chip-fee {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--fsd-warning);
+  font-family: var(--fsd-font-mono);
+  letter-spacing: -0.01em;
 }
 
 .merchant-quick-links {
@@ -314,23 +412,38 @@ function stageClass(stage: string) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  padding: 12px;
+  border-radius: var(--fsd-radius-md);
+  border: 1px dashed var(--fsd-border-active);
   background: transparent;
   color: var(--fsd-text-secondary);
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   text-decoration: none;
+  transition: all var(--fsd-transition-fast);
+
+  &:hover {
+    background: var(--fsd-bg-elevated);
+    color: var(--fsd-text-primary);
+    border-style: solid;
+    border-color: var(--fsd-border-active);
+  }
 
   &.contact {
-    border-color: rgba(255, 176, 32, 0.25);
+    border-color: rgba(251, 191, 36, 0.28);
     color: var(--fsd-warning);
+
+    &:hover {
+      background: rgba(251, 191, 36, 0.06);
+      border-color: rgba(251, 191, 36, 0.40);
+    }
   }
 }
 
 .quick-link-icon {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
+  font-family: var(--fsd-font-mono);
 }
 </style>

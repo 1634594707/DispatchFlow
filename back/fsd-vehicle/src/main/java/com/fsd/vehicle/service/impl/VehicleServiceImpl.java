@@ -77,7 +77,8 @@ public class VehicleServiceImpl implements VehicleService {
                 .eq(VehicleEntity::getDeleted, 0)
                 .set(VehicleEntity::getDispatchStatus, nextDispatchStatus)
                 .set(VehicleEntity::getCurrentTaskId, null)
-                .set(VehicleEntity::getCurrentOrderId, null));
+                .set(VehicleEntity::getCurrentOrderId, null)
+                .set(VehicleEntity::getCurrentLoad, 0));
     }
 
     @Override

@@ -11,13 +11,17 @@ export async function fetchConfigAuditLogs(data: ConfigAuditQueryRequest): Promi
   try {
     return await request.post<any, ApiResponse<PageResponse<ConfigAuditLogItem>>>('/admin/operate-logs/config-audit/query', data)
   } catch (e) {
-    console.error('fetchConfigAuditLogs fallback:', e)
-    return {
-      success: true,
-      code: '0',
-      message: 'mock',
-      data: { total: 0, pageNo: data.pageNo || 1, pageSize: data.pageSize || 20, records: [] },
+    // 仅在开发环境使用 mock 兜底；生产环境必须抛出错误以暴露真实异常
+    if (import.meta.env.DEV) {
+      console.warn('[DEV] fetchConfigAuditLogs fallback to mock:', e)
+      return {
+        success: true,
+        code: '0',
+        message: 'mock',
+        data: { total: 0, pageNo: data.pageNo || 1, pageSize: data.pageSize || 20, records: [] },
+      }
     }
+    throw e
   }
 }
 

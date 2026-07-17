@@ -113,20 +113,47 @@ public class VehicleReportServiceImpl implements VehicleReportService {
                 case "TASK_FAILED" -> {
                     dispatchTaskStateService.assertCanFinish(taskEntity);
                     String beforeStatus = taskEntity.getStatus();
-                    taskEntity.setStatus(DispatchTaskStatus.FAILED.name());
-                    taskEntity.setFinishTime(request.getReportTime());
-                    taskEntity.setFailReasonCode(request.getResultCode());
-                    taskEntity.setFailReasonMsg(request.getResultMessage());
-                    dispatchTaskMapper.updateById(taskEntity);
-                    orderStateService.markFailed(taskEntity.getOrderId(), request.getResultMessage());
-                    vehicleService.releaseVehicle(vehicleEntity.getId(), VehicleDispatchStatus.IDLE.name());
-                    dispatchExceptionService.recordException(taskEntity.getId(), taskEntity.getOrderId(), vehicleEntity.getId(),
-                            "TASK_EXECUTE_FAILED", request.getResultMessage());
-                    operateLogService.record(taskEntity.getId(), "FINISH_FAILED", beforeStatus, taskEntity.getStatus(),
-                            "VEHICLE", request.getVehicleCode(), request.getVehicleCode(), request.getResultMessage());
-                    eventPublisher.publish(DispatchEventType.TASK_FAILED, String.valueOf(taskEntity.getId()), buildTaskPayload(taskEntity));
-                    taskStatus = taskEntity.getStatus();
-                    orderStatus = "FAILED";
+                    int currentRetryCount = taskEntity.getRetryCount() == null ? 0 : taskEntity.getRetryCount();
+                    if (currentRetryCount < 3) {
+                        // 重试次数未达上限，重置任务为 PENDING 等待再次派单
+                        taskEntity.setStatus(DispatchTaskStatus.PENDING.name());
+                        taskEntity.setRetryCount(currentRetryCount + 1);
+                        taskEntity.setFailReasonCode(request.getResultCode());
+                        taskEntity.setFailReasonMsg(request.getResultMessage());
+                        taskEntity.setVehicleId(null);
+                        taskEntity.setAssignTime(null);
+                        dispatchTaskMapper.updateById(taskEntity);
+                        vehicleService.releaseVehicle(vehicleEntity.getId(), VehicleDispatchStatus.IDLE.name());
+                        try {
+                            orderStateService.revertToWaitingDispatch(taskEntity.getOrderId());
+                        } catch (RuntimeException ignored) {
+                            // 订单可能已不在可回退状态，忽略以保证车辆释放成功
+                        }
+                        dispatchExceptionService.recordException(taskEntity.getId(), taskEntity.getOrderId(), vehicleEntity.getId(),
+                                "TASK_EXECUTE_FAILED_RETRY", request.getResultMessage());
+                        operateLogService.record(taskEntity.getId(), "TASK_RETRY", beforeStatus, taskEntity.getStatus(),
+                                "VEHICLE", request.getVehicleCode(), request.getVehicleCode(),
+                                "Retry " + (currentRetryCount + 1) + "/3: " + request.getResultMessage());
+                        eventPublisher.publish(DispatchEventType.TASK_FAILED, String.valueOf(taskEntity.getId()), buildTaskPayload(taskEntity));
+                        taskStatus = taskEntity.getStatus();
+                        orderStatus = "WAITING_DISPATCH";
+                    } else {
+                        // 重试次数已达上限，标记为 FAILED 终态
+                        taskEntity.setStatus(DispatchTaskStatus.FAILED.name());
+                        taskEntity.setFinishTime(request.getReportTime());
+                        taskEntity.setFailReasonCode(request.getResultCode());
+                        taskEntity.setFailReasonMsg(request.getResultMessage());
+                        dispatchTaskMapper.updateById(taskEntity);
+                        orderStateService.markFailed(taskEntity.getOrderId(), request.getResultMessage());
+                        vehicleService.releaseVehicle(vehicleEntity.getId(), VehicleDispatchStatus.IDLE.name());
+                        dispatchExceptionService.recordException(taskEntity.getId(), taskEntity.getOrderId(), vehicleEntity.getId(),
+                                "TASK_EXECUTE_FAILED", request.getResultMessage());
+                        operateLogService.record(taskEntity.getId(), "FINISH_FAILED", beforeStatus, taskEntity.getStatus(),
+                                "VEHICLE", request.getVehicleCode(), request.getVehicleCode(), request.getResultMessage());
+                        eventPublisher.publish(DispatchEventType.TASK_FAILED, String.valueOf(taskEntity.getId()), buildTaskPayload(taskEntity));
+                        taskStatus = taskEntity.getStatus();
+                        orderStatus = "FAILED";
+                    }
                 }
                 case "OFFLINE" -> {
                     if (taskEntity.getVehicleId() != null) {

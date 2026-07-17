@@ -13,6 +13,8 @@ public interface DispatchExceptionService {
 
     void resolveException(Long exceptionId, DispatchExceptionResolveRequest request);
 
+    void resolveExceptions(java.util.List<Long> exceptionIds, DispatchExceptionResolveRequest request);
+
     DispatchExceptionRecordEntity getException(Long exceptionId);
 
     void resolveOpenExceptionsForTask(Long taskId, String resolverId, String remark);

@@ -29,6 +29,8 @@ export function useMobileOrderForm() {
     dropoffStationId: undefined as unknown as number,
     routeId: undefined as number | undefined,
     priority: 'P1',
+    orderPriority: 'NORMAL',
+    weight: undefined as number | undefined,
     remark: '',
   })
 
@@ -48,7 +50,7 @@ export function useMobileOrderForm() {
 
   function resolveDefaultMobileApiKey(): string {
     return (
-      localStorage.getItem('fsd_mobile_api_key')?.trim() ||
+      sessionStorage.getItem('fsd_mobile_api_key')?.trim() ||
       (import.meta.env.VITE_MOBILE_API_KEY as string | undefined)?.trim() ||
       ''
     )
@@ -56,8 +58,8 @@ export function useMobileOrderForm() {
 
   function persistMobileApiKey() {
     const trimmed = mobileApiKey.value.trim()
-    if (trimmed) localStorage.setItem('fsd_mobile_api_key', trimmed)
-    else localStorage.removeItem('fsd_mobile_api_key')
+    if (trimmed) sessionStorage.setItem('fsd_mobile_api_key', trimmed)
+    else sessionStorage.removeItem('fsd_mobile_api_key')
   }
 
   function handleOrderModeUpdate(mode: MobileOrderMode) {
@@ -98,6 +100,8 @@ export function useMobileOrderForm() {
           dropoffStationId: form.dropoffStationId,
           routeId: form.routeId,
           priority: form.priority || 'P1',
+          orderPriority: form.orderPriority || 'NORMAL',
+          weight: form.weight,
           remark: form.remark?.trim() || undefined,
         },
         apiKey,

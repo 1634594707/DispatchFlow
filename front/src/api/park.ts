@@ -12,7 +12,7 @@ import type {
 
 function resolveMobileApiKey(): string | undefined {
   return (
-    localStorage.getItem('fsd_mobile_api_key')?.trim() ||
+    sessionStorage.getItem('fsd_mobile_api_key')?.trim() ||
     (import.meta.env.VITE_MOBILE_API_KEY as string | undefined)?.trim() ||
     undefined
   )

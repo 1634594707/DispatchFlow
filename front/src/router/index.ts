@@ -15,7 +15,19 @@ const routes: RouteRecordRaw[] = [
     path: '/mobile/order',
     name: 'MobileParkOrder',
     component: () => import('@/views/mobile/ParkOrder.vue'),
-    meta: { title: '移动下单', public: true },
+    meta: { title: '首页', public: true },
+  },
+  {
+    path: '/mobile/orders',
+    name: 'MobileOrders',
+    component: () => import('@/views/mobile/MobileOrders.vue'),
+    meta: { title: '我的订单', public: true },
+  },
+  {
+    path: '/mobile/profile',
+    name: 'MobileProfile',
+    component: () => import('@/views/mobile/MobileProfile.vue'),
+    meta: { title: '我的', public: true },
   },
   {
     path: '/',
@@ -278,6 +290,13 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  // 域名自动跳转：app.aplicity.online（手机端域名）访问根路径或工作台时跳转到移动下单页
+  if (typeof window !== 'undefined' && window.location.hostname === 'app.aplicity.online') {
+    if (to.path === '/' || to.path === '/workbench') {
+      return { path: '/mobile/order' }
+    }
+  }
+
   const authStore = useAuthStore()
 
   if (to.meta.public) {

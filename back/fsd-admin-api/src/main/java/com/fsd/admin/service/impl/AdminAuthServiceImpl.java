@@ -46,6 +46,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private final SecretGenerator secretGenerator = new DefaultSecretGenerator();
     private final TimeProvider timeProvider = new SystemTimeProvider();
     private final CodeVerifier codeVerifier = new DefaultCodeVerifier(new DefaultCodeGenerator(HashingAlgorithm.SHA1), timeProvider);
+    // TODO(B008): single-instance login rate limiter — counters live in this JVM only.
+    // Multi-instance deployments must migrate to Redis so brute-force protection is shared.
     private final Map<String, LoginRateWindow> loginRateWindows = new ConcurrentHashMap<>();
 
     public AdminAuthServiceImpl(AdminUserMapper adminUserMapper,
@@ -111,8 +113,9 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         user.setTotpSecret(fieldEncryptionService.encrypt(secret));
         user.setTotpEnabled(0);
         adminUserMapper.updateById(user);
+        // B010: do not return the raw secret as a separate field (avoids plaintext logging);
+        // clients scan the otpauth URL via QR code to obtain it.
         Map<String, String> result = new LinkedHashMap<>();
-        result.put("secret", secret);
         result.put("otpauthUrl", "otpauth://totp/DispatchFlow:" + user.getUsername() + "?secret=" + secret + "&issuer=DispatchFlow");
         return result;
     }
@@ -175,9 +178,20 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 .userId(user.getId())
                 .username(user.getUsername())
                 .displayName(user.getDisplayName())
-                .role(AdminRole.valueOf(user.getRole()))
+                .role(resolveRole(user.getRole()))
                 .token(token)
                 .build();
+    }
+
+    private AdminRole resolveRole(String roleName) {
+        if (roleName == null || roleName.isBlank()) {
+            throw new BusinessException("ADMIN_ROLE_MISSING", "用户角色未配置");
+        }
+        try {
+            return AdminRole.valueOf(roleName);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("ADMIN_ROLE_INVALID", "用户角色无效: " + roleName);
+        }
     }
 
     @Override
@@ -236,14 +250,22 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private void checkLoginRateLimit(String username) {
         long minute = System.currentTimeMillis() / 60_000L;
         String key = "login:" + username + ":" + minute;
-        LoginRateWindow window = loginRateWindows.computeIfAbsent(key, ignored -> new LoginRateWindow(minute));
-        if (window.minute != minute) {
-            window = new LoginRateWindow(minute);
-            loginRateWindows.put(key, window);
-        }
+        // Atomic create-or-reuse via compute: avoids the computeIfAbsent + put race
+        // and guarantees a consistent window across concurrent login attempts.
+        LoginRateWindow window = loginRateWindows.compute(key, (k, existing) ->
+                (existing != null && existing.minute == minute) ? existing : new LoginRateWindow(minute));
         if (window.count.incrementAndGet() > MAX_LOGIN_ATTEMPTS_PER_MINUTE) {
             throw new BusinessException("ADMIN_LOGIN_RATE_LIMIT", "登录尝试过于频繁，请稍后再试");
         }
+        cleanupExpiredLoginWindows(minute);
+    }
+
+    private void cleanupExpiredLoginWindows(long currentMinute) {
+        // Bound memory: drop windows whose minute has rolled over.
+        if (loginRateWindows.size() < 128) {
+            return;
+        }
+        loginRateWindows.entrySet().removeIf(entry -> entry.getValue().minute < currentMinute);
     }
 
     private static class LoginRateWindow {

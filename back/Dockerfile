@@ -16,6 +16,8 @@ COPY fsd-dispatch/src fsd-dispatch/src
 COPY fsd-vehicle/src fsd-vehicle/src
 COPY fsd-admin-api/src fsd-admin-api/src
 COPY fsd-bootstrap/src fsd-bootstrap/src
+# 复制 SQL 迁移脚本目录（fsd-bootstrap/pom.xml 中通过 ../sql/migrations 引用）
+COPY sql/migrations sql/migrations
 
 RUN mvn -q -DskipTests clean package
 
@@ -23,10 +25,13 @@ FROM maven:3.9.9-eclipse-temurin-21
 
 WORKDIR /app
 
-ENV TZ=Asia/Shanghai
+ENV TZ=Asia/Shanghai \
+    JAVA_OPTS="-Xms1024m -Xmx1536m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/heapdump.hprof"
 
 COPY --from=builder /build/fsd-bootstrap/target/fsd-bootstrap-0.1.0-SNAPSHOT.jar /app/fsd-core-server.jar
 
+RUN mkdir -p /app/logs
+
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/app/fsd-core-server.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/fsd-core-server.jar"]

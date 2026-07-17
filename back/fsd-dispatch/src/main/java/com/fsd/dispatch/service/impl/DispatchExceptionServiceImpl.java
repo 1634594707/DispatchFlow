@@ -114,6 +114,22 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
     }
 
     @Override
+    @Transactional
+    public void resolveExceptions(java.util.List<Long> exceptionIds, DispatchExceptionResolveRequest request) {
+        validateAction(request.getAction());
+        if (exceptionIds == null || exceptionIds.isEmpty()) {
+            return;
+        }
+        java.util.List<DispatchExceptionRecordEntity> entities = exceptionRecordMapper.selectList(
+                new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
+                        .in(DispatchExceptionRecordEntity::getId, exceptionIds)
+                        .eq(DispatchExceptionRecordEntity::getExceptionStatus, "OPEN"));
+        for (DispatchExceptionRecordEntity entity : entities) {
+            markResolved(entity, request.getResolverId(), request.getAction(), request.getRemark());
+        }
+    }
+
+    @Override
     public DispatchExceptionRecordEntity getException(Long exceptionId) {
         DispatchExceptionRecordEntity entity = exceptionRecordMapper.selectById(exceptionId);
         if (entity == null) {

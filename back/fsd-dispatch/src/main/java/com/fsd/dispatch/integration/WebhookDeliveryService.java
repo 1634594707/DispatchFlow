@@ -7,6 +7,7 @@ import com.fsd.dispatch.entity.WebhookSubscriptionEntity;
 import com.fsd.dispatch.event.DispatchDomainEvent;
 import com.fsd.dispatch.mapper.WebhookDeliveryLogMapper;
 import com.fsd.dispatch.mapper.WebhookSubscriptionMapper;
+import jakarta.annotation.PreDestroy;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,8 +17,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,7 +35,7 @@ public class WebhookDeliveryService {
     private final WebhookDeliveryLogMapper deliveryLogMapper;
     private final FieldEncryptionService fieldEncryptionService;
     private final RobotMessageFormatter messageFormatter;
-    private final Executor deliveryExecutor = Executors.newFixedThreadPool(4);
+    private final ExecutorService deliveryExecutor = Executors.newFixedThreadPool(4);
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3))
             .build();
@@ -46,6 +48,19 @@ public class WebhookDeliveryService {
         this.deliveryLogMapper = deliveryLogMapper;
         this.fieldEncryptionService = fieldEncryptionService;
         this.messageFormatter = messageFormatter;
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        deliveryExecutor.shutdown();
+        try {
+            if (!deliveryExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                deliveryExecutor.shutdownNow();
+            }
+        } catch (InterruptedException ex) {
+            deliveryExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void deliver(DispatchDomainEvent event) {
@@ -149,7 +164,7 @@ public class WebhookDeliveryService {
     }
 
     private long backoffMs(int retryIndex) {
-        return 500L * (1L << (retryIndex - 1));
+        return 500L * (1L << Math.max(0, retryIndex - 1));
     }
 
     private static String truncate(String value, int max) {

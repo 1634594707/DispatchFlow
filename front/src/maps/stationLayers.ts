@@ -55,6 +55,44 @@ export function filterGeoDeliveryOrders(orders: ParkOrderSnapshot[]): ParkOrderS
   return orders.filter(isGeoDeliveryOrder)
 }
 
+/**
+ * 按配送区域过滤车辆
+ * - deliveryZone 为 'BOTH' 或缺失时，所有模式均可见
+ * - zone='geo' 仅保留 'GEO_DELIVERY' 车辆（'BOTH' 通用）
+ * - zone='schematic' 仅保留 'SCHEMATIC' 车辆（'BOTH' 通用）
+ */
+export function filterVehiclesByDeliveryZone(
+  vehicles: ParkVehicleSnapshot[],
+  zone: 'geo' | 'schematic',
+): ParkVehicleSnapshot[] {
+  return vehicles.filter(vehicle => {
+    const vehicleZone = vehicle.deliveryZone || 'BOTH'
+    if (vehicleZone === 'BOTH') return true
+    return zone === 'geo'
+      ? vehicleZone === 'GEO_DELIVERY'
+      : vehicleZone === 'SCHEMATIC'
+  })
+}
+
+/**
+ * 按配送区域过滤站点
+ * - deliveryZone 为 'GENERAL' 或缺失时，所有模式均可见
+ * - zone='geo' 仅保留 'GEO_DELIVERY' 站点（'GENERAL' 通用）
+ * - zone='schematic' 仅保留 'SCHEMATIC' 站点（'GENERAL' 通用）
+ */
+export function filterStationsByDeliveryZone(
+  stations: ParkStation[],
+  zone: 'geo' | 'schematic',
+): ParkStation[] {
+  return stations.filter(station => {
+    const stationZone = station.deliveryZone || 'GENERAL'
+    if (stationZone === 'GENERAL') return true
+    return zone === 'geo'
+      ? stationZone === 'GEO_DELIVERY'
+      : stationZone === 'SCHEMATIC'
+  })
+}
+
 /** 仅调度/回充 · 不可移动下单 · 默认不在工作台态势图层 */
 export function isZjfDispatchOnlyStation(station: Pick<ParkStation, 'stationCode'>): boolean {
   const code = station.stationCode ?? ''

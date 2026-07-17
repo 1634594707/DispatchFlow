@@ -90,6 +90,11 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         parkStationService.assertStationInPark(order.getPickupPointId(), parkId);
         ParkStationResponse dropoff = parkStationService.requireStation(order.getDropoffPointId());
 
+        // 根据取货站点自动绑定配送区域
+        if (order.getDeliveryZone() == null || order.getDeliveryZone().isBlank()) {
+            order.setDeliveryZone(PilotFleetSupport.isGeoDeliveryStation(pickup) ? "GEO_DELIVERY" : "SCHEMATIC");
+        }
+
         if (hubCapacityService.isHubLikeStation(pickup) && !hubCapacityService.isHubCapacityAvailable(pickup.getStationId())) {
             return DispatchAssignResult.failure(DispatchAssignFailReason.HUB_CAPACITY_FULL,
                     "Pickup hub/buffer capacity full: " + pickup.getStationName());
@@ -126,17 +131,29 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
 
         List<VehicleEntity> socEligible = idleOnline.stream()
                 .filter(vehicle -> normalizeSoc(vehicle.getBatteryLevel()) >= energy.getMinAssignableSoc())
+                .filter(vehicle -> !isUnderMaintenance(vehicle))
                 .filter(vehicle -> matchesRequiredVehicleType(order, vehicle))
                 .filter(vehicle -> PilotFleetSupport.matchesOrderFleet(vehicle, pickup, dropoff))
+                .filter(vehicle -> matchesDeliveryZone(order, vehicle, pickup))
+                .filter(vehicle -> matchesLoadCapacity(order, vehicle))
                 .toList();
         if (socEligible.isEmpty()) {
             return DispatchAssignResult.failure(DispatchAssignFailReason.LOW_SOC,
                     "All idle vehicles are below minimum assignable SOC");
         }
 
+        // 全链路SOC校验：取货+送货+返航充电站后SOC需 > 安全余量
+        List<VehicleEntity> socChainEligible = socEligible.stream()
+                .filter(vehicle -> canCompleteTaskWithSoc(parkId, vehicle, pickup, dropoff, energy))
+                .toList();
+        if (socChainEligible.isEmpty()) {
+            return DispatchAssignResult.failure(DispatchAssignFailReason.LOW_SOC,
+                    "All idle vehicles cannot complete the full task chain with safe SOC margin");
+        }
+
         List<VehicleEntity> reachableVehicles = new ArrayList<>();
         List<Double> parkDistances = new ArrayList<>();
-        for (VehicleEntity vehicle : socEligible) {
+        for (VehicleEntity vehicle : socChainEligible) {
             double distance = estimateRouteDistance(parkId, vehicle, pickup);
             if (Double.isInfinite(distance)) {
                 continue;
@@ -152,7 +169,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         List<Double> blendedDistances = dispatchGeoDistanceService.applyGeoBlend(reachableVehicles, pickup, parkDistances);
         List<ScoredCandidate> reachable = new ArrayList<>();
         for (int i = 0; i < reachableVehicles.size(); i++) {
-            reachable.add(scoreCandidate(parkId, reachableVehicles.get(i), blendedDistances.get(i), energy, scoring));
+            reachable.add(scoreCandidate(parkId, order, reachableVehicles.get(i), blendedDistances.get(i), energy, scoring));
         }
 
         reachable.sort(Comparator.comparingDouble(ScoredCandidate::totalScore));
@@ -164,11 +181,13 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         String geoNote = dispatchGeoDistanceService.isGeoBlendEnabled() ? ", geoBlend=on" : "";
         String mapfNote = mapfRoutePlannerService.isEnabled() ? ", mapf=on" : "";
         String explanation = String.format(Locale.ROOT,
-                "Selected %s: distance=%.1f, socPenalty=%.1f, pluggedBonus=%.1f, total=%.1f%s%s",
+                "Selected %s: distance=%.1f, socPenalty=%.1f, pluggedBonus=%.1f, idleBonus=%.1f, priorityFactor=%.2f, total=%.1f%s%s",
                 best.vehicle().getVehicleCode(),
                 best.distanceScore(),
                 best.socScore(),
                 best.pluggedBonus(),
+                best.idleBonus(),
+                best.priorityFactor(),
                 best.totalScore(),
                 geoNote,
                 mapfNote);
@@ -219,27 +238,81 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         return pathLength(route);
     }
 
-    private ScoredCandidate scoreCandidate(Long parkId, VehicleEntity vehicle, double distance,
+    private double estimateRouteDistance(Long parkId, ParkStationResponse from, ParkStationResponse to) {
+        if (!parkRoutePlannerService.isReachable(parkId, from.getX(), from.getY(), to.getX(), to.getY())) {
+            return Double.POSITIVE_INFINITY;
+        }
+        List<ParkPointResponse> route = parkRoutePlannerService.buildRoute(
+                parkId, from.getX(), from.getY(), to.getX(), to.getY());
+        return pathLength(route);
+    }
+
+    private boolean canCompleteTaskWithSoc(Long parkId, VehicleEntity vehicle,
+                                            ParkStationResponse pickup, ParkStationResponse dropoff,
+                                            FleetEnergyProperties energy) {
+        int soc = normalizeSoc(vehicle.getBatteryLevel());
+        double pickupDist = estimateRouteDistance(parkId, vehicle, pickup);
+        if (Double.isInfinite(pickupDist)) {
+            return false;
+        }
+        double dropoffDist = estimateRouteDistance(parkId, pickup, dropoff);
+        // 每单位距离耗电0.05%
+        int consumedSoc = (int) Math.ceil((pickupDist + dropoffDist) * 0.05);
+        return soc - consumedSoc >= energy.getMinAssignableSoc();
+    }
+
+    private ScoredCandidate scoreCandidate(Long parkId, OrderEntity order, VehicleEntity vehicle, double distance,
                                            FleetEnergyProperties energy,
                                            DispatchScoringProperties scoring) {
         int soc = vehicle.getBatteryLevel() == null ? energy.getFullSoc() : vehicle.getBatteryLevel();
+        boolean peakMode = peakModeService.isPeakMode(parkId);
         double distanceScore = distance * scoring.getWeightDistance();
-        distanceScore *= automationRuleService.resolvePeakDistanceFactor(parkId, peakModeService.isPeakMode(parkId) ? 0.85 : 1.0);
+        distanceScore *= automationRuleService.resolvePeakDistanceFactor(parkId, peakMode ? 0.85 : 1.0);
         double socScore = (energy.getFullSoc() - soc) * scoring.getWeightSocMargin();
+        if (peakMode) {
+            socScore *= 0.7;
+        }
         double pluggedBonus = 0D;
         Optional<FleetRuntime> runtime = fleetRuntimeService.get(vehicle.getId());
         if (runtime.isPresent()
                 && Boolean.TRUE.equals(runtime.get().getPluggedIn())
                 && "STANDBY".equals(runtime.get().getRuntimeStage())
-                && soc >= energy.getFullSoc()) {
-            pluggedBonus = scoring.getWeightPluggedStandbyBonus();
+                && soc == energy.getFullSoc()) {
+            pluggedBonus = scoring.getWeightPluggedStandbyBonus() * Math.max(0, 1 - distance / 500);
         }
-        double total = distanceScore + socScore - pluggedBonus;
-        return new ScoredCandidate(vehicle, distanceScore, socScore, pluggedBonus, total);
+        double priorityFactor = resolvePriorityFactor(order.getPriority());
+        double idleBonus = resolveIdleBonus(vehicle, scoring);
+        double total = (distanceScore + socScore - pluggedBonus - idleBonus) * priorityFactor;
+        return new ScoredCandidate(vehicle, distanceScore, socScore, pluggedBonus, idleBonus, priorityFactor, total);
+    }
+
+    private double resolvePriorityFactor(String priority) {
+        if ("HIGH".equalsIgnoreCase(priority)) {
+            return 0.7;
+        } else if ("LOW".equalsIgnoreCase(priority)) {
+            return 1.3;
+        }
+        return 1.0;
+    }
+
+    private double resolveIdleBonus(VehicleEntity vehicle, DispatchScoringProperties scoring) {
+        if (vehicle.getLastReportTime() == null) {
+            return 0D;
+        }
+        long idleMinutes = java.time.Duration.between(vehicle.getLastReportTime(), java.time.LocalDateTime.now()).toMinutes();
+        if (idleMinutes <= 0) {
+            return 0D;
+        }
+        return Math.min(idleMinutes * scoring.getWeightFairness(), scoring.getMaxIdleBonus());
     }
 
     private int normalizeSoc(Integer batteryLevel) {
         return batteryLevel == null ? 100 : batteryLevel;
+    }
+
+    private boolean isUnderMaintenance(VehicleEntity vehicle) {
+        // listAssignableVehicles 已按 IDLE 过滤，此处对 UNAVAILABLE（维保中）再做一次防御性过滤
+        return "UNAVAILABLE".equals(vehicle.getDispatchStatus());
     }
 
     private boolean matchesRequiredVehicleType(OrderEntity order, VehicleEntity vehicle) {
@@ -252,6 +325,31 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                         || required.equalsIgnoreCase(vehicle.getVehicleType())
                         || "GENERAL".equalsIgnoreCase(vehicle.getVehicleType()))
                 .orElse(true);
+    }
+
+    private boolean matchesDeliveryZone(OrderEntity order, VehicleEntity vehicle, ParkStationResponse pickup) {
+        String vehicleZone = vehicle.getDeliveryZone();
+        // 车辆未配置区域或为BOTH：匹配所有订单
+        if (vehicleZone == null || vehicleZone.isBlank() || "BOTH".equals(vehicleZone)) {
+            return true;
+        }
+        // 根据取货站点判断订单区域
+        String orderZone = order.getDeliveryZone();
+        if (orderZone == null || orderZone.isBlank()) {
+            orderZone = PilotFleetSupport.isGeoDeliveryStation(pickup) ? "GEO_DELIVERY" : "SCHEMATIC";
+        }
+        return vehicleZone.equals(orderZone);
+    }
+
+    private boolean matchesLoadCapacity(OrderEntity order, VehicleEntity vehicle) {
+        Integer capacity = vehicle.getMaxLoadCapacity();
+        if (capacity == null || capacity <= 0) {
+            return true; // 未配置载重则跳过
+        }
+        if (order.getWeight() == null || order.getWeight().compareTo(BigDecimal.ZERO) <= 0) {
+            return true;
+        }
+        return capacity >= order.getWeight().intValue();
     }
 
     private double pathLength(List<ParkPointResponse> route) {
@@ -271,6 +369,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
     }
 
     private record ScoredCandidate(VehicleEntity vehicle, double distanceScore, double socScore,
-                                   double pluggedBonus, double totalScore) {
+                                   double pluggedBonus, double idleBonus, double priorityFactor,
+                                   double totalScore) {
     }
 }

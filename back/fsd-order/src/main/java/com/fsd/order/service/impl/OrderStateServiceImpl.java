@@ -50,7 +50,8 @@ public class OrderStateServiceImpl implements OrderStateService {
         if (current == OrderStatus.WAITING_DISPATCH) {
             return;
         }
-        assertStatus(orderEntity, Set.of(OrderStatus.DISPATCHED), "ORDER_STATUS_INVALID");
+        // 允许从 DISPATCHED 或 IN_PROGRESS 回退到 WAITING_DISPATCH，支持任务失败后重试
+        assertStatus(orderEntity, Set.of(OrderStatus.DISPATCHED, OrderStatus.IN_PROGRESS), "ORDER_STATUS_INVALID");
         orderEntity.setStatus(OrderStatus.WAITING_DISPATCH.name());
         orderMapper.updateById(orderEntity);
     }

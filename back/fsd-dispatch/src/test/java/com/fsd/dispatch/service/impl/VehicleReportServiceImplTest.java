@@ -106,7 +106,9 @@ class VehicleReportServiceImplTest {
         vehicleEntity.setId(9003L);
         vehicleEntity.setVehicleCode("V-003");
 
+        // 重试次数已达上限，应直接标记为 FAILED
         DispatchTaskEntity taskEntity = buildTask(3003L, 1003L, DispatchTaskStatus.EXECUTING.name());
+        taskEntity.setRetryCount(3);
 
         when(reportIdempotencyService.markIfFirstReport(request)).thenReturn(true);
         when(vehicleService.updateSnapshot(request)).thenReturn(vehicleEntity);
@@ -121,6 +123,34 @@ class VehicleReportServiceImplTest {
         verify(vehicleService).releaseVehicle(9003L, VehicleDispatchStatus.IDLE.name());
         verify(dispatchExceptionService).recordException(3003L, 1003L, 9003L,
                 "TASK_EXECUTE_FAILED", "vehicle blocked");
+    }
+
+    @Test
+    void handleTaskFailedShouldRetryWhenRetryCountBelowLimit() {
+        VehicleReportRequest request = buildRequest("TASK_FAILED", 3005L, 1005L, "V-005");
+        request.setResultCode("TASK_ERR");
+        request.setResultMessage("transient error");
+
+        VehicleEntity vehicleEntity = new VehicleEntity();
+        vehicleEntity.setId(9005L);
+        vehicleEntity.setVehicleCode("V-005");
+
+        // retryCount < 3，应重置为 PENDING 等待重试
+        DispatchTaskEntity taskEntity = buildTask(3005L, 1005L, DispatchTaskStatus.EXECUTING.name());
+        taskEntity.setRetryCount(1);
+
+        when(reportIdempotencyService.markIfFirstReport(request)).thenReturn(true);
+        when(vehicleService.updateSnapshot(request)).thenReturn(vehicleEntity);
+        when(dispatchTaskStateService.getTask(3005L)).thenReturn(taskEntity);
+        doNothing().when(dispatchTaskStateService).assertCanFinish(taskEntity);
+
+        VehicleReportResponse response = vehicleReportService.handleReport(request);
+
+        assertEquals(DispatchTaskStatus.PENDING.name(), response.getTaskStatus());
+        assertEquals("WAITING_DISPATCH", response.getOrderStatus());
+        verify(vehicleService).releaseVehicle(9005L, VehicleDispatchStatus.IDLE.name());
+        verify(dispatchExceptionService).recordException(3005L, 1005L, 9005L,
+                "TASK_EXECUTE_FAILED_RETRY", "transient error");
     }
 
     @Test

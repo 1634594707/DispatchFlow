@@ -17,6 +17,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public class OpenApiAuthInterceptor implements HandlerInterceptor {
 
     private final ExternalApiKeyMapper apiKeyMapper;
+    // TODO(B007): single-instance rate limiter — counters live in this JVM only.
+    // Multi-instance deployments must migrate to Redis (e.g. INCR + EXPIRE or Lua sliding window)
+    // so rate-limit state is shared across nodes.
     private final Map<String, RateWindow> rateWindows = new ConcurrentHashMap<>();
 
     public OpenApiAuthInterceptor(ExternalApiKeyMapper apiKeyMapper) {
@@ -52,17 +55,26 @@ public class OpenApiAuthInterceptor implements HandlerInterceptor {
         int limit = entity.getRateLimitPerMinute() == null ? 120 : entity.getRateLimitPerMinute();
         long minute = System.currentTimeMillis() / 60_000L;
         String key = entity.getId() + ":" + minute;
-        RateWindow window = rateWindows.computeIfAbsent(key, ignored -> new RateWindow(minute));
-        if (window.minute != minute) {
-            window = new RateWindow(minute);
-            rateWindows.put(key, window);
-        }
+        // Atomic create-or-reuse via compute: avoids the computeIfAbsent + put race
+        // and guarantees a consistent window across concurrent threads.
+        RateWindow window = rateWindows.compute(key, (k, existing) ->
+                (existing != null && existing.minute == minute) ? existing : new RateWindow(minute));
         if (window.count.incrementAndGet() > limit) {
             long hits = entity.getRateLimitHits() == null ? 0L : entity.getRateLimitHits().longValue();
             entity.setRateLimitHits(hits + 1);
             apiKeyMapper.updateById(entity);
             throw new BusinessException("OPEN_API_RATE_LIMIT", "API 调用超过限流");
         }
+        cleanupExpiredWindows(minute);
+    }
+
+    private void cleanupExpiredWindows(long currentMinute) {
+        // Bound memory: drop windows whose minute has rolled over. Only runs when the map
+        // has accumulated enough stale entries to justify the sweep.
+        if (rateWindows.size() < 128) {
+            return;
+        }
+        rateWindows.entrySet().removeIf(entry -> entry.getValue().minute < currentMinute);
     }
 
     private static class RateWindow {
