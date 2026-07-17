@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-07-18
+
+### Added
+
+- 自托管字体：通过 `@fontsource` 引入 Geist / Geist Mono / Plus Jakarta Sans，替代 Google Fonts CDN
+- 全局错误处理器：Vue `errorHandler`、`unhandledrejection`、资源加载错误三类捕获
+- PWA Manifest 完善：`id`、`maskable` 图标 purpose、桌面快捷方式（调度工作台 / 车辆监控 / 运营分析）
+- Guard Mode 动态 `theme-color`：切换值守模式时同步更新 Android 地址栏颜色
+- iOS 安全区域适配：移动端 header 增加 `env(safe-area-inset-top)` padding，避免状态栏遮挡
+
+### Changed
+
+- CSP 策略：新增 `worker-src 'self' blob:` 修复高德地图矢量瓦片 Worker 创建
+- CSP 策略：`connect-src` 中 `wss: ws:` 收紧为 `wss://*.aplicity.online`
+- Vite 构建配置：新增 `target: 'es2020'`、`chunkSizeWarningLimit: 1000`、`sourcemap` 按 analyze 模式开启
+- iOS 状态栏：`apple-mobile-web-app-status-bar-style` 由 `black-translucent` 改为 `black`
+
+### Fixed
+
+- Google Fonts 样式表被 CSP `style-src` 阻断（生产环境字体回退到系统字体）
+- 高德地图 Worker 创建被 CSP 阻断，矢量瓦片渲染降级到主线程导致卡顿
+- `App.vue` 模板中 ref 误用 `.value`，改用 composable 暴露的 `dismissInstall()` 方法
+- `request.ts` 响应拦截器内 `const pinia` 重复声明遮蔽外层变量
+- 移动端 `background-attachment: fixed` 触发滚动重绘卡顿（`@media (pointer: coarse)` 禁用）
+
+### Security
+
+- Service Worker API 缓存仅放行 GET 请求
+- 排除敏感路径缓存：`/api/auth/`、`/api/admin/users/`、`/api/admin/operate-log/`
+- API 缓存条目数 100 → 50，缓存时长 1 天 → 1 小时
+
 ## [0.3.0] - 2026-05-31
 
 ### Added

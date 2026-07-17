@@ -849,6 +849,9 @@ onUnmounted(() => {
     margin-left: 0;
     padding: 0 12px;
     height: 56px;
+    // P2-5: iOS PWA black-translucent 状态栏适配，避免内容被状态栏遮挡
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(56px + env(safe-area-inset-top, 0px));
   }
 }
 
@@ -874,7 +877,8 @@ onUnmounted(() => {
 
   &.fsd-content--phone {
     padding: var(--fsd-space-4);
-    min-height: calc(100dvh - 56px - 64px);
+    // P2-5: 同步 header 的 safe-area-inset-top 高度
+    min-height: calc(100dvh - 56px - env(safe-area-inset-top, 0px) - 64px);
     padding-bottom: calc(var(--fsd-space-4) + 64px + env(safe-area-inset-bottom, 0px));
   }
 }

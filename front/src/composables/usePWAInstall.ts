@@ -12,6 +12,8 @@ export interface PWAInstallState {
   activateUpdate: () => void
   /** Dismiss the update notification */
   dismissUpdate: () => void
+  /** Dismiss the install prompt (user declined) */
+  dismissInstall: () => void
 }
 
 let deferredPrompt: Event | null = null
@@ -57,6 +59,10 @@ export function usePWAInstall(): PWAInstallState {
 
   function dismissUpdate() {
     hasUpdate.value = false
+  }
+
+  function dismissInstall() {
+    canInstall.value = false
   }
 
   function onSWUpdate(registration: ServiceWorkerRegistration) {
@@ -112,5 +118,6 @@ export function usePWAInstall(): PWAInstallState {
     install,
     activateUpdate,
     dismissUpdate,
+    dismissInstall,
   }
 }

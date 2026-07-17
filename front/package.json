@@ -2,7 +2,7 @@
   "name": "dispatchflow-web",
   "description": "DispatchFlow admin console and vehicle monitoring UI",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -25,6 +25,9 @@
     "@capacitor/android": "^8.4.1",
     "@capacitor/cli": "^8.4.1",
     "@capacitor/core": "^8.4.1",
+    "@fontsource/geist": "^5.2.9",
+    "@fontsource/geist-mono": "^5.2.8",
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
     "ant-design-vue": "^4.2.6",
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",

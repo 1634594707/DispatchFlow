@@ -3,16 +3,16 @@
     <router-view />
 
     <!-- PWA Install Prompt -->
-    <div v-if="pwa.canInstall.value" class="pwa-install-bar">
+    <div v-if="pwa.canInstall" class="pwa-install-bar">
       <span class="pwa-install-text">安装 DispatchFlow 到桌面，获得更快的访问体验</span>
       <a-button size="small" type="primary" @click="handleInstall">安装</a-button>
-      <a-button size="small" type="text" @click="pwa.canInstall.value = false">暂不</a-button>
+      <a-button size="small" type="text" @click="pwa.dismissInstall()">暂不</a-button>
     </div>
 
     <!-- PWA Update Notification -->
     <a-notification
-      v-if="pwa.hasUpdate.value"
-      :visible="pwa.hasUpdate.value"
+      v-if="pwa.hasUpdate"
+      :visible="pwa.hasUpdate"
       message="有新版本可用"
       description="已下载新版本，点击刷新以应用更新。"
       placement="bottomRight"

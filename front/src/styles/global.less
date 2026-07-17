@@ -26,6 +26,13 @@ body {
   letter-spacing: -0.005em;
 }
 
+// P3-4: 移动端（触屏设备）禁用 background-attachment: fixed，避免滚动时背景重绘导致卡顿
+@media (pointer: coarse) {
+  body {
+    background-attachment: scroll;
+  }
+}
+
 // Scrollbar
 ::-webkit-scrollbar {
   width: 8px;

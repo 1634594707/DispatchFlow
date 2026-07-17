@@ -61,6 +61,7 @@ instance.interceptors.response.use(
       return data as any
     }
     const errMsg = friendlyApiMessage(data.code, data.message)
+    // P3-1: 提取 pinia 到函数顶部复用，避免在 if 分支内重复声明遮蔽外层变量
     const pinia = getActivePinia()
     if (pinia) {
       useApiErrorsStore(pinia).push({
@@ -76,7 +77,6 @@ instance.interceptors.response.use(
     }
     if (data.code === 'PARK_NOT_FOUND') {
       localStorage.removeItem('fsd_selected_park_id')
-      const pinia = getActivePinia()
       if (pinia) {
         useParkScopeStore(pinia).setParkId(undefined)
       } else {

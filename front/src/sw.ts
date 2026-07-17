@@ -18,14 +18,24 @@ const navigationRoute = new NavigationRoute(handler, {
 registerRoute(navigationRoute)
 
 // API cache: NetworkFirst with timeout
+// P1-3 安全加固：仅缓存 GET 只读请求，排除敏感路径，缩短缓存时长
 registerRoute(
-  /^\/api\/.*/i,
+  ({ url, request }) => {
+    if (request.method !== 'GET') return false
+    const path = url.pathname
+    // 排除认证、用户管理、操作日志等敏感路径
+    if (/^\/api\/auth\//.test(path)) return false
+    if (/^\/api\/admin\/users\//.test(path)) return false
+    if (/^\/api\/admin\/operate-log\//.test(path)) return false
+    // 仅缓存只读查询接口
+    return /^\/api\/(park|vehicle|dashboard|station|infrastructure|analytics)\//.test(path)
+  },
   new NetworkFirst({
     cacheName: 'api-cache',
     plugins: [
       new ExpirationPlugin({
-        maxEntries: 100,
-        maxAgeSeconds: 60 * 60 * 24, // 1 day
+        maxEntries: 50,
+        maxAgeSeconds: 60 * 60, // 1 hour
       }),
     ],
     networkTimeoutSeconds: 10,

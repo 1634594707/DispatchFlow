@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/*.svg', 'badge-72x72.svg'],
       manifest: {
+        id: '/?source=pwa',
         name: 'DispatchFlow 无人车调度平台',
         short_name: 'DispatchFlow',
         description: '无人车调度管理平台 — 调度工作台、车辆监控、运营分析',
@@ -30,11 +31,30 @@ export default defineConfig(({ mode }) => ({
             src: '/icons/icon-192x192.svg',
             sizes: '192x192',
             type: 'image/svg+xml',
+            purpose: 'any maskable',
           },
           {
             src: '/icons/icon-512x512.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
+            purpose: 'any maskable',
+          },
+        ],
+        shortcuts: [
+          {
+            name: '调度工作台',
+            short_name: '工作台',
+            url: '/workbench',
+          },
+          {
+            name: '车辆监控',
+            short_name: '车辆',
+            url: '/vehicles',
+          },
+          {
+            name: '运营分析',
+            short_name: '分析',
+            url: '/analytics',
           },
         ],
       },
@@ -85,6 +105,10 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    // P2-3: 构建目标与 sourcemap 配置
+    target: 'es2020',
+    sourcemap: mode === 'analyze',
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -99,6 +123,9 @@ export default defineConfig(({ mode }) => ({
           }
           if (id.includes('@amap/amap-jsapi-loader') || id.includes('amap-jsapi')) {
             return 'amap'
+          }
+          if (id.includes('@fontsource')) {
+            return 'fonts'
           }
           if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router')) {
             return 'vue-vendor'
