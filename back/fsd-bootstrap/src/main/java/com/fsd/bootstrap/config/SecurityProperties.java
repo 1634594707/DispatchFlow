@@ -1,7 +1,5 @@
 package com.fsd.bootstrap.config;
 
-import java.util.HashMap;
-import java.util.Map;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -17,7 +15,13 @@ public class SecurityProperties {
     @Data
     public static class AdminSecurity {
         private boolean enabled = false;
-        private Map<String, String> tokens = new HashMap<>();
+        /**
+         * SEC-01 fix: static YAML token mapping removed. All admin authentication MUST
+         * go through DB-backed sessions managed by AdminAuthService. This field is kept
+         * only to absorb any legacy YAML entries so old configs don't fail to bind,
+         * but it is no longer consulted by any interceptor.
+         */
+        private java.util.Map<String, String> tokens = new java.util.HashMap<>();
     }
 
     @Data

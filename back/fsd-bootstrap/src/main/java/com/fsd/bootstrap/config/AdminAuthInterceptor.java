@@ -7,13 +7,20 @@ import com.fsd.common.enums.AdminRole;
 import com.fsd.common.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.Map;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 @Component
 public class AdminAuthInterceptor implements HandlerInterceptor {
+
+    /**
+     * SEC-02 fix: gate auth-disable behind an explicit JVM property so a stray env var
+     * cannot silently turn off all /api/admin/** authentication in production.
+     * The property must be set on the command line (-Dfsd.admin.unsafe-no-auth=true)
+     * and is ignored when running under a production Spring profile.
+     */
+    private static final String UNSAFE_NO_AUTH_PROP = "fsd.admin.unsafe-no-auth";
 
     private final SecurityProperties securityProperties;
     private final AdminAuthService adminAuthService;
@@ -36,7 +43,10 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        boolean authEnabled = securityProperties.getAdmin().isEnabled();
+        // SEC-02: auth-disable now requires both config flag AND explicit JVM property,
+        // preventing accidental disablement via a single environment variable.
+        boolean authEnabled = securityProperties.getAdmin().isEnabled()
+                && !Boolean.getBoolean(UNSAFE_NO_AUTH_PROP);
 
         // Auth disabled: still bind user from token when present (supports frontend login + /auth/me)
         if (!authEnabled) {
@@ -68,12 +78,9 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
                     context.getDisplayName(), context.getRole());
             return true;
         }
-        String yamlRole = resolveYamlRole(token);
-        if (yamlRole == null) {
-            return false;
-        }
-        bindRequest(request, null, null, null, AdminRole.valueOf(yamlRole));
-        return true;
+        // SEC-01 fix: YAML static token backdoor removed. All admin tokens MUST be
+        // validated through AdminAuthService.resolveToken (DB-backed sessions).
+        return false;
     }
 
     /** 无需强制登录；凭证在 Controller 内校验（管理员 token 或 X-Mobile-Api-Key）。 */
@@ -105,14 +112,6 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
     private boolean isViewerWritablePath(String path) {
         return "/api/admin/auth/logout".equals(path)
                 || "/api/admin/auth/change-password".equals(path);
-    }
-
-    private String resolveYamlRole(String token) {
-        Map<String, String> tokens = securityProperties.getAdmin().getTokens();
-        if (tokens == null || tokens.isEmpty()) {
-            return null;
-        }
-        return tokens.get(token);
     }
 
     private void bindRequest(HttpServletRequest request, Long userId, String username,

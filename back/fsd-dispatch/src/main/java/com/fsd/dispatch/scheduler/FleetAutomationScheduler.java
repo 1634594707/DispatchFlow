@@ -5,10 +5,13 @@ import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
+import com.fsd.dispatch.service.ChargingSessionService;
 import com.fsd.dispatch.service.DispatchAutomationRuleService;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -16,10 +19,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class FleetAutomationScheduler {
 
+    private static final Logger log = LoggerFactory.getLogger(FleetAutomationScheduler.class);
+
     private final VehicleMapper vehicleMapper;
     private final FleetRuntimeService fleetRuntimeService;
     private final FleetChargePolicy fleetChargePolicy;
     private final DispatchAutomationRuleService automationRuleService;
+    private final ChargingSessionService chargingSessionService;
 
     @Value("${fsd.automation.default-park-id:1}")
     private long defaultParkId;
@@ -27,11 +33,13 @@ public class FleetAutomationScheduler {
     public FleetAutomationScheduler(VehicleMapper vehicleMapper,
                                     FleetRuntimeService fleetRuntimeService,
                                     FleetChargePolicy fleetChargePolicy,
-                                    DispatchAutomationRuleService automationRuleService) {
+                                    DispatchAutomationRuleService automationRuleService,
+                                    ChargingSessionService chargingSessionService) {
         this.vehicleMapper = vehicleMapper;
         this.fleetRuntimeService = fleetRuntimeService;
         this.fleetChargePolicy = fleetChargePolicy;
         this.automationRuleService = automationRuleService;
+        this.chargingSessionService = chargingSessionService;
     }
 
     @Scheduled(fixedDelayString = "${fsd.automation.fleet-check-ms:120000}")
@@ -51,6 +59,22 @@ public class FleetAutomationScheduler {
                 continue;
             }
             automationRuleService.evaluateFleetEnergyRules(defaultParkId, vehicle, stage);
+        }
+    }
+
+    /**
+     * ALG-10 fix: periodically scan for charging sessions that have exceeded the
+     * configured timeout and release the stuck vehicles. Runs every 5 minutes.
+     */
+    @Scheduled(fixedDelayString = "${fsd.automation.charging-timeout-check-ms:300000}")
+    public void timeoutStaleChargingSessions() {
+        try {
+            int timedOut = chargingSessionService.timeoutStaleChargingSessions();
+            if (timedOut > 0) {
+                log.warn("ALG-10: timed out {} stale charging session(s); vehicles released to IDLE", timedOut);
+            }
+        } catch (Exception ex) {
+            log.warn("ALG-10: charging-timeout sweep failed: {}", ex.getMessage());
         }
     }
 }

@@ -9,11 +9,16 @@ import org.springframework.stereotype.Service;
 
 /**
  * Redis 时空预约表：segment×timeBucket → vehicleId（M5.1）。
+ *
+ * <p>ALG-01 fix: in addition to reserving directed edges, the service now also reserves
+ * the arrival node for each bucket window. This prevents two vehicles from different
+ * directions from arriving at the same intersection node simultaneously.
  */
 @Service
 public class MapfReservationService {
 
     private static final String KEY_PREFIX = "mapf:res:";
+    private static final String NODE_KEY_PREFIX = "mapf:node:";
 
     private final MapfProperties mapfProperties;
     private final StringRedisTemplate stringRedisTemplate;
@@ -61,6 +66,33 @@ public class MapfReservationService {
                 }
             }
             acquiredKeys.add(forwardKey);
+            // ALG-01 fix: also reserve the arrival node (toNode) for this bucket so that
+            // two vehicles converging on the same intersection from different edges cannot
+            // occupy the node at the same time. The fromNode is reserved implicitly by the
+            // previous iteration (or by the vehicle's prior edge reservation).
+            String nodeKey = buildNodeKey(parkId, toNode, bucket);
+            Boolean nodeAcquired = stringRedisTemplate.opsForValue().setIfAbsent(nodeKey, vid, ttl);
+            if (!Boolean.TRUE.equals(nodeAcquired)) {
+                String nodeHolder = stringRedisTemplate.opsForValue().get(nodeKey);
+                if (nodeHolder != null && !nodeHolder.equals(vid)) {
+                    rollback(acquiredKeys);
+                    return false;
+                }
+            }
+            acquiredKeys.add(nodeKey);
+        }
+        // ALG-01: also reserve the starting node for the very first bucket to prevent
+        // another vehicle from jumping onto the same start node while we begin traversing.
+        String startNodeKey = buildNodeKey(parkId, fromNode, startBucket);
+        Boolean startNodeAcquired = stringRedisTemplate.opsForValue().setIfAbsent(startNodeKey, vid, ttl);
+        if (!Boolean.TRUE.equals(startNodeAcquired)) {
+            String holder = stringRedisTemplate.opsForValue().get(startNodeKey);
+            if (holder != null && !holder.equals(vid)) {
+                rollback(acquiredKeys);
+                return false;
+            }
+        } else {
+            acquiredKeys.add(startNodeKey);
         }
         return true;
     }
@@ -74,5 +106,9 @@ public class MapfReservationService {
 
     private static String buildKey(Long parkId, String from, String to, long bucket) {
         return KEY_PREFIX + parkId + ":" + from + ">" + to + ":" + bucket;
+    }
+
+    private static String buildNodeKey(Long parkId, String node, long bucket) {
+        return NODE_KEY_PREFIX + parkId + ":" + node + ":" + bucket;
     }
 }

@@ -28,12 +28,12 @@ public class OpenApiAuthInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        // SEC-04 fix: API Key must be supplied via the X-Api-Key header only.
+        // Query-string credentials are rejected because they leak into access logs,
+        // browser history, and referrer headers.
         String apiKey = request.getHeader("X-Api-Key");
         if (apiKey == null || apiKey.isBlank()) {
-            apiKey = request.getParameter("apiKey");
-        }
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new BusinessException("OPEN_API_KEY_REQUIRED", "缺少 API Key");
+            throw new BusinessException("OPEN_API_KEY_REQUIRED", "缺少 API Key (请通过 X-Api-Key 请求头传递)");
         }
         ExternalApiKeyEntity entity = apiKeyMapper.selectOne(new LambdaQueryWrapper<ExternalApiKeyEntity>()
                 .eq(ExternalApiKeyEntity::getApiKey, apiKey)
@@ -43,9 +43,16 @@ public class OpenApiAuthInterceptor implements HandlerInterceptor {
             throw new BusinessException("OPEN_API_KEY_INVALID", "API Key 无效");
         }
         checkRateLimit(entity);
-        entity.setTotalCalls((entity.getTotalCalls() == null ? 0L : entity.getTotalCalls()) + 1);
-        entity.setLastUsedAt(LocalDateTime.now());
-        apiKeyMapper.updateById(entity);
+        // SEC-18 fix: throttle DB writes for lastUsedAt/totalCalls. Update at most once
+        // per minute per key to avoid a write-per-request bottleneck under load.
+        long now = System.currentTimeMillis();
+        Long lastUsedMs = entity.getLastUsedAt() == null ? null
+                : entity.getLastUsedAt().toEpochSecond(java.time.ZoneOffset.UTC) * 1000L;
+        if (lastUsedMs == null || (now - lastUsedMs) >= 60_000L) {
+            entity.setTotalCalls((entity.getTotalCalls() == null ? 0L : entity.getTotalCalls()) + 1);
+            entity.setLastUsedAt(LocalDateTime.now());
+            apiKeyMapper.updateById(entity);
+        }
         request.setAttribute("openApiKeyId", entity.getId());
         request.setAttribute("openApiKeyName", entity.getKeyName());
         return true;

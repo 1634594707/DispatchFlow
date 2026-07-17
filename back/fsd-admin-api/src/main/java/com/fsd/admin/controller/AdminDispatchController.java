@@ -12,6 +12,7 @@ import com.fsd.admin.service.TaskPriorityAdminService;
 import com.fsd.admin.auth.AdminAuthContext;
 import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.dto.AdminDispatchExceptionResolveRequest;
+import com.fsd.admin.dto.AdminDispatchExceptionBatchResolveRequest;
 import com.fsd.admin.service.AdminAuthService;
 import com.fsd.admin.service.AdminDashboardService;
 import com.fsd.admin.service.AdminQueryFacadeService;
@@ -559,7 +560,7 @@ public class AdminDispatchController {
     }
 
     @PostMapping("/park/orders")
-    @Operation(summary = "Create park order via mobile API key", description = "Authenticated by X-Mobile-Api-Key header or mobileApiKey query param, not admin token")
+    @Operation(summary = "Create park order via mobile API key", description = "Authenticated by X-Mobile-Api-Key header (SEC-06: query param no longer accepted)", security = {})
     @SecurityRequirement(name = "")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Order created"),
@@ -577,10 +578,9 @@ public class AdminDispatchController {
             AdminAuthSupport.requireAuth(request);
             return;
         }
+        // SEC-06 fix: mobile API key must be supplied via the X-Mobile-Api-Key header only.
+        // Query-string credentials leak into access logs and referrer headers.
         String mobileKey = request.getHeader("X-Mobile-Api-Key");
-        if (mobileKey == null || mobileKey.isBlank()) {
-            mobileKey = request.getParameter("mobileApiKey");
-        }
         mobileOrderAuthService.validateMobileOrderKey(mobileKey);
     }
 

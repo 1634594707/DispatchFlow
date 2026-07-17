@@ -1,10 +1,19 @@
 # Mosquitto only — does NOT build/restart fsd-core-server (avoids pulling maven image).
+# SEC-08 fix: anonymous access is disabled; clients must authenticate against /mosquitto/config/passwd.
 # Usage (from back/):
+#   # 1. Start the broker
 #   docker compose -f docker-compose.mqtt.yml up -d
-#   python scripts/vda5050-sim-agv.py --broker tcp://127.0.0.1:1883
+#   # 2. Generate the password file (reads MQTT_FMS_PASSWORD / MQTT_VEHICLE_PASSWORD env vars)
+#   bash scripts/mqtt-init.sh
+#   # 3. Run a simulation
+#   python scripts/vda5050-sim-agv.py --broker tcp://127.0.0.1:1883 \
+#     --username "$MQTT_FMS_USERNAME" --password "$MQTT_FMS_PASSWORD"
 #
 # Full stack + MQTT (when backend image already exists):
-#   FSD_VDA5050_MQTT_ENABLED=true FSD_VDA5050_MQTT_BROKER=tcp://mosquitto:1883 \
+#   FSD_VDA5050_MQTT_ENABLED=true \
+#   FSD_VDA5050_MQTT_BROKER=tcp://mosquitto:1883 \
+#   FSD_VDA5050_MQTT_USERNAME="$MQTT_FMS_USERNAME" \
+#   FSD_VDA5050_MQTT_PASSWORD="$MQTT_FMS_PASSWORD" \
 #     docker compose -f docker-compose.yml -f docker-compose.mqtt.yml up -d
 
 services:
@@ -15,4 +24,13 @@ services:
       - "${MQTT_HOST_PORT:-1883}:1883"
     volumes:
       - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      # SEC-08: persist the password file so it survives container restarts.
+      - mosquitto-config:/mosquitto/config
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
     restart: unless-stopped
+
+volumes:
+  mosquitto-config:
+  mosquitto-data:
+  mosquitto-log:

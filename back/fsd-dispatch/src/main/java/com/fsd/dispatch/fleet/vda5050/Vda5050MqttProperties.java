@@ -19,6 +19,29 @@ public class Vda5050MqttProperties {
 
     private int keepAliveSeconds = 30;
 
+    /**
+     * SEC-09 fix: MQTT broker credentials. Both must be non-blank to enable authenticated
+     * connections. When left empty the gateway will refuse to start (instead of silently
+     * falling back to anonymous access).
+     */
+    private String username = "";
+
+    private String password = "";
+
+    /**
+     * SEC-09 fix: path to a PEM-encoded CA bundle used to verify the broker TLS cert.
+     * Only consulted when brokerUrl uses the ssl:// scheme. Empty = use the JVM trust store.
+     */
+    private String caCertPath = "";
+
+    /**
+     * SEC-09 fix: path to a PEM-encoded client cert/key pair for mutual TLS. Optional;
+     * when set, the broker must also be configured to require client certs.
+     */
+    private String clientCertPath = "";
+
+    private String clientKeyPath = "";
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -73,5 +96,45 @@ public class Vda5050MqttProperties {
 
     public void setKeepAliveSeconds(int keepAliveSeconds) {
         this.keepAliveSeconds = keepAliveSeconds;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getCaCertPath() {
+        return caCertPath;
+    }
+
+    public void setCaCertPath(String caCertPath) {
+        this.caCertPath = caCertPath;
+    }
+
+    public String getClientCertPath() {
+        return clientCertPath;
+    }
+
+    public void setClientCertPath(String clientCertPath) {
+        this.clientCertPath = clientCertPath;
+    }
+
+    public String getClientKeyPath() {
+        return clientKeyPath;
+    }
+
+    public void setClientKeyPath(String clientKeyPath) {
+        this.clientKeyPath = clientKeyPath;
     }
 }

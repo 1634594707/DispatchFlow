@@ -49,6 +49,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
     private final DispatchAutomationRuleService automationRuleService;
     private final DispatchGeoDistanceService dispatchGeoDistanceService;
     private final MapfRoutePlannerService mapfRoutePlannerService;
+    private final com.fsd.dispatch.service.ChargingSessionService chargingSessionService;
 
     public DispatchVehicleAssignServiceImpl(VehicleService vehicleService,
                                             ParkStationService parkStationService,
@@ -62,7 +63,8 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                                             PeakModeService peakModeService,
                                             DispatchAutomationRuleService automationRuleService,
                                             DispatchGeoDistanceService dispatchGeoDistanceService,
-                                            MapfRoutePlannerService mapfRoutePlannerService) {
+                                            MapfRoutePlannerService mapfRoutePlannerService,
+                                            com.fsd.dispatch.service.ChargingSessionService chargingSessionService) {
         this.vehicleService = vehicleService;
         this.parkStationService = parkStationService;
         this.parkRoutePlannerService = parkRoutePlannerService;
@@ -76,6 +78,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         this.automationRuleService = automationRuleService;
         this.dispatchGeoDistanceService = dispatchGeoDistanceService;
         this.mapfRoutePlannerService = mapfRoutePlannerService;
+        this.chargingSessionService = chargingSessionService;
     }
 
     @Override
@@ -235,7 +238,18 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         }
         List<ParkPointResponse> route = parkRoutePlannerService.buildRoute(
                 parkId, currentX, currentY, station.getX(), station.getY());
-        return pathLength(route);
+        double schematicDistance = pathLength(route);
+        // ALG-16: when geo coordinates are available, prefer the real road-network
+        // distance (haversine meters) over the abstract schematic-grid distance. The
+        // schematic grid is fine for MAPF conflict avoidance inside the park, but using
+        // it for SOC estimation underestimates real-world energy consumption on the
+        // ~1570m×470m Dieshiqiao pilot site.
+        Double realWorldDistance = estimateRealWorldDistanceMeters(vehicle.getCurrentLongitude(),
+                vehicle.getCurrentLatitude(), station.getCoordLng(), station.getCoordLat());
+        if (realWorldDistance != null) {
+            return realWorldDistance;
+        }
+        return schematicDistance;
     }
 
     private double estimateRouteDistance(Long parkId, ParkStationResponse from, ParkStationResponse to) {
@@ -244,7 +258,34 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         }
         List<ParkPointResponse> route = parkRoutePlannerService.buildRoute(
                 parkId, from.getX(), from.getY(), to.getX(), to.getY());
-        return pathLength(route);
+        double schematicDistance = pathLength(route);
+        // ALG-16: prefer real-world haversine meters when geo coords are present.
+        Double realWorldDistance = estimateRealWorldDistanceMeters(from.getCoordLng(), from.getCoordLat(),
+                to.getCoordLng(), to.getCoordLat());
+        if (realWorldDistance != null) {
+            return realWorldDistance;
+        }
+        return schematicDistance;
+    }
+
+    /**
+     * ALG-16: compute the haversine distance (meters) between two geo coordinates.
+     * Returns null when either endpoint lacks geo coordinates, signalling the caller
+     * to fall back to the schematic-grid distance.
+     */
+    private Double estimateRealWorldDistanceMeters(BigDecimal fromLng, BigDecimal fromLat,
+                                                    BigDecimal toLng, BigDecimal toLat) {
+        if (fromLng == null || fromLat == null || toLng == null || toLat == null) {
+            return null;
+        }
+        // Haversine gives the great-circle distance. For in-park routing this is a slight
+        // under-estimate (roads aren't straight), so apply a 1.3x road-network factor to
+        // bias toward conservative SOC estimates. This matches the typical Manhattan
+        // distance / haversine ratio observed in dense urban grids.
+        double meters = com.fsd.dispatch.geo.GeoPolygonUtils.haversineMeters(
+                new com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint(fromLng, fromLat),
+                new com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint(toLng, toLat));
+        return meters * 1.3D;
     }
 
     private boolean canCompleteTaskWithSoc(Long parkId, VehicleEntity vehicle,
@@ -252,12 +293,33 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                                             FleetEnergyProperties energy) {
         int soc = normalizeSoc(vehicle.getBatteryLevel());
         double pickupDist = estimateRouteDistance(parkId, vehicle, pickup);
+        // If the pickup is unreachable, skip the SOC chain check — the downstream
+        // reachability scan will produce the correct UNREACHABLE failure reason
+        // rather than masking it as LOW_SOC.
         if (Double.isInfinite(pickupDist)) {
-            return false;
+            return true;
         }
         double dropoffDist = estimateRouteDistance(parkId, pickup, dropoff);
+        if (Double.isInfinite(dropoffDist)) {
+            return true;
+        }
+        // ALG-04 fix: include the distance from the dropoff station back to the nearest
+        // charging pile. Without this, a vehicle could complete pickup+dropoff but then
+        // run out of charge before reaching a charger, leaving it stranded.
+        double returnToChargerMeters = chargingSessionService.estimateDistanceToNearestChargingPile(
+                parkId, dropoff.getCoordLng(), dropoff.getCoordLat());
+        // Convert the geo haversine distance (meters) into the same units used by
+        // pickupDist/dropoffDist (which are path lengths in the configured coordinate
+        // system). For geo-enabled parks we use meters directly; for schematic parks the
+        // blend is approximate but conservative (over-estimating drain is safer).
+        double returnDist = returnToChargerMeters;
+        if (Double.isInfinite(returnDist) || returnDist >= Double.MAX_VALUE / 2) {
+            // No charging piles configured: fall back to a fixed 200m reserve estimate
+            // so we don't reject all assignments in environments without chargers.
+            returnDist = 200D;
+        }
         // 每单位距离耗电0.05%
-        int consumedSoc = (int) Math.ceil((pickupDist + dropoffDist) * 0.05);
+        int consumedSoc = (int) Math.ceil((pickupDist + dropoffDist + returnDist) * 0.05);
         return soc - consumedSoc >= energy.getMinAssignableSoc();
     }
 

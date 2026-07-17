@@ -23,12 +23,19 @@ import dev.samstevens.totp.secret.DefaultSecretGenerator;
 import dev.samstevens.totp.secret.SecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
 import dev.samstevens.totp.time.TimeProvider;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,8 +43,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AdminAuthServiceImpl implements AdminAuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminAuthServiceImpl.class);
     private static final int SESSION_TTL_HOURS = 24;
     private static final int MAX_LOGIN_ATTEMPTS_PER_MINUTE = 10;
+    private static final String HMAC_ALGORITHM = "HmacSHA256";
+    private static final String TOKEN_SEPARATOR = ".";
 
     private final AdminUserMapper adminUserMapper;
     private final AdminSessionMapper adminSessionMapper;
@@ -46,16 +56,47 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private final SecretGenerator secretGenerator = new DefaultSecretGenerator();
     private final TimeProvider timeProvider = new SystemTimeProvider();
     private final CodeVerifier codeVerifier = new DefaultCodeVerifier(new DefaultCodeGenerator(HashingAlgorithm.SHA1), timeProvider);
+    /**
+     * SEC-03 fix: HMAC key used to sign session tokens. When unset, the service derives
+     * a deterministic key from the DB-backed encryption key so tokens are still signed
+     * rather than plain UUIDs. Operators should set fsd.security.admin.token-hmac-key
+     * to a stable random value in production.
+     */
+    private final byte[] tokenHmacKey;
     // TODO(B008): single-instance login rate limiter — counters live in this JVM only.
     // Multi-instance deployments must migrate to Redis so brute-force protection is shared.
     private final Map<String, LoginRateWindow> loginRateWindows = new ConcurrentHashMap<>();
 
     public AdminAuthServiceImpl(AdminUserMapper adminUserMapper,
                                 AdminSessionMapper adminSessionMapper,
-                                FieldEncryptionService fieldEncryptionService) {
+                                FieldEncryptionService fieldEncryptionService,
+                                @Value("${fsd.security.admin.token-hmac-key:}") String tokenHmacKey) {
         this.adminUserMapper = adminUserMapper;
         this.adminSessionMapper = adminSessionMapper;
         this.fieldEncryptionService = fieldEncryptionService;
+        this.tokenHmacKey = resolveHmacKey(tokenHmacKey, fieldEncryptionService);
+    }
+
+    /**
+     * SEC-03: derive a stable HMAC key. Priority: explicit config > encryption key
+     * (already a deployment secret) > a per-instance random key (logged as a warning
+     * because tokens won't survive a restart in that mode).
+     */
+    private static byte[] resolveHmacKey(String configured, FieldEncryptionService encryptionService) {
+        if (configured != null && !configured.isBlank()) {
+            return configured.getBytes(StandardCharsets.UTF_8);
+        }
+        // Fall back to the field-encryption key material if available; this is already
+        // a deployment secret and avoids introducing a new required config value.
+        String derived = encryptionService.describeKeyMaterial();
+        if (derived != null && !derived.isBlank()) {
+            return derived.getBytes(StandardCharsets.UTF_8);
+        }
+        log.warn("fsd.security.admin.token-hmac-key not set and field-encryption key unavailable; "
+                + "using a random per-instance HMAC key. Session tokens will NOT survive restarts.");
+        byte[] random = new byte[32];
+        new java.security.SecureRandom().nextBytes(random);
+        return random;
     }
 
     @Override
@@ -84,9 +125,12 @@ public class AdminAuthServiceImpl implements AdminAuthService {
             }
         }
 
-        String token = UUID.randomUUID().toString().replace("-", "");
+        String sessionSecret = UUID.randomUUID().toString().replace("-", "");
+        // SEC-03: token format is "<sessionSecret>.<hmac>". The DB stores only the
+        // sessionSecret portion, so a DB leak alone cannot forge valid tokens.
+        String token = sessionSecret + TOKEN_SEPARATOR + signToken(sessionSecret);
         AdminSessionEntity session = new AdminSessionEntity();
-        session.setToken(token);
+        session.setToken(sessionSecret);
         session.setUserId(user.getId());
         session.setExpiresAt(LocalDateTime.now().plusHours(SESSION_TTL_HOURS));
         session.setCreatedAt(LocalDateTime.now());
@@ -149,8 +193,13 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         if (token == null || token.isBlank()) {
             return;
         }
+        // SEC-03: token format is "<sessionSecret>.<hmac>"; DB stores only sessionSecret.
+        String sessionSecret = extractSessionSecret(token);
+        if (sessionSecret == null) {
+            return;
+        }
         adminSessionMapper.delete(new LambdaQueryWrapper<AdminSessionEntity>()
-                .eq(AdminSessionEntity::getToken, token));
+                .eq(AdminSessionEntity::getToken, sessionSecret));
     }
 
     @Override
@@ -158,8 +207,14 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         if (token == null || token.isBlank()) {
             return null;
         }
+        // SEC-03: validate HMAC signature before hitting the DB. This rejects forged
+        // tokens cheaply and ensures a DB leak alone cannot produce valid tokens.
+        String sessionSecret = extractSessionSecret(token);
+        if (sessionSecret == null) {
+            return null;
+        }
         AdminSessionEntity session = adminSessionMapper.selectOne(new LambdaQueryWrapper<AdminSessionEntity>()
-                .eq(AdminSessionEntity::getToken, token));
+                .eq(AdminSessionEntity::getToken, sessionSecret));
         if (session == null) {
             return null;
         }
@@ -181,6 +236,61 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 .role(resolveRole(user.getRole()))
                 .token(token)
                 .build();
+    }
+
+    /**
+     * SEC-03: split the presented token into sessionSecret + signature and verify
+     * the HMAC. Returns the sessionSecret on success, null on failure. Tokens that
+     * do not contain the separator are treated as legacy plain UUIDs and accepted
+     * only when the HMAC key is the per-instance random fallback (dev mode).
+     */
+    private String extractSessionSecret(String token) {
+        int sep = token.lastIndexOf(TOKEN_SEPARATOR);
+        if (sep < 0) {
+            // Legacy plain-UUID token: accept only in dev (random HMAC key) for backwards
+            // compatibility during rolling upgrades. Production deployments with a stable
+            // HMAC key require signed tokens.
+            if (isLegacyDevMode()) {
+                return token;
+            }
+            return null;
+        }
+        String sessionSecret = token.substring(0, sep);
+        String signature = token.substring(sep + TOKEN_SEPARATOR.length());
+        String expected = signToken(sessionSecret);
+        if (!constantTimeEquals(signature, expected)) {
+            return null;
+        }
+        return sessionSecret;
+    }
+
+    private boolean isLegacyDevMode() {
+        // Consider it dev mode when the HMAC key was randomly generated (no stable config).
+        // We approximate this by checking whether the field-encryption key is also unset.
+        return fieldEncryptionService.describeKeyMaterial() == null;
+    }
+
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null || a.length() != b.length()) {
+            return false;
+        }
+        int result = 0;
+        for (int i = 0; i < a.length(); i++) {
+            result |= a.charAt(i) ^ b.charAt(i);
+        }
+        return result == 0;
+    }
+
+    private String signToken(String sessionSecret) {
+        try {
+            Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+            mac.init(new SecretKeySpec(tokenHmacKey, HMAC_ALGORITHM));
+            byte[] digest = mac.doFinal(sessionSecret.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception ex) {
+            log.warn("Failed to sign session token: {}", ex.getMessage());
+            return "";
+        }
     }
 
     private AdminRole resolveRole(String roleName) {

@@ -25,6 +25,13 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
     private static final Set<String> ALLOWED_ACTIONS = Set.of(
             "REASSIGN", "MARK_FAILED", "CLOSE", "VEHICLE_OFFLINE", "AUTO_RESOLVED");
 
+    /**
+     * ALG-14 fix: when an open exception's aggregate count crosses this threshold, the
+     * severity is escalated to CRITICAL and a fresh EXCEPTION_OPEN event is republished
+     * so operators are alerted instead of the failures being silently deduped away.
+     */
+    private static final int ESCALATION_AGG_THRESHOLD = 5;
+
     private final DispatchExceptionRecordMapper exceptionRecordMapper;
     private final DispatchEventPublisher eventPublisher;
     private final DispatchTaskOperateLogService operateLogService;
@@ -56,7 +63,14 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
                 existing.setAggCount(existing.getAggCount() == null ? 2 : existing.getAggCount() + 1);
                 existing.setOccurTime(LocalDateTime.now());
                 existing.setExceptionMsg(exceptionMsg);
+                // ALG-14 fix: escalate severity once the aggregate count crosses the
+                // threshold so repeated failures are surfaced instead of silently merged.
+                boolean escalated = maybeEscalate(existing);
                 exceptionRecordMapper.updateById(existing);
+                if (escalated) {
+                    eventPublisher.publish(DispatchEventType.EXCEPTION_OPEN,
+                            String.valueOf(existing.getId()), buildPayload(existing));
+                }
             }
             return;
         }
@@ -83,7 +97,12 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
                 existing.setAggCount(existing.getAggCount() == null ? 2 : existing.getAggCount() + 1);
                 existing.setOccurTime(LocalDateTime.now());
                 existing.setExceptionMsg(exceptionMsg);
+                boolean escalated = maybeEscalate(existing);
                 exceptionRecordMapper.updateById(existing);
+                if (escalated) {
+                    eventPublisher.publish(DispatchEventType.EXCEPTION_OPEN,
+                            String.valueOf(existing.getId()), buildPayload(existing));
+                }
             }
             return;
         }
@@ -97,6 +116,23 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         entity.setAggCount(1);
         exceptionRecordMapper.insert(entity);
         eventPublisher.publish(DispatchEventType.EXCEPTION_OPEN, String.valueOf(entity.getId()), buildPayload(entity));
+    }
+
+    /**
+     * ALG-14: bump severity to CRITICAL when the aggregate count crosses the threshold.
+     * Returns true if severity was escalated (so the caller can re-publish the event).
+     */
+    private boolean maybeEscalate(DispatchExceptionRecordEntity entity) {
+        int count = entity.getAggCount() == null ? 0 : entity.getAggCount();
+        if (count < ESCALATION_AGG_THRESHOLD) {
+            return false;
+        }
+        String current = entity.getSeverity();
+        if (ExceptionSeverity.CRITICAL.name().equals(current)) {
+            return false;
+        }
+        entity.setSeverity(ExceptionSeverity.CRITICAL.name());
+        return true;
     }
 
     @Override

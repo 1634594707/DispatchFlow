@@ -68,11 +68,15 @@ public class DispatchEventOutboxServiceImpl implements DispatchEventOutboxServic
 
     @Override
     public List<DispatchEventOutboxEntity> listRetryableEvents(int limit) {
-        return outboxMapper.selectList(new LambdaQueryWrapper<DispatchEventOutboxEntity>()
+        // SEC-17 fix: use Page<> instead of .last("limit " + n) to avoid SQL string
+        // concatenation, even when the value is server-side bounded.
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<DispatchEventOutboxEntity> page =
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, Math.max(1, limit));
+        return outboxMapper.selectPage(page, new LambdaQueryWrapper<DispatchEventOutboxEntity>()
                 .in(DispatchEventOutboxEntity::getStatus, List.of("PENDING", "FAILED"))
                 .le(DispatchEventOutboxEntity::getNextRetryTime, LocalDateTime.now())
-                .orderByAsc(DispatchEventOutboxEntity::getCreatedAt)
-                .last("limit " + limit));
+                .orderByAsc(DispatchEventOutboxEntity::getCreatedAt))
+                .getRecords();
     }
 
     @Override

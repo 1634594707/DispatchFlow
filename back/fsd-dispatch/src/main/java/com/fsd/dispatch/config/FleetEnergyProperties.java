@@ -44,4 +44,12 @@ public class FleetEnergyProperties {
     private String energyRecoveryMode = "CHARGE";
 
     private int swapDurationTicks = 5;
+
+    /**
+     * ALG-10 fix: maximum duration (minutes) a charging session may remain ACTIVE before
+     * the timeout scheduler forcibly terminates it. A faulty charging pile that never
+     * reports full SOC would otherwise leave the vehicle permanently stuck in CHARGING.
+     * Set to 0 to disable the timeout (not recommended for production).
+     */
+    private int chargingTimeoutMinutes = 240;
 }

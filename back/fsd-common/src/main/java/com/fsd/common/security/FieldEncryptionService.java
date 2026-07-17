@@ -86,6 +86,29 @@ public class FieldEncryptionService {
         return value != null && value.startsWith(PREFIX);
     }
 
+    /**
+     * SEC-03 support: expose a stable descriptor of the configured key material so other
+     * services (e.g. AdminAuthServiceImpl) can derive an HMAC key without introducing a
+     * new deployment secret. Returns null when encryption is not configured.
+     *
+     * The descriptor is a SHA-256 of the raw key bytes — it is NOT the key itself and
+     * cannot be used to decrypt fields, but it is deterministic across restarts and
+     * instances that share the same configuration.
+     */
+    public String describeKeyMaterial() {
+        String rawKey = properties.getKey();
+        if (rawKey == null || rawKey.isBlank()) {
+            return null;
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] keyBytes = digest.digest(rawKey.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(keyBytes);
+        } catch (GeneralSecurityException ex) {
+            return null;
+        }
+    }
+
     private static SecretKeySpec deriveKey(String rawKey) {
         if (rawKey == null || rawKey.isBlank()) {
             return null;

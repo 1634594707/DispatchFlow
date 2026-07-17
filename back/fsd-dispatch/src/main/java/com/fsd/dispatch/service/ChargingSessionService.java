@@ -33,4 +33,25 @@ public interface ChargingSessionService {
      * @return 按优先级排序的待充电车辆列表
      */
     List<Long> getChargingQueue(Long parkId);
+
+    /**
+     * ALG-04 fix: estimate the shortest distance (meters) from the given geo coordinate
+     * to the nearest free charging pile. Used by dispatch vehicle assignment to ensure
+     * the SOC chain calculation includes the return-to-charger trip.
+     *
+     * @param parkId 园区ID（reserved for future per-park scoping）
+     * @param fromLng 起点经度
+     * @param fromLat 起点纬度
+     * @return 到最近空闲充电桩的距离（米），无可用桩时返回 {@link Double#MAX_VALUE}
+     */
+    double estimateDistanceToNearestChargingPile(Long parkId, java.math.BigDecimal fromLng, java.math.BigDecimal fromLat);
+
+    /**
+     * ALG-10 fix: scan for ACTIVE charging sessions whose start time exceeds the
+     * configured timeout and mark them TIMED_OUT. The associated vehicles are
+     * released back to IDLE so they can be re-dispatched or sent to another pile.
+     *
+     * @return number of sessions timed out
+     */
+    int timeoutStaleChargingSessions();
 }

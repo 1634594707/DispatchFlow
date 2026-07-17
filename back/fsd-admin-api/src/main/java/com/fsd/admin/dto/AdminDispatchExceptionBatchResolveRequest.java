@@ -1,34 +1,26 @@
 package com.fsd.admin.dto;
 
 import com.fsd.dispatch.dto.DispatchExceptionResolveRequest;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
-import java.util.List;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
+import java.util.List;
+
+/**
+ * Batch resolve request for dispatch exceptions. Extends the single-resolve
+ * request and adds the list of exception IDs to resolve in a single
+ * transactional operation.
+ */
 @Data
-public class AdminDispatchExceptionBatchResolveRequest {
+@EqualsAndHashCode(callSuper = true)
+public class AdminDispatchExceptionBatchResolveRequest extends AdminDispatchExceptionResolveRequest {
 
-    @NotEmpty(message = "exceptionIds is required")
+    @NotEmpty(message = "exceptionIds must not be empty")
     private List<Long> exceptionIds;
 
-    @NotBlank(message = "resolverId is required")
-    private String resolverId;
-
-    @NotBlank(message = "resolverName is required")
-    private String resolverName;
-
-    @NotBlank(message = "action is required")
-    private String action;
-
-    private String remark;
-
+    @Override
     public DispatchExceptionResolveRequest toDispatchRequest() {
-        DispatchExceptionResolveRequest request = new DispatchExceptionResolveRequest();
-        request.setResolverId(resolverId);
-        request.setResolverName(resolverName);
-        request.setAction(action);
-        request.setRemark(remark);
-        return request;
+        return super.toDispatchRequest();
     }
 }

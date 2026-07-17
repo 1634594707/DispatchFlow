@@ -22,6 +22,7 @@ import com.fsd.dispatch.service.DispatchRouteService;
 import com.fsd.dispatch.service.HubCapacityService;
 import com.fsd.dispatch.service.PeakModeService;
 import com.fsd.dispatch.service.TrafficZoneControlService;
+import com.fsd.dispatch.service.ChargingSessionService;
 import com.fsd.dispatch.geo.DispatchGeoDistanceService;
 import com.fsd.dispatch.mapf.MapfRoutePlannerService;
 import com.fsd.dispatch.vo.ParkPointResponse;
@@ -63,6 +64,8 @@ class DispatchVehicleAssignServiceImplTest {
     private PeakModeService peakModeService;
     @Mock
     private DispatchAutomationRuleService automationRuleService;
+    @Mock
+    private ChargingSessionService chargingSessionService;
 
     private final DispatchGeoDistanceService dispatchGeoDistanceService = new DispatchGeoDistanceService(
             null, null, null, null, null) {
@@ -105,6 +108,7 @@ class DispatchVehicleAssignServiceImplTest {
             Long stationId = invocation.getArgument(0);
             return station(stationId, 1L);
         });
+        lenient().when(chargingSessionService.estimateDistanceToNearestChargingPile(any(), any(), any())).thenReturn(200.0);
         assignService = new DispatchVehicleAssignServiceImpl(
                 vehicleService,
                 parkStationService,
@@ -118,7 +122,8 @@ class DispatchVehicleAssignServiceImplTest {
                 peakModeService,
                 automationRuleService,
                 dispatchGeoDistanceService,
-                mapfRoutePlannerService);
+                mapfRoutePlannerService,
+                chargingSessionService);
     }
 
     @Test

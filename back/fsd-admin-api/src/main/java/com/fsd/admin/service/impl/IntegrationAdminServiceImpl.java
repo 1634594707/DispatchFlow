@@ -111,10 +111,14 @@ public class IntegrationAdminServiceImpl implements IntegrationAdminService {
     @Override
     public List<AdminWebhookDeliveryLogResponse> listDeliveryLogs(Long subscriptionId, int limit) {
         int capped = Math.min(Math.max(limit, 1), 200);
-        return deliveryLogMapper.selectList(new LambdaQueryWrapper<WebhookDeliveryLogEntity>()
+        // SEC-17 fix: use Page<> instead of .last("LIMIT " + n) to avoid SQL string
+        // concatenation, even when the value is server-side bounded.
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<WebhookDeliveryLogEntity> page =
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, capped);
+        return deliveryLogMapper.selectPage(page, new LambdaQueryWrapper<WebhookDeliveryLogEntity>()
                         .eq(WebhookDeliveryLogEntity::getSubscriptionId, subscriptionId)
-                        .orderByDesc(WebhookDeliveryLogEntity::getDeliveredAt)
-                        .last("LIMIT " + capped))
+                        .orderByDesc(WebhookDeliveryLogEntity::getDeliveredAt))
+                .getRecords()
                 .stream()
                 .map(this::toDeliveryLog)
                 .toList();

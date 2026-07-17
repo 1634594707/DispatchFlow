@@ -1,6 +1,7 @@
 package com.fsd.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.admin.service.GlobalSearchAdminService;
 import com.fsd.admin.vo.AdminGlobalSearchItem;
 import com.fsd.admin.vo.AdminGlobalSearchResponse;
@@ -33,21 +34,25 @@ public class GlobalSearchAdminServiceImpl implements GlobalSearchAdminService {
     @Override
     public AdminGlobalSearchResponse search(String keyword, int limit) {
         String normalized = keyword == null ? "" : keyword.trim();
-        // perType 为服务端计算的边界整数（3-10），非用户输入，下方 .last("LIMIT " + perType) 拼接无 SQL 注入风险
+        // perType 为服务端计算的边界整数（3-10），用于分页 size；不再通过 .last("LIMIT " + n) 拼接。
         int perType = Math.max(3, Math.min(limit, 30) / 3);
         List<AdminGlobalSearchItem> items = new ArrayList<>();
         if (!StringUtils.hasText(normalized)) {
             return AdminGlobalSearchResponse.builder().keyword(normalized).items(items).build();
         }
         Long numericId = parseNumericId(normalized);
+        // SEC-17 fix: use Page<> with a bounded size instead of .last("LIMIT " + n) string
+        // concatenation. Even though perType is server-side bounded, this removes the
+        // concatenation pattern entirely so future refactors cannot introduce injection.
+        Page<OrderEntity> orderPage = new Page<>(1, perType);
         LambdaQueryWrapper<OrderEntity> orderQuery = new LambdaQueryWrapper<OrderEntity>()
                 .like(OrderEntity::getOrderNo, normalized)
-                .orderByDesc(OrderEntity::getId)
-                .last("LIMIT " + perType);
+                .orderByDesc(OrderEntity::getId);
         if (numericId != null) {
             orderQuery.or().eq(OrderEntity::getId, numericId);
         }
-        orderMapper.selectList(orderQuery)
+        orderMapper.selectPage(orderPage, orderQuery)
+                .getRecords()
                 .forEach(order -> items.add(AdminGlobalSearchItem.builder()
                         .type("ORDER")
                         .id(order.getId())
@@ -56,14 +61,15 @@ public class GlobalSearchAdminServiceImpl implements GlobalSearchAdminService {
                         .subtitle("状态 " + order.getStatus())
                         .routePath("/orders/" + order.getId())
                         .build()));
+        Page<DispatchTaskEntity> taskPage = new Page<>(1, perType);
         LambdaQueryWrapper<DispatchTaskEntity> taskQuery = new LambdaQueryWrapper<DispatchTaskEntity>()
                 .like(DispatchTaskEntity::getTaskNo, normalized)
-                .orderByDesc(DispatchTaskEntity::getId)
-                .last("LIMIT " + perType);
+                .orderByDesc(DispatchTaskEntity::getId);
         if (numericId != null) {
             taskQuery.or().eq(DispatchTaskEntity::getId, numericId);
         }
-        dispatchTaskMapper.selectList(taskQuery)
+        dispatchTaskMapper.selectPage(taskPage, taskQuery)
+                .getRecords()
                 .forEach(task -> items.add(AdminGlobalSearchItem.builder()
                         .type("TASK")
                         .id(task.getId())
@@ -72,17 +78,18 @@ public class GlobalSearchAdminServiceImpl implements GlobalSearchAdminService {
                         .subtitle("状态 " + task.getStatus())
                         .routePath("/tasks/" + task.getId())
                         .build()));
+        Page<VehicleEntity> vehiclePage = new Page<>(1, perType);
         LambdaQueryWrapper<VehicleEntity> vehicleQuery = new LambdaQueryWrapper<VehicleEntity>()
                 .and(wrapper -> wrapper
                         .like(VehicleEntity::getVehicleCode, normalized)
                         .or()
                         .like(VehicleEntity::getVehicleName, normalized))
-                .orderByDesc(VehicleEntity::getId)
-                .last("LIMIT " + perType);
+                .orderByDesc(VehicleEntity::getId);
         if (numericId != null) {
             vehicleQuery.or().eq(VehicleEntity::getId, numericId);
         }
-        vehicleMapper.selectList(vehicleQuery)
+        vehicleMapper.selectPage(vehiclePage, vehicleQuery)
+                .getRecords()
                 .forEach(vehicle -> items.add(AdminGlobalSearchItem.builder()
                         .type("VEHICLE")
                         .id(vehicle.getId())

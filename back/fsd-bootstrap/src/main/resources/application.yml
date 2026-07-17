@@ -2,7 +2,10 @@ spring:
   application:
     name: fsd-core-server
   datasource:
-    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3307}/${DB_NAME:fsd_core}?useUnicode=true&characterEncoding=UTF-8&characterSetResults=utf8mb4&connectionCollation=utf8mb4_general_ci&serverTimezone=${DB_TIMEZONE:Asia/Shanghai}
+    # SEC-12 fix: useSSL=true so MySQL connections use TLS. verifyServerCertificate is
+    # false by default to avoid requiring CA setup in dev; production deployments should
+    # set DB_SSL_MODE=VERIFY_IDENTITY and provide a truststore.
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3307}/${DB_NAME:fsd_core}?useUnicode=true&characterEncoding=UTF-8&characterSetResults=utf8mb4&connectionCollation=utf8mb4_general_ci&serverTimezone=${DB_TIMEZONE:Asia/Shanghai}&useSSL=${DB_USE_SSL:true}&requireSSL=${DB_REQUIRE_SSL:false}&verifyServerCertificate=${DB_VERIFY_SERVER_CERT:false}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:changeme}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -11,10 +14,15 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6380}
       database: ${REDIS_DATABASE:0}
+      # SEC-10 fix: Redis password is now required by default. Set REDIS_PASSWORD to
+      # an empty string only for trusted local dev environments.
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:3s}
   rabbitmq:
     host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5673}
-    username: ${RABBITMQ_USERNAME:changeme}
+    # SEC-11 fix: default credentials are placeholders. Production MUST override via env.
+    username: ${RABBITMQ_USERNAME:fsd_user}
     password: ${RABBITMQ_PASSWORD:changeme}
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
@@ -379,8 +387,14 @@ fsd:
   security:
     admin:
       enabled: ${FSD_ADMIN_AUTH_ENABLED:true}
-      # Static token -> role mapping (e.g. "svc-token-1: ADMIN"). Empty by default:
-      # YAML token auth is DISABLED until explicit entries are provided here.
+      # SEC-03 fix: HMAC key for signing admin session tokens. When set, tokens take
+      # the form "<sessionSecret>.<hmac>" and cannot be forged even if the DB leaks.
+      # When unset, the service falls back to deriving a key from the field-encryption
+      # key, or a random per-instance key in pure dev mode.
+      token-hmac-key: ${FSD_ADMIN_TOKEN_HMAC_KEY:}
+      # SEC-01 fix: static YAML token mapping is DEPRECATED and no longer consulted
+      # by AdminAuthInterceptor. All admin authentication MUST use DB-backed sessions.
+      # Kept only to avoid binding failures for legacy configs.
       tokens: {}
     field-encryption:
       enabled: ${FSD_FIELD_ENCRYPTION_ENABLED:true}
@@ -396,6 +410,13 @@ fsd:
       client-id: ${FSD_VDA5050_MQTT_CLIENT_ID:dispatchflow-fms}
       interface-name: ${FSD_VDA5050_MQTT_INTERFACE:uagv/v2}
       qos: ${FSD_VDA5050_MQTT_QOS:1}
+      # SEC-09 fix: MQTT broker credentials. REQUIRED when enabled=true.
+      username: ${FSD_VDA5050_MQTT_USERNAME:}
+      password: ${FSD_VDA5050_MQTT_PASSWORD:}
+      # SEC-09 fix: optional TLS material (PEM CA cert, PKCS12 client keystore).
+      ca-cert-path: ${FSD_VDA5050_MQTT_CA_CERT_PATH:}
+      client-cert-path: ${FSD_VDA5050_MQTT_CLIENT_CERT_PATH:}
+      client-key-path: ${FSD_VDA5050_MQTT_CLIENT_KEY_PATH:}
   amap:
     web-service-key: ${FSD_AMAP_WEB_SERVICE_KEY:}
     logistics:

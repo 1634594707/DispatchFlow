@@ -214,6 +214,75 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
         return sorted.stream().map(VehicleEntity::getId).toList();
     }
 
+    @Override
+    public double estimateDistanceToNearestChargingPile(Long parkId, java.math.BigDecimal fromLng,
+                                                          java.math.BigDecimal fromLat) {
+        if (fromLng == null || fromLat == null) {
+            return Double.MAX_VALUE;
+        }
+        GeoPoint fromGeo = new GeoPoint(fromLng, fromLat);
+        // Consider all charging piles regardless of status — when evaluating whether a
+        // vehicle can complete a task, the pile might be free by the time it returns.
+        List<ChargingPileEntity> piles = chargingPileMapper.selectList(new QueryWrapper<ChargingPileEntity>()
+                .eq("deleted", 0));
+        double nearest = Double.MAX_VALUE;
+        for (ChargingPileEntity pile : piles) {
+            ParkingSlotEntity slot = parkingSlotMapper.selectById(pile.getParkingSlotId());
+            if (slot == null || slot.getCoordLng() == null || slot.getCoordLat() == null) {
+                continue;
+            }
+            GeoPoint pileGeo = new GeoPoint(slot.getCoordLng(), slot.getCoordLat());
+            double distance = GeoPolygonUtils.haversineMeters(fromGeo, pileGeo);
+            if (distance < nearest) {
+                nearest = distance;
+            }
+        }
+        return nearest;
+    }
+
+    @Override
+    @Transactional
+    public int timeoutStaleChargingSessions() {
+        int timeoutMinutes = fleetEnergyProperties.getChargingTimeoutMinutes();
+        if (timeoutMinutes <= 0) {
+            return 0;
+        }
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(timeoutMinutes);
+        List<ChargingSessionEntity> stale = chargingSessionMapper.selectList(new LambdaQueryWrapper<ChargingSessionEntity>()
+                .eq(ChargingSessionEntity::getSessionStatus, ChargingSessionStatus.ACTIVE.name())
+                .eq(ChargingSessionEntity::getDeleted, 0)
+                .lt(ChargingSessionEntity::getStartTime, cutoff));
+        if (stale.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (ChargingSessionEntity session : stale) {
+            session.setSessionStatus(ChargingSessionStatus.TIMED_OUT.name());
+            session.setEndTime(LocalDateTime.now());
+            session.setRemark("ALG-10: timed out after " + timeoutMinutes + " minutes");
+            chargingSessionMapper.updateById(session);
+            // Note: the vehicle's dispatch_status is NOT modified here. Charging vehicles
+            // stay in IDLE status (charging is tracked only via ChargingSessionEntity), so
+            // there is no status transition needed — freeing the pile/slot below is enough
+            // to make the vehicle available for re-dispatch. Avoiding the dispatch_status
+            // update also prevents clobbering a manual operator action that may have
+            // transitioned the vehicle to BUSY/UNAVAILABLE in the meantime.
+            // Free the parking slot/pile if it was held.
+            if (session.getChargingPileId() != null) {
+                chargingPileMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ChargingPileEntity>()
+                        .eq("id", session.getChargingPileId())
+                        .set("status", ParkingSlotStatus.FREE.name()));
+            }
+            if (session.getParkingSlotId() != null) {
+                parkingSlotMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ParkingSlotEntity>()
+                        .eq("id", session.getParkingSlotId())
+                        .set("status", ParkingSlotStatus.FREE.name()));
+            }
+            count++;
+        }
+        return count;
+    }
+
     private static boolean isPeakHour() {
         LocalTime now = LocalTime.now();
         boolean morningPeak = !now.isBefore(PEAK_MORNING_START) && now.isBefore(PEAK_MORNING_END);
