@@ -35,7 +35,21 @@ public class ParkGeoTransformService {
         if (affine != null) {
             double lng = affine.a * parkX.doubleValue() + affine.b * parkY.doubleValue() + affine.c;
             double lat = affine.d * parkX.doubleValue() + affine.e * parkY.doubleValue() + affine.f;
-            return Optional.of(new GeoPoint(scale(lng), scale(lat)));
+            // ALG-GEO-01: 仿射变换在参考点范围外可能外推出地球外坐标（如 lng=-881, lat=-280），
+            // 这种值会让下游 pathLength 的 haversine 算出几百万米，导致派送算法 LOW_SOC。
+            // 防御性检查：若结果远离园区锚点（>5度），丢弃仿射结果，回退到单点锚点。
+            ParkPilotProperties.GeoConfig anchorGeo = parkPilotProperties.getGeo();
+            boolean affineValid = true;
+            if (anchorGeo != null && anchorGeo.getAnchorLng() != null && anchorGeo.getAnchorLat() != null) {
+                double anchorLngVal = anchorGeo.getAnchorLng().doubleValue();
+                double anchorLatVal = anchorGeo.getAnchorLat().doubleValue();
+                if (Math.abs(lng - anchorLngVal) > 5D || Math.abs(lat - anchorLatVal) > 5D) {
+                    affineValid = false;
+                }
+            }
+            if (affineValid) {
+                return Optional.of(new GeoPoint(scale(lng), scale(lat)));
+            }
         }
         // 回退：单点锚点 + 均匀缩放
         ParkPilotProperties.GeoConfig geo = parkPilotProperties.getGeo();
