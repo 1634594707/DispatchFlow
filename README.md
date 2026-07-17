@@ -247,7 +247,6 @@ mvn -pl fsd-bootstrap -am test
 
 | 文件 | 说明 |
 | --- | --- |
-| [docs/Bug修复路线图.md](docs/Bug修复路线图.md) | Bug 修复路线图与进度追踪 |
 | [back/README.md](back/README.md) | 后端模块、启动、测试与 Docker 说明 |
 | [front/README.md](front/README.md) | 前端页面、开发、构建与环境说明 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |

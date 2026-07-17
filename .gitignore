@@ -12,21 +12,15 @@ Thumbs.db
 project/
 DISPATCHFLOW/
 README.original.md
-docs/*
-!docs/ARCHITECTURE.md
-!docs/DEPLOYMENT.md
-!docs/README.md
-!docs/ROADMAP-V2.md
-!docs/ROADMAP-V3.md
-!docs/ROADMAP-V4.md
-!docs/v4/
-!docs/REQUIREMENTS-DESIGN.md
-!docs/SECURITY-AUDIT.md
-!docs/UPDATE-OPERATIONS.md
-!docs/v3/
-!docs/archive/
-!docs/releases/
-docs/private/
+
+# Debug / temporary scripts
+debug_issues.py
+check_amap.py
+scripts/git_commit.py
+scripts/git_commit.sh
+
+# Documentation (not uploaded)
+docs/
 
 # Release build output
 dist/
