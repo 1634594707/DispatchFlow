@@ -44,6 +44,21 @@ public class StationEntity {
     /** 平均服务时长（秒），用于 ETA 与队列估算 */
     private Integer avgServiceSeconds;
 
+    /** 站点接入的道路节点编码（吸附到 road_node.node_code）；NULL=未配置，需现场核验 */
+    private String anchorNodeCode;
+
+    /** 车辆到站服务方向：FORWARD/REVERSE/BIDIRECTIONAL */
+    private String serviceDirection;
+
+    /** 允许服务的车辆类型（逗号分隔，NULL=全部） */
+    private String allowedVehicleTypes;
+
+    /** 不可达原因：ROAD_CLOSED/NO_SERVICE_POSITION/VEHICLE_TYPE_NOT_ALLOWED/CAPACITY_FULL/MAINTENANCE/OFFLINE/GATE_CLOSED/OUT_OF_RANGE */
+    private String unreachableReason;
+
+    /** 不可达失效时间（NULL=永久或正常） */
+    private java.time.LocalDateTime unreachableUntil;
+
     private String remark;
 
     private LocalDateTime createdAt;

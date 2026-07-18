@@ -161,6 +161,26 @@
       <div class="metric-card warn"><span>低电量</span><strong>{{ snapshot.lowBatteryVehicleCount }}</strong></div>
     </div>
 
+    <!-- P2-3 / P2-6: 数据时间戳与地图版本号显示 -->
+    <div v-if="snapshot" class="snapshot-meta-bar">
+      <div class="meta-item" :class="{ stale: isDataStale }">
+        <span class="meta-label">数据最后更新:</span>
+        <span class="meta-value">{{ formattedLastUpdated }}</span>
+        <a-tag v-if="isDataStale" color="error" class="meta-tag">数据延迟</a-tag>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">地图版本:</span>
+        <a-tag color="blue" class="meta-tag">{{ mapVersionLabel }}</a-tag>
+      </div>
+      <!-- P2-1: 轨迹图例 -->
+      <div class="meta-item legend">
+        <span class="legend-item"><span class="legend-line plan"></span>规划</span>
+        <span class="legend-item"><span class="legend-line actual"></span>实际</span>
+        <span class="legend-item"><span class="legend-line predicted"></span>预测</span>
+        <span class="legend-item"><span class="legend-line history"></span>历史</span>
+      </div>
+    </div>
+
     <a-alert
       type="info"
       show-icon
@@ -294,7 +314,7 @@
           </div>
           <div class="detail-row">
             <span class="label">调度状态</span>
-            <a-tag>{{ selectedVehicle.dispatchStatus }}</a-tag>
+            <a-tag>{{ dispatchStatusLabel }}</a-tag>
           </div>
           <div class="detail-row">
             <span class="label">电量</span>
@@ -305,10 +325,6 @@
                 :format="formatSelectedVehicleBattery"
               />
             </div>
-          </div>
-          <div class="detail-row">
-            <span class="label">运行阶段</span>
-            <span class="value">{{ selectedVehicle.runtimeStage || '-' }}</span>
           </div>
           <div class="detail-row">
             <span class="label">链接模式</span>
@@ -322,14 +338,77 @@
             <span class="label">当前订单</span>
             <span class="value">{{ selectedVehicle.currentOrderId ? `#${selectedVehicle.currentOrderId}` : '无' }}</span>
           </div>
-          <div class="detail-section">轨迹记录</div>
-          <div v-if="selectedVehicle.trajectory && selectedVehicle.trajectory.length" class="trajectory-list">
+
+          <!-- P2-5: 车辆尺寸与通行约束（仅有值时显示） -->
+          <div
+            v-if="selectedVehicle.widthCm != null || selectedVehicle.lengthCm != null || selectedVehicle.turningRadiusM != null || selectedVehicle.allowedRoadClasses"
+            class="detail-section"
+          >车辆尺寸与通行约束</div>
+          <div v-if="selectedVehicle.widthCm != null" class="detail-row">
+            <span class="label">车辆宽度</span>
+            <span class="value">{{ selectedVehicle.widthCm }} cm</span>
+          </div>
+          <div v-if="selectedVehicle.lengthCm != null" class="detail-row">
+            <span class="label">车辆长度</span>
+            <span class="value">{{ selectedVehicle.lengthCm }} cm</span>
+          </div>
+          <div v-if="selectedVehicle.turningRadiusM != null" class="detail-row">
+            <span class="label">最小转弯半径</span>
+            <span class="value">{{ selectedVehicle.turningRadiusM }} m</span>
+          </div>
+          <div v-if="selectedVehicle.allowedRoadClasses" class="detail-row">
+            <span class="label">允许道路等级</span>
+            <a-space wrap>
+              <a-tag v-for="(cls, idx) in selectedVehicle.allowedRoadClasses.split(',')" :key="idx" color="blue">
+                {{ cls.trim() }}
+              </a-tag>
+            </a-space>
+          </div>
+
+          <!-- P2-2: 运行阶段进度（到站/等待/装卸/充电/离站） -->
+          <div class="detail-section">运行阶段进度</div>
+          <div class="runtime-stage-row">
+            <span class="label">当前阶段</span>
+            <span class="value">{{ selectedVehicle.runtimeStage || '-' }}</span>
+          </div>
+          <div v-if="runtimeStageIndex >= 0" class="runtime-stage-steps">
             <div
-              v-for="(pt, idx) in selectedVehicle.trajectory.slice(-5).reverse()"
-              :key="idx"
-              class="trajectory-item"
+              v-for="(step, idx) in RUNTIME_STAGE_STEPS"
+              :key="step.code"
+              class="stage-step"
+              :class="{
+                done: idx < runtimeStageIndex,
+                active: idx === runtimeStageIndex,
+              }"
             >
-              {{ pt.code }} ({{ pt.x.toFixed(1) }}, {{ pt.y.toFixed(1) }})
+              <div class="stage-dot"></div>
+              <div class="stage-label">{{ step.label }}</div>
+            </div>
+          </div>
+          <div v-else class="trajectory-empty">未匹配到标准运行阶段</div>
+
+          <!-- P2-1: 按类型分组的轨迹记录（PLAN/ACTUAL/PREDICTED/HISTORY） -->
+          <div class="detail-section">轨迹记录</div>
+          <div v-if="selectedVehicleTrajectories.length" class="trajectory-list">
+            <div
+              v-for="(group, gIdx) in selectedVehicleTrajectories"
+              :key="gIdx"
+              class="trajectory-group"
+            >
+              <div class="trajectory-group-title">
+                <span
+                  class="trajectory-type-badge"
+                  :style="{ backgroundColor: TRAJECTORY_STYLE[group.type].color }"
+                >{{ TRAJECTORY_TYPE_LABEL[group.type] }}</span>
+                <span class="trajectory-count">{{ group.points.length }} 个点</span>
+              </div>
+              <div
+                v-for="(pt, idx) in group.points.slice(-5).reverse()"
+                :key="idx"
+                class="trajectory-item"
+              >
+                {{ pt.code || '-' }} ({{ Number(pt.x).toFixed(1) }}, {{ Number(pt.y).toFixed(1) }})
+              </div>
             </div>
           </div>
           <div v-else class="trajectory-empty">暂无轨迹数据</div>
@@ -351,7 +430,13 @@ import type {
   DigitalTwinSnapshot,
   DigitalTwinAreaStats,
 } from '@/types/phase10'
-import type { ParkLayout, ParkVehicleSnapshot } from '@/types/park'
+import type { ParkLayout, ParkPoint, ParkVehicleSnapshot, TrajectoryPointType } from '@/types/park'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import 'dayjs/locale/zh-cn'
+
+dayjs.extend(relativeTime)
+dayjs.locale('zh-cn')
 
 const parkScope = useParkScopeStore()
 const loading = ref(false)
@@ -434,6 +519,103 @@ const linkModeLabel = computed(() => {
   if (!selectedVehicle.value) return ''
   const map: Record<string, string> = { SIM: '仿真模式', REAL: '实车模式', VDA5050: 'VDA5050' }
   return map[selectedVehicle.value.linkMode] || selectedVehicle.value.linkMode
+})
+
+// P2-3: 数据时间戳显示与断线告警（>30s 视为延迟）
+const nowTick = ref(Date.now())
+let nowTickTimer: ReturnType<typeof setInterval> | null = null
+
+const formattedLastUpdated = computed(() => {
+  const ts = snapshot.value?.lastUpdatedAt
+  if (!ts) return '未提供'
+  return dayjs(ts).format('YYYY-MM-DD HH:mm:ss')
+})
+
+const isDataStale = computed(() => {
+  const ts = snapshot.value?.lastUpdatedAt
+  if (!ts) return false
+  const diffSec = dayjs(nowTick.value).diff(dayjs(ts), 'second')
+  return diffSec > 30
+})
+
+// P2-6: 地图版本号显示
+const mapVersionLabel = computed(() => {
+  return snapshot.value?.mapDataVersion || '未标注'
+})
+
+// P2-1: 轨迹类型样式映射（颜色 + 是否虚线）
+const TRAJECTORY_STYLE: Record<TrajectoryPointType, { color: string; dash: number[] }> = {
+  PLAN: { color: '#1890ff', dash: [6, 4] },
+  ACTUAL: { color: '#52c41a', dash: [] },
+  PREDICTED: { color: '#fa8c16', dash: [6, 4] },
+  HISTORY: { color: '#8c8c8c', dash: [] },
+}
+
+const TRAJECTORY_TYPE_LABEL: Record<TrajectoryPointType, string> = {
+  PLAN: '规划',
+  ACTUAL: '实际',
+  PREDICTED: '预测',
+  HISTORY: '历史',
+}
+
+// P2-1: 将车辆的不同轨迹字段统一打上类型标签，便于按颜色渲染
+function labeledTrajectory(points: ParkPoint[] | undefined, fallbackType: TrajectoryPointType): ParkPoint[] {
+  if (!points || points.length === 0) return []
+  return points.map((p) => ({ ...p, type: p.type ?? fallbackType }))
+}
+
+interface LabeledTrajectory {
+  type: TrajectoryPointType
+  points: ParkPoint[]
+}
+
+// 汇总当前选中车辆的所有轨迹（按类型分组），用于详情抽屉列表展示
+const selectedVehicleTrajectories = computed<LabeledTrajectory[]>(() => {
+  const v = selectedVehicle.value
+  if (!v) return []
+  const groups: LabeledTrajectory[] = []
+  const plan = labeledTrajectory(v.plannedRouteGeo, 'PLAN')
+  const actual = labeledTrajectory(v.trajectory, 'ACTUAL')
+  const history = labeledTrajectory(v.geoTrajectory, 'HISTORY')
+  if (plan.length) groups.push({ type: 'PLAN', points: plan })
+  if (actual.length) groups.push({ type: 'ACTUAL', points: actual })
+  if (history.length) groups.push({ type: 'HISTORY', points: history })
+  return groups
+})
+
+// P2-2: 运行阶段进度（到站/等待/装卸/充电/离站）
+interface RuntimeStageStep {
+  code: string
+  label: string
+}
+
+const RUNTIME_STAGE_STEPS: RuntimeStageStep[] = [
+  { code: 'IDLE', label: '空闲' },
+  { code: 'TO_PICKUP', label: '前往取货' },
+  { code: 'AT_PICKUP', label: '取货中' },
+  { code: 'TO_DROPOFF', label: '前往送货' },
+  { code: 'AT_DROPOFF', label: '卸货中' },
+  { code: 'TO_CHARGING', label: '前往充电' },
+  { code: 'AT_CHARGING', label: '充电中' },
+  { code: 'CHARGING_DONE', label: '离站' },
+]
+
+const runtimeStageIndex = computed(() => {
+  const stage = selectedVehicle.value?.runtimeStage
+  if (!stage) return -1
+  const idx = RUNTIME_STAGE_STEPS.findIndex((s) => s.code === stage)
+  return idx
+})
+
+const dispatchStatusLabel = computed(() => {
+  const status = selectedVehicle.value?.dispatchStatus
+  if (!status) return '-'
+  const map: Record<string, string> = {
+    IDLE: '空闲',
+    BUSY: '忙碌',
+    UNAVAILABLE: '不可用',
+  }
+  return map[status] || status
 })
 
 // Comparison table
@@ -634,6 +816,40 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
     ctx.fillRect(x - 10, y - 6, 20, 12)
     ctx.fillStyle = '#22C7E6'
     ctx.fillRect(x - 8, y - 14, 16, 8)
+  }
+
+  // P2-1: 绘制车辆轨迹（按类型使用不同颜色与虚实线）
+  // 顺序：HISTORY -> PLAN -> ACTUAL -> PREDICTED（让实际轨迹覆盖在最上层）
+  const trajectoryDrawOrder: TrajectoryPointType[] = ['HISTORY', 'PLAN', 'ACTUAL', 'PREDICTED']
+  for (const vehicle of vehicles) {
+    const typedGroups: { type: TrajectoryPointType; points: ParkPoint[] }[] = [
+      { type: 'HISTORY', points: labeledTrajectory(vehicle.geoTrajectory, 'HISTORY') },
+      { type: 'PLAN', points: labeledTrajectory(vehicle.plannedRouteGeo, 'PLAN') },
+      { type: 'ACTUAL', points: labeledTrajectory(vehicle.trajectory, 'ACTUAL') },
+    ]
+    for (const drawType of trajectoryDrawOrder) {
+      const group = typedGroups.find((g) => g.type === drawType)
+      if (!group || group.points.length < 2) continue
+      const style = TRAJECTORY_STYLE[drawType]
+      ctx.strokeStyle = style.color
+      ctx.lineWidth = 2
+      ctx.setLineDash(style.dash)
+      ctx.beginPath()
+      let started = false
+      for (const pt of group.points) {
+        if (pt.x == null || pt.y == null) continue
+        const px = isoX(Number(pt.x), Number(pt.y))
+        const py = isoY(Number(pt.x), Number(pt.y))
+        if (!started) {
+          ctx.moveTo(px, py)
+          started = true
+        } else {
+          ctx.lineTo(px, py)
+        }
+      }
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
   }
 
   vehiclePositions.value = new Map()
@@ -878,9 +1094,19 @@ onMounted(async () => {
     })
     resizeObserver.observe(stageRef.value)
   }
+  // P2-3: 每秒刷新 nowTick，用于驱动 isDataStale 计算与告警样式
+  nowTickTimer = setInterval(() => {
+    nowTick.value = Date.now()
+  }, 1000)
 })
 
-onUnmounted(() => resizeObserver?.disconnect())
+onUnmounted(() => {
+  resizeObserver?.disconnect()
+  if (nowTickTimer) {
+    clearInterval(nowTickTimer)
+    nowTickTimer = null
+  }
+})
 </script>
 
 <style scoped lang="less">
@@ -1148,5 +1374,183 @@ onUnmounted(() => resizeObserver?.disconnect())
   .compare-panels {
     grid-template-columns: 1fr;
   }
+}
+
+/* P2-3 / P2-6: 顶部数据时间戳与地图版本号 */
+.snapshot-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 16px;
+  margin-bottom: 4px;
+  background: var(--fsd-bg-elevated);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-lg);
+  font-size: 13px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fsd-text-secondary);
+
+  &.stale {
+    color: var(--fsd-error);
+
+    .meta-value {
+      color: var(--fsd-error);
+      font-weight: 600;
+    }
+  }
+
+  &.legend {
+    gap: 16px;
+    margin-left: auto;
+  }
+}
+
+.meta-label {
+  color: var(--fsd-text-tertiary);
+}
+
+.meta-value {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--fsd-text-primary);
+}
+
+.meta-tag {
+  margin-left: 4px;
+}
+
+/* P2-1: 轨迹图例 */
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fsd-text-secondary);
+  font-size: 12px;
+}
+
+.legend-line {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+
+  &.plan {
+    border-top-color: #1890ff;
+    border-top-style: dashed;
+  }
+
+  &.actual {
+    border-top-color: #52c41a;
+  }
+
+  &.predicted {
+    border-top-color: #fa8c16;
+    border-top-style: dashed;
+  }
+
+  &.history {
+    border-top-color: #8c8c8c;
+  }
+}
+
+/* P2-2: 运行阶段进度 */
+.runtime-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  .label {
+    font-size: 13px;
+    color: var(--fsd-text-secondary);
+    min-width: 72px;
+    flex-shrink: 0;
+  }
+
+  .value {
+    font-size: 14px;
+    color: var(--fsd-text-primary);
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+.runtime-stage-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 4px;
+  padding: 8px 0;
+}
+
+.stage-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 80px;
+  min-width: 64px;
+
+  .stage-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--fsd-border);
+    border: 2px solid transparent;
+  }
+
+  .stage-label {
+    font-size: 11px;
+    color: var(--fsd-text-tertiary);
+    text-align: center;
+  }
+
+  &.done .stage-dot {
+    background: var(--fsd-success);
+  }
+
+  &.active .stage-dot {
+    background: var(--fsd-accent);
+    box-shadow: 0 0 0 3px rgba(34, 199, 230, 0.25);
+  }
+
+  &.active .stage-label {
+    color: var(--fsd-text-primary);
+    font-weight: 600;
+  }
+}
+
+/* P2-1: 按类型分组的轨迹列表 */
+.trajectory-group {
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: var(--fsd-radius);
+  background: var(--fsd-bg-deep);
+}
+
+.trajectory-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.trajectory-type-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.trajectory-count {
+  font-size: 11px;
+  color: var(--fsd-text-tertiary);
 }
 </style>

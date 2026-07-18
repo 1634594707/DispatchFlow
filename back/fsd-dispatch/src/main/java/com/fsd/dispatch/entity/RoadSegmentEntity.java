@@ -37,6 +37,36 @@ public class RoadSegmentEntity {
 
     private Integer congestionLevel;
 
+    /** 道路可行驶宽度（米），用于车辆外接矩形碰撞检查 */
+    private java.math.BigDecimal widthMeters;
+
+    /** 道路等级：HIGHWAY/ARTERIAL/SECONDARY/SERVICE_ROAD/PEDESTRIAN/FIRE_LANE */
+    private String roadClass;
+
+    /** 通行语义：DRIVABLE/PEDESTRIAN_ONLY/SERVICE_ONLY/RESTRICTED/BLOCKED/NO_STOP/LOADING_ONLY/CHARGING_ACCESS */
+    private String accessState;
+
+    /** 道路中心线 GeoJSON LineString（GCJ-02），NULL 表示用 from/to 节点连线 */
+    private String polylineGeojson;
+
+    /** 允许车辆类型（逗号分隔，NULL=全部） */
+    private String allowedVehicleTypes;
+
+    /** 转向限制：NONE/NO_LEFT/NO_RIGHT/NO_U_TURN/NO_STRAIGHT */
+    private String turnRestriction;
+
+    /** 关联门禁/闸机/消防通道编码（NULL=无门禁） */
+    private String gateCode;
+
+    /** 临时封路原因（施工/事故/活动/消防管控） */
+    private String blockReason;
+
+    /** 封路起始时间（NULL=未封路或永久） */
+    private LocalDateTime blockedFrom;
+
+    /** 封路结束时间（NULL=永久或未封路） */
+    private LocalDateTime blockedUntil;
+
     private String remark;
 
     private LocalDateTime createdAt;

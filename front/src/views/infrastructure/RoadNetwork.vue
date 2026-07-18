@@ -53,6 +53,7 @@
           row-key="id"
           :pagination="{ pageSize: 20 }"
           size="small"
+          :scroll="{ x: 'max-content' }"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'status'">
@@ -60,6 +61,25 @@
             </template>
             <template v-else-if="column.key === 'route'">
               {{ record.fromNodeCode }} → {{ record.toNodeCode }}
+            </template>
+            <template v-else-if="column.key === 'widthMeters'">
+              {{ record.widthMeters != null ? `${record.widthMeters} m` : '-' }}
+            </template>
+            <template v-else-if="column.key === 'roadClass'">
+              <a-tag v-if="record.roadClass" color="blue">{{ record.roadClass }}</a-tag>
+              <span v-else class="text-muted">-</span>
+            </template>
+            <template v-else-if="column.key === 'accessState'">
+              <a-tag v-if="record.accessState" :color="accessStateColor(record.accessState)">{{ record.accessState }}</a-tag>
+              <span v-else class="text-muted">-</span>
+            </template>
+            <template v-else-if="column.key === 'turnRestriction'">
+              <a-tag v-if="record.turnRestriction && record.turnRestriction !== 'NONE'" color="orange">{{ record.turnRestriction }}</a-tag>
+              <span v-else class="text-muted">-</span>
+            </template>
+            <template v-else-if="column.key === 'gateCode'">
+              <span v-if="record.gateCode" class="mono-text">{{ record.gateCode }}</span>
+              <span v-else class="text-muted">-</span>
             </template>
             <template v-else-if="column.key === 'actions'">
               <a-space>
@@ -249,10 +269,30 @@ const nodeColumns = [
 const segmentColumns = [
   { title: '路段', key: 'route' },
   { title: '园区', dataIndex: 'parkName', key: 'parkName', width: 130 },
+  { title: '宽度(m)', key: 'widthMeters', width: 100 },
+  { title: '道路等级', key: 'roadClass', width: 120 },
+  { title: '通行语义', key: 'accessState', width: 140 },
+  { title: '转向限制', key: 'turnRestriction', width: 120 },
+  { title: '门禁编码', key: 'gateCode', width: 110 },
   { title: '状态', key: 'status', width: 80 },
-  { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true },
-  { title: '操作', key: 'actions', width: 120 },
+  { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true, width: 140 },
+  { title: '操作', key: 'actions', width: 120, fixed: 'right' as const },
 ]
+
+/** P2-5: 道路通行语义颜色映射 */
+function accessStateColor(state: string): string {
+  const map: Record<string, string> = {
+    DRIVABLE: 'green',
+    PEDESTRIAN_ONLY: 'default',
+    SERVICE_ONLY: 'cyan',
+    RESTRICTED: 'orange',
+    BLOCKED: 'red',
+    NO_STOP: 'orange',
+    LOADING_ONLY: 'blue',
+    CHARGING_ACCESS: 'processing',
+  }
+  return map[state] || 'default'
+}
 
 const roadStatusOptions = [
   { label: '启用', value: 'ACTIVE' },
@@ -462,5 +502,15 @@ onMounted(loadAll)
   margin-bottom: 12px;
   display: flex;
   justify-content: flex-end;
+}
+
+.text-muted {
+  color: var(--fsd-text-tertiary);
+}
+
+.mono-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
 }
 </style>

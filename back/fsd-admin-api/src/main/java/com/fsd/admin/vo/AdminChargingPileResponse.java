@@ -31,6 +31,21 @@ public class AdminChargingPileResponse {
 
     private Integer sortOrder;
 
+    /** P1-6: 进站点编码 */
+    private String entryNodeCode;
+
+    /** P1-6: 出站点编码 */
+    private String exitNodeCode;
+
+    /** P1-6: 充电枪类型（CCS2/GB/T-DC/CHAdeMO/特斯拉） */
+    private String plugType;
+
+    /** P1-6: 预约状态（FREE/RESERVED/OCCUPIED/MAINTENANCE） */
+    private String reservationState;
+
+    /** P1-6: 预计释放时间 */
+    private LocalDateTime estimatedReleaseAt;
+
     private String remark;
 
     private LocalDateTime createdAt;

@@ -85,6 +85,24 @@
           <a-tag v-else-if="record.deliveryZone === 'SCHEMATIC'" color="success">园区内部</a-tag>
           <a-tag v-else>通用</a-tag>
         </template>
+        <template v-else-if="column.key === 'dimensions'">
+          <span v-if="record.widthCm != null || record.lengthCm != null" class="mono-text">
+            {{ record.widthCm ?? '-' }} × {{ record.lengthCm ?? '-' }}
+          </span>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template v-else-if="column.key === 'turningRadiusM'">
+          <span v-if="record.turningRadiusM != null" class="mono-text">{{ record.turningRadiusM }}</span>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template v-else-if="column.key === 'allowedRoadClasses'">
+          <template v-if="record.allowedRoadClasses">
+            <a-tag v-for="(cls, idx) in record.allowedRoadClasses.split(',')" :key="idx" color="blue" style="margin-bottom: 2px">
+              {{ cls.trim() }}
+            </a-tag>
+          </template>
+          <span v-else class="text-muted">全部</span>
+        </template>
         <template v-else-if="column.dataIndex === 'currentTaskId'">
           <router-link
             v-if="record.currentTaskId"
@@ -218,6 +236,9 @@ const columns = [
   { title: '在线状态', dataIndex: 'onlineStatus', width: 100 },
   { title: '调度状态', dataIndex: 'dispatchStatus', width: 100 },
   { title: '配送区域', dataIndex: 'deliveryZone', width: 110 },
+  { title: '尺寸(宽×长 cm)', key: 'dimensions', width: 140 },
+  { title: '转弯半径(m)', key: 'turningRadiusM', width: 110 },
+  { title: '允许道路等级', key: 'allowedRoadClasses', width: 180 },
   { title: '当前任务', dataIndex: 'currentTaskId', width: 100 },
   { title: '电量', dataIndex: 'batteryLevel', width: 140 },
   { title: '最后回传', dataIndex: 'lastReportTime', width: 160 },

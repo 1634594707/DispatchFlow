@@ -61,5 +61,17 @@ public class VehicleEntity {
     /** 当前载重(kg) */
     private Integer currentLoad;
 
+    /** 车辆宽度（厘米），用于道路宽度可用性检查 */
+    private Integer widthCm;
+
+    /** 车辆长度（厘米） */
+    private Integer lengthCm;
+
+    /** 最小转弯半径（米），用于窄路/急弯过滤 */
+    private java.math.BigDecimal turningRadiusM;
+
+    /** 允许道路等级（逗号分隔，NULL=全部；如 ARTERIAL,SECONDARY） */
+    private String allowedRoadClasses;
+
     private Integer deleted;
 }

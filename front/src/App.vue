@@ -2,17 +2,31 @@
   <a-config-provider :theme="themeConfig">
     <router-view />
 
-    <!-- PWA Install Prompt -->
-    <div v-if="pwa.canInstall" class="pwa-install-bar">
-      <span class="pwa-install-text">安装 DispatchFlow 到桌面，获得更快的访问体验</span>
-      <a-button size="small" type="primary" @click="handleInstall">安装</a-button>
-      <a-button size="small" type="text" @click="pwa.dismissInstall()">暂不</a-button>
+    <!-- PWA Install Prompt — 4-state model (P0-1, P2-7, P2-8):
+         'idle' = no disposition; 'dismissed' = 暂不 (24h cooldown);
+         'later' = 稍后提醒 (7d cooldown); 'never' = 不再提醒; 'installed' = 已安装。
+         Keyboard accessible: tab to focus, Enter/Space to trigger, Esc to dismiss. -->
+    <div
+      v-if="pwa.canInstall.value"
+      class="pwa-install-bar"
+      role="dialog"
+      aria-labelledby="pwa-install-text"
+      aria-describedby="pwa-install-desc"
+      tabindex="-1"
+    >
+      <span id="pwa-install-text" class="pwa-install-text">安装 DispatchFlow 到桌面，获得更快的访问体验</span>
+      <span id="pwa-install-desc" class="pwa-install-desc">点击「安装」立即添加到桌面；「暂不」24 小时内不再提示。</span>
+      <div class="pwa-install-actions">
+        <a-button size="small" type="primary" @click="handleInstall">安装</a-button>
+        <a-button size="small" type="text" @click="pwa.dismissInstall()">暂不</a-button>
+        <a-button size="small" type="text" @click="pwa.neverRemindInstall()">不再提醒</a-button>
+      </div>
     </div>
 
     <!-- PWA Update Notification -->
     <a-notification
-      v-if="pwa.hasUpdate"
-      :visible="pwa.hasUpdate"
+      v-if="pwa.hasUpdate.value"
+      :visible="pwa.hasUpdate.value"
       message="有新版本可用"
       description="已下载新版本，点击刷新以应用更新。"
       placement="bottomRight"
@@ -79,8 +93,25 @@ async function handleInstall() {
   white-space: nowrap;
 }
 
+.pwa-install-bar:focus-visible {
+  outline: 2px solid var(--fsd-accent, #2DE08A);
+  outline-offset: 2px;
+}
+
 .pwa-install-text {
   font-size: 13px;
   color: var(--fsd-text-secondary);
+  font-weight: 600;
+}
+
+.pwa-install-desc {
+  font-size: 11px;
+  color: var(--fsd-text-tertiary);
+}
+
+.pwa-install-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

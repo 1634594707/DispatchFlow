@@ -78,6 +78,35 @@
           </a-card>
         </div>
 
+        <!-- P2-5: 车辆尺寸与通行约束 -->
+        <a-card title="车辆尺寸与通行约束" size="small" style="margin-top: 16px;">
+          <a-descriptions :column="2" size="small" bordered>
+            <a-descriptions-item label="车辆宽度">
+              <span v-if="store.detail.widthCm != null" class="mono">{{ store.detail.widthCm }} cm</span>
+              <span v-else class="text-muted">-</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="车辆长度">
+              <span v-if="store.detail.lengthCm != null" class="mono">{{ store.detail.lengthCm }} cm</span>
+              <span v-else class="text-muted">-</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="最小转弯半径">
+              <span v-if="store.detail.turningRadiusM != null" class="mono">{{ store.detail.turningRadiusM }} m</span>
+              <span v-else class="text-muted">-</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="允许道路等级">
+              <template v-if="store.detail.allowedRoadClasses">
+                <a-tag
+                  v-for="(cls, idx) in store.detail.allowedRoadClasses.split(',')"
+                  :key="idx"
+                  color="blue"
+                  style="margin-bottom: 2px"
+                >{{ cls.trim() }}</a-tag>
+              </template>
+              <span v-else class="text-muted">全部</span>
+            </a-descriptions-item>
+          </a-descriptions>
+        </a-card>
+
         <a-tabs v-model:activeKey="activeTab" style="margin-top: 16px;">
           <a-tab-pane key="logs" tab="关联操作日志">
             <a-timeline v-if="operateLogs.length > 0">

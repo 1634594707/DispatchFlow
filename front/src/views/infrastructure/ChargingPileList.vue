@@ -45,6 +45,7 @@
       :loading="loading"
       row-key="id"
       :pagination="false"
+      :scroll="{ x: 'max-content' }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">
@@ -55,6 +56,24 @@
         </template>
         <template v-else-if="column.key === 'occupiedVehicleId'">
           {{ record.occupiedVehicleId ?? '-' }}
+        </template>
+        <template v-else-if="column.key === 'entryNodeCode'">
+          <span v-if="record.entryNodeCode" class="mono-text">{{ record.entryNodeCode }}</span>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template v-else-if="column.key === 'exitNodeCode'">
+          <span v-if="record.exitNodeCode" class="mono-text">{{ record.exitNodeCode }}</span>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template v-else-if="column.key === 'plugType'">
+          <a-tag v-if="record.plugType" color="blue">{{ plugTypeLabel(record.plugType) }}</a-tag>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template v-else-if="column.key === 'reservationState'">
+          <a-tag v-if="record.reservationState" :color="reservationStateColor(record.reservationState)">
+            {{ reservationStateLabel(record.reservationState) }}
+          </a-tag>
+          <span v-else class="text-muted">-</span>
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
@@ -155,10 +174,47 @@ const columns = [
   { title: '园区', dataIndex: 'parkName', key: 'parkName', width: 130 },
   { title: '绑定车位', dataIndex: 'parkingSlotCode', key: 'parkingSlotCode', width: 100 },
   { title: '功率', key: 'maxPowerKw', width: 90 },
+  { title: '进站节点', key: 'entryNodeCode', width: 110 },
+  { title: '出站节点', key: 'exitNodeCode', width: 110 },
+  { title: '充电枪类型', key: 'plugType', width: 120 },
+  { title: '预约状态', key: 'reservationState', width: 110 },
   { title: '状态', key: 'status', width: 90 },
   { title: '占用车辆', key: 'occupiedVehicleId', width: 100 },
-  { title: '操作', key: 'actions', width: 80 },
+  { title: '操作', key: 'actions', width: 80, fixed: 'right' as const },
 ]
+
+/** P2-5: 充电枪类型标签 */
+function plugTypeLabel(plug: string): string {
+  const map: Record<string, string> = {
+    CCS2: 'CCS2',
+    GB_T_DC: '国标直流',
+    CHAOJI: '超充',
+    AC_GENERIC: '交流通用',
+    WIRELESS: '无线',
+  }
+  return map[plug] || plug
+}
+
+/** P2-5: 预约状态颜色与标签 */
+function reservationStateLabel(state: string): string {
+  const map: Record<string, string> = {
+    FREE: '空闲',
+    RESERVED: '已预约',
+    CHARGING: '充电中',
+    FAULT: '故障',
+  }
+  return map[state] || state
+}
+
+function reservationStateColor(state: string): string {
+  const map: Record<string, string> = {
+    FREE: 'success',
+    RESERVED: 'processing',
+    CHARGING: 'cyan',
+    FAULT: 'error',
+  }
+  return map[state] || 'default'
+}
 
 const statusOptions = [
   { label: '空闲', value: 'FREE' },
@@ -306,5 +362,15 @@ onMounted(loadData)
   width: 1px;
   height: 28px;
   background: var(--fsd-border);
+}
+
+.text-muted {
+  color: var(--fsd-text-tertiary);
+}
+
+.mono-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
 }
 </style>

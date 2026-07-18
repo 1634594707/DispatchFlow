@@ -37,6 +37,21 @@ public class AdminStationResponse {
 
     private Integer capacityLimit;
 
+    /** P0-5: 接入道路节点编码 */
+    private String anchorNodeCode;
+
+    /** P0-5: 服务方向（FORWARD/REVERSE/BIDIRECTIONAL） */
+    private String serviceDirection;
+
+    /** P1-1: 允许车辆类型（逗号分隔，NULL=全部） */
+    private String allowedVehicleTypes;
+
+    /** P1-4: 不可达原因（ROAD_NETWORK_EMPTY/NO_PATH_ON_GRAPH/...） */
+    private String unreachableReason;
+
+    /** P1-4: 不可达截止时间（NULL=永久） */
+    private LocalDateTime unreachableUntil;
+
     private String remark;
 
     private LocalDateTime createdAt;

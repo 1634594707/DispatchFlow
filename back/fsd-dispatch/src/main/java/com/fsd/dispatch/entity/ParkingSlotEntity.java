@@ -22,6 +22,18 @@ public class ParkingSlotEntity {
 
     private String slotType;
 
+    /** 车位朝向：NORTH/SOUTH/EAST/WEST/NE/NW/SE/SW */
+    private String facingDirection;
+
+    /** 进站节点编码 */
+    private String entryNodeCode;
+
+    /** 出站节点编码 */
+    private String exitNodeCode;
+
+    /** 是否阻塞主路（1=是，禁止长时间占用） */
+    private Integer blockingMainRoad;
+
     private BigDecimal coordX;
 
     private BigDecimal coordY;

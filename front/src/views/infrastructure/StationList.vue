@@ -22,6 +22,7 @@
       :loading="loading"
       row-key="id"
       :pagination="false"
+      :scroll="{ x: 'max-content' }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'stationType'">
@@ -37,6 +38,22 @@
         </template>
         <template v-else-if="column.key === 'coord'">
           ({{ record.coordX }}, {{ record.coordY }})
+        </template>
+        <template v-else-if="column.key === 'anchorNodeCode'">
+          <span v-if="record.anchorNodeCode" class="mono-text">{{ record.anchorNodeCode }}</span>
+          <span v-else class="text-muted">未配置</span>
+        </template>
+        <template v-else-if="column.key === 'serviceDirection'">
+          <a-tag v-if="record.serviceDirection" :color="serviceDirectionColor(record.serviceDirection)">
+            {{ serviceDirectionLabel(record.serviceDirection) }}
+          </a-tag>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template v-else-if="column.key === 'unreachableReason'">
+          <a-tooltip v-if="record.unreachableReason" :title="record.unreachableReason">
+            <a-tag color="error">{{ unreachableReasonLabel(record.unreachableReason) }}</a-tag>
+          </a-tooltip>
+          <span v-else class="text-muted">可达</span>
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
@@ -210,8 +227,11 @@ const columns = [
   { title: '类型', key: 'stationType', width: 100 },
   { title: '配送区域', key: 'deliveryZone', width: 110 },
   { title: '坐标', key: 'coord', width: 140 },
+  { title: '接入节点', key: 'anchorNodeCode', width: 110 },
+  { title: '服务方向', key: 'serviceDirection', width: 110 },
+  { title: '可达性', key: 'unreachableReason', width: 130 },
   { title: '状态', key: 'status', width: 90 },
-  { title: '操作', key: 'actions', width: 80 },
+  { title: '操作', key: 'actions', width: 80, fixed: 'right' as const },
 ]
 
 const typeOptions = [
@@ -242,6 +262,40 @@ function typeLabel(type: string) {
 function typeColor(type: string) {
   const map: Record<string, string> = { PICKUP: 'processing', DROPOFF: 'success', GENERAL: 'default' }
   return map[type] || 'default'
+}
+
+/** P2-5: 服务方向标签与颜色 */
+function serviceDirectionLabel(dir: string): string {
+  const map: Record<string, string> = {
+    FORWARD: '正向',
+    REVERSE: '反向',
+    BIDIRECTIONAL: '双向',
+  }
+  return map[dir] || dir
+}
+
+function serviceDirectionColor(dir: string): string {
+  const map: Record<string, string> = {
+    FORWARD: 'green',
+    REVERSE: 'orange',
+    BIDIRECTIONAL: 'blue',
+  }
+  return map[dir] || 'default'
+}
+
+/** P2-5: 不可达原因简短标签 */
+function unreachableReasonLabel(reason: string): string {
+  const map: Record<string, string> = {
+    ROAD_CLOSED: '道路封闭',
+    NO_SERVICE_POSITION: '无服务位',
+    VEHICLE_TYPE_NOT_ALLOWED: '车型受限',
+    CAPACITY_FULL: '容量已满',
+    MAINTENANCE: '维护中',
+    OFFLINE: '离线',
+    GATE_CLOSED: '门禁关闭',
+    OUT_OF_RANGE: '超出范围',
+  }
+  return map[reason] || reason
 }
 
 /** Phase 5 任务 5.3：地图选点 picker 状态。 */
@@ -345,3 +399,15 @@ async function handleSave() {
 
 onMounted(loadData)
 </script>
+
+<style scoped lang="less">
+.text-muted {
+  color: var(--fsd-text-tertiary);
+}
+
+.mono-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
+}
+</style>

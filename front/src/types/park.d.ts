@@ -1,9 +1,14 @@
+/** P2-1: 轨迹点类型，用于在画布上区分规划/实际/预测/历史轨迹的颜色与样式 */
+export type TrajectoryPointType = 'PLAN' | 'ACTUAL' | 'PREDICTED' | 'HISTORY'
+
 export interface ParkPoint {
   code: string
   x: number
   y: number
   longitude?: number | null
   latitude?: number | null
+  /** P2-1: 轨迹点类型，未设置时由调用方按所属字段（trajectory / plannedRouteGeo / geoTrajectory）推断 */
+  type?: TrajectoryPointType
 }
 
 export interface ParkSummary {
@@ -94,6 +99,14 @@ export interface ParkVehicleSnapshot {
   plannedRouteGeo?: ParkPoint[]
   routeSource?: string | null
   routeInvalid?: boolean | null
+  /** P2-5: 车辆宽度（厘米），用于道路宽度可用性检查 */
+  widthCm?: number
+  /** P2-5: 车辆长度（厘米） */
+  lengthCm?: number
+  /** P2-5: 最小转弯半径（米），用于窄路/急弯过滤 */
+  turningRadiusM?: number
+  /** P2-5: 允许道路等级（逗号分隔，NULL=全部；如 ARTERIAL,SECONDARY） */
+  allowedRoadClasses?: string
 }
 
 export interface ParkGeofence {

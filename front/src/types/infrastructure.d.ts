@@ -43,6 +43,12 @@ export interface AdminStation {
   status: 'ACTIVE' | 'INACTIVE'
   sortOrder?: number
   capacityLimit?: number
+  /** P2-5: 站点接入的道路节点编码（吸附到 road_node.node_code） */
+  anchorNodeCode?: string | null
+  /** P2-5: 车辆到站服务方向：FORWARD/REVERSE/BIDIRECTIONAL */
+  serviceDirection?: string | null
+  /** P2-5: 不可达原因：ROAD_CLOSED/NO_SERVICE_POSITION/VEHICLE_TYPE_NOT_ALLOWED/CAPACITY_FULL/MAINTENANCE/OFFLINE/GATE_CLOSED/OUT_OF_RANGE */
+  unreachableReason?: string | null
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -77,6 +83,14 @@ export interface AdminParkingSlot {
   status: 'FREE' | 'OCCUPIED' | 'RESERVED' | 'CHARGING' | 'FAULT'
   occupiedVehicleId?: number
   sortOrder?: number
+  /** P2-5: 车位朝向：NORTH/SOUTH/EAST/WEST/NE/NW/SE/SW */
+  facingDirection?: string | null
+  /** P2-5: 进站节点编码 */
+  entryNodeCode?: string | null
+  /** P2-5: 出站节点编码 */
+  exitNodeCode?: string | null
+  /** P2-5: 是否阻塞主路（1=是，禁止长时间占用；0=否） */
+  blockingMainRoad?: number | null
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -106,6 +120,14 @@ export interface AdminChargingPile {
   occupiedVehicleId?: number
   maxPowerKw?: number
   sortOrder?: number
+  /** P2-5: 进站点（充电区入口道路节点编码） */
+  entryNodeCode?: string | null
+  /** P2-5: 出站点（充电区出口道路节点编码；与 entry 不同则需单向循环） */
+  exitNodeCode?: string | null
+  /** P2-5: 充电枪类型：CCS2/GB_T_DC/CHAOJI/AC_GENERIC/WIRELESS */
+  plugType?: string | null
+  /** P2-5: 预约状态：FREE/RESERVED/CHARGING/FAULT */
+  reservationState?: string | null
   remark?: string
   createdAt?: string
   updatedAt?: string
@@ -153,6 +175,16 @@ export interface AdminRoadSegment {
   status: 'ACTIVE' | 'DISABLED'
   speedLimitKmh?: number
   congestionLevel?: number
+  /** P2-5: 道路可行驶宽度（米），用于车辆外接矩形碰撞检查 */
+  widthMeters?: number | null
+  /** P2-5: 道路等级：HIGHWAY/ARTERIAL/SECONDARY/SERVICE_ROAD/PEDESTRIAN/FIRE_LANE */
+  roadClass?: string | null
+  /** P2-5: 通行语义：DRIVABLE/PEDESTRIAN_ONLY/SERVICE_ONLY/RESTRICTED/BLOCKED/NO_STOP/LOADING_ONLY/CHARGING_ACCESS */
+  accessState?: string | null
+  /** P2-5: 转向限制：NONE/NO_LEFT/NO_RIGHT/NO_U_TURN/NO_STRAIGHT */
+  turnRestriction?: string | null
+  /** P2-5: 关联门禁/闸机/消防通道编码（NULL=无门禁） */
+  gateCode?: string | null
   remark?: string
   createdAt?: string
   updatedAt?: string

@@ -60,6 +60,23 @@ public final class ParkRoadGraph {
     }
 
     public static ParkRoadGraph fromDatabase(List<RoadNodeEntity> dbNodes, List<RoadSegmentEntity> dbSegments) {
+        return fromDatabase(dbNodes, dbSegments, java.time.LocalDateTime.now());
+    }
+
+    /**
+     * Builds the road graph with access-state and time-window filtering (P1-2).
+     *
+     * Filtering rules:
+     *   - status != ACTIVE → skip (existing behavior)
+     *   - access_state = BLOCKED or PEDESTRIAN_ONLY → skip (no vehicle may use)
+     *   - current time falls within [blocked_from, blocked_until) → skip (临时封路)
+     *
+     * Vehicle-specific filtering (vehicle type, width, road class) is applied
+     * separately via {@link #buildForVehicle} at trip-planning time, since the
+     * graph itself is per-park, not per-vehicle.
+     */
+    public static ParkRoadGraph fromDatabase(List<RoadNodeEntity> dbNodes, List<RoadSegmentEntity> dbSegments,
+                                              java.time.LocalDateTime now) {
         Map<String, NodeView> nodes = new HashMap<>();
         for (RoadNodeEntity entity : dbNodes) {
             if (entity == null || entity.getNodeCode() == null) {
@@ -79,6 +96,18 @@ public final class ParkRoadGraph {
         Map<String, Double> edgeCostMultiplier = new HashMap<>();
         for (RoadSegmentEntity segment : dbSegments) {
             if (segment == null || !"ACTIVE".equalsIgnoreCase(segment.getStatus())) {
+                continue;
+            }
+            // P1-2：通行语义过滤 — BLOCKED / PEDESTRIAN_ONLY 路段对所有车辆禁行
+            String accessState = segment.getAccessState();
+            if (accessState != null && !accessState.isBlank()) {
+                String norm = accessState.trim().toUpperCase(java.util.Locale.ROOT);
+                if ("BLOCKED".equals(norm) || "PEDESTRIAN_ONLY".equals(norm)) {
+                    continue;
+                }
+            }
+            // P1-2：临时封路时间窗过滤
+            if (isCurrentlyBlocked(segment, now)) {
                 continue;
             }
             // 阶段七 7.1：根据 direction 字段决定建边方向。
@@ -110,6 +139,27 @@ public final class ParkRoadGraph {
             }
         }
         return new ParkRoadGraph(nodes, adjacency, edgeCostMultiplier);
+    }
+
+    /**
+     * Whether the segment is currently within its temporary block window (P1-2).
+     * A segment is blocked when both blockedFrom and blockedUntil are non-null and
+     * `now` falls in [blockedFrom, blockedUntil). A segment with only blockedFrom set
+     * (no end) is treated as permanently blocked.
+     */
+    private static boolean isCurrentlyBlocked(RoadSegmentEntity segment, java.time.LocalDateTime now) {
+        java.time.LocalDateTime from = segment.getBlockedFrom();
+        if (from == null) {
+            return false;
+        }
+        if (now.isBefore(from)) {
+            return false;
+        }
+        java.time.LocalDateTime until = segment.getBlockedUntil();
+        if (until == null) {
+            return true; // 永久封路
+        }
+        return now.isBefore(until);
     }
 
     public static ParkRoadGraph fromYaml(ParkPilotProperties properties) {

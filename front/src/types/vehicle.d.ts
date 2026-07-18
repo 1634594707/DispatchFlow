@@ -27,6 +27,14 @@ export interface VehicleAdminListItem {
   deliveryZone?: VehicleDeliveryZone
   maxLoadCapacity?: number | null
   currentLoad?: number | null
+  /** P2-5: 车辆宽度（厘米），用于道路宽度可用性检查 */
+  widthCm?: number | null
+  /** P2-5: 车辆长度（厘米） */
+  lengthCm?: number | null
+  /** P2-5: 最小转弯半径（米），用于窄路/急弯过滤 */
+  turningRadiusM?: number | null
+  /** P2-5: 允许道路等级（逗号分隔，NULL=全部；如 ARTERIAL,SECONDARY） */
+  allowedRoadClasses?: string | null
   lastReportTime: string
 }
 
@@ -49,6 +57,14 @@ export interface VehicleDetailResponse {
   deliveryZone?: VehicleDeliveryZone
   maxLoadCapacity?: number | null
   currentLoad?: number | null
+  /** P2-5: 车辆宽度（厘米），用于道路宽度可用性检查 */
+  widthCm?: number | null
+  /** P2-5: 车辆长度（厘米） */
+  lengthCm?: number | null
+  /** P2-5: 最小转弯半径（米），用于窄路/急弯过滤 */
+  turningRadiusM?: number | null
+  /** P2-5: 允许道路等级（逗号分隔，NULL=全部；如 ARTERIAL,SECONDARY） */
+  allowedRoadClasses?: string | null
   lastReportTime: string
   remark: string | null
 }

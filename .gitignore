@@ -20,6 +20,16 @@ scripts/git_commit.py
 scripts/git_commit.sh
 deploy_p0p1_fixes.py
 verify_deployment.py
+# Local deployment / SSH scripts containing plaintext credentials
+scripts/test_ssh.py
+scripts/upload_to_server.py
+scripts/upload_docs.py
+scripts/deploy_inspect.py
+scripts/deploy_rebuild.py
+scripts/verify_migration.py
+scripts/verify_admin_api.py
+scripts/verify_routes.py
+scripts/verify_routes2.py
 
 # Documentation (not uploaded)
 docs/

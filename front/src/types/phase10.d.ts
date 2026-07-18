@@ -112,6 +112,10 @@ export interface DigitalTwinSnapshot {
   openExceptionCount: number
   idleVehicleCount: number
   lowBatteryVehicleCount: number
+  /** P2-3: 数据最后更新时间（断线告警依据），ISO 字符串；后端未返回时为 undefined */
+  lastUpdatedAt?: string
+  /** P2-6: 当前园区使用的地图数据版本号，用于追溯调度所用的路网版本 */
+  mapDataVersion?: string
 }
 
 export interface DigitalTwinScenarioParams {

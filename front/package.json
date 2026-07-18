@@ -2,7 +2,7 @@
   "name": "dispatchflow-web",
   "description": "DispatchFlow admin console and vehicle monitoring UI",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

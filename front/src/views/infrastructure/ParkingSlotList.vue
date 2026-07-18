@@ -22,6 +22,7 @@
       :loading="loading"
       row-key="id"
       :pagination="false"
+      :scroll="{ x: 'max-content' }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'slotType'">
@@ -32,6 +33,22 @@
         </template>
         <template v-else-if="column.key === 'coord'">
           ({{ record.coordX }}, {{ record.coordY }})
+        </template>
+        <template v-else-if="column.key === 'facingDirection'">
+          <a-tag v-if="record.facingDirection" color="blue">{{ facingDirectionLabel(record.facingDirection) }}</a-tag>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template v-else-if="column.key === 'entryNodeCode'">
+          <span v-if="record.entryNodeCode" class="mono-text">{{ record.entryNodeCode }}</span>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template v-else-if="column.key === 'exitNodeCode'">
+          <span v-if="record.exitNodeCode" class="mono-text">{{ record.exitNodeCode }}</span>
+          <span v-else class="text-muted">-</span>
+        </template>
+        <template v-else-if="column.key === 'blockingMainRoad'">
+          <a-tag v-if="record.blockingMainRoad === 1" color="error">阻塞主路</a-tag>
+          <span v-else class="text-muted">否</span>
         </template>
         <template v-else-if="column.key === 'occupiedVehicleId'">
           {{ record.occupiedVehicleId ?? '-' }}
@@ -154,11 +171,30 @@ const columns = [
   { title: '名称', dataIndex: 'slotName', key: 'slotName' },
   { title: '园区', dataIndex: 'parkName', key: 'parkName', width: 130 },
   { title: '类型', key: 'slotType', width: 100 },
+  { title: '朝向', key: 'facingDirection', width: 90 },
   { title: '坐标', key: 'coord', width: 130 },
+  { title: '进站节点', key: 'entryNodeCode', width: 110 },
+  { title: '出站节点', key: 'exitNodeCode', width: 110 },
+  { title: '阻塞主路', key: 'blockingMainRoad', width: 110 },
   { title: '状态', key: 'status', width: 90 },
   { title: '占用车辆', key: 'occupiedVehicleId', width: 100 },
-  { title: '操作', key: 'actions', width: 80 },
+  { title: '操作', key: 'actions', width: 80, fixed: 'right' as const },
 ]
+
+/** P2-5: 车位朝向简短标签 */
+function facingDirectionLabel(dir: string): string {
+  const map: Record<string, string> = {
+    NORTH: '北',
+    SOUTH: '南',
+    EAST: '东',
+    WEST: '西',
+    NE: '东北',
+    NW: '西北',
+    SE: '东南',
+    SW: '西南',
+  }
+  return map[dir] || dir
+}
 
 const typeOptions = [
   { label: '待命车位', value: 'STANDBY' },
@@ -244,3 +280,15 @@ async function handleSave() {
 
 onMounted(loadData)
 </script>
+
+<style scoped lang="less">
+.text-muted {
+  color: var(--fsd-text-tertiary);
+}
+
+.mono-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--fsd-text-secondary);
+}
+</style>
