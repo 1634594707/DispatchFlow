@@ -14,10 +14,14 @@ function ok(data: unknown) {
 }
 
 async function seedAdminSession(page: Page) {
+  // authStore (front/src/stores/auth.ts) reads token/user from sessionStorage, not localStorage.
+  // Use the same storage so router.beforeEach sees the seeded admin session.
   await page.addInitScript(() => {
-    localStorage.setItem('fsd_admin_token', 'e2e-admin-token')
-    localStorage.setItem('fsd_admin_user', JSON.stringify({ userId: 1, username: 'admin', role: 'ADMIN' }))
+    sessionStorage.setItem('fsd_admin_token', 'e2e-admin-token')
+    sessionStorage.setItem('fsd_admin_user', JSON.stringify({ userId: 1, username: 'admin', role: 'ADMIN', displayName: 'admin' }))
   })
+  // ensureAuth() calls /api/admin/auth/me; mock it so the router guard accepts the seeded token.
+  await page.route(api('/admin/auth/me'), route => route.fulfill({ json: ok({ userId: 1, username: 'admin', role: 'ADMIN', displayName: 'admin' }) }))
 }
 
 async function installConsoleGate(page: Page) {
@@ -76,7 +80,7 @@ test('mobile order initializes with mobile key and stale tracking hint', async (
   await page.route(api('/admin/park/vehicles**'), route => route.fulfill({ status: 503, json: { success: false, code: 'DOWN', message: 'down' } }))
 
   await page.goto('/mobile/order')
-  await expect(page.getByText('像看外卖一样看短驳配送')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '叫车送货' })).toBeVisible()
   await expect(page.getByText('未授权，请重新登录')).toHaveCount(0)
   await page.evaluate(() => (window as unknown as { __assertNoConsoleErrors: () => void }).__assertNoConsoleErrors())
 })
