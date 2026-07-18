@@ -76,27 +76,30 @@ export class AmapProvider implements MapProvider {
       setMarkers(nextMarkers: GeoMapMarker[], fitOptions?: { fitView?: boolean }) {
         clear(markers)
         markers = nextMarkers.map((item) => {
+          const markerSize = item.selected ? 44 : 36
           const markerOptions: Record<string, unknown> = {
             position: item.position,
             title: item.label ?? item.id,
             angle: item.heading ?? 0,
-            offset: new AMap.Pixel(-18, -18),
+            offset: new AMap.Pixel(-markerSize / 2, -markerSize / 2),
+            zIndex: item.selected ? 180 : item.markerType === 'vehicle' ? 160 : 140,
           }
           if (item.iconUrl) {
             markerOptions.icon = new AMap.Icon({
               image: item.iconUrl,
-              size: new AMap.Size(36, 36),
-              imageSize: new AMap.Size(36, 36),
+              size: new AMap.Size(markerSize, markerSize),
+              imageSize: new AMap.Size(markerSize, markerSize),
             })
           }
-          if (item.label) {
+          if (item.label && item.showLabel !== false) {
             markerOptions.label = {
               content: item.label,
-              direction: 'top',
-              offset: new AMap.Pixel(0, -8),
+              direction: item.labelDirection ?? 'top',
+              offset: new AMap.Pixel(item.labelOffset?.[0] ?? 0, item.labelOffset?.[1] ?? -8),
             }
           }
           const marker = new AMap.Marker(markerOptions)
+          marker.on('click', () => options.onMarkerClick?.(item))
           marker.setMap(map)
           return marker as AMapOverlay
         })
@@ -113,6 +116,8 @@ export class AmapProvider implements MapProvider {
             strokeWeight: item.strokeWeight ?? 2,
             fillColor: item.fillColor ?? 'rgba(45, 224, 138, 0.12)',
             fillOpacity: item.fillOpacity ?? 0.35,
+            strokeStyle: item.lineDash?.length ? 'dashed' : 'solid',
+            strokeDasharray: item.lineDash,
             zIndex: item.zIndex ?? 10,
           })
           polygon.setMap(map)

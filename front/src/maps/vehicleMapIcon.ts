@@ -77,10 +77,12 @@ export interface AvMapStatusInput {
   routeInvalid?: boolean | null
   /** 人工接管标记 */
   manualOverride?: boolean | null
+  /** Last telemetry exceeded the backend freshness window. */
+  telemetryStale?: boolean | null
 }
 
 export function resolveAvMapStatus(input: AvMapStatusInput): AvMapStatus {
-  if (input.onlineStatus === 'OFFLINE') return 'offline'
+  if (input.onlineStatus === 'OFFLINE' || input.telemetryStale) return 'offline'
   if (input.manualOverride) return 'manual_override'
   if (input.routeInvalid) return 'off_route'
   const stage = String(input.runtimeStage ?? '').toUpperCase()
@@ -118,5 +120,6 @@ export function toAvGeoMarker(
     iconUrl: avMapIconUrl(status),
     heading: input.heading ?? undefined,
     status,
+    markerType: 'vehicle',
   }
 }

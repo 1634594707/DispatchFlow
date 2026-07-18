@@ -85,6 +85,8 @@ export interface ParkVehicleSnapshot {
   longitude?: number | null
   latitude?: number | null
   heading?: number | null
+  lastTelemetryAt?: string | null
+  telemetryStale?: boolean
   runtimeStage: string
   targetCode: string | null
   targetType: string | null
@@ -99,6 +101,7 @@ export interface ParkVehicleSnapshot {
   plannedRouteGeo?: ParkPoint[]
   routeSource?: string | null
   routeInvalid?: boolean | null
+  manualOverride?: boolean | null
   /** P2-5: 车辆宽度（厘米），用于道路宽度可用性检查 */
   widthCm?: number
   /** P2-5: 车辆长度（厘米） */
@@ -115,9 +118,12 @@ export interface ParkGeofence {
   fenceCode: string
   fenceName: string
   fenceType: 'BOUNDARY' | 'RESTRICTED' | string
+  scopeCode?: 'L1_CORE' | 'L1_CANDIDATE_ENVELOPE' | 'SAFETY_RESTRICTED' | string
+  dispatchable?: boolean
   polygon: [number, number][]
   status: string
   remark?: string
+  updatedAt?: string | null
 }
 
 export interface ParkOverviewItem {

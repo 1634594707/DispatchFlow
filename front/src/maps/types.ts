@@ -6,9 +6,14 @@ export interface GeoMapMarker {
   id: string
   position: [number, number]
   label?: string
+  labelDirection?: 'top' | 'right' | 'bottom' | 'left' | 'center'
+  labelOffset?: [number, number]
   iconUrl?: string
   heading?: number
   status?: GeoMapMarkerStatus | string
+  markerType?: 'vehicle' | 'pickup' | 'dropoff' | 'express' | 'charging' | 'idle' | 'target'
+  selected?: boolean
+  showLabel?: boolean
 }
 
 export interface GeoMapPolygon {
@@ -18,6 +23,7 @@ export interface GeoMapPolygon {
   fillColor?: string
   strokeWeight?: number
   fillOpacity?: number
+  lineDash?: number[]
   zIndex?: number
 }
 
@@ -47,6 +53,7 @@ export interface GeoMapInitOptions {
   /** [lng, lat] GCJ-02 */
   center: [number, number]
   zoom: number
+  onMarkerClick?: (marker: GeoMapMarker) => void
 }
 
 export interface GeoMapHandle {

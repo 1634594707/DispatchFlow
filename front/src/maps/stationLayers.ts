@@ -129,15 +129,10 @@ export function filterWorkbenchSituationStations(
 ): ParkStation[] {
   const orderable = filterMobileOrderStations(stations)
   const extras: ParkStation[] = []
-  if (options.showIdle) {
+  if (options.showIdle || options.showCharging) {
     extras.push(
-      ...filterGeoDeliveryStations(stations).filter(station => station.stationCode === 'ZJF-IDLE-01'),
-    )
-  }
-  if (options.showCharging) {
-    extras.push(
-      ...filterGeoDeliveryStations(stations).filter(station =>
-        (station.stationCode ?? '').startsWith('ZJF-CHG-'),
+      ...filterGeoDeliveryStations(stations).filter(
+        (station) => station.stationCode === 'ZJF-CHG-01',
       ),
     )
   }

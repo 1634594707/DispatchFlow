@@ -16,7 +16,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { VerticalAlignTopOutlined } from '@ant-design/icons-vue'
 import { useResponsive } from '@/composables/useResponsive'
 
