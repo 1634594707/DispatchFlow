@@ -5,6 +5,57 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-19
+
+按 `docs/坐标基准-叠石桥家纺城.md` 与 `docs/运维手册-园区配置与围栏设计.md` 收敛 ZJF 基地单一调度原点，校正园区配置与车辆坐标，并完成 V44–V47 四份迁移与端到端测试修复。
+
+### Added
+
+- 数据库迁移 `V44__expand_zjf_actual_service_range.sql`：将 `DEFAULT-BOUNDARY` 围栏从展示用矩形扩展为家纺城及周边本地履约物理可达范围（约 5.5×6.2 km 多边形）；南排门市区向东延伸至找家纺网基地发货/调度/充电原点；自动派单仍限五个 `ZJF-ZONE-*` L1 核心围栏
+- 数据库迁移 `V45__clean_operations_and_reset_base_fleet.sql`：清理 `t_station_service_position_reservation / t_charging_session / t_battery_swap_session / t_fleet_telemetry_point / t_route_audit / t_route_health_metric / t_vehicle_command` 等历史演示数据；重置 ZJF 三台基础车辆为 IDLE / ONLINE；统一 13 个 ZJF 站点中文名（"南通家纺城门市 / 成品展示中心门市 / 找家纺代发仓 / 找家纺代拿仓 / 西排北仓 / 东排集散仓 / 快递接驳点 / 找家纺网基地 · 发货调度原点" 等）
+- 数据库迁移 `V46__fix_base_runtime_geo_reset.sql`：V45 暴露遗留的 XY 示意图坐标回退路径，本迁移将 ZJF-AV-* 车辆的 `current_longitude / current_latitude / current_task_id / current_order_id / online_status / dispatch_status / current_speed_kmh / current_heading` 一次性重置；同步释放停车位与充电桩占用
+- 数据库迁移 `V47__reset_base_after_zero_distance_route_fix.sql`：零距离充电路线污染车辆示意坐标后，再次重置 ZJF-AV-* 车辆坐标到基地原点（668.437 / 624.450），保持调度链路一致
+- 前端新增 9 个 SVG 图标资源：`av-delivery-busy / charging / idle / loading / low-battery / manual / off-route / offline / waiting` 与 `map-station-charging / dropoff / express / idle / pickup`，覆盖车辆 8 状态视觉与站点分类
+- 新增 `docs/DEPLOYMENT.md`：标准化生产部署流程（前置条件 / 部署步骤 / 发布产物 / 回滚策略），替代历史散落的 Python 部署脚本
+- 新增 11 份项目治理与运维文档：底层架构解析、最终更新路线图、生产运维清单、项目架构解析、前端站点与后端逻辑审查路线图、坐标地图-高德ZJF-服务范围与前端样式确认、坐标基准-叠石桥家纺城、无人车真实道路配送参数补齐清单、真实配送范围与地图视觉规范、调研报告-站点与路线逻辑、调研核定-线上交叉验证、运维手册-园区配置与围栏设计、运维手册-评分权重与能量阈值
+
+### Changed
+
+- 前端 `App.vue` 在 `<a-config-provider>` 注入 `:locale="zhCN"`，让 ant-design-vue 的 Modal/Popconfirm 按钮文本默认中文
+- 前端 `views/gis/ParkOverview.vue` 重写园区 GIS 总览，支持 L0/L1/L2 图层切换与服务范围可视化
+- 前端 `views/mobile/ParkOrder.vue` 与 `components/mobile/QuickOrderPanel.vue` 重构移动端下单流程
+- 前端 `views/vehicle/Tracking.vue` 与 `components/map/AmapGeoMap.vue` 升级车辆轨迹展示
+- 前端 `composables/useDeliveryGeo.ts` 与 `maps/parkGeoMapLayers.ts` 按视觉规范重写图层构建
+- 后端 `RealFleetAdapter` 与 `FleetSnapshotAssembler` 校正车辆运行态快照的坐标来源，避免示意坐标污染
+- 后端 `LocalPilotRoadGraphService` 修复零距离路线的图构建兜底逻辑
+- 后端 `ParkGeofenceServiceImpl` 增加按园区查询与展示围栏分类
+- 后端 `ParkPilotSimulationServiceImpl` 调整模拟服务的初始车辆坐标
+- 后端 `RoadRouteHealthAdminService / RoadRouteValidateAdminService / AnalyticsAdminServiceImpl / DigitalTwinAdminServiceImpl` 统一 `parkId` 参数解析与异常返回格式
+- 后端 `AdminAuthInterceptor` 收紧未认证响应的 Content-Type 与缓存策略
+
+### Fixed
+
+- **E2E 测试 6 `task list dispatch reassign and cancel trigger real user-path APIs` 超时**（CI 主要失败点）：
+  - ant-design-vue 4.x 中 `a-select-option` 使用 slot 内容时不渲染 `title` 属性（`OptionList.js` 中 `optionTitle` 为 undefined），导致 `page.getByTitle(/VH-001/)` 永远匹配不到 → 改用 `page.locator('.ant-select-item-option', { hasText: 'VH-001' })`
+  - ant-design-vue 4.x Button 对两个中文字符自动插入空格（"确定" 渲染为 "确 定"），`getByRole('button', { name: '确定' })` 失败 → 改用 `.ant-modal-footer .ant-btn-primary` CSS selector
+  - ant-design-vue Modal 关闭动画期间 DOM 仍存在，导致改派 modal 打开时同时匹配到派单 modal 元素，触发 strict mode violation → 对第二个 modal 的 select-selector / option / footer button 使用 `.last()`
+- **车辆示意坐标污染**：V45 暴露 `t_vehicle` 中遗留的 XY 示意图坐标（如 668.437 / 624.450）被错误当作经纬度参与路径规划与地图展示，导致"打开地图显示世界地图"与派单失败；V46/V47 一次性重置基地车辆坐标
+- **零距离充电路线触发坐标回退**：`LocalPilotRoadGraphService` 在零距离路线场景下回退到示意坐标，污染运行态；修复后保留基地原点
+- **`RouteAuditService` 编译错误**：缺少 `import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint`，已补齐
+- **ZJF 站点中文名乱码**：V45 用 CASE WHEN 一次性写入权威中文名，避免二次编码转换失败
+- **南排取货充电站不在自动派单覆盖区**：V44 扩展南排 L1 围栏至包含基地原点
+
+### Removed
+
+- 删除 7 个历史部署脚本：`deploy.py / deploy_backend.py / deploy_check.py / deploy_verify.py / scripts/check_charset.py / scripts/fix_charset.py / scripts/fix_flyway.py / scripts/make_tar.py / scripts/ssh_helper.py / scripts/verify_api.py / scripts/__init__.py`；统一由 `scripts/deploy.sh` 与 `docs/DEPLOYMENT.md` 接管
+
+### Deploy Notes
+
+- 已合并至 `main` 分支（commit `c7058e6`）并通过 GitHub Actions CI（Frontend Build + Backend Tests 全绿）
+- V44–V47 Flyway 迁移幂等可重复执行；生产环境执行前请备份 `t_vehicle / t_park_geofence / t_station` 三张表
+- 部署后需确认 `t_vehicle` 中 ZJF-AV-* 车辆坐标为 `668.437 / 624.450`（基地示意坐标系原点），而非真实经纬度
+- 前端 dev server 与生产构建需重启以加载新的 `zhCN` locale 依赖
+
 ## [0.5.0] - 2026-07-18
 
 按 `docs/DispatchFlow_最终更新路线图_2026-07-18.md` 的 P0/P1 优先级与 `docs/真实配送范围与地图视觉规范_2026-07-18.md` 视觉规范，本轮迭代完成路线安全闭环、建筑 Polygon 数据补齐、车辆 8 状态视觉与订单目标点三层结构。
