@@ -8,6 +8,7 @@ import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
 import com.fsd.vehicle.entity.VehicleEntity;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class FleetSnapshotAssembler {
+
+    private static final Duration TELEMETRY_STALE_AFTER = Duration.ofSeconds(30);
 
     private final FleetChargePolicy fleetChargePolicy;
 
@@ -45,7 +48,11 @@ public class FleetSnapshotAssembler {
                 .y(y)
                 .longitude(geo != null ? geo.longitude() : null)
                 .latitude(geo != null ? geo.latitude() : null)
-                .heading(effectiveRuntime.getHeading())
+                .heading(effectiveRuntime.getHeading() != null
+                        ? effectiveRuntime.getHeading()
+                        : toDouble(vehicle.getCurrentHeading()))
+                .lastTelemetryAt(effectiveRuntime.getLastTelemetryAt())
+                .telemetryStale(isTelemetryStale(effectiveRuntime.getLastTelemetryAt()))
                 .runtimeStage(effectiveRuntime.getRuntimeStage())
                 .targetCode(effectiveRuntime.getTargetCode())
                 .targetType(effectiveRuntime.getTargetType())
@@ -57,6 +64,7 @@ public class FleetSnapshotAssembler {
                 .plannedRouteGeo(toParkPoints(effectiveRuntime.getPlannedRouteGeo()))
                 .routeSource(effectiveRuntime.getRouteSource())
                 .routeInvalid(effectiveRuntime.getRouteInvalid())
+                .manualOverride(Integer.valueOf(1).equals(vehicle.getManualOverride()))
                 .build();
     }
 
@@ -69,7 +77,7 @@ public class FleetSnapshotAssembler {
                 .soc(vehicle.getBatteryLevel())
                 .x(vehicle.getCurrentLongitude())
                 .y(vehicle.getCurrentLatitude())
-                .lastTelemetryAt(LocalDateTime.now())
+                .lastTelemetryAt(vehicle.getLastReportTime())
                 .trajectory(new ArrayList<>())
                 .build();
     }
@@ -104,6 +112,15 @@ public class FleetSnapshotAssembler {
 
     private static <T> T firstNonNull(T primary, T fallback) {
         return primary != null ? primary : fallback;
+    }
+
+    private static boolean isTelemetryStale(LocalDateTime lastTelemetryAt) {
+        return lastTelemetryAt == null
+                || lastTelemetryAt.isBefore(LocalDateTime.now().minus(TELEMETRY_STALE_AFTER));
+    }
+
+    private static Double toDouble(java.math.BigDecimal value) {
+        return value == null ? null : value.doubleValue();
     }
 
     private static String resolveLinkMode(com.fsd.vehicle.entity.VehicleEntity vehicle) {

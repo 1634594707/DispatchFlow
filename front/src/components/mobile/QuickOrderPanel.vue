@@ -1,67 +1,31 @@
 <template>
   <section class="quick-order-panel">
-    <!-- 顶部下单引导区（类似京东"填写订单"标题区） -->
     <header class="order-header">
       <div class="header-titles">
-        <h2 class="order-title">填写订单</h2>
-        <p class="order-subtitle">{{ demoRoutes.length }} 条典型短驳线路 · 一件代发</p>
+        <span class="order-kicker">同城即时送</span>
+        <h2 class="order-title">送货下单</h2>
+        <p class="order-subtitle">叠石桥家纺城短驳配送</p>
       </div>
       <span v-if="parkLocked" class="park-tag">{{ parkName }}</span>
     </header>
 
-    <!-- 模式切换 -->
-    <div class="mode-switch" role="tablist" aria-label="下单地图模式">
-      <button
-        type="button"
-        class="mode-chip"
-        :class="{ active: orderMode === 'schematic' }"
-        @click="$emit('update:orderMode', 'schematic')"
-      >
-        园区内部
-      </button>
-      <button
-        type="button"
-        class="mode-chip"
-        :class="{ active: orderMode === 'geo' }"
-        @click="$emit('update:orderMode', 'geo')"
-      >
-        真实地图
-      </button>
+    <div class="service-strip">
+      <span><ThunderboltOutlined />即时派车</span>
+      <span><EnvironmentOutlined />服务位交接</span>
+      <span><InboxOutlined />一件代发</span>
     </div>
 
-    <!-- 快速下单按钮 -->
-    <button type="button" class="quick-fill-btn" :disabled="submitting" @click="$emit('quickFill')">
-      ⚡ 快速下单 · 一键填入默认取送货点
-    </button>
-
-    <!-- 热门路线卡片（类似淘宝商品列表） -->
     <section class="order-section">
       <div class="section-head">
-        <span class="section-title">热门路线</span>
-        <span class="section-hint">点击立即下单</span>
-      </div>
-      <div class="route-cards">
+        <span class="section-title">取送地址</span>
         <button
-          v-for="route in demoRoutes"
-          :key="route.label"
           type="button"
-          class="route-card"
+          class="recommend-btn"
           :disabled="submitting"
-          @click="$emit('submitDemo', route)"
+          @click="$emit('quickFill')"
         >
-          <div class="route-card-main">
-            <span class="route-label">{{ route.label }}</span>
-            <span class="route-codes">{{ route.pickupCode }} → {{ route.dropoffCode }}</span>
-          </div>
-          <span class="route-action">{{ submitting ? '提交中…' : '立即下单' }}</span>
+          <ThunderboltOutlined />推荐线路
         </button>
-      </div>
-    </section>
-
-    <!-- 自定义取送区（平铺展示，不再折叠） -->
-    <section class="order-section">
-      <div class="section-head">
-        <span class="section-title">自定义取送</span>
       </div>
 
       <a-form layout="vertical" class="order-form">
@@ -76,56 +40,82 @@
           />
         </a-form-item>
 
-        <a-form-item label="取货站点">
-          <a-select
-            :value="pickupStationId"
-            placeholder="选择取货站点"
-            size="large"
-            :loading="loadingStations"
-            show-search
-            option-filter-prop="label"
-            @update:value="onPickupChange"
-          >
-            <a-select-opt-group v-for="group in pickupGroups" :key="group.label" :label="group.label">
-              <a-select-option v-for="opt in group.options" :key="opt.value" :value="opt.value" :label="opt.label">
-                {{ opt.label }}
-              </a-select-option>
-            </a-select-opt-group>
-          </a-select>
-        </a-form-item>
+        <div class="address-stack">
+          <span class="address-rail"
+            ><i class="pickup-dot" /><i class="rail-line" /><i class="dropoff-dot"
+          /></span>
+          <div class="address-fields">
+            <a-form-item label="从哪里取货">
+              <a-select
+                :value="pickupStationId"
+                placeholder="选择取货服务点"
+                size="large"
+                :loading="loadingStations"
+                show-search
+                option-filter-prop="label"
+                @update:value="onPickupChange"
+              >
+                <a-select-opt-group
+                  v-for="group in pickupGroups"
+                  :key="group.label"
+                  :label="group.label"
+                >
+                  <a-select-option
+                    v-for="opt in group.options"
+                    :key="opt.value"
+                    :value="opt.value"
+                    :label="opt.label"
+                  >
+                    {{ opt.label }}
+                  </a-select-option>
+                </a-select-opt-group>
+              </a-select>
+            </a-form-item>
 
-        <a-form-item label="送货站点">
-          <a-select
-            :value="dropoffStationId"
-            placeholder="选择送货站点"
-            size="large"
-            :loading="loadingStations"
-            show-search
-            option-filter-prop="label"
-            @update:value="onDropoffChange"
-          >
-            <a-select-opt-group v-for="group in dropoffGroups" :key="group.label" :label="group.label">
-              <a-select-option v-for="opt in group.options" :key="opt.value" :value="opt.value" :label="opt.label">
-                {{ opt.label }}
-              </a-select-option>
-            </a-select-opt-group>
-          </a-select>
-        </a-form-item>
+            <a-form-item label="送到哪里">
+              <a-select
+                :value="dropoffStationId"
+                placeholder="选择送货服务点"
+                size="large"
+                :loading="loadingStations"
+                show-search
+                option-filter-prop="label"
+                @update:value="onDropoffChange"
+              >
+                <a-select-opt-group
+                  v-for="group in dropoffGroups"
+                  :key="group.label"
+                  :label="group.label"
+                >
+                  <a-select-option
+                    v-for="opt in group.options"
+                    :key="opt.value"
+                    :value="opt.value"
+                    :label="opt.label"
+                  >
+                    {{ opt.label }}
+                  </a-select-option>
+                </a-select-opt-group>
+              </a-select>
+            </a-form-item>
+          </div>
+          <button type="button" class="swap-btn" title="交换取送货点" @click="swapStations">
+            <SwapOutlined />
+          </button>
+        </div>
       </a-form>
 
-      <!-- 路线预览 -->
       <div class="route-preview">
         <span class="preview-station">{{ pickupPreview }}</span>
         <span class="arrow">→</span>
         <span class="preview-station">{{ dropoffPreview }}</span>
       </div>
 
-      <!-- 配重选择（醒目，规格选择器风格，类似京东规格选择） -->
       <div class="spec-block">
         <div class="spec-head">
           <span class="spec-label">
-            <span class="spec-icon" aria-hidden="true">⚖</span>
-            货物配重
+            <InboxOutlined class="spec-icon" />
+            货物重量
           </span>
           <span class="spec-value">{{ weight ? `${weight} kg` : '请选择' }}</span>
         </div>
@@ -163,47 +153,6 @@
         />
       </div>
 
-      <!-- 优先级选择 -->
-      <div class="spec-block">
-        <div class="spec-head">
-          <span class="spec-label">派单优先级</span>
-          <span class="spec-value">{{ priority }}</span>
-        </div>
-        <div class="priority-row">
-          <button
-            v-for="item in priorities"
-            :key="item.value"
-            type="button"
-            class="priority-chip"
-            :class="{ active: priority === item.value }"
-            @click="$emit('update:priority', item.value)"
-          >
-            <span class="chip-code">{{ item.value }}</span>
-            <span class="chip-text">{{ item.label }}</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="spec-block">
-        <div class="spec-head">
-          <span class="spec-label">订单优先级</span>
-          <span class="spec-value">{{ orderPriority }}</span>
-        </div>
-        <div class="priority-row">
-          <button
-            v-for="item in orderPriorities"
-            :key="item.value"
-            type="button"
-            class="priority-chip"
-            :class="{ active: orderPriority === item.value }"
-            @click="$emit('update:orderPriority', item.value)"
-          >
-            {{ item.label }}
-          </button>
-        </div>
-      </div>
-
-      <!-- 备注 -->
       <div class="spec-block">
         <div class="spec-head">
           <span class="spec-label">订单备注</span>
@@ -218,14 +167,40 @@
       </div>
     </section>
 
-    <!-- 底部固定提交栏（类似京东淘宝底部结算栏） -->
+    <section v-if="demoRoutes.length" class="order-section common-routes">
+      <div class="section-head">
+        <span class="section-title">常用路线</span>
+      </div>
+      <div class="route-cards">
+        <button
+          v-for="route in demoRoutes"
+          :key="route.label"
+          type="button"
+          class="route-card"
+          :disabled="submitting"
+          @click="$emit('submitDemo', route)"
+        >
+          <span class="route-card-main">
+            <strong class="route-label">{{ route.label }}</strong>
+            <span class="route-codes">{{ route.pickupCode }} → {{ route.dropoffCode }}</span>
+          </span>
+          <span class="route-action">一键下单</span>
+        </button>
+      </div>
+    </section>
+
     <footer class="submit-bar">
       <div class="submit-summary">
         <span class="summary-route">{{ pickupPreview }} → {{ dropoffPreview }}</span>
         <span v-if="weight" class="summary-weight">配重 {{ weight }}kg</span>
       </div>
-      <button type="button" class="submit-btn" :disabled="submitting" @click="$emit('submitCustom')">
-        {{ submitting ? '提交中…' : '提交订单' }}
+      <button
+        type="button"
+        class="submit-btn"
+        :disabled="submitting"
+        @click="$emit('submitCustom')"
+      >
+        {{ submitting ? '正在叫车…' : '确认下单' }}
       </button>
     </footer>
   </section>
@@ -233,11 +208,14 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { MobileOrderMode } from '@/constants/parkDelivery'
 import {
-  buildGroupedMobileStationOptions,
-  orderableStationsForMode,
-} from '@/maps/stationLayers'
+  EnvironmentOutlined,
+  InboxOutlined,
+  SwapOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons-vue'
+import type { MobileOrderMode } from '@/constants/parkDelivery'
+import { buildGroupedMobileStationOptions, orderableStationsForMode } from '@/maps/stationLayers'
 import type { ParkStation } from '@/types/park'
 
 export interface DemoRoutePreset {
@@ -270,11 +248,8 @@ const emit = defineEmits<{
   submitCustom: []
   quickFill: []
   'update:parkId': [value: number]
-  'update:orderMode': [value: MobileOrderMode]
   'update:pickupStationId': [value: number]
   'update:dropoffStationId': [value: number]
-  'update:priority': [value: string]
-  'update:orderPriority': [value: 'HIGH' | 'NORMAL' | 'LOW']
   'update:weight': [value: number | undefined]
   'update:remark': [value: string]
 }>()
@@ -289,6 +264,12 @@ function onPickupChange(value: number) {
 
 function onDropoffChange(value: number) {
   emit('update:dropoffStationId', value)
+}
+
+function swapStations() {
+  if (props.pickupStationId == null || props.dropoffStationId == null) return
+  emit('update:pickupStationId', props.dropoffStationId)
+  emit('update:dropoffStationId', props.pickupStationId)
 }
 
 function onRemarkChange(value: string) {
@@ -316,7 +297,7 @@ function isPresetActive(val: number) {
 
 const customWeightActive = computed(() => {
   if (customWeightMode.value) return true
-  return props.weight != null && !weightPresets.some(p => p.value === props.weight)
+  return props.weight != null && !weightPresets.some((p) => p.value === props.weight)
 })
 
 function selectWeight(val: number) {
@@ -327,7 +308,7 @@ function selectWeight(val: number) {
 function enableCustomWeight() {
   customWeightMode.value = true
   // 切换到自定义时，若当前是预设值则清空，便于用户重新输入
-  if (props.weight != null && weightPresets.some(p => p.value === props.weight)) {
+  if (props.weight != null && weightPresets.some((p) => p.value === props.weight)) {
     emit('update:weight', undefined)
   }
 }
@@ -345,54 +326,28 @@ const dropoffGroups = computed(() =>
   }),
 )
 
-const priorities = [
-  { value: 'P0', label: '最高' },
-  { value: 'P1', label: '优先' },
-  { value: 'P2', label: '标准' },
-  { value: 'P3', label: '低' },
-]
-
-const orderPriorities = [
-  { value: 'HIGH' as const, label: 'HIGH' },
-  { value: 'NORMAL' as const, label: 'NORMAL' },
-  { value: 'LOW' as const, label: 'LOW' },
-]
-
 const pickupPreview = computed(() => {
-  const station = orderableStations.value.find(item => item.stationId === props.pickupStationId)
+  const station = orderableStations.value.find((item) => item.stationId === props.pickupStationId)
   return station?.stationCode ?? '--'
 })
 
 const dropoffPreview = computed(() => {
-  const station = orderableStations.value.find(item => item.stationId === props.dropoffStationId)
+  const station = orderableStations.value.find((item) => item.stationId === props.dropoffStationId)
   return station?.stationCode ?? '--'
 })
 </script>
 
 <style scoped lang="less">
 .quick-order-panel {
-  padding: 16px 14px 0;
-  border-radius: var(--fsd-radius-xl);
-  border: 1px solid var(--fsd-border);
-  background:
-    radial-gradient(circle at 0% 0%, var(--fsd-accent-subtle), transparent 45%),
-    var(--fsd-bg-base);
-  box-shadow: var(--fsd-shadow-card);
+  padding: 18px 16px 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--fsd-bg-base);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   position: relative;
 
   &::before {
-    content: '';
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    width: 180px;
-    height: 180px;
-    border-radius: 50%;
-    background: radial-gradient(circle, var(--fsd-accent-glow), transparent 60%);
-    filter: blur(40px);
-    pointer-events: none;
-    opacity: 0.4;
-    z-index: 0;
+    display: none;
   }
 }
 
@@ -406,6 +361,15 @@ const dropoffPreview = computed(() => {
   position: relative;
 }
 
+.order-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--fsd-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
 .header-titles {
   min-width: 0;
 }
@@ -416,7 +380,7 @@ const dropoffPreview = computed(() => {
   font-size: var(--fsd-text-xl);
   font-weight: var(--fsd-font-bold);
   color: var(--fsd-text-heading);
-  letter-spacing: var(--fsd-tracking-tight);
+  letter-spacing: 0;
   line-height: var(--fsd-leading-tight);
 }
 
@@ -424,20 +388,47 @@ const dropoffPreview = computed(() => {
   margin: 4px 0 0;
   font-size: var(--fsd-text-xs);
   color: var(--fsd-text-tertiary);
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .park-tag {
   flex-shrink: 0;
   padding: 4px 10px;
-  border-radius: var(--fsd-radius-full);
+  border-radius: 4px;
   background: var(--fsd-accent-bg);
   border: 1px solid var(--fsd-accent-border);
   color: var(--fsd-accent);
   font-size: 10px;
   font-weight: var(--fsd-font-semibold);
   font-family: var(--fsd-font-mono);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
+}
+
+.service-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 -16px 18px;
+  padding: 10px 16px;
+  background: #f7fbff;
+  border-top: 1px solid #eef6ff;
+  border-bottom: 1px solid #eef6ff;
+
+  span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-width: 0;
+    color: #4d6478;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  :deep(.anticon) {
+    color: var(--fsd-accent);
+    font-size: 12px;
+  }
 }
 
 /* ── 模式切换 ── */
@@ -528,7 +519,7 @@ const dropoffPreview = computed(() => {
   font-size: var(--fsd-text-base);
   font-weight: var(--fsd-font-semibold);
   color: var(--fsd-text-primary);
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
 
   &::before {
     content: '';
@@ -539,6 +530,93 @@ const dropoffPreview = computed(() => {
     vertical-align: -1px;
     border-radius: 2px;
     background: var(--fsd-gradient-accent);
+  }
+}
+
+.recommend-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #d7eaff;
+  border-radius: 6px;
+  background: #f3f8ff;
+  color: var(--fsd-accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.address-stack {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 40px;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 10px;
+  border: 1px solid #e8edf3;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.address-fields {
+  min-width: 0;
+
+  :deep(.ant-form-item:last-child) {
+    margin-bottom: 0;
+  }
+}
+
+.address-rail {
+  align-self: stretch;
+  display: grid;
+  grid-template-rows: 12px 1fr 12px;
+  justify-items: center;
+  padding: 28px 0 22px;
+}
+
+.pickup-dot,
+.dropoff-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.pickup-dot {
+  background: #12b886;
+  box-shadow: 0 0 0 3px rgba(18, 184, 134, 0.12);
+}
+
+.dropoff-dot {
+  background: #1989fa;
+  box-shadow: 0 0 0 3px rgba(25, 137, 250, 0.12);
+}
+
+.rail-line {
+  width: 1px;
+  min-height: 42px;
+  background: repeating-linear-gradient(to bottom, #c7d1dc 0 4px, transparent 4px 8px);
+}
+
+.swap-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  background: #f8fafc;
+  color: #60758a;
+  font-size: 16px;
+  cursor: pointer;
+
+  &:active {
+    background: #eef6ff;
+    color: var(--fsd-accent);
   }
 }
 
@@ -562,11 +640,9 @@ const dropoffPreview = computed(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 14px;
-  border-radius: var(--fsd-radius-lg);
+  border-radius: 8px;
   border: 1px solid var(--fsd-border);
-  background:
-    var(--fsd-gradient-card),
-    var(--fsd-bg-elevated);
+  background: #fff;
   text-align: left;
   transition: all var(--fsd-transition-fast);
   cursor: pointer;
@@ -600,27 +676,27 @@ const dropoffPreview = computed(() => {
   font-size: var(--fsd-text-md);
   font-weight: var(--fsd-font-semibold);
   color: var(--fsd-text-primary);
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
 }
 
 .route-codes {
   font-family: var(--fsd-font-mono);
   font-size: 11px;
   color: var(--fsd-text-tertiary);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .route-action {
   flex-shrink: 0;
   padding: 8px 14px;
-  border-radius: var(--fsd-radius-full);
-  background: var(--fsd-gradient-accent);
-  color: #04141a;
+  border-radius: 6px;
+  background: #eaf4ff;
+  color: #0877df;
   font-size: 11px;
   font-weight: var(--fsd-font-bold);
   white-space: nowrap;
-  letter-spacing: 0.02em;
-  box-shadow: 0 2px 8px rgba(34, 211, 238, 0.24);
+  letter-spacing: 0;
+  box-shadow: none;
 }
 
 /* ── 表单 ── */
@@ -637,14 +713,14 @@ const dropoffPreview = computed(() => {
   gap: 10px;
   margin-bottom: 14px;
   padding: 14px 16px;
-  border-radius: var(--fsd-radius-md);
-  background: var(--fsd-bg-deep);
+  border-radius: 6px;
+  background: #f8fafc;
   border: 1px solid var(--fsd-border);
   font-family: var(--fsd-font-mono);
   font-size: var(--fsd-text-md);
   font-weight: var(--fsd-font-semibold);
   color: var(--fsd-text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .preview-station {
@@ -662,9 +738,10 @@ const dropoffPreview = computed(() => {
 .spec-block {
   margin-bottom: 14px;
   padding: 12px;
-  border-radius: var(--fsd-radius-md);
-  background: var(--fsd-bg-elevated);
-  border: 1px solid var(--fsd-border);
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid #eef1f4;
 }
 
 .spec-head {
@@ -682,7 +759,7 @@ const dropoffPreview = computed(() => {
   font-size: var(--fsd-text-sm);
   font-weight: var(--fsd-font-semibold);
   color: var(--fsd-text-secondary);
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
 }
 
 .spec-icon {
@@ -697,6 +774,10 @@ const dropoffPreview = computed(() => {
   color: var(--fsd-accent);
 }
 
+.common-routes {
+  padding-top: 2px;
+}
+
 /* ── 配重选择器（按钮组） ── */
 .weight-selector {
   display: flex;
@@ -708,13 +789,13 @@ const dropoffPreview = computed(() => {
   min-width: 56px;
   height: 40px;
   padding: 0 14px;
-  border-radius: var(--fsd-radius-sm);
+  border-radius: 6px;
   border: 1px solid var(--fsd-border);
   background: var(--fsd-bg-deep);
   color: var(--fsd-text-secondary);
   font-size: var(--fsd-text-sm);
   font-weight: var(--fsd-font-semibold);
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
   transition: all var(--fsd-transition-fast);
   cursor: pointer;
 
@@ -793,7 +874,7 @@ const dropoffPreview = computed(() => {
 /* ── 底部固定提交栏（京东结算栏风格） ── */
 .submit-bar {
   position: sticky;
-  bottom: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   z-index: 5;
@@ -801,8 +882,8 @@ const dropoffPreview = computed(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  margin: 4px -14px 0;
-  background: linear-gradient(180deg, rgba(15, 18, 24, 0.85) 0%, var(--fsd-bg-base) 40%);
+  margin: 4px -16px 0;
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   border-top: 1px solid var(--fsd-border-split);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.32);
@@ -821,7 +902,7 @@ const dropoffPreview = computed(() => {
   font-size: var(--fsd-text-sm);
   font-weight: var(--fsd-font-bold);
   color: var(--fsd-text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -839,15 +920,15 @@ const dropoffPreview = computed(() => {
   height: 48px;
   padding: 0 24px;
   border: 1px solid var(--fsd-accent-border);
-  border-radius: var(--fsd-radius-full);
-  background: var(--fsd-gradient-accent);
-  color: #04141a;
+  border-radius: 8px;
+  background: #1989fa;
+  color: #fff;
   font-size: var(--fsd-text-md);
   font-weight: var(--fsd-font-bold);
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
   cursor: pointer;
   transition: all var(--fsd-transition-fast);
-  box-shadow: 0 4px 14px rgba(34, 211, 238, 0.32);
+  box-shadow: 0 4px 14px rgba(25, 137, 250, 0.24);
 
   &:hover:not(:disabled) {
     filter: brightness(1.08);

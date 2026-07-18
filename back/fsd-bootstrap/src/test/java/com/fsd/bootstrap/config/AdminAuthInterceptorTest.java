@@ -61,6 +61,17 @@ class AdminAuthInterceptorTest {
     }
 
     @Test
+    void optionalParkVehiclesPathShouldAllowControllerMobileKeyValidation() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/park/vehicles");
+        request.addHeader("X-Mobile-Api-Key", "mobile-key");
+
+        boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+
+        assertEquals(true, allowed);
+        assertNull(request.getAttribute(AdminAuthSupport.ADMIN_ROLE_ATTRIBUTE));
+    }
+
+    @Test
     void requiredAdminPathShouldIgnoreQueryToken() {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/tasks");
         request.setParameter("token", "token-abc");

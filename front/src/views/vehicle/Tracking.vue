@@ -25,6 +25,7 @@
       :zoom="geoMapZoom"
       :fit-view-points="geoFitViewPoints"
       :fit-view-on-change="Boolean(selectedId)"
+      @marker-click="selectGeoMarker"
     />
     <div v-else-if="trackingScene === 'delivery'" class="map-container geo-map-layer geo-map-unconfigured">
       <div class="geo-map-unconfigured__body">
@@ -94,8 +95,8 @@
               </a-tooltip>
             </p>
             <p v-else class="map-scope-hint geo">
-              <span class="pilot-badge">当前：叠石桥 L1 试点</span>
-              短驳地理图 · 取送货与贴路轨迹
+              <span class="pilot-badge">当前：找家纺本地运营范围</span>
+              实际服务边界 · L1 自动派单分区 · 贴路轨迹
             </p>
             <span class="mode-toggle">
               大屏：
@@ -189,7 +190,7 @@
 
         <div class="stat-strip">
           <button class="stat-item total" :class="{ active: activeFilter === 'all' }" @click="filterByStatus('all')">
-            <span class="stat-value">{{ vehicles.length }}</span>
+            <span class="stat-value">{{ sceneVehicles.length }}</span>
             <span class="stat-label">全部</span>
           </button>
           <button class="stat-item online" :class="{ active: activeFilter === 'ONLINE' }" @click="filterByStatus('ONLINE')">
@@ -496,7 +497,9 @@ import {
   isAmapConfigured,
   toAvGeoMarker,
   buildGeoPolylines,
-  stationGeoPosition,
+  buildGeofencePolygons,
+  buildOperationalStationMarkers,
+  isInsideZjfBase,
 } from '@/maps'
 import {
   filterGeoDeliveryOrders,
@@ -601,11 +604,20 @@ const schematicOrdersOnMap = computed(() => filterSchematicOrders(parkOrders.val
 const schematicVehiclesOnMap = computed(() => filterSchematicParkVehicles(filteredVehicles.value))
 
 const geoVehiclesOnMap = computed(() => filterGeoDeliverySimVehicles(filteredVehicles.value))
+const geoVehiclesAtBase = computed(() =>
+  filterGeoDeliverySimVehicles(vehicles.value).filter((vehicle) =>
+    isInsideZjfBase(vehicleToGeoPosition(vehicle)),
+  ),
+)
+const geoVehiclesOnRoad = computed(() =>
+  geoVehiclesOnMap.value.filter((vehicle) => !isInsideZjfBase(vehicleToGeoPosition(vehicle))),
+)
 
 const mapContainer = ref<HTMLElement>()
 const panelCollapsed = ref(false)
 const activeFilter = ref('all')
 const selectedId = ref<number | null>(null)
+const selectedGeoMarkerId = ref<string | null>(null)
 const refreshing = ref(false)
 const showChargeLayer = ref(false)
 const showL0Circles = ref(
@@ -760,31 +772,38 @@ const stageLabels: Record<string, string> = {
   OFFLINE: '离线',
 }
 
-const onlineCount = computed(() => vehicles.value.filter(vehicle => vehicle.onlineStatus === 'ONLINE').length)
-const busyCount = computed(() => vehicles.value.filter(vehicle => vehicle.dispatchStatus === 'BUSY').length)
-const chargingCount = computed(() => vehicles.value.filter(vehicle => vehicle.charging).length)
-const lowBatteryCount = computed(() => vehicles.value.filter(vehicle => vehicle.lowBattery).length)
+const sceneVehicles = computed(() =>
+  trackingScene.value === 'delivery'
+    ? filterGeoDeliverySimVehicles(vehicles.value)
+    : filterSchematicParkVehicles(vehicles.value),
+)
+
+const onlineCount = computed(() => sceneVehicles.value.filter(vehicle => vehicle.onlineStatus === 'ONLINE').length)
+const busyCount = computed(() => sceneVehicles.value.filter(vehicle => vehicle.dispatchStatus === 'BUSY').length)
+const chargingCount = computed(() => sceneVehicles.value.filter(vehicle => vehicle.charging).length)
+const lowBatteryCount = computed(() => sceneVehicles.value.filter(vehicle => vehicle.lowBattery).length)
 
 const filteredVehicles = computed(() => {
+  const scopedVehicles = sceneVehicles.value
   switch (activeFilter.value) {
     case 'ONLINE':
-      return vehicles.value.filter(vehicle => vehicle.onlineStatus === 'ONLINE')
+      return scopedVehicles.filter(vehicle => vehicle.onlineStatus === 'ONLINE')
     case 'OFFLINE':
-      return vehicles.value.filter(vehicle => vehicle.onlineStatus === 'OFFLINE')
+      return scopedVehicles.filter(vehicle => vehicle.onlineStatus === 'OFFLINE')
     case 'BUSY':
-      return vehicles.value.filter(vehicle => vehicle.dispatchStatus === 'BUSY')
+      return scopedVehicles.filter(vehicle => vehicle.dispatchStatus === 'BUSY')
     case 'CHARGING':
-      return vehicles.value.filter(vehicle => vehicle.charging)
+      return scopedVehicles.filter(vehicle => vehicle.charging)
     case 'LOW_BATTERY':
-      return vehicles.value.filter(vehicle => vehicle.lowBattery)
+      return scopedVehicles.filter(vehicle => vehicle.lowBattery)
     case 'SIM':
-      return vehicles.value.filter(vehicle => isSchematicParkVehicle(vehicle) || isGeoDeliverySimVehicle(vehicle))
+      return scopedVehicles.filter(vehicle => isSchematicParkVehicle(vehicle) || isGeoDeliverySimVehicle(vehicle))
     case 'REAL':
-      return vehicles.value.filter(vehicle => vehicle.linkMode === 'REAL')
+      return scopedVehicles.filter(vehicle => vehicle.linkMode === 'REAL')
     case 'VDA5050':
-      return vehicles.value.filter(vehicle => vehicle.linkMode === 'VDA5050')
+      return scopedVehicles.filter(vehicle => vehicle.linkMode === 'VDA5050')
     default:
-      return vehicles.value
+      return scopedVehicles
   }
 })
 
@@ -802,38 +821,29 @@ function vehicleGeoPosition(vehicle: ParkVehicleSnapshot): [number, number] {
 }
 
 const geoMarkers = computed((): GeoMapMarker[] => {
-  const stationMarkers =
-    parkLayout.value?.stations
-      .filter(isGeoDeliveryStation)
-      .flatMap((station) => {
-        const position = stationGeoPosition(station)
-        if (!position) return []
-        return [{ id: `st-${station.stationId}`, position, label: station.stationCode }]
-      }) ?? []
-
-  const chargeMarkers =
-    showChargeLayer.value && trackingScene.value === 'delivery'
-      ? (parkLayout.value?.stations ?? [])
-          .filter(station => (station.stationCode ?? '').startsWith('ZJF-CHG-'))
-          .flatMap((station) => {
-            const position = stationGeoPosition(station)
-            if (!position) return []
-            const occupied = vehicles.value.filter(
-              v => v.charging && v.targetCode === station.stationCode,
-            ).length
-            return [{
-              id: `chg-${station.stationId}`,
-              position,
-              label: `⚡ ${station.stationCode}${occupied ? ' · 占用' : ''}`,
-            }]
-          })
-      : []
+  const visibleStations = (parkLayout.value?.stations ?? []).filter(
+    (station) =>
+      isGeoDeliveryStation(station) &&
+      station.stationCode !== 'ZJF-IDLE-01' &&
+      (!station.stationCode.startsWith('ZJF-CHG-') || station.stationCode === 'ZJF-CHG-01'),
+  )
+  const stationMarkers = buildOperationalStationMarkers(visibleStations, {
+    selectedId: selectedGeoMarkerId.value,
+  }).map((marker) => {
+    const baseStation = visibleStations.find((station) => station.stationCode === 'ZJF-CHG-01')
+    if (!baseStation || marker.id !== `station-${baseStation.stationId}`) return marker
+    return {
+      ...marker,
+      label: `找家纺网基地 · ${geoVehiclesAtBase.value.length} 辆车在场`,
+      labelDirection: 'right' as const,
+      labelOffset: [10, 0] as [number, number],
+    }
+  })
 
   return [
     ...stationMarkers,
-    ...chargeMarkers,
-    ...geoVehiclesOnMap.value.map((vehicle) =>
-      toAvGeoMarker(String(vehicle.vehicleId), vehicleGeoPosition(vehicle), {
+    ...geoVehiclesOnRoad.value.map((vehicle) => {
+      const marker = toAvGeoMarker(String(vehicle.vehicleId), vehicleGeoPosition(vehicle), {
         onlineStatus: vehicle.onlineStatus,
         dispatchStatus: vehicle.dispatchStatus,
         charging: vehicle.charging,
@@ -841,25 +851,17 @@ const geoMarkers = computed((): GeoMapMarker[] => {
         batteryStatus: vehicle.batteryStatus,
         heading: vehicle.heading ?? null,
         label: `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%`,
-      }),
-    ),
+      })
+      const selected = selectedId.value === vehicle.vehicleId || selectedGeoMarkerId.value === marker.id
+      return { ...marker, selected, showLabel: selected }
+    }),
   ]
 })
 
-const geoPolygons = computed((): GeoMapPolygon[] =>
-  parkGeofences.value
-    .filter((fence) => fence.status === 'ACTIVE' && fence.polygon?.length >= 3)
-    .map((fence) => ({
-      id: String(fence.id),
-      path: fence.polygon.map((point) => [Number(point[0]), Number(point[1])] as [number, number]),
-      strokeColor: fence.fenceType === 'RESTRICTED' ? '#FF5C7C' : '#2DE08A',
-      fillColor: fence.fenceType === 'RESTRICTED' ? 'rgba(255, 92, 124, 0.15)' : 'rgba(45, 224, 138, 0.12)',
-      zIndex: 10,
-    })),
-)
+const geoPolygons = computed((): GeoMapPolygon[] => buildGeofencePolygons(parkGeofences.value))
 
 const geoPolylines = computed((): GeoMapPolyline[] =>
-  buildGeoPolylines(geoVehiclesOnMap.value, filterGeoDeliveryOrders(parkOrders.value), {
+  buildGeoPolylines(geoVehiclesOnRoad.value, filterGeoDeliveryOrders(parkOrders.value), {
     includeOrderLines: false,
     focusVehicleId: selectedId.value,
   }),
@@ -871,19 +873,34 @@ const geoCircles = computed((): GeoMapCircle[] =>
 
 const selectedVehicle = computed(() => {
   if (!selectedId.value) return null
-  return vehicles.value.find(vehicle => vehicle.vehicleId === selectedId.value) || null
+  return sceneVehicles.value.find(vehicle => vehicle.vehicleId === selectedId.value) || null
 })
 
 const roadRouteHealth = ref<RoadRouteHealth | null>(null)
 
 const geoFitViewPoints = computed((): [number, number][] => {
   if (!showGeoMap.value) return []
-  const routePoints = collectRouteFitPoints(geoVehiclesOnMap.value, {
+  const routePoints = collectRouteFitPoints(geoVehiclesOnRoad.value, {
     focusVehicleId: selectedId.value,
   })
   if (routePoints.length >= 2) return routePoints
-  return []
+  const serviceEnvelope = parkGeofences.value.find(
+    (fence) => fence.scopeCode === 'L1_CANDIDATE_ENVELOPE' && fence.fenceCode === 'DEFAULT-BOUNDARY',
+  )
+  return serviceEnvelope?.polygon?.map(
+    (point) => [Number(point[0]), Number(point[1])] as [number, number],
+  ) ?? []
 })
+
+function selectGeoMarker(marker: GeoMapMarker) {
+  selectedGeoMarkerId.value = marker.id
+  if (marker.markerType !== 'vehicle') {
+    selectedId.value = null
+    return
+  }
+  const vehicleId = Number(marker.id)
+  if (Number.isFinite(vehicleId)) selectedId.value = vehicleId
+}
 
 const roadRouteWarning = computed(() => {
   const anomaly = routeAnomalyWarning(geoVehiclesOnMap.value)
@@ -1252,7 +1269,7 @@ function updateVehicleMarkers() {
 
 function getVehicle(vehicleId: number | null) {
   if (!vehicleId) return null
-  return vehicles.value.find(vehicle => vehicle.vehicleId === vehicleId) || null
+  return sceneVehicles.value.find(vehicle => vehicle.vehicleId === vehicleId) || null
 }
 
 function drawOrderChains() {

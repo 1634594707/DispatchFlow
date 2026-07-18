@@ -177,6 +177,7 @@ public class ParkStationServiceImpl implements ParkStationService {
                         .eq(ParkGeofenceEntity::getParkId, parkId)
                         .eq(ParkGeofenceEntity::getStatus, "ACTIVE")
                         .eq(ParkGeofenceEntity::getFenceType, "BOUNDARY")
+                        .likeRight(ParkGeofenceEntity::getFenceCode, "ZJF-ZONE-")
                         .eq(ParkGeofenceEntity::getDeleted, 0));
         if (boundaries.isEmpty()) {
             return;

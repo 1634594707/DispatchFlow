@@ -44,6 +44,9 @@ public class FleetRuntime {
 
     private LocalDateTime lastTelemetryAt;
 
+    /** Last accepted device sequence, used with report time to reject delayed telemetry. */
+    private Long lastEventSeq;
+
     @Builder.Default
     private List<FleetTrajectoryPoint> trajectory = new ArrayList<>();
 

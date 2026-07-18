@@ -14,8 +14,8 @@ import com.fsd.dispatch.entity.ExternalApiKeyEntity;
 import com.fsd.dispatch.entity.WebhookSubscriptionEntity;
 import com.fsd.dispatch.mapper.ExternalApiKeyMapper;
 import com.fsd.dispatch.mapper.WebhookSubscriptionMapper;
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -101,7 +101,7 @@ public class IntegrationAdminServiceImpl implements IntegrationAdminService {
         entity.setKeyName(keyName);
         entity.setApiKey("fsd_" + UUID.randomUUID().toString().replace("-", ""));
         entity.setStatus("ACTIVE");
-        entity.setRateLimitPerMinute(rateLimitPerMinute == null ? 120 : rateLimitPerMinute);
+        entity.setRateLimitPerMinute(Objects.requireNonNullElse(rateLimitPerMinute, 120));
         entity.setTotalCalls(0L);
         entity.setDeleted(0);
         apiKeyMapper.insert(entity);

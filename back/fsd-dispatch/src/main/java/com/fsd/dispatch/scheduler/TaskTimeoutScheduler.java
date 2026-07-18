@@ -100,8 +100,9 @@ public class TaskTimeoutScheduler {
             if (lockToken != null) {
                 try {
                     dispatchLockService.releaseTaskLock(task.getId(), lockToken);
-                } catch (Exception ignored) {
-                    // 释放锁失败不影响主流程
+                } catch (Exception ex) {
+                    log.warn("TaskTimeout: failed to release lock for task {}: {}",
+                            task.getId(), ex.getMessage(), ex);
                 }
             }
         }

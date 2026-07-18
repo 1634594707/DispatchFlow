@@ -3,6 +3,7 @@ package com.fsd.admin.controller;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fsd.admin.dto.AdminDispatchExceptionResolveRequest;
@@ -50,6 +51,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 @ExtendWith(MockitoExtension.class)
 class AdminDispatchControllerTest {
@@ -290,6 +292,18 @@ class AdminDispatchControllerTest {
 
         assertEquals(1, response.getData().size());
         assertEquals("PARK-01", response.getData().getFirst().getVehicleCode());
+    }
+
+    @Test
+    void shouldAllowMobileKeyForParkVehicles() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Mobile-Api-Key", "mobile-key");
+        when(parkPilotService.listVehicleSnapshots()).thenReturn(List.of());
+
+        ApiResponse<List<ParkVehicleSnapshotResponse>> response = adminDispatchController.listParkVehicles(request);
+
+        assertEquals(0, response.getData().size());
+        verify(mobileOrderAuthService).validateMobileOrderKey("mobile-key");
     }
 
     @Test

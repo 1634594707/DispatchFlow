@@ -53,7 +53,9 @@ public class Vda5050StateIngestService {
             JsonNode state = objectMapper.readTree(payload);
             VehicleTelemetryRequest request = Vda5050StateMapper.toTelemetry(vehicle, state, System.currentTimeMillis());
             Vda5050FleetAdapter adapter = fleetAdapterRegistry.require(VehicleLinkMode.VDA5050, Vda5050FleetAdapter.class);
-            adapter.ingestTelemetry(vehicle, request);
+            if (!adapter.ingestTelemetry(vehicle, request)) {
+                return;
+            }
             VehicleReportRequest snapshot = new VehicleReportRequest();
             snapshot.setVehicleCode(vehicle.getVehicleCode());
             snapshot.setOnlineStatus(VehicleOnlineStatus.ONLINE.name());

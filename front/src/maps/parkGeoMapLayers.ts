@@ -1,9 +1,16 @@
-import type { ParkGeofence, ParkOrderSnapshot, ParkStation, ParkVehicleSnapshot } from '@/types/park'
-import { parkXYToGcj02, toAvGeoMarker } from './index'
+import type {
+  ParkGeofence,
+  ParkOrderSnapshot,
+  ParkStation,
+  ParkVehicleSnapshot,
+} from '@/types/park'
+import { parkXYToGcj02 } from './textileParkGeo'
+import { toAvGeoMarker } from './vehicleMapIcon'
 import type { GeoMapCircle, GeoMapMarker, GeoMapPolygon, GeoMapPolyline } from './types'
 import { ZJF_L0_COVERAGE, ZJF_PILOT_GEO } from './zjfPilotGeo'
 import { ZJF_DELIVERY_ZONES } from './zjfStationAnchors'
 import { shouldDrawPlannedRoute } from './routeValidation'
+import { workbenchStationRole } from './stationLayers'
 
 /**
  * Phase 3：5 分区颜色映射表。
@@ -57,8 +64,8 @@ export function buildVehicleGeoMarkers(
   options?: { selectedId?: number | null; focusVehicleId?: number | null },
 ): GeoMapMarker[] {
   const focusId = options?.focusVehicleId ?? options?.selectedId
-  return vehicles.map((vehicle) =>
-    toAvGeoMarker(String(vehicle.vehicleId), vehicleGeoPosition(vehicle), {
+  return vehicles.map((vehicle) => {
+    const marker = toAvGeoMarker(String(vehicle.vehicleId), vehicleGeoPosition(vehicle), {
       onlineStatus: vehicle.onlineStatus,
       dispatchStatus: vehicle.dispatchStatus,
       charging: vehicle.charging,
@@ -67,12 +74,20 @@ export function buildVehicleGeoMarkers(
       currentTaskId: vehicle.currentTaskId,
       runtimeStage: vehicle.runtimeStage,
       routeInvalid: vehicle.routeInvalid,
+      manualOverride: vehicle.manualOverride,
+      telemetryStale: vehicle.telemetryStale,
       heading: vehicle.heading ?? null,
       label: `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%${
         vehicle.batteryStatus === 'CRITICAL' ? ' ⚠' : vehicle.lowBattery ? ' ↓' : ''
-      }`,
-    }),
-  )
+      }${vehicle.telemetryStale ? ' · 数据陈旧' : ''}`,
+    })
+    const selected = focusId === vehicle.vehicleId
+    return {
+      ...marker,
+      selected,
+      showLabel: options?.selectedId !== undefined ? selected : marker.showLabel,
+    }
+  })
 }
 
 export function buildStationGeoMarkers(
@@ -86,9 +101,39 @@ export function buildStationGeoMarkers(
         id,
         position,
         label: label ?? station.stationCode,
+        iconUrl: stationIconUrl(station),
+        markerType: workbenchStationRole(station),
       },
     ]
   })
+}
+
+export function buildOperationalStationMarkers(
+  stations: ParkStation[],
+  options?: { selectedId?: string | null },
+): GeoMapMarker[] {
+  return stations.flatMap((station) => {
+    const position = stationGeoPosition(station)
+    if (!position) return []
+    const id = `station-${station.stationId}`
+    const role = workbenchStationRole(station)
+    const selected = options?.selectedId === id
+    return [
+      {
+        id,
+        position,
+        label: `${station.stationName} · ${station.stationCode}`,
+        iconUrl: stationIconUrl(station),
+        markerType: role,
+        selected,
+        showLabel: selected,
+      },
+    ]
+  })
+}
+
+function stationIconUrl(station: Pick<ParkStation, 'stationCode'>): string {
+  return `/icons/map-station-${workbenchStationRole(station)}.svg`
 }
 
 export function buildGeoPolylines(
@@ -121,7 +166,12 @@ export function buildGeoPolylines(
         zIndex: 40,
       })
     }
-    if (vehicle.geoTrajectory && vehicle.geoTrajectory.length >= 2 && !vehicle.routeInvalid) {
+    if (
+      vehicle.geoTrajectory &&
+      vehicle.geoTrajectory.length >= 2 &&
+      !vehicle.routeInvalid &&
+      !vehicle.telemetryStale
+    ) {
       lines.push({
         id: `trail-${vehicle.vehicleId}`,
         path: vehicle.geoTrajectory.map(
@@ -165,18 +215,34 @@ export function buildGeofencePolygons(geofences: ParkGeofence[]): GeoMapPolygon[
   return geofences
     .filter((fence) => fence.status === 'ACTIVE' && fence.polygon?.length >= 3)
     .map((fence) => {
+      const isServiceEnvelope = fence.scopeCode === 'L1_CANDIDATE_ENVELOPE'
       // Phase 3：ZJF-ZONE-* 分区使用各自分配的颜色
       const zoneColor = ZONE_COLOR_MAP[fence.fenceCode]
-      const strokeColor = zoneColor?.stroke
-        ?? (fence.fenceType === 'RESTRICTED' ? '#FF5C7C' : '#2DE08A')
-      const fillColor = zoneColor?.fill
-        ?? (fence.fenceType === 'RESTRICTED' ? 'rgba(255, 92, 124, 0.15)' : 'rgba(45, 224, 138, 0.12)')
+      const strokeColor =
+        zoneColor?.stroke ??
+        (fence.fenceType === 'RESTRICTED'
+          ? '#FF5C7C'
+          : isServiceEnvelope
+            ? '#13C2C2'
+            : '#2DE08A')
+      const fillColor =
+        zoneColor?.fill ??
+        (fence.fenceType === 'RESTRICTED'
+          ? 'rgba(255, 92, 124, 0.15)'
+          : isServiceEnvelope
+            ? 'rgba(19, 194, 194, 0.06)'
+            : 'rgba(45, 224, 138, 0.12)')
       return {
         id: String(fence.id),
-        path: fence.polygon.map((point) => [Number(point[0]), Number(point[1])] as [number, number]),
+        path: fence.polygon.map(
+          (point) => [Number(point[0]), Number(point[1])] as [number, number],
+        ),
         strokeColor,
         fillColor,
-        zIndex: 10,
+        strokeWeight: isServiceEnvelope ? 2 : 2.5,
+        fillOpacity: isServiceEnvelope ? 0.12 : 0.32,
+        lineDash: isServiceEnvelope ? [10, 8] : undefined,
+        zIndex: isServiceEnvelope ? 4 : 10,
       }
     })
 }

@@ -143,4 +143,28 @@ class ParkingFacilityServiceImplTest {
         assertTrue(parkingFacilityService.reserveSlot(1L, 1L, "P1"));
         assertFalse(parkingFacilityService.reserveSlot(1L, 2L, "P1"));
     }
+
+    @Test
+    void reserveChargingSlotShouldKeepPhysicalGeoCoordinates() {
+        ParkingSlotEntity slot = new ParkingSlotEntity();
+        slot.setId(1001L);
+        slot.setParkId(1L);
+        slot.setSlotCode("P1");
+        slot.setStatus(ParkingSlotStatus.FREE.name());
+        slot.setCoordX(java.math.BigDecimal.valueOf(668.4370));
+        slot.setCoordY(java.math.BigDecimal.valueOf(624.4500));
+        slot.setCoordLng(java.math.BigDecimal.valueOf(121.080681));
+        slot.setCoordLat(java.math.BigDecimal.valueOf(31.960337));
+
+        Page<ParkingSlotEntity> slotPage = new Page<>();
+        slotPage.setRecords(java.util.List.of(slot));
+        when(chargingPileMapper.selectList(any())).thenReturn(java.util.Collections.emptyList());
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(slotPage);
+        when(parkingSlotMapper.update(any(), any())).thenReturn(1);
+
+        var point = parkingFacilityService.reserveChargingSlot(1L, 42L, "P1").orElseThrow();
+
+        assertEquals(0, java.math.BigDecimal.valueOf(121.080681).compareTo(point.getLongitude()));
+        assertEquals(0, java.math.BigDecimal.valueOf(31.960337).compareTo(point.getLatitude()));
+    }
 }

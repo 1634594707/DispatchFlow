@@ -16,9 +16,9 @@ import com.fsd.dispatch.mapper.MapDataVersionMapper;
 import com.fsd.dispatch.mapper.ParkMapper;
 import com.fsd.dispatch.mapper.StationMapper;
 import com.fsd.dispatch.mapper.StationServicePositionMapper;
-import com.fsd.dispatch.mapper.StationServicePositionReservationMapper;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -29,18 +29,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class StationServicePositionAdminServiceImpl implements StationServicePositionAdminService {
 
     private final StationServicePositionMapper positionMapper;
-    private final StationServicePositionReservationMapper reservationMapper;
     private final StationMapper stationMapper;
     private final ParkMapper parkMapper;
     private final MapDataVersionMapper mapDataVersionMapper;
 
     public StationServicePositionAdminServiceImpl(StationServicePositionMapper positionMapper,
-                                                    StationServicePositionReservationMapper reservationMapper,
                                                     StationMapper stationMapper,
                                                     ParkMapper parkMapper,
                                                     MapDataVersionMapper mapDataVersionMapper) {
         this.positionMapper = positionMapper;
-        this.reservationMapper = reservationMapper;
         this.stationMapper = stationMapper;
         this.parkMapper = parkMapper;
         this.mapDataVersionMapper = mapDataVersionMapper;
@@ -270,7 +267,7 @@ public class StationServicePositionAdminServiceImpl implements StationServicePos
         if (status == null || status.isBlank()) {
             return fallback;
         }
-        return status.trim().toUpperCase();
+        return status.trim().toUpperCase(Locale.ROOT);
     }
 
     private StationEntity requireStation(Long stationId) {

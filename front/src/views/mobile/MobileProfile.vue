@@ -139,7 +139,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import MobileTabBar from '@/components/mobile/MobileTabBar.vue'
 import { getParkOrders, getParkStations, listParks } from '@/api/park'
 import {
@@ -152,7 +151,6 @@ import { loadMobileOrderMode, persistMobileOrderMode, buildGeoTrackingLink } fro
 import type { MobileOrderMode } from '@/constants/parkDelivery'
 import type { ParkOrderSnapshot, ParkStation } from '@/types/park'
 
-const router = useRouter()
 const orderMode = ref<MobileOrderMode>(loadMobileOrderMode())
 const orders = ref<ParkOrderSnapshot[]>([])
 const stations = ref<ParkStation[]>([])

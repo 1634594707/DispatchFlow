@@ -13,7 +13,7 @@
  *   xxl ≥ 1600px  (large desktop)
  */
 
-import { ref, computed, onMounted, onUnmounted, readonly } from 'vue'
+import { ref, computed, onMounted, readonly } from 'vue'
 
 export type BreakpointKey = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl'
 

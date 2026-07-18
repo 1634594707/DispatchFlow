@@ -37,6 +37,7 @@ import com.fsd.dispatch.mapper.RoadSegmentMapper;
 import com.fsd.dispatch.geo.local.ZjfStationGeoAdminService;
 import com.fsd.dispatch.mapper.StationMapper;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -930,7 +931,7 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         if (status == null || status.isBlank()) {
             return fallback;
         }
-        return status.trim().toUpperCase();
+        return status.trim().toUpperCase(Locale.ROOT);
     }
 
     private AdminBatterySwapCabinetResponse toBatterySwapCabinetResponse(BatterySwapCabinetEntity cabinet,

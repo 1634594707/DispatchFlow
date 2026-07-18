@@ -21,7 +21,7 @@ public class Vda5050FleetAdapter implements FleetAdapter {
         return VehicleLinkMode.VDA5050;
     }
 
-    public void ingestTelemetry(VehicleEntity vehicle, VehicleTelemetryRequest request) {
-        realFleetAdapter.ingestTelemetry(vehicle, request);
+    public boolean ingestTelemetry(VehicleEntity vehicle, VehicleTelemetryRequest request) {
+        return realFleetAdapter.ingestTelemetry(vehicle, request);
     }
 }

@@ -22,11 +22,16 @@ import com.fsd.order.entity.OrderEntity;
 import com.fsd.order.mapper.OrderMapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
 public class DigitalTwinAdminServiceImpl implements DigitalTwinAdminService {
+
+    private static final Logger log = LoggerFactory.getLogger(DigitalTwinAdminServiceImpl.class);
 
     private final ParkPilotService parkPilotService;
     private final DispatchAdminQueryService dispatchAdminQueryService;
@@ -90,7 +95,9 @@ public class DigitalTwinAdminServiceImpl implements DigitalTwinAdminService {
                 .filter(vehicle -> "IDLE".equals(vehicle.getDispatchStatus()) && "ONLINE".equals(vehicle.getOnlineStatus()))
                 .count();
         int pendingTasks = request.getPendingTaskCount() == null ? 0 : request.getPendingTaskCount();
-        String scenario = request.getScenario() == null ? "DISPATCH_PEAK" : request.getScenario().trim().toUpperCase();
+        String scenario = request.getScenario() == null
+                ? "DISPATCH_PEAK"
+                : request.getScenario().trim().toUpperCase(Locale.ROOT);
         if ("TEXTILE_PEAK".equals(scenario)) {
             scenario = "DISPATCH_PEAK";
         }
@@ -166,7 +173,8 @@ public class DigitalTwinAdminServiceImpl implements DigitalTwinAdminService {
                     .recommendedVehicleCount(Math.max(1, success))
                     .notes(notes.stream().distinct().limit(6).toList())
                     .build();
-        } catch (Exception ex) {
+        } catch (RuntimeException ex) {
+            log.debug("Digital twin engine simulation unavailable; using estimator: {}", ex.getMessage(), ex);
             return null;
         }
     }

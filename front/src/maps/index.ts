@@ -24,12 +24,20 @@ export type {
   MapProvider,
   MapProviderId,
 } from './types'
-export { formatDeliveryEta, formatDistance, haversineMeters, polylineLengthMeters } from './geoDistance'
+export {
+  formatDeliveryEta,
+  formatDistance,
+  haversineMeters,
+  polylineLengthMeters,
+} from './geoDistance'
 export { defaultMapCenter, parkXYToGcj02, TEXTILE_PARK_GEO } from './textileParkGeo'
 export { toAvGeoMarker, resolveAvMapStatus, avMapIconUrl } from './vehicleMapIcon'
 export { ZJF_PILOT_GEO, ZJF_L0_COVERAGE, ZJF_FLEET_STATS } from './zjfPilotGeo'
 export {
   ZJF_STATION_ANCHORS,
+  ZJF_BASE_ANCHOR,
+  ZJF_BASE_GEO_RADIUS_METERS,
+  isInsideZjfBase,
   ZJF_ROAD_CORRIDORS,
   ZJF_DELIVERY_ZONES,
   type ZjfStationAnchor,
@@ -73,6 +81,7 @@ export {
   buildGeoPolylines,
   buildL0CoverageCircles,
   buildStationGeoMarkers,
+  buildOperationalStationMarkers,
   buildVehicleGeoMarkers,
   markerColor,
   orderColor,

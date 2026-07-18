@@ -1,7 +1,6 @@
 package com.fsd.admin.service;
 
 import com.fsd.admin.vo.RoadRouteHealthResponse;
-import com.fsd.dispatch.config.AmapProperties;
 import com.fsd.dispatch.geo.amap.AmapRoadRouteService;
 import com.fsd.dispatch.geo.local.LocalPilotRoadGraphService;
 import org.springframework.stereotype.Service;
@@ -11,14 +10,11 @@ public class RoadRouteHealthAdminService {
 
     private final AmapRoadRouteService amapRoadRouteService;
     private final LocalPilotRoadGraphService localPilotRoadGraphService;
-    private final AmapProperties amapProperties;
 
     public RoadRouteHealthAdminService(AmapRoadRouteService amapRoadRouteService,
-                                       LocalPilotRoadGraphService localPilotRoadGraphService,
-                                       AmapProperties amapProperties) {
+                                       LocalPilotRoadGraphService localPilotRoadGraphService) {
         this.amapRoadRouteService = amapRoadRouteService;
         this.localPilotRoadGraphService = localPilotRoadGraphService;
-        this.amapProperties = amapProperties;
     }
 
     public RoadRouteHealthResponse getHealth() {

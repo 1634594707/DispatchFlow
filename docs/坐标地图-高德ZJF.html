@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>找家纺网 · 无人车配送服务范围</title>
+<script type="text/javascript">
+  // 本地打开前先替换占位符；不要把真实 Key 或安全密钥提交到仓库。
+  window._AMapSecurityConfig = { securityJsCode: 'YOUR_AMAP_SECURITY_CODE' }
+</script>
+<script src="https://webapi.amap.com/maps?v=2.0&key=YOUR_AMAP_JS_KEY&plugin=AMap.Scale,AMap.ToolBar"></script>
+<style>
+  :root{
+    --bg:#0B1018; --panel:#121925; --panel-2:#0F1521; --line:#1F2A3A;
+    --text:#E6EDF3; --muted:#8A97A8; --accent:#1677ff;
+    --hub:#ff4d4f; --real:#13c2c2; --pilot:#52c41a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:"Plus Jakarta Sans","PingFang SC","Microsoft YaHei",system-ui,sans-serif;}
+  #app{display:grid;grid-template-columns:320px 1fr;height:100vh;}
+  /* 侧栏 */
+  #side{background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;overflow:hidden;}
+  #side header{padding:16px 18px;border-bottom:1px solid var(--line);}
+  #side header h1{margin:0;font-size:15px;letter-spacing:.3px;}
+  #side header p{margin:6px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5;}
+  .badge-sys{display:inline-block;margin-top:8px;font-size:10.5px;color:#7ee787;
+    border:1px solid #1f6f3a;background:#0f2417;border-radius:5px;padding:2px 7px;}
+  .badge-ok{display:inline-block;margin-top:8px;margin-left:6px;font-size:10.5px;color:#7ee787;
+    border:1px solid #1f6f3a;background:#0f2417;border-radius:5px;padding:2px 7px;}
+  .controls{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:9px;}
+  .controls label{display:flex;align-items:center;gap:9px;font-size:12.5px;cursor:pointer;user-select:none;}
+  .controls input{accent-color:var(--accent);width:15px;height:15px;}
+  .swatch{width:12px;height:12px;border-radius:3px;flex:0 0 auto;}
+  .legend{padding:12px 18px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted);line-height:1.85;}
+  .legend b{color:var(--text);font-weight:600;}
+  .legend .k{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
+  #list{flex:1;overflow-y:auto;padding:6px 10px 18px;}
+  .grp{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;
+    padding:12px 8px 6px;}
+  .item{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;}
+  .item:hover{background:var(--panel-2);}
+  .item .nm{font-size:12px;font-weight:600;}
+  .item .sub{font-size:11px;color:var(--muted);margin-left:auto;text-align:right;max-width:140px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* 地图区 */
+  #mapWrap{position:relative;}
+  #map{width:100%;height:100%;}
+  #toolbar{position:absolute;top:14px;right:14px;z-index:20;display:flex;gap:8px;}
+  .btn{background:rgba(18,25,37,.92);border:1px solid var(--line);color:var(--text);
+    font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;backdrop-filter:blur(6px);}
+  .btn:hover{border-color:var(--accent);color:#fff;}
+  /* AMap 自定义标记 */
+  .hubpin{width:30px;height:30px;position:relative;display:flex;align-items:center;justify-content:center;}
+  .hubpin .hubdot{width:22px;height:22px;border-radius:50%;background:var(--hub);
+    border:3px solid #0B1018;box-shadow:0 0 0 2px var(--hub),0 0 14px rgba(255,77,79,.7);
+    display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;}
+  .hubpin .pulse{position:absolute;width:22px;height:22px;border-radius:50%;border:2px solid var(--hub);
+    animation:pulse 2s infinite ease-out;opacity:.6;}
+  @keyframes pulse{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.6);opacity:0}}
+  /* AMap 信息窗 */
+  .amap-info-content{background:#121925!important;color:var(--text)!important;
+    border:1px solid var(--line)!important;border-radius:10px!important;padding:12px 14px!important;
+    font-family:inherit!important;box-shadow:0 8px 30px rgba(0,0,0,.5)!important;}
+  .amap-info-sharp{display:none!important;}
+  .amap-info-close{color:var(--muted)!important;}
+  .info h3{margin:0 0 6px;font-size:13.5px;}
+  .info .row{font-size:11.5px;color:var(--muted);line-height:1.7;}
+  .info .row b{color:var(--text);font-family:"JetBrains Mono",monospace;font-weight:600;}
+  .info .note{margin-top:7px;font-size:11px;color:#ffd666;border-top:1px solid var(--line);padding-top:6px;}
+  ::-webkit-scrollbar{width:9px;} ::-webkit-scrollbar-thumb{background:#243044;border-radius:5px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <header>
+      <h1>找家纺网 · 无人车配送服务范围</h1>
+      <p>仓储物流中心为无人车<b>发货</b>与<b>充电</b>基地；试点配送范围小于真实服务范围。</p>
+      <span class="badge-sys">坐标系 GCJ-02 · 与高德底图同源 · 零漂移</span>
+      <span class="badge-ok">✓ 边界贴合道路 · 已校验无路段遗漏</span>
+    </header>
+    <div class="controls">
+      <label><input type="checkbox" id="tg-pilot" checked><span class="swatch" style="background:var(--pilot)"></span> 无人车试点配送范围</label>
+      <label><input type="checkbox" id="tg-real" checked><span class="swatch" style="background:transparent;border:1.5px dashed var(--real)"></span> 真实找家纺网服务范围</label>
+      <label><input type="checkbox" id="tg-hub" checked><span class="swatch" style="background:var(--hub)"></span> 仓储物流中心（发货+充电）</label>
+    </div>
+    <div class="legend">
+      <span class="k" style="background:var(--hub)"></span><b>基地</b>：找家纺网仓储物流中心（大润发对面），无人车在此发货 / 回充。<br>
+      <span class="k" style="background:var(--pilot)"></span><b>试点配送范围</b>：贴合道路边界的核心家纺城街区，可逐步外扩。<br>
+      <span class="k" style="background:transparent;border:1.5px dashed var(--real)"></span><b>真实服务范围</b>：叠石桥家纺城核心区（近似参考）。
+    </div>
+    <div id="list"></div>
+  </aside>
+  <div id="mapWrap">
+    <div id="toolbar">
+      <button class="btn" id="btn-pilot">聚焦试点范围</button>
+      <button class="btn" id="btn-all">全览服务范围</button>
+    </div>
+    <div id="map"></div>
+  </div>
+</div>
+
+<script>
+// ---------- 数据：全部 GCJ-02 ----------
+// 基地：找家纺网仓储物流中心（大润发对面，新海公路2229号）
+// 来源：poi86 同点四系统实测（WGS-84:121.076011,31.962137 → GCJ-02）；招聘/天眼查交叉核验
+const HUB = {
+  name:'找家纺网仓储物流中心',
+  lng:121.080681, lat:31.960337,
+  addr:'南通市海门区三星镇叠石桥新海公路2229号（大润发超市对面）',
+  ops:'南通云尚找家纺电子商务有限公司 / 南通小纺车物流有限公司',
+};
+
+// 真实找家纺网本地服务范围（家纺城及周边，近似参考；含试点）
+// 平台线上服务覆盖更广（三星镇/川姜/物流港等）；此为本地履约/接驳的物理可达范围
+const REAL_RANGE = [
+  [121.060,31.953],[121.060,31.970],[121.072,31.972],
+  [121.100,31.972],[121.118,31.966],[121.118,31.930],
+  [121.102,31.916],[121.095,31.952],[121.075,31.953]
+];
+
+// 无人车试点配送范围：贴合真实道路边界的核心家纺城街区
+// 南=新海公路 / 西=叠林路 / 北=大岛路·震蒙大道(三期) / 东=叠港路
+// 已用 point-in-polygon 校验：全部服务点+边界道路均在范围内，且试点⊂真实范围
+const PILOT_RANGE = [
+  [121.0710,31.9585],[121.0715,31.9645],[121.0735,31.9680],[121.0835,31.9685],
+  [121.0978,31.9645],[121.0978,31.9590],[121.0960,31.9540],[121.0820,31.9540],[121.0735,31.9542]
+];
+
+// ---------- 初始化地图 ----------
+let map, infoWindow;
+const layers = { pilot:null, real:null, hub:null };
+
+function initMap(){
+  map = new AMap.Map('map', {
+    zoom: 15, center: [HUB.lng, HUB.lat], viewMode: '2D',
+    mapStyle: 'amap://styles/dark',
+  });
+  map.addControl(new AMap.Scale());
+  map.addControl(new AMap.ToolBar({position:'lb'}));
+  infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0,-10), isCustom:false });
+
+  buildReal();
+  buildPilot();
+  buildHub();
+  buildList();
+  bindToggles();
+}
+
+function fitView(pts){
+  if(!pts.length) return;
+  map.setFitView(pts, false, [60,60,60,60]);
+}
+
+// 真实服务范围（淡色参考）
+function buildReal(){
+  layers.real = new AMap.Polygon({
+    path: REAL_RANGE, strokeColor:'#13c2c2', strokeWeight:1.5, strokeStyle:'dashed',
+    strokeOpacity:.9, fillColor:'#13c2c2', fillOpacity:.06, bubble:true,
+  });
+  layers.real.on('click', ()=> openInfo(
+    `<h3 style="color:#13c2c2">真实找家纺网服务范围</h3>
+     <div class="row">叠石桥家纺城核心区（近似参考）<br>
+     平台线上服务覆盖更广（三星镇/川姜/物流港等）；此为本地履约 / 接驳的物理可达范围。<br>
+     面积约 4–6km。</div>
+     <div class="note">无人车试点配送范围（绿色）为其内部子集，可随运营扩张逐步外扩。</div>`,
+    midOf(REAL_RANGE)));
+  map.add(layers.real);
+}
+
+// 无人车试点配送范围（高亮）
+function buildPilot(){
+  layers.pilot = new AMap.Polygon({
+    path: PILOT_RANGE, strokeColor:'#52c41a', strokeWeight:2, strokeOpacity:1,
+    fillColor:'#52c41a', fillOpacity:.14, bubble:true,
+  });
+  layers.pilot.on('click', ()=> openInfo(
+    `<h3 style="color:#52c41a">无人车试点配送范围</h3>
+     <div class="row">贴合道路边界的核心家纺城街区：<br>
+     南=新海公路 / 西=叠林路 / 北=大岛路·震蒙大道 / 东=叠港路。<br>
+     覆盖南排/北排/代发仓/主市场/东排/快递接驳，小于真实服务范围。</div>
+     <div class="note">已校验：全部服务点与边界道路均在范围内，试点⊂真实范围。确认门/装卸口/接入节点后再外扩。</div>`,
+    midOf(PILOT_RANGE)));
+  map.add(layers.pilot);
+}
+
+// 基地：发货 + 充电
+function buildHub(){
+  const m = new AMap.Marker({
+    position:[HUB.lng, HUB.lat],
+    content:`<div class="hubpin"><span class="pulse"></span><span class="hubdot">⚡</span></div>`,
+    anchor:'center',
+    label:{ content:`<span style="color:#ff4d4f;font:800 10px/1 'JetBrains Mono',monospace;background:rgba(11,16,24,.7);padding:1px 4px;border-radius:4px;">基地</span>`, direction:'right', offset:new AMap.Pixel(16,0) },
+  });
+  m.on('click', ()=> openInfo(
+    `<h3 style="color:#ff4d4f">${HUB.name}</h3>
+     <div class="row">运营主体 <b>${HUB.ops}</b><br>
+     地址 <b>${HUB.addr}</b><br>
+     坐标 <b>${HUB.lng.toFixed(6)}, ${HUB.lat.toFixed(6)}</b></div>
+     <div class="note">无人车发货起点 + 回充基地。车辆从此出库、装卸、补能。</div>`,
+    [HUB.lng, HUB.lat]));
+  layers.hub = m; map.add(m);
+}
+
+function midOf(poly){
+  let x=0,y=0; poly.forEach(p=>{x+=p[0];y+=p[1];});
+  return [x/poly.length, y/poly.length];
+}
+
+function openInfo(html, pos){
+  infoWindow.setContent(`<div class="info">${html}</div>`);
+  infoWindow.open(map, pos || [HUB.lng, HUB.lat]);
+}
+
+// 侧栏清单
+function buildList(){
+  const list = document.getElementById('list');
+  const rows = [
+    {nm:'基地 · 仓储物流中心', sub:'发货 + 充电', color:'var(--hub)', pos:[HUB.lng,HUB.lat], info:
+      `<h3 style="color:#ff4d4f">${HUB.name}</h3>
+       <div class="row">运营主体 <b>${HUB.ops}</b><br>地址 <b>${HUB.addr}</b><br>坐标 <b>${HUB.lng.toFixed(6)}, ${HUB.lat.toFixed(6)}</b></div>
+       <div class="note">无人车发货起点 + 回充基地。</div>`},
+    {nm:'无人车试点配送范围', sub:'道路边界街区', color:'var(--pilot)', pos:midOf(PILOT_RANGE), info:
+      `<h3 style="color:#52c41a">无人车试点配送范围</h3>
+       <div class="row">贴合道路边界的核心家纺城街区：<br>南=新海公路 / 西=叠林路 / 北=大岛路·震蒙大道 / 东=叠港路。<br>覆盖南排/北排/代发仓/主市场/东排/快递接驳，小于真实服务范围。</div>
+       <div class="note">已校验：全部服务点与边界道路均在范围内，试点⊂真实范围。确认门/装卸口/接入节点后可外扩。</div>`},
+    {nm:'真实找家纺网服务范围', sub:'家纺城核心区', color:'var(--real)', pos:midOf(REAL_RANGE), info:
+      `<h3 style="color:#13c2c2">真实找家纺网服务范围</h3>
+       <div class="row">叠石桥家纺城核心区（近似参考）。<br>平台线上覆盖更广，此为本地履约可达范围。</div>`},
+  ];
+  const h = document.createElement('div'); h.className='grp'; h.textContent='图层'; list.appendChild(h);
+  rows.forEach(r=>{
+    const d = document.createElement('div'); d.className='item';
+    d.innerHTML = `<span class="swatch" style="background:${r.color}"></span>
+      <span class="nm">${r.nm}</span><span class="sub">${r.sub}</span>`;
+    d.onclick = ()=>{ map.setZoomAndCenter(15, r.pos); openInfo(r.info, r.pos); };
+    list.appendChild(d);
+  });
+}
+
+// 图层开关
+function bindToggles(){
+  const set = (o,on)=> on?map.add(o):map.remove(o);
+  document.getElementById('tg-pilot').onchange = e=> set(layers.pilot, e.target.checked);
+  document.getElementById('tg-real').onchange  = e=> set(layers.real, e.target.checked);
+  document.getElementById('tg-hub').onchange   = e=> set(layers.hub, e.target.checked);
+  document.getElementById('btn-pilot').onclick = ()=> map.setZoomAndCenter(15, [HUB.lng, HUB.lat]);
+  document.getElementById('btn-all').onclick   = ()=> fitView([
+    new AMap.LngLat(HUB.lng,HUB.lat),
+    ...REAL_RANGE.map(p=>new AMap.LngLat(p[0],p[1]))
+  ]);
+}
+
+if (typeof AMap === 'undefined') {
+  document.getElementById('map').innerHTML = '<div style="padding:30px;color:#ff7875">高德 JS API 未能加载，请检查网络或 .env.local 的 VITE_AMAP_KEY 是否启用 JS API。</div>';
+} else {
+  window.onload = initMap;
+}
+</script>
+</body>
+</html>

@@ -42,7 +42,9 @@ public class VehicleGatewayServiceImpl implements VehicleGatewayService {
         VehicleEntity vehicle = vehicleService.getByVehicleCode(request.getVehicleCode());
         assertRealVehicle(vehicle);
         RealFleetAdapter adapter = fleetAdapterRegistry.require(VehicleLinkMode.REAL, RealFleetAdapter.class);
-        adapter.ingestTelemetry(vehicle, request);
+        if (!adapter.ingestTelemetry(vehicle, request)) {
+            return;
+        }
         vehicle.setBatteryLevel(request.getSoc());
         vehicle.setCurrentLatitude(request.getY());
         vehicle.setCurrentLongitude(request.getX());

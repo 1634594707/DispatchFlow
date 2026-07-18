@@ -13,6 +13,7 @@ import com.fsd.dispatch.mapper.DispatchStrategyChangeLogMapper;
 import com.fsd.dispatch.mapper.DispatchStrategyProfileMapper;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -106,7 +107,7 @@ public class DispatchStrategyAdminServiceImpl implements DispatchStrategyAdminSe
     private void apply(DispatchStrategyProfileEntity entity, AdminDispatchStrategyUpsertRequest request) {
         entity.setProfileName(request.getProfileName());
         entity.setProfileType(request.getProfileType());
-        entity.setGrayPercent(request.getGrayPercent() == null ? 0 : request.getGrayPercent());
+        entity.setGrayPercent(Objects.requireNonNullElse(request.getGrayPercent(), 0));
         entity.setParkId(request.getParkId());
         entity.setWeightDistance(request.getWeightDistance());
         entity.setWeightSocMargin(request.getWeightSocMargin());

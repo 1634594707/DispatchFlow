@@ -6,7 +6,13 @@
  * and delivery polygon/polyline construction.
  */
 import { computed } from 'vue'
-import { parkXYToGcj02, toAvGeoMarker, TEXTILE_PARK_GEO, ZJF_L0_COVERAGE, buildGeoPolylines, collectRouteFitPoints } from '@/maps'
+import {
+  parkXYToGcj02,
+  toAvGeoMarker,
+  ZJF_L0_COVERAGE,
+  buildGeoPolylines,
+  collectRouteFitPoints,
+} from '@/maps'
 import { PILOT_ZONE_POLYGONS } from '@/maps/zjfPilotGeo'
 import type { GeoMapMarker, GeoMapPolygon, GeoMapPolyline, GeoMapCircle } from '@/maps'
 import type { ParkVehicleSnapshot, ParkOrderSnapshot, ParkStation } from '@/types/park'
@@ -70,8 +76,10 @@ export function buildVehicleGeoMarkers(vehicles: ParkVehicleSnapshot[]): GeoMapM
       currentTaskId: vehicle.currentTaskId,
       runtimeStage: vehicle.runtimeStage,
       routeInvalid: vehicle.routeInvalid,
+      manualOverride: vehicle.manualOverride,
+      telemetryStale: vehicle.telemetryStale,
       heading: vehicle.heading ?? null,
-      label: `${vehicle.vehicleCode} · ${vehicle.batteryLevel}%`,
+      label: `${vehicle.vehicleCode} · ${vehicle.batteryLevel}%${vehicle.telemetryStale ? ' · 数据陈旧' : ''}`,
     }),
   )
 }
@@ -95,9 +103,7 @@ export function collectDeliveryFitPoints(
 
 /** Reactive delivery geo markers from vehicles (for Tracking.vue delivery mode) */
 export function useDeliveryVehicleMarkers(vehicles: import('vue').Ref<ParkVehicleSnapshot[]>) {
-  const markers = computed<GeoMapMarker[]>(() =>
-    buildVehicleGeoMarkers(vehicles.value),
-  )
+  const markers = computed<GeoMapMarker[]>(() => buildVehicleGeoMarkers(vehicles.value))
   return markers
 }
 
@@ -146,8 +152,7 @@ export function buildOrderTargetOverlays(
   },
 ): { circles: GeoMapCircle[]; markers: GeoMapMarker[]; polylines: GeoMapPolyline[] } {
   const focusOrderId = options?.focusOrderId
-  const stageColor =
-    options?.stageColor ?? defaultOrderStageColor
+  const stageColor = options?.stageColor ?? defaultOrderStageColor
 
   const circles: GeoMapCircle[] = []
   const markers: GeoMapMarker[] = []

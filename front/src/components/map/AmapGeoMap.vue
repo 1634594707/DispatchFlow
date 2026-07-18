@@ -5,12 +5,20 @@
     <div v-else-if="error" class="amap-geo-map__overlay amap-geo-map__overlay--error">
       <p>{{ error }}</p>
       <p class="amap-geo-map__hint">
-        配置 <code>VITE_AMAP_KEY</code> 与 <code>VITE_AMAP_SECURITY_CODE</code>（构建时或 <code>runtime-config.js</code>），并在高德控制台加入当前站点域名白名单。
+        配置 <code>VITE_AMAP_KEY</code> 与 <code>VITE_AMAP_SECURITY_CODE</code>（构建时或
+        <code>runtime-config.js</code>），并在高德控制台加入当前站点域名白名单。
       </p>
-      <router-link class="amap-geo-map__check-link" to="/system/config-check">打开试点配置自检 →</router-link>
+      <router-link class="amap-geo-map__check-link" to="/system/config-check"
+        >打开试点配置自检 →</router-link
+      >
     </div>
     <!-- 阶段七 7.5：L0/L1/L2 地图层级切换器 -->
-    <div v-if="!loading && !error && showLevelSwitcher" class="amap-geo-map__level-switcher" role="group" aria-label="地图层级切换">
+    <div
+      v-if="!loading && !error && showLevelSwitcher"
+      class="amap-geo-map__level-switcher"
+      role="group"
+      aria-label="地图层级切换"
+    >
       <button
         v-for="opt in LEVEL_OPTIONS"
         :key="opt.value"
@@ -30,7 +38,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { getMapConfig, resolveGeoMapProvider } from '@/maps'
-import type { GeoMapCircle, GeoMapHandle, GeoMapMarker, GeoMapPolygon, GeoMapPolyline } from '@/maps'
+import type {
+  GeoMapCircle,
+  GeoMapHandle,
+  GeoMapMarker,
+  GeoMapPolygon,
+  GeoMapPolyline,
+} from '@/maps'
 
 /**
  * 阶段七 7.5：地图层级 L0/L1/L2。
@@ -54,8 +68,14 @@ interface LevelPreset {
 }
 
 const LEVEL_PRESETS: Record<MapLevel, LevelPreset> = {
-  L0: { zoom: 10, showMarkers: false, showPolylines: false, showPolygons: false, showCircles: true },
-  L1: { zoom: 14, showMarkers: true, showPolylines: true, showPolygons: true, showCircles: true },
+  L0: {
+    zoom: 10,
+    showMarkers: false,
+    showPolylines: false,
+    showPolygons: false,
+    showCircles: true,
+  },
+  L1: { zoom: 14, showMarkers: true, showPolylines: true, showPolygons: true, showCircles: false },
   L2: { zoom: 16, showMarkers: true, showPolylines: true, showPolygons: true, showCircles: false },
 }
 
@@ -97,6 +117,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'update:mapLevel', level: MapLevel): void
   (event: 'levelChange', level: MapLevel): void
+  (event: 'markerClick', marker: GeoMapMarker): void
 }>()
 
 const hostRef = ref<HTMLElement>()
@@ -159,6 +180,7 @@ async function mountMap() {
       container: hostRef.value,
       center: props.center ?? config.defaultCenter,
       zoom: effectiveZoom.value,
+      onMarkerClick: (marker) => emit('markerClick', marker),
     })
     // 应用层级可见性过滤
     handle.value.setCircles(visibleCircles.value)
@@ -369,5 +391,26 @@ watch(
 .amap-geo-map__level-label {
   flex: 1;
   text-align: left;
+}
+</style>
+
+<style lang="less">
+.amap-geo-map .amap-marker-label {
+  max-width: 220px;
+  padding: 6px 10px !important;
+  overflow: hidden;
+  border: 1px solid rgba(34, 199, 230, 0.58) !important;
+  border-radius: 6px !important;
+  background: rgba(7, 13, 19, 0.94) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.34) !important;
+  color: #f3f8fa !important;
+  font-size: 11px !important;
+  font-weight: 700;
+  line-height: 1.25 !important;
+  letter-spacing: 0 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
 }
 </style>

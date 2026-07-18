@@ -14,10 +14,14 @@ function ok(data: unknown) {
 }
 
 async function seedAdminSession(page: Page) {
+  // authStore (front/src/stores/auth.ts) reads token/user from sessionStorage, not localStorage.
+  // Use the same storage so router.beforeEach sees the seeded admin session.
   await page.addInitScript(() => {
-    localStorage.setItem('fsd_admin_token', 'e2e-admin-token')
-    localStorage.setItem('fsd_admin_user', JSON.stringify({ userId: 1, username: 'admin', role: 'ADMIN' }))
+    sessionStorage.setItem('fsd_admin_token', 'e2e-admin-token')
+    sessionStorage.setItem('fsd_admin_user', JSON.stringify({ userId: 1, username: 'admin', role: 'ADMIN', displayName: 'admin' }))
   })
+  // ensureAuth() calls /api/admin/auth/me; mock it so the router guard accepts the seeded token.
+  await page.route(api('/admin/auth/me'), route => route.fulfill({ json: ok({ userId: 1, username: 'admin', role: 'ADMIN', displayName: 'admin' }) }))
 }
 
 async function installConsoleGate(page: Page) {
@@ -48,6 +52,18 @@ async function mockDispatchWorkbench(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // Catch-all fallback registered FIRST so it has the LOWEST priority (Playwright
+  // matches routes LIFO). seedAdminSession and test-specific page.route() calls
+  // register later and therefore take precedence. Returns empty containers so
+  // list/detail pages can render without hanging on unmocked ancillary APIs
+  // (parks dropdown, vehicle options, etc.).
+  await page.route(api('/admin/**'), route => {
+    const url = new URL(route.request().url())
+    if (url.pathname.endsWith('/query') || url.pathname.includes('/list')) {
+      return route.fulfill({ json: ok({ records: [], total: 0, pageNo: 1, pageSize: 10 }) })
+    }
+    return route.fulfill({ json: ok({}) })
+  })
   await seedAdminSession(page)
   await installConsoleGate(page)
   await page.route(/\/manifest\.webmanifest(\?.*)?$/, route => route.fulfill({ contentType: 'application/manifest+json', json: { name: 'DispatchFlow', icons: [] } }))
@@ -76,7 +92,7 @@ test('mobile order initializes with mobile key and stale tracking hint', async (
   await page.route(api('/admin/park/vehicles**'), route => route.fulfill({ status: 503, json: { success: false, code: 'DOWN', message: 'down' } }))
 
   await page.goto('/mobile/order')
-  await expect(page.getByText('像看外卖一样看短驳配送')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '叫车送货' })).toBeVisible()
   await expect(page.getByText('未授权，请重新登录')).toHaveCount(0)
   await page.evaluate(() => (window as unknown as { __assertNoConsoleErrors: () => void }).__assertNoConsoleErrors())
 })
@@ -149,24 +165,24 @@ test('task list dispatch reassign and cancel trigger real user-path APIs', async
 
   await page.goto('/tasks')
   await page.getByRole('row', { name: /TK-101/ }).getByRole('button', { name: '派单' }).click()
-  await page.getByRole('combobox', { name: '选择车辆' }).click()
-  await page.getByTitle(/VH-001/).click()
+  await page.locator('.ant-modal-body .ant-select-selector').click()
+  await page.locator('.ant-select-item-option', { hasText: 'VH-001' }).click()
   await Promise.all([
     page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/tasks/101/manual-assign'),
-    page.getByRole('button', { name: '确 定' }).click(),
+    page.locator('.ant-modal-footer .ant-btn-primary').click(),
   ])
   await page.getByRole('row', { name: /TK-102/ }).getByRole('button', { name: '改派' }).click()
-  await page.getByRole('combobox', { name: '新车辆' }).click()
-  await page.getByTitle(/VH-001/).click()
+  await page.locator('.ant-modal-body .ant-select-selector').last().click()
+  await page.locator('.ant-select-item-option', { hasText: 'VH-001' }).last().click()
   await page.getByPlaceholder('请输入改派原因（至少5个字符）').fill('车辆临时调整')
   await Promise.all([
     page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/tasks/102/reassign'),
-    page.getByRole('button', { name: '确 定' }).click(),
+    page.locator('.ant-modal-footer .ant-btn-primary').last().click(),
   ])
   await page.getByRole('row', { name: /TK-102/ }).getByRole('button', { name: '取消' }).click()
   await Promise.all([
     page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/tasks/102/cancel'),
-    page.getByRole('button', { name: '确认' }).click(),
+    page.locator('.ant-popconfirm .ant-btn-primary').click(),
   ])
 
   expect(calls.map(call => new URL(call.path).pathname)).toEqual([
@@ -192,7 +208,7 @@ test('order list cancel triggers real user-path API', async ({ page }) => {
   await page.getByRole('row', { name: /OD-301/ }).getByRole('button', { name: '取消' }).click()
   await Promise.all([
     page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/orders/301/cancel'),
-    page.getByRole('button', { name: '确认' }).click(),
+    page.locator('.ant-popconfirm .ant-btn-primary').click(),
   ])
 
   expect(calls).toEqual([{ remark: '订单列表取消' }])
@@ -210,8 +226,8 @@ test('exception reassignment submits selected vehicle from drawer', async ({ pag
 
   await page.goto('/exceptions')
   await page.getByRole('row', { name: /车辆故障/ }).getByRole('button', { name: '处理' }).click()
-  await page.getByRole('combobox', { name: '选择车辆' }).click()
-  await page.getByTitle(/VH-002/).click()
+  await page.locator('.ant-drawer-body .ant-select-selector').click()
+  await page.locator('.ant-select-item-option', { hasText: 'VH-002' }).click()
   await page.getByPlaceholder('请描述处理方案（至少10个字符）').fill('重新派单到空闲车辆处理')
   await Promise.all([
     page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/exceptions/401/resolve'),

@@ -153,6 +153,8 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
                         .code(slot.getSlotCode())
                         .x(slot.getCoordX())
                         .y(slot.getCoordY())
+                        .longitude(slot.getCoordLng())
+                        .latitude(slot.getCoordLat())
                         .build());
             }
         }

@@ -198,11 +198,28 @@ public class ParkGeofenceServiceImpl implements ParkGeofenceService {
                 .fenceCode(entity.getFenceCode())
                 .fenceName(entity.getFenceName())
                 .fenceType(entity.getFenceType())
+                .scopeCode(resolveScopeCode(entity))
+                .dispatchable(isDispatchable(entity))
                 .polygon(readPolygon(entity.getPolygonJson()))
                 .status(entity.getStatus())
                 .remark(entity.getRemark())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
+    }
+
+    private static String resolveScopeCode(ParkGeofenceEntity entity) {
+        String code = entity.getFenceCode() == null ? "" : entity.getFenceCode();
+        if (code.startsWith("ZJF-ZONE-")) {
+            return "L1_CORE";
+        }
+        if ("RESTRICTED".equals(entity.getFenceType())) {
+            return "SAFETY_RESTRICTED";
+        }
+        return "L1_CANDIDATE_ENVELOPE";
+    }
+
+    private static boolean isDispatchable(ParkGeofenceEntity entity) {
+        return entity.getFenceCode() != null && entity.getFenceCode().startsWith("ZJF-ZONE-");
     }
 
     private List<List<BigDecimal>> readPolygon(String polygonJson) {

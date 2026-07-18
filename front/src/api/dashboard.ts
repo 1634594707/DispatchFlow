@@ -1,7 +1,6 @@
 import request from '@/utils/request'
 import type { ApiResponse } from '@/types/api'
 import type { DashboardSummary } from '@/types/dashboard'
-import type { ExceptionAdminListItem } from '@/types/exception'
 
 export function getDashboardSummary(parkId?: number) {
   return request.get<any, ApiResponse<DashboardSummary>>('/admin/dashboard/summary', {

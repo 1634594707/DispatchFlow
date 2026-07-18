@@ -58,20 +58,24 @@
             :center="mapCenter"
             :zoom="14"
             :markers="mapMarkers"
-            :polygons="PILOT_BOUNDARY_POLYGON"
+            :polygons="mapPolygons"
             :polylines="mapPolylines"
             :circles="L0_COVERAGE_CIRCLES"
             :fit-view-points="fitViewPoints"
+            :fit-view-on-change="true"
+            @marker-click="selectMapMarker"
           />
           <div class="map-legend">
             <span><i class="legend-dot vehicle"></i>车辆</span>
-            <span><i class="legend-dot station"></i>站点</span>
+            <span><i class="legend-dot base"></i>找家纺网基地</span>
+            <span><i class="legend-dot station"></i>服务点</span>
+            <span><i class="legend-line service-range"></i>实际运营范围</span>
             <span><i class="legend-line delivery"></i>配送主线</span>
             <span><i class="legend-line charge"></i>回充走廊</span>
           </div>
           <div class="coverage-card">
-            <span>试点有效范围</span><strong>1.57 × 0.47 km</strong
-            ><small>五分区围栏 · 超界即停派</small>
+            <span>本地履约运营范围</span><strong>约 5.5 × 6.2 km</strong
+            ><small>实际服务边界 · 五分区自动派单</small>
           </div>
         </div>
 
@@ -237,12 +241,10 @@ import ParkDeliveryOrderModal from '@/components/park/ParkDeliveryOrderModal.vue
 import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useWorkbenchStore } from '@/stores/workbench'
-import {
-  L0_COVERAGE_CIRCLES,
-  PILOT_BOUNDARY_POLYGON,
-  buildVehicleGeoMarkers,
-  vehicleToGeoPosition,
-} from '@/composables/useDeliveryGeo'
+import { getParkGeofences } from '@/api/park'
+import { L0_COVERAGE_CIRCLES, vehicleToGeoPosition } from '@/composables/useDeliveryGeo'
+import { buildGeofencePolygons, buildVehicleGeoMarkers } from '@/maps/parkGeoMapLayers'
+import { filterGeoDeliverySimVehicles } from '@/maps/stationLayers'
 import {
   DELIVERY_SCENE_PLANS,
   buildOperationsPlanPolylines,
@@ -250,7 +252,10 @@ import {
   type DeliverySceneId,
 } from '@/maps/deliveryOperationsPlan'
 import { ZJF_PILOT_GEO } from '@/maps/zjfPilotGeo'
+import { isInsideZjfBase } from '@/maps/zjfStationAnchors'
 import type { TaskStatus } from '@/constants/enums'
+import type { GeoMapMarker } from '@/maps'
+import type { ParkGeofence } from '@/types/park'
 
 type SceneMode = 'delivery' | 'charging' | 'all'
 type MapLevel = 'L0' | 'L1' | 'L2'
@@ -267,9 +272,10 @@ const dispatchingTaskId = ref<number | null>(null)
 const createOrderOpen = ref(false)
 const lastUpdatedAt = ref<Date | null>(null)
 const mapLevel = ref<MapLevel>('L1')
+const parkGeofences = ref<ParkGeofence[]>([])
+const selectedMapMarkerId = ref<string | null>('operations-base')
 
 const mapCenter: [number, number] = [ZJF_PILOT_GEO.anchorLng, ZJF_PILOT_GEO.anchorLat]
-const stationMarkers = buildOperationsStationMarkers()
 const sceneModes: Array<{ label: string; value: SceneMode }> = [
   { label: '全部', value: 'all' },
   { label: '配送', value: 'delivery' },
@@ -282,17 +288,43 @@ const visibleScenes = computed(() =>
   ),
 )
 
+const operationalVehicles = computed(() => filterGeoDeliverySimVehicles(store.parkVehicles))
+const baseVehicles = computed(() =>
+  operationalVehicles.value.filter((vehicle) => isInsideZjfBase(vehicleToGeoPosition(vehicle))),
+)
+const roadVehicles = computed(() =>
+  operationalVehicles.value.filter((vehicle) => !isInsideZjfBase(vehicleToGeoPosition(vehicle))),
+)
+const stationMarkers = computed(() => buildOperationsStationMarkers(baseVehicles.value.length))
+const selectedVehicleId = computed(() => {
+  if (!selectedMapMarkerId.value || selectedMapMarkerId.value.startsWith('operations-station-')) {
+    return null
+  }
+  const id = Number(selectedMapMarkerId.value)
+  return Number.isFinite(id) ? id : null
+})
 const mapMarkers = computed(() => [
-  ...stationMarkers,
-  ...buildVehicleGeoMarkers(store.parkVehicles),
+  ...stationMarkers.value.map((marker) => {
+    const selected = marker.id === selectedMapMarkerId.value
+    return { ...marker, selected, showLabel: selected }
+  }),
+  ...buildVehicleGeoMarkers(roadVehicles.value, { selectedId: selectedVehicleId.value }),
 ])
+const mapPolygons = computed(() => buildGeofencePolygons(parkGeofences.value))
 const mapPolylines = computed(() => {
   if (selectedPlanId.value) return buildOperationsPlanPolylines(selectedPlanId.value)
   return visibleScenes.value.flatMap((scene) => buildOperationsPlanPolylines(scene.id))
 })
 const fitViewPoints = computed<[number, number][]>(() => {
   if (selectedPlanId.value) return mapPolylines.value.flatMap((line) => line.path)
-  const vehiclePoints = store.parkVehicles.slice(0, 10).map(vehicleToGeoPosition)
+  const serviceEnvelope = parkGeofences.value.find(
+    (fence) => fence.scopeCode === 'L1_CANDIDATE_ENVELOPE' && fence.fenceCode === 'DEFAULT-BOUNDARY',
+  )
+  const servicePolygon = serviceEnvelope?.polygon ?? []
+  if (servicePolygon.length >= 3) {
+    return servicePolygon.map((point) => [Number(point[0]), Number(point[1])])
+  }
+  const vehiclePoints = operationalVehicles.value.slice(0, 10).map(vehicleToGeoPosition)
   return vehiclePoints.length > 1 ? vehiclePoints : []
 })
 
@@ -311,7 +343,7 @@ const metrics = computed(() => [
 const taskCards = computed(() => store.taskPool.slice(0, 5))
 const exceptionCards = computed(() => store.openExceptions.slice(0, 4))
 const energyStats = computed(() => {
-  const online = store.parkVehicles.filter((vehicle) => vehicle.onlineStatus !== 'OFFLINE')
+  const online = operationalVehicles.value.filter((vehicle) => vehicle.onlineStatus !== 'OFFLINE')
   return {
     ready: online.filter((vehicle) => vehicle.batteryLevel >= 45).length,
     opportunity: online.filter((vehicle) => vehicle.batteryLevel >= 25 && vehicle.batteryLevel < 45)
@@ -323,7 +355,7 @@ const lastUpdatedLabel = computed(() => {
   if (!lastUpdatedAt.value) return '等待首次同步'
   return `态势更新于 ${lastUpdatedAt.value.toLocaleTimeString('zh-CN', { hour12: false })}`
 })
-const mapVersionLabel = computed(() => 'V43 · 2026-07-18')
+const mapVersionLabel = computed(() => 'V44 · 2026-07-18')
 const routeSourceLabel = computed(() => {
   if (selectedPlanId.value) return 'LOCAL_GRAPH'
   return 'AMAP + LOCAL_GRAPH'
@@ -345,8 +377,16 @@ function exceptionSeverity(type: string) {
 }
 
 async function refresh() {
-  await store.fetchQueue()
+  const [fenceResponse] = await Promise.all([
+    getParkGeofences(parkScope.selectedParkId),
+    store.fetchQueue(),
+  ])
+  parkGeofences.value = fenceResponse.data || []
   lastUpdatedAt.value = new Date()
+}
+
+function selectMapMarker(marker: GeoMapMarker) {
+  selectedMapMarkerId.value = selectedMapMarkerId.value === marker.id ? null : marker.id
 }
 
 async function autoDispatch(taskId: number) {
@@ -627,6 +667,10 @@ button {
 .legend-dot.station {
   background: #f8fafc;
 }
+.legend-dot.base {
+  background: #fbbf24;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.18);
+}
 .legend-line {
   width: 18px;
   height: 2px;
@@ -636,6 +680,10 @@ button {
 }
 .legend-line.charge {
   border-top: 2px dashed #fb7185;
+}
+.legend-line.service-range {
+  height: 0;
+  border-top: 2px dashed #13c2c2;
 }
 .coverage-card {
   right: 16px;

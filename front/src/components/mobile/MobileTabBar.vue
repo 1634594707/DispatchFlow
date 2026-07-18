@@ -7,51 +7,57 @@
       class="tab-item"
       :class="{ 'tab-active': isActive(tab) }"
     >
-      <span class="tab-icon" v-html="isActive(tab) ? tab.iconActive : tab.icon" />
+      <span class="tab-icon"><component :is="tab.icon" /></span>
       <span class="tab-label">{{ tab.label }}</span>
-      <span v-if="tab.badge && tab.badge > 0" class="tab-badge">{{ tab.badge > 99 ? '99+' : tab.badge }}</span>
+      <span v-if="tab.badge && tab.badge > 0" class="tab-badge">{{
+        tab.badge > 99 ? '99+' : tab.badge
+      }}</span>
     </router-link>
   </nav>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { Component } from 'vue'
 import { useRoute } from 'vue-router'
+import { FileTextOutlined, SendOutlined, UserOutlined } from '@ant-design/icons-vue'
 
 interface TabItem {
   path: string
   label: string
-  icon: string
-  iconActive: string
+  icon: Component
   badge?: number
 }
 
-const props = defineProps<{
-  activeOrderCount?: number
-  visible?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    activeOrderCount?: number
+    visible?: boolean
+  }>(),
+  {
+    activeOrderCount: 0,
+    visible: true,
+  },
+)
 
 const route = useRoute()
 
 const tabs = computed<TabItem[]>(() => [
   {
     path: '/mobile/order',
-    label: '首页',
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1V9.5z"/></svg>',
-    iconActive: '<svg viewBox="0 0 24 24" width="24" height="24" fill="#1989fa" stroke="#1989fa" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1V9.5z"/></svg>',
+    label: '下单',
+    icon: SendOutlined,
   },
   {
     path: '/mobile/orders',
     label: '订单',
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6a1 1 0 0 1 1 1v1h3a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3V5a1 1 0 0 1 1-1z"/><path d="M9 12h6M9 16h4"/></svg>',
-    iconActive: '<svg viewBox="0 0 24 24" width="24" height="24" fill="#1989fa" stroke="#1989fa" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6a1 1 0 0 1 1 1v1h3a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3V5a1 1 0 0 1 1-1z"/></svg>',
+    icon: FileTextOutlined,
     badge: props.activeOrderCount || 0,
   },
   {
     path: '/mobile/profile',
     label: '我的',
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>',
-    iconActive: '<svg viewBox="0 0 24 24" width="24" height="24" fill="#1989fa" stroke="#1989fa" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>',
+    icon: UserOutlined,
   },
 ])
 
@@ -75,7 +81,9 @@ function isActive(tab: TabItem): boolean {
   background: #ffffff;
   border-top: 1px solid #f0f0f0;
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
-  transition: transform 0.3s ease, opacity 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    opacity 0.3s ease;
 
   &.tab-bar-hidden {
     transform: translateY(100%);

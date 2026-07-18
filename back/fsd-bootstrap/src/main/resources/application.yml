@@ -355,7 +355,7 @@ fsd:
         area: B
     simulation:
       enabled: ${FSD_PARK_SIMULATION_ENABLED:true}
-      vehicle-count: ${FSD_PARK_SIMULATION_VEHICLE_COUNT:3}
+      vehicle-count: ${FSD_PARK_SIMULATION_VEHICLE_COUNT:0}
       geo-vehicle-count: ${FSD_PARK_SIMULATION_GEO_VEHICLE_COUNT:3}
       max-trail-size: ${FSD_PARK_SIMULATION_MAX_TRAIL_SIZE:30}
       offline-duration-seconds: ${FSD_PARK_SIMULATION_OFFLINE_DURATION_SECONDS:8}

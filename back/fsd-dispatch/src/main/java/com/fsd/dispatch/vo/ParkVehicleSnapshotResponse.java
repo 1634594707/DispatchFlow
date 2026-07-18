@@ -1,6 +1,7 @@
 package com.fsd.dispatch.vo;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Builder;
 import lombok.Data;
@@ -38,6 +39,10 @@ public class ParkVehicleSnapshotResponse {
 
     private Double heading;
 
+    private LocalDateTime lastTelemetryAt;
+
+    private Boolean telemetryStale;
+
     private String runtimeStage;
 
     private String targetCode;
@@ -59,4 +64,6 @@ public class ParkVehicleSnapshotResponse {
     private String routeSource;
 
     private Boolean routeInvalid;
+
+    private Boolean manualOverride;
 }

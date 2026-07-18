@@ -17,6 +17,23 @@ export interface ZjfStationAnchor {
   remark?: string
 }
 
+export const ZJF_BASE_ANCHOR = {
+  code: 'ZJF-BASE-01',
+  name: '找家纺网基地',
+  lng: 121.080681,
+  lat: 31.960337,
+} as const
+
+/** Vehicles stay aggregated into the base marker until they reach the RN27 exit corridor. */
+export const ZJF_BASE_GEO_RADIUS_METERS = 75
+
+export function isInsideZjfBase(
+  position: [number, number],
+  radiusMeters = ZJF_BASE_GEO_RADIUS_METERS,
+): boolean {
+  return haversineMeters(position, [ZJF_BASE_ANCHOR.lng, ZJF_BASE_ANCHOR.lat]) <= radiusMeters
+}
+
 export const ZJF_STATION_ANCHORS: ZjfStationAnchor[] = [
   // 取货站点（门市 · 南排核心区）
   { code: 'ZJF-PICK-01', name: '南通家纺城门市', role: 'pickup', lng: 121.074453, lat: 31.960396, serviceHours: '06:00-22:00', avgServiceSeconds: 180, capacityLimit: 50 },
@@ -28,14 +45,9 @@ export const ZJF_STATION_ANCHORS: ZjfStationAnchor[] = [
   { code: 'ZJF-DROP-04', name: '东排集散仓', role: 'dropoff', lng: 121.083893, lat: 31.962833, serviceHours: '07:00-22:00', avgServiceSeconds: 300, capacityLimit: 120 },
   // 快递接驳点（西北角 · V37 校准）
   { code: 'ZJF-EXPRESS-01', name: '快递接驳点', role: 'express', lng: 121.073200, lat: 31.963800, serviceHours: '08:00-22:00', avgServiceSeconds: 120, capacityLimit: 500 },
-  // 车辆待命区
-  { code: 'ZJF-IDLE-01', name: '车辆待命区', role: 'idle', lng: 121.080055, lat: 31.961922, serviceHours: '24h', avgServiceSeconds: 0, capacityLimit: 20 },
-  // 充电站（24小时服务）
-  { code: 'ZJF-CHG-01', name: '待命区充电站', role: 'charging', lng: 121.080069, lat: 31.961850, serviceHours: '24h', avgServiceSeconds: 1800, capacityLimit: 4 },
-  { code: 'ZJF-CHG-02', name: '代发仓充电站', role: 'charging', lng: 121.079780, lat: 31.963518, serviceHours: '24h', avgServiceSeconds: 1800, capacityLimit: 6 },
-  { code: 'ZJF-CHG-03', name: '快递接驳充电站', role: 'charging', lng: 121.072610, lat: 31.963700, serviceHours: '24h', avgServiceSeconds: 3600, capacityLimit: 2 },
-  { code: 'ZJF-CHG-04', name: '南排取货充电站', role: 'charging', lng: 121.074442, lat: 31.960671, serviceHours: '24h', avgServiceSeconds: 1800, capacityLimit: 4 },
-  { code: 'ZJF-CHG-05', name: '东排快充站', role: 'charging', lng: 121.084334, lat: 31.962890, serviceHours: '24h', avgServiceSeconds: 1800, capacityLimit: 4 },
+  // 找家纺网基地：一个物理原点，同时承担发货、调度待命与充电。
+  { code: 'ZJF-IDLE-01', name: '找家纺网基地', role: 'idle', lng: ZJF_BASE_ANCHOR.lng, lat: ZJF_BASE_ANCHOR.lat, serviceHours: '24h', avgServiceSeconds: 0, capacityLimit: 20 },
+  { code: 'ZJF-CHG-01', name: '找家纺网基地', role: 'charging', lng: ZJF_BASE_ANCHOR.lng, lat: ZJF_BASE_ANCHOR.lat, serviceHours: '24h', avgServiceSeconds: 1800, capacityLimit: 6 },
 ]
 
 /** 道路走廊参考线（选点时优先落在此附近） */
@@ -70,9 +82,10 @@ export const ZJF_DELIVERY_ZONES: ZjfDeliveryZone[] = [
       [121.071812, 31.960126],
       [121.073405, 31.959762],
       [121.075820, 31.959683],
-      [121.077914, 31.959821],
-      [121.079352, 31.960235],
-      [121.079588, 31.961045],
+      [121.079400, 31.959720],
+      [121.081250, 31.959920],
+      [121.081250, 31.960760],
+      [121.080650, 31.961220],
       [121.079152, 31.961698],
       [121.077213, 31.961912],
       [121.074893, 31.961856],
@@ -169,3 +182,4 @@ export const ZJF_REAL_WORLD_REFERENCE = {
   townCenter:      { name: '三星镇(海门区)镇中心',             lng: 121.115222, lat: 31.966141, src: 'Nominatim WGS-84→GCJ-02' },
   chuanjiang:      { name: '川姜/志浩面料市场(双中心西南)',     lng: 121.062280, lat: 31.912450, src: '既有 ZJF_L0_COVERAGE' },
 } as const
+import { haversineMeters } from './geoDistance'

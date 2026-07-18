@@ -112,7 +112,7 @@ public class ParkPilotProperties {
 
         private boolean enabled = true;
 
-        private int vehicleCount = 3;
+        private int vehicleCount = 0;
 
         /** 叠石桥真实地图仿真车数量（ZJF-AV-*，与 PARK-* 分池）。 */
         private int geoVehicleCount = 3;
