@@ -30,6 +30,19 @@ scripts/verify_migration.py
 scripts/verify_admin_api.py
 scripts/verify_routes.py
 scripts/verify_routes2.py
+# V43 deployment / probe / fix scripts with plaintext SSH & DB credentials
+scripts/deploy_v43.py
+scripts/deploy_v43.ps1
+scripts/probe_env.py
+scripts/probe_compose.py
+scripts/probe_flyway_failure.py
+scripts/probe_v43_failure2.py
+scripts/deploy_rebuild_v43.py
+scripts/fix_v43_redo.py
+scripts/fix_v43_rebuild.py
+scripts/fix_v43_nocache_rebuild.py
+scripts/final_verify.py
+scripts/verify_columns.py
 
 # Documentation (not uploaded)
 docs/

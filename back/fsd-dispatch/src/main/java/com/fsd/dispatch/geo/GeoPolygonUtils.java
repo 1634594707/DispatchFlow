@@ -150,6 +150,63 @@ public final class GeoPolygonUtils {
         return value > 0 ? 1 : 2;
     }
 
+    /**
+     * V43 / P0-4.2：将 Polygon 向外膨胀指定距离（米）。
+     *
+     * <p>采用「质心外推」算法：先计算多边形质心，再将每个顶点沿「质心→顶点」方向
+     * 移动 expansionMeters 距离。米转换为经纬度增量时使用近似公式：
+     * <ul>
+     *   <li>纬度增量 = expansionMeters / 111320</li>
+     *   <li>经度增量 = expansionMeters / (111320 * cos(质心纬度))</li>
+     * </ul>
+     * 该算法对凸多边形效果好；对凹多边形可能产生自相交，但用于碰撞检查时偏保守（宁可误判也不漏判）。
+     *
+     * @param polygon 原始多边形顶点（GCJ-02）
+     * @param expansionMeters 膨胀距离（米），必须 &gt;= 0
+     * @return 膨胀后的多边形顶点；若原始多边形顶点数 &lt; 3 或膨胀距离 &lt;= 0，返回原多边形副本
+     */
+    public static List<GeoPoint> expandPolygon(List<GeoPoint> polygon, double expansionMeters) {
+        if (polygon == null || polygon.size() < 3 || expansionMeters <= 0D) {
+            return polygon == null ? List.of() : new java.util.ArrayList<>(polygon);
+        }
+        // 计算质心
+        double centroidLng = 0D;
+        double centroidLat = 0D;
+        for (GeoPoint point : polygon) {
+            centroidLng += point.longitude().doubleValue();
+            centroidLat += point.latitude().doubleValue();
+        }
+        centroidLng /= polygon.size();
+        centroidLat /= polygon.size();
+
+        // 米转经纬度增量
+        double latDelta = expansionMeters / 111_320D;
+        double cosLat = Math.cos(Math.toRadians(centroidLat));
+        double lngDelta = cosLat > 1e-6 ? expansionMeters / (111_320D * cosLat) : latDelta;
+
+        // 质心外推
+        java.util.List<GeoPoint> expanded = new java.util.ArrayList<>(polygon.size());
+        for (GeoPoint point : polygon) {
+            double dx = point.longitude().doubleValue() - centroidLng;
+            double dy = point.latitude().doubleValue() - centroidLat;
+            double len = Math.hypot(dx, dy);
+            if (len < 1e-9) {
+                // 顶点与质心重合，沿正北方向膨胀
+                expanded.add(new GeoPoint(
+                        java.math.BigDecimal.valueOf(centroidLng).setScale(6, java.math.RoundingMode.HALF_UP),
+                        java.math.BigDecimal.valueOf(centroidLat + latDelta).setScale(6, java.math.RoundingMode.HALF_UP)));
+                continue;
+            }
+            // 沿「质心→顶点」方向移动 expansionMeters
+            double ratioLng = (dx / len) * lngDelta;
+            double ratioLat = (dy / len) * latDelta;
+            expanded.add(new GeoPoint(
+                    java.math.BigDecimal.valueOf(point.longitude().doubleValue() + ratioLng).setScale(6, java.math.RoundingMode.HALF_UP),
+                    java.math.BigDecimal.valueOf(point.latitude().doubleValue() + ratioLat).setScale(6, java.math.RoundingMode.HALF_UP)));
+        }
+        return expanded;
+    }
+
     private static boolean onSegment(double ax, double ay, double bx, double by, double cx, double cy) {
         return cx <= Math.max(ax, bx) + 1e-12
                 && cx + 1e-12 >= Math.min(ax, bx)

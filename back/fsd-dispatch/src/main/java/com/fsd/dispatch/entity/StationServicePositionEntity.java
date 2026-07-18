@@ -38,6 +38,15 @@ public class StationServicePositionEntity {
     /** 服务方向：FORWARD/REVERSE/BIDIRECTIONAL */
     private String serviceDirection;
 
+    /** V43: 到站车头朝向（度，0=北，顺时针；NULL=不限制） */
+    private java.math.BigDecimal stopHeading;
+
+    /** V43: 进入方向：FORWARD/REVERSE/LEFT/RIGHT */
+    private String enterDirection;
+
+    /** V43: 离开方向：FORWARD/REVERSE/LEFT/RIGHT */
+    private String leaveDirection;
+
     /** 允许车辆类型（逗号分隔，NULL=全部） */
     private String allowedVehicleTypes;
 

@@ -66,6 +66,10 @@ export function buildVehicleGeoMarkers(vehicles: ParkVehicleSnapshot[]): GeoMapM
       dispatchStatus: vehicle.dispatchStatus,
       charging: vehicle.charging,
       lowBattery: vehicle.lowBattery,
+      batteryStatus: vehicle.batteryStatus,
+      currentTaskId: vehicle.currentTaskId,
+      runtimeStage: vehicle.runtimeStage,
+      routeInvalid: vehicle.routeInvalid,
       heading: vehicle.heading ?? null,
       label: `${vehicle.vehicleCode} · ${vehicle.batteryLevel}%`,
     }),
@@ -118,4 +122,76 @@ export function buildChargeStationMarkers(
         },
       ]
     })
+}
+
+/**
+ * 视觉规范 §6：订单目标点三层结构。
+ *
+ * <p>返回 3 类覆盖物：
+ * <ol>
+ *   <li>目标环（circle，半径 25m，stroke 状态色 + 透明 fill）</li>
+ *   <li>服务位芯点（marker，半径 6m 等效视觉，深色填充）</li>
+ *   <li>道路接入虚线（polyline，从芯点连接到接入道路节点；当前数据无 accessNode 时省略）</li>
+ * </ol>
+ *
+ * @param orders 订单快照列表
+ * @param options 可选过滤与状态色映射
+ */
+export function buildOrderTargetOverlays(
+  orders: ParkOrderSnapshot[],
+  options?: {
+    focusOrderId?: number | null
+    /** 状态色映射（默认按 runtimeStage 推断） */
+    stageColor?: (stage: string) => string
+  },
+): { circles: GeoMapCircle[]; markers: GeoMapMarker[]; polylines: GeoMapPolyline[] } {
+  const focusOrderId = options?.focusOrderId
+  const stageColor =
+    options?.stageColor ?? defaultOrderStageColor
+
+  const circles: GeoMapCircle[] = []
+  const markers: GeoMapMarker[] = []
+  const polylines: GeoMapPolyline[] = []
+
+  orders.forEach((order) => {
+    if (focusOrderId != null && focusOrderId !== order.orderId) return
+    const dropoff = order.dropoffStation
+    const targetPosition = stationToGeoPosition(dropoff)
+    if (!targetPosition) return
+    const color = stageColor(order.runtimeStage)
+
+    // 目标环（外环，25 米半径）
+    circles.push({
+      id: `target-ring-${order.orderId}`,
+      center: targetPosition,
+      radiusMeters: 25,
+      strokeColor: color,
+      fillColor: color,
+      strokeWeight: 2,
+      fillOpacity: 0.08,
+      zIndex: 35,
+    })
+
+    // 服务位芯点（中心点 marker，6 米等效视觉）
+    markers.push({
+      id: `target-core-${order.orderId}`,
+      position: targetPosition,
+      label: `${order.orderNo}`,
+      iconUrl: undefined,
+      status: 'core',
+    })
+
+    // 道路接入虚线：当前 ParkStation 无 accessNode 字段，暂不输出
+    // 待 V44 引入 service_position.access_node_lng/lat 后补全
+  })
+
+  return { circles, markers, polylines }
+}
+
+function defaultOrderStageColor(stage: string): string {
+  const upper = String(stage ?? '').toUpperCase()
+  if (upper === 'COMPLETED') return '#2DE08A'
+  if (upper === 'FAILED' || upper === 'MANUAL_PENDING') return '#FF5C7C'
+  if (upper === 'LOADING' || upper === 'UNLOADING' || upper === 'CHARGING') return '#FFC04D'
+  return '#22C7E6'
 }

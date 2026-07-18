@@ -67,11 +67,35 @@ public class VehicleEntity {
     /** 车辆长度（厘米） */
     private Integer lengthCm;
 
+    /** V43: 车辆高度（厘米），用于限高检查 */
+    private Integer heightCm;
+
     /** 最小转弯半径（米），用于窄路/急弯过滤 */
     private java.math.BigDecimal turningRadiusM;
 
     /** 允许道路等级（逗号分隔，NULL=全部；如 ARTERIAL,SECONDARY） */
     private String allowedRoadClasses;
+
+    /** V43: 最大速度（km/h），用于 ETA 估算 */
+    private Integer maxSpeedKmh;
+
+    /** V43: 当前速度（km/h），运行态上报 */
+    private java.math.BigDecimal currentSpeedKmh;
+
+    /** V43: 当前车头朝向（度，0=北，顺时针） */
+    private java.math.BigDecimal currentHeading;
+
+    /** V43: 人工接管状态（1=人工接管，0=自动） */
+    private Integer manualOverride;
+
+    /** V43: 紧急模式（1=紧急停车，0=正常） */
+    private Integer emergencyMode;
+
+    /** V43: 安全缓冲（米），车辆包络膨胀，用于碰撞检查 */
+    private java.math.BigDecimal safetyBufferMeters;
+
+    /** V43: 当前地图数据版本ID（关联 t_map_data_version.id） */
+    private Long currentMapVersionId;
 
     private Integer deleted;
 }

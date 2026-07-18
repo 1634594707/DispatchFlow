@@ -59,6 +59,9 @@ public class StationEntity {
     /** 不可达失效时间（NULL=永久或正常） */
     private java.time.LocalDateTime unreachableUntil;
 
+    /** V43: 站点可信度：A=公开POI核验/B=候选待核验/C=合成点 */
+    private String stationConfidence;
+
     private String remark;
 
     private LocalDateTime createdAt;

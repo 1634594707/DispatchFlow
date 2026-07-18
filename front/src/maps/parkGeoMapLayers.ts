@@ -64,6 +64,9 @@ export function buildVehicleGeoMarkers(
       charging: vehicle.charging,
       lowBattery: vehicle.lowBattery,
       batteryStatus: vehicle.batteryStatus,
+      currentTaskId: vehicle.currentTaskId,
+      runtimeStage: vehicle.runtimeStage,
+      routeInvalid: vehicle.routeInvalid,
       heading: vehicle.heading ?? null,
       label: `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%${
         vehicle.batteryStatus === 'CRITICAL' ? ' ⚠' : vehicle.lowBattery ? ' ↓' : ''

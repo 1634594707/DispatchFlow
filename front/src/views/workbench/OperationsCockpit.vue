@@ -196,23 +196,27 @@
       </aside>
     </section>
 
-    <section class="operating-principles">
-      <div>
-        <span class="section-kicker">OPERATING MODEL</span>
-        <h2>上线后的页面分工</h2>
+    <section class="map-status-bar" aria-label="地图数据状态">
+      <div class="status-item">
+        <span class="status-label">坐标系</span>
+        <span class="status-value">GCJ-02</span>
       </div>
-      <article>
-        <span>01</span><strong>工作台只做决策</strong>
-        <p>地图、任务、异常和 SOC 同屏；不再复制历史趋势与配置表单。</p>
-      </article>
-      <article>
-        <span>02</span><strong>报表只做复盘</strong>
-        <p>运营分析与充电报表保留趋势、成本和 SLA，不参与实时派车。</p>
-      </article>
-      <article>
-        <span>03</span><strong>设施只做建模</strong>
-        <p>围栏、站点、充电桩、道路统一放在基础设施域，避免多处维护。</p>
-      </article>
+      <div class="status-item">
+        <span class="status-label">地图版本</span>
+        <span class="status-value">{{ mapVersionLabel }}</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">路线来源</span>
+        <span class="status-value">{{ routeSourceLabel }}</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">层级</span>
+        <span class="status-value">{{ mapLevel }}</span>
+      </div>
+      <div class="status-item status-time">
+        <span class="status-label">更新时间</span>
+        <span class="status-value">{{ lastUpdatedLabel }}</span>
+      </div>
     </section>
 
     <ParkDeliveryOrderModal
@@ -318,6 +322,11 @@ const energyStats = computed(() => {
 const lastUpdatedLabel = computed(() => {
   if (!lastUpdatedAt.value) return '等待首次同步'
   return `态势更新于 ${lastUpdatedAt.value.toLocaleTimeString('zh-CN', { hour12: false })}`
+})
+const mapVersionLabel = computed(() => 'V43 · 2026-07-18')
+const routeSourceLabel = computed(() => {
+  if (selectedPlanId.value) return 'LOCAL_GRAPH'
+  return 'AMAP + LOCAL_GRAPH'
 })
 
 function taskStatusLabel(status: TaskStatus | string) {
@@ -857,35 +866,39 @@ button {
   box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.08);
 }
 
-.operating-principles {
-  display: grid;
-  grid-template-columns: 1.15fr repeat(3, 1fr);
+.map-status-bar {
+  display: flex;
+  flex-wrap: wrap;
   gap: 1px;
   margin-top: 18px;
-  border-radius: 16px;
+  border: 1px solid var(--ops-border);
+  border-radius: 14px;
   overflow: hidden;
   background: var(--ops-border);
 }
-.operating-principles > div,
-.operating-principles article {
-  padding: 22px;
+.status-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
   background: #0b1117;
+  flex: 1 1 auto;
+  min-width: 140px;
 }
-.operating-principles article span {
-  color: var(--ops-cyan);
-  font:
-    700 11px 'Geist Mono',
-    monospace;
+.status-item.status-time {
+  flex: 1.4 1 180px;
 }
-.operating-principles article strong {
-  display: block;
-  margin-top: 14px;
-}
-.operating-principles article p {
-  margin: 8px 0 0;
+.status-label {
   color: var(--ops-muted);
-  line-height: 1.55;
-  font-size: 12px;
+  font:
+    700 10px 'Geist Mono',
+    monospace;
+  letter-spacing: 0.16em;
+}
+.status-value {
+  color: var(--ops-text);
+  font:
+    600 13px 'Geist Mono',
+    monospace;
 }
 
 @media (max-width: 1280px) {
@@ -918,9 +931,11 @@ button {
     min-height: 54px;
   }
   .decision-stack,
-  .scene-rail,
-  .operating-principles {
+  .scene-rail {
     grid-template-columns: 1fr;
+  }
+  .status-item {
+    min-width: 120px;
   }
   .map-stage {
     height: 460px;

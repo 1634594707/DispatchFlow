@@ -152,3 +152,20 @@ export const ZJF_DELIVERY_ZONES: ZjfDeliveryZone[] = [
     color: '#eb2f96',
   },
 ]
+
+/**
+ * V-COORD-AUDIT：真实世界权威基准锚点（GCJ-02，与公开地理数据交叉验证）
+ * 来源：腾讯地图(主市场/物流港)、poi86 同点四系统实测(步行街)、
+ *       Nominatim/OSM(三星镇质心)。详见 docs/坐标基准-叠石桥家纺城.md。
+ * 约束：ZJF 全部站点坐标必须落在上述 GCJ-02 框架内；禁止混入 WGS-84
+ *       实测点后直接做欧氏/Haversine 距离比较（见路线审查 4.6）。
+ *       新增/导入坐标须先用 scripts/coord_benchmark.py 转 GCJ-02。
+ */
+export const ZJF_REAL_WORLD_REFERENCE = {
+  mainMarket:      { name: '叠石桥国际家纺城(主市场·大岛路88号)', lng: 121.076301, lat: 31.966722, src: '腾讯地图 GCJ-02' },
+  westGate:        { name: '主市场西门(叠林路×大岛路)',          lng: 121.073272, lat: 31.967058, src: '腾讯地图 GCJ-02' },
+  marketWalkingSt: { name: '叠石桥步行街实测基准点',            lng: 121.079287, lat: 31.964539, src: 'poi86 WGS-84→GCJ-02 实测' },
+  logisticsPort:   { name: '深国际·综合物流港(茅珵路)',         lng: 121.101561, lat: 31.918410, src: '腾讯地图 GCJ-02' },
+  townCenter:      { name: '三星镇(海门区)镇中心',             lng: 121.115222, lat: 31.966141, src: 'Nominatim WGS-84→GCJ-02' },
+  chuanjiang:      { name: '川姜/志浩面料市场(双中心西南)',     lng: 121.062280, lat: 31.912450, src: '既有 ZJF_L0_COVERAGE' },
+} as const
