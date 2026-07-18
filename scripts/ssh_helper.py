@@ -13,16 +13,30 @@ import stat
 import posixpath
 import paramiko
 
-HOST = "64.90.12.129"
-PORT = 22
-USER = "root"
-PASSWORD = "XMnYC5wGyVz5"
+HOST = os.getenv("DISPATCHFLOW_SSH_HOST", "")
+PORT = int(os.getenv("DISPATCHFLOW_SSH_PORT", "22"))
+USER = os.getenv("DISPATCHFLOW_SSH_USER", "dispatchflow")
+PASSWORD = os.getenv("DISPATCHFLOW_SSH_PASSWORD")
+KEY_FILE = os.getenv("DISPATCHFLOW_SSH_KEY")
 
 
 def connect():
+    if not HOST:
+        raise RuntimeError("请设置 DISPATCHFLOW_SSH_HOST")
+    if not PASSWORD and not KEY_FILE:
+        raise RuntimeError("请设置 DISPATCHFLOW_SSH_KEY，或临时设置 DISPATCHFLOW_SSH_PASSWORD")
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(HOST, port=PORT, username=USER, password=PASSWORD, timeout=30)
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.RejectPolicy())
+    client.connect(
+        HOST,
+        port=PORT,
+        username=USER,
+        password=PASSWORD,
+        key_filename=KEY_FILE,
+        timeout=30,
+        look_for_keys=not KEY_FILE and not PASSWORD,
+    )
     return client
 
 

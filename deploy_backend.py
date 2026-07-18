@@ -1,10 +1,5 @@
 """修复后端部署：停止旧容器，重建并启动"""
-import paramiko
-
-SERVER = "64.90.12.129"
-PORT = 22
-USER = "root"
-PASSWORD = "XMnYC5wGyVz5"
+from scripts.ssh_helper import HOST as SERVER, PORT, connect
 REMOTE_DIR = "/opt/dispatchflow"
 
 def ssh_exec(ssh, cmd, timeout=600):
@@ -21,10 +16,8 @@ def ssh_exec(ssh, cmd, timeout=600):
     return exit_code, out, err
 
 def main():
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print(f"Connecting to {SERVER}:{PORT}...")
-    ssh.connect(SERVER, port=PORT, username=USER, password=PASSWORD, timeout=30)
+    ssh = connect()
     print("Connected!")
 
     # 停止旧容器

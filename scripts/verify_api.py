@@ -1,14 +1,7 @@
 """Verify backend API endpoints with clean HTTP requests."""
-import paramiko
+from ssh_helper import connect
 
-HOST = "64.90.12.129"
-PORT = 22
-USER = "root"
-PASSWORD = "XMnYC5wGyVz5"
-
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect(HOST, port=PORT, username=USER, password=PASSWORD, timeout=30)
+client = connect()
 
 # Use heredoc to avoid shell quoting issues
 test_script = r'''

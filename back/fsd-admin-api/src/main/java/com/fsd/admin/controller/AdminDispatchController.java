@@ -572,9 +572,8 @@ public class AdminDispatchController {
 
     @GetMapping("/park/vehicles")
     @Operation(summary = "List park vehicle snapshots", description = "Live vehicle positions and status for the park map")
-    @SecurityRequirement(name = "")
     public ApiResponse<List<ParkVehicleSnapshotResponse>> listParkVehicles(HttpServletRequest request) {
-        requireAdminOrMobileOrderKey(request);
+        AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(parkPilotService.listVehicleSnapshots());
     }
 

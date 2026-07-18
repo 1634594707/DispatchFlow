@@ -41,6 +41,10 @@ back/**/target/
 back/boot.out.log
 back/boot.err.log
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Logs
 *.log
 

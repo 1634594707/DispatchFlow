@@ -1,21 +1,13 @@
 """Check MySQL charset and table encoding."""
-import paramiko
+from ssh_helper import connect
 
-HOST = "64.90.12.129"
-PORT = 22
-USER = "root"
-PASSWORD = "XMnYC5wGyVz5"
-MYSQL_PASS = "Fsd_Mysql_2026!Str0ng"
-
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect(HOST, port=PORT, username=USER, password=PASSWORD, timeout=30)
+client = connect()
 
 cmds = [
-    f"docker exec fsd-mysql mysql -uroot -p'{MYSQL_PASS}' -e \"SHOW VARIABLES LIKE 'character_set_%';\"",
-    f"docker exec fsd-mysql mysql -uroot -p'{MYSQL_PASS}' -e \"SHOW VARIABLES LIKE 'collation_%';\"",
-    f"docker exec fsd-mysql mysql -uroot -p'{MYSQL_PASS}' fsd_core -e \"SHOW CREATE TABLE t_park_geofence;\"",
-    f"docker exec fsd-mysql mysql -uroot -p'{MYSQL_PASS}' fsd_core -e \"SELECT id, fence_name, hex(fence_name) FROM t_park_geofence LIMIT 5;\"",
+    "docker exec fsd-mysql sh -lc 'MYSQL_PWD=\"$MYSQL_ROOT_PASSWORD\" mysql -uroot -e \"SHOW VARIABLES LIKE \\\"character_set_%\\\";\"'",
+    "docker exec fsd-mysql sh -lc 'MYSQL_PWD=\"$MYSQL_ROOT_PASSWORD\" mysql -uroot -e \"SHOW VARIABLES LIKE \\\"collation_%\\\";\"'",
+    "docker exec fsd-mysql sh -lc 'MYSQL_PWD=\"$MYSQL_ROOT_PASSWORD\" mysql -uroot fsd_core -e \"SHOW CREATE TABLE t_park_geofence;\"'",
+    "docker exec fsd-mysql sh -lc 'MYSQL_PWD=\"$MYSQL_ROOT_PASSWORD\" mysql -uroot fsd_core -e \"SELECT id, fence_name, hex(fence_name) FROM t_park_geofence LIMIT 5;\"'",
 ]
 
 for cmd in cmds:

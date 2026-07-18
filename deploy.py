@@ -12,17 +12,13 @@ DispatchFlow 全量部署脚本（Phase 1-9）
   python deploy.py
 """
 
-import paramiko
 import os
 import subprocess
 import sys
 import time
+from scripts.ssh_helper import HOST as SERVER, PORT, USER, connect
 
 # ==================== 服务器配置 ====================
-SERVER = '64.90.12.129'
-PORT = 22
-USER = 'root'
-PASSWORD = 'XMnYC5wGyVz5'
 REMOTE_BASE = '/opt/dispatchflow'
 LOCAL_BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -131,9 +127,7 @@ def main():
 
     # 2. 连接服务器
     print('\n[2/6] 连接服务器...')
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(SERVER, port=PORT, username=USER, password=PASSWORD, timeout=30)
+    ssh = connect()
     sftp = ssh.open_sftp()
     print(f'  已连接: {USER}@{SERVER}:{PORT}')
 

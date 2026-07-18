@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 public class MobileOrderAuthServiceImpl implements MobileOrderAuthService {
 
     private static final int MOBILE_RATE_LIMIT_PER_MINUTE = 30;
+    private static final String UNSAFE_NO_AUTH_PROP = "fsd.mobile-order.unsafe-no-auth";
 
     private final ExternalApiKeyMapper apiKeyMapper;
     private final Map<String, RateWindow> rateWindows = new ConcurrentHashMap<>();
@@ -28,7 +29,7 @@ public class MobileOrderAuthServiceImpl implements MobileOrderAuthService {
 
     @Override
     public void validateMobileOrderKey(String apiKey) {
-        if (!requireApiKey) {
+        if (!requireApiKey && Boolean.getBoolean(UNSAFE_NO_AUTH_PROP)) {
             return;
         }
         if (apiKey == null || apiKey.isBlank()) {

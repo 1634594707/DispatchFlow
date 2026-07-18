@@ -1,9 +1,6 @@
-import paramiko
-import sys
+from scripts.ssh_helper import connect
 
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect('64.90.12.129', port=22, username='root', password='XMnYC5wGyVz5', timeout=15)
+ssh = connect()
 
 commands = [
     'ls -la /opt/dispatchflow/',

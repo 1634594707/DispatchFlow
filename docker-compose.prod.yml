@@ -128,8 +128,8 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASS}
       FLYWAY_ENABLED: "true"
       # 生产关闭 Swagger 外部访问（仅通过 Nginx 内网白名单放行）
-      SPRINGDOC_API_DOCS_ENABLED: "true"
-      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
+      SPRINGDOC_API_DOCS_ENABLED: "false"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
       FSD_ADMIN_AUTH_ENABLED: "true"
       FSD_ADMIN_USER: ${FSD_ADMIN_USER}
       FSD_ADMIN_PASSWORD: ${FSD_ADMIN_PASSWORD}
