@@ -1,5 +1,5 @@
 <template>
-  <a-config-provider :theme="themeConfig">
+  <a-config-provider :theme="themeConfig" :locale="zhCN">
     <router-view />
 
     <!-- PWA Install Prompt — 4-state model (P0-1, P2-7, P2-8):
@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { h, watch } from 'vue'
 import { Button, notification } from 'ant-design-vue'
+import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import { usePWAInstall } from '@/composables/usePWAInstall'
 import { themeConfig } from '@/config/theme'
 
