@@ -21,7 +21,10 @@ import com.fsd.vehicle.mapper.VehicleMapper;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -38,6 +41,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class RoadRouteValidateAdminService {
+
+    private static final Logger log = LoggerFactory.getLogger(RoadRouteValidateAdminService.class);
 
     private final RoadRouteService roadRouteService;
     private final RoadRouteCollisionValidator collisionValidator;
@@ -65,7 +70,7 @@ public class RoadRouteValidateAdminService {
 
     public RoadRouteValidateResponse validate(RoadRouteValidateRequest request) {
         // V43: 生成路线唯一标识
-        String routeId = "ROUTE-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String routeId = "ROUTE-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         String routeMode = resolveRouteMode(request);
         boolean allowStraightLine = resolveAllowStraightLine(request);
 
@@ -186,8 +191,8 @@ public class RoadRouteValidateAdminService {
                     unreachableReason == null ? null : unreachableReason.code(),
                     validation.invalid() ? "FAILED" : "PLANNED",
                     null, request.getVehicleId());
-        } catch (Exception ignored) {
-            // 审计失败不影响主流程
+        } catch (RuntimeException ex) {
+            log.warn("Failed to save route audit routeId={}: {}", routeId, ex.getMessage(), ex);
         }
 
         return RoadRouteValidateResponse.builder()
@@ -258,7 +263,7 @@ public class RoadRouteValidateAdminService {
         if (request.getRouteMode() == null || request.getRouteMode().isBlank()) {
             return "REAL_ROAD";
         }
-        return request.getRouteMode().toUpperCase();
+        return request.getRouteMode().toUpperCase(Locale.ROOT);
     }
 
     private boolean resolveAllowStraightLine(RoadRouteValidateRequest request) {

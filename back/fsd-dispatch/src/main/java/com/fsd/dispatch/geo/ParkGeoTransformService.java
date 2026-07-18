@@ -156,27 +156,31 @@ public class ParkGeoTransformService {
         }
         // A^T A = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]]
         // 解 3x3 线性方程组（Cramer 法则）
-        double[] lngParams = solve3x3(sxx, sxy, sx, sxy, syy, sy, sx, sy, n, sxLng, syLng, sLng);
-        double[] latParams = solve3x3(sxx, sxy, sx, sxy, syy, sy, sx, sy, n, sxLat, syLat, sLat);
-        if (lngParams == null || latParams == null) {
+        Optional<double[]> lngSolution = solve3x3(
+                sxx, sxy, sx, sxy, syy, sy, sx, sy, n, sxLng, syLng, sLng);
+        Optional<double[]> latSolution = solve3x3(
+                sxx, sxy, sx, sxy, syy, sy, sx, sy, n, sxLat, syLat, sLat);
+        if (lngSolution.isEmpty() || latSolution.isEmpty()) {
             return null;
         }
+        double[] lngParams = lngSolution.orElseThrow();
+        double[] latParams = latSolution.orElseThrow();
         affineCoefficients = new AffineCoefficients(
                 lngParams[0], lngParams[1], lngParams[2],
                 latParams[0], latParams[1], latParams[2]);
         return affineCoefficients;
     }
 
-    /** 解 3x3 线性方程组 M * [p0, p1, p2]^T = rhs，返回 null 表示奇异。 */
-    private static double[] solve3x3(double m00, double m01, double m02,
-                                      double m10, double m11, double m12,
-                                      double m20, double m21, double m22,
-                                      double r0, double r1, double r2) {
+    /** 解 3x3 线性方程组 M * [p0, p1, p2]^T = rhs，空值表示奇异。 */
+    private static Optional<double[]> solve3x3(double m00, double m01, double m02,
+                                                double m10, double m11, double m12,
+                                                double m20, double m21, double m22,
+                                                double r0, double r1, double r2) {
         double det = m00 * (m11 * m22 - m12 * m21)
                 - m01 * (m10 * m22 - m12 * m20)
                 + m02 * (m10 * m21 - m11 * m20);
         if (Math.abs(det) < 1e-15) {
-            return null;
+            return Optional.empty();
         }
         double p0 = (r0 * (m11 * m22 - m12 * m21)
                 - m01 * (r1 * m22 - m12 * r2)
@@ -187,7 +191,7 @@ public class ParkGeoTransformService {
         double p2 = (m00 * (m11 * r2 - r1 * m21)
                 - m01 * (m10 * r2 - r1 * m20)
                 + r0 * (m10 * m21 - m11 * m20)) / det;
-        return new double[]{p0, p1, p2};
+        return Optional.of(new double[]{p0, p1, p2});
     }
 
     private static BigDecimal scale(double value) {

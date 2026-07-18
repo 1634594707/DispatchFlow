@@ -1,7 +1,9 @@
 package com.fsd.dispatch.fleet.vda5050;
 
 import jakarta.annotation.PreDestroy;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
@@ -175,7 +177,7 @@ public class Vda5050MqttGateway implements MqttCallback {
 
             sslContext.init(keyManagers, trustManagers, new java.security.SecureRandom());
             return sslContext.getSocketFactory();
-        } catch (Exception ex) {
+        } catch (GeneralSecurityException | IOException ex) {
             log.warn("VDA5050 MQTT TLS setup failed, falling back to JVM defaults: {}", ex.getMessage());
             return null;
         }

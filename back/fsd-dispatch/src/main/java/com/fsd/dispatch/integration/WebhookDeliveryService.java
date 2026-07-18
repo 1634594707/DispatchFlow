@@ -15,6 +15,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -249,7 +250,7 @@ public class WebhookDeliveryService {
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_ALGORITHM));
             byte[] digest = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
-        } catch (Exception ex) {
+        } catch (GeneralSecurityException ex) {
             // Should never happen for HmacSHA256; fall back to a digest-free marker so the
             // receiver can still reject if it expects a signature.
             log.warn("HMAC-SHA256 signing failed: {}", ex.getMessage());

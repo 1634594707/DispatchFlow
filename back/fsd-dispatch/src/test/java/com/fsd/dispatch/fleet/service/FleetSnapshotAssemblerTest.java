@@ -1,6 +1,7 @@
 package com.fsd.dispatch.fleet.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.fsd.dispatch.config.ParkPilotProperties;
@@ -9,6 +10,7 @@ import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.vehicle.entity.VehicleEntity;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
 class FleetSnapshotAssemblerTest {
@@ -33,12 +35,14 @@ class FleetSnapshotAssemblerTest {
                 .y(BigDecimal.valueOf(200))
                 .longitude(new BigDecimal("121.070000"))
                 .latitude(new BigDecimal("31.920000"))
+                .lastTelemetryAt(LocalDateTime.now())
                 .build();
 
         var snapshot = assembler.assemble(vehicle, runtime);
 
         assertEquals(new BigDecimal("121.070000"), snapshot.getLongitude());
         assertEquals(new BigDecimal("31.920000"), snapshot.getLatitude());
+        assertEquals(false, snapshot.getTelemetryStale());
     }
 
     @Test
@@ -56,5 +60,6 @@ class FleetSnapshotAssemblerTest {
 
         assertEquals(new BigDecimal("121.080354"), snapshot.getLongitude());
         assertEquals(new BigDecimal("31.961977"), snapshot.getLatitude());
+        assertTrue(snapshot.getTelemetryStale());
     }
 }

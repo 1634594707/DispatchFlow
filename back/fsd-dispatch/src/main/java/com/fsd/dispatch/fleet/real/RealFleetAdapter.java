@@ -46,11 +46,15 @@ public class RealFleetAdapter implements FleetAdapter {
         return VehicleLinkMode.REAL;
     }
 
-    public void ingestTelemetry(VehicleEntity vehicle, VehicleTelemetryRequest request) {
+    public boolean ingestTelemetry(VehicleEntity vehicle, VehicleTelemetryRequest request) {
         FleetRuntime existing = fleetRuntimeService.get(vehicle.getId()).orElse(null);
+        if (isDelayed(existing, request)) {
+            return false;
+        }
         swapCoordinator.onTelemetry(vehicle, request, existing);
         List<FleetTrajectoryPoint> trajectory = appendTrajectory(existing, request);
         GeoPoint geo = fleetGeoResolver.resolve(request).orElse(null);
+        List<FleetTrajectoryPoint> geoTrajectory = appendGeoTrajectory(existing, geo, request);
         FleetRuntime runtime = FleetRuntime.builder()
                 .vehicleId(vehicle.getId())
                 .runtimeStage(request.getRuntimeStage())
@@ -62,8 +66,14 @@ public class RealFleetAdapter implements FleetAdapter {
                 .y(request.getY())
                 .longitude(geo != null ? geo.longitude() : null)
                 .latitude(geo != null ? geo.latitude() : null)
+                .heading(existing != null ? existing.getHeading() : null)
                 .lastTelemetryAt(request.getReportTime())
+                .lastEventSeq(request.getEventSeq())
                 .trajectory(trajectory)
+                .geoTrajectory(geoTrajectory)
+                .plannedRouteGeo(existing != null ? existing.getPlannedRouteGeo() : new ArrayList<>())
+                .routeSource(existing != null ? existing.getRouteSource() : null)
+                .routeInvalid(existing != null ? existing.getRouteInvalid() : null)
                 .build();
         fleetRuntimeService.save(runtime);
         if (geo != null) {
@@ -78,6 +88,20 @@ public class RealFleetAdapter implements FleetAdapter {
                     request.getSoc(),
                     request.getReportTime());
         }
+        return true;
+    }
+
+    private boolean isDelayed(FleetRuntime existing, VehicleTelemetryRequest request) {
+        if (existing == null || existing.getLastTelemetryAt() == null) {
+            return false;
+        }
+        int timeOrder = request.getReportTime().compareTo(existing.getLastTelemetryAt());
+        if (timeOrder < 0) {
+            return true;
+        }
+        return timeOrder == 0
+                && existing.getLastEventSeq() != null
+                && request.getEventSeq() <= existing.getLastEventSeq();
     }
 
     private List<FleetTrajectoryPoint> appendTrajectory(FleetRuntime existing, VehicleTelemetryRequest request) {
@@ -102,5 +126,33 @@ public class RealFleetAdapter implements FleetAdapter {
             return new ArrayList<>(trajectory.subList(trajectory.size() - maxTrail, trajectory.size()));
         }
         return trajectory;
+    }
+
+    private List<FleetTrajectoryPoint> appendGeoTrajectory(FleetRuntime existing,
+                                                            GeoPoint geo,
+                                                            VehicleTelemetryRequest request) {
+        List<FleetTrajectoryPoint> points = existing != null && existing.getGeoTrajectory() != null
+                ? new ArrayList<>(existing.getGeoTrajectory())
+                : new ArrayList<>();
+        if (geo == null) {
+            return points;
+        }
+        FleetTrajectoryPoint latest = points.isEmpty() ? null : points.get(points.size() - 1);
+        if (latest == null
+                || latest.getLongitude() == null
+                || latest.getLatitude() == null
+                || latest.getLongitude().compareTo(geo.longitude()) != 0
+                || latest.getLatitude().compareTo(geo.latitude()) != 0) {
+            points.add(FleetTrajectoryPoint.builder()
+                    .code(Optional.ofNullable(request.getTargetCode()).orElse(request.getRuntimeStage()))
+                    .longitude(geo.longitude())
+                    .latitude(geo.latitude())
+                    .build());
+        }
+        int maxTrail = 30;
+        if (points.size() > maxTrail) {
+            return new ArrayList<>(points.subList(points.size() - maxTrail, points.size()));
+        }
+        return points;
     }
 }

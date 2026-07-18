@@ -402,9 +402,6 @@ public class AdminDispatchController {
             throw new BusinessException("DISPATCH_EXCEPTION_ALREADY_RESOLVED", "Dispatch exception already resolved");
         }
         if ("REASSIGN".equals(request.getAction())) {
-            if (exception == null) {
-                throw new BusinessException("DISPATCH_EXCEPTION_NOT_FOUND", "Dispatch exception not found");
-            }
             if (request.getVehicleId() == null) {
                 throw new BusinessException("DISPATCH_EXCEPTION_VEHICLE_REQUIRED", "Reassign action requires vehicleId");
             }
@@ -571,9 +568,10 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/park/vehicles")
-    @Operation(summary = "List park vehicle snapshots", description = "Live vehicle positions and status for the park map")
+    @Operation(summary = "List park vehicle snapshots", description = "Admin token or X-Mobile-Api-Key for order tracking")
+    @SecurityRequirement(name = "")
     public ApiResponse<List<ParkVehicleSnapshotResponse>> listParkVehicles(HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        requireAdminOrMobileOrderKey(request);
         return ApiResponse.success(parkPilotService.listVehicleSnapshots());
     }
 

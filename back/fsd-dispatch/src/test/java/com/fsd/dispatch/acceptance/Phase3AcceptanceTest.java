@@ -1,9 +1,11 @@
 package com.fsd.dispatch.acceptance;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -95,6 +97,27 @@ class Phase3AcceptanceTest {
         gatewayService.ingestTelemetry(request);
 
         verify(fleetRuntimeService, times(1)).save(any(FleetRuntime.class));
+    }
+
+    @Test
+    void delayedTelemetryShouldNotOverwriteLatestRuntime() {
+        FleetRuntimeService fleetRuntimeService = mock(FleetRuntimeService.class);
+        LocalDateTime latestTime = LocalDateTime.now();
+        FleetRuntime latest = FleetRuntime.builder()
+                .vehicleId(1L)
+                .lastTelemetryAt(latestTime)
+                .lastEventSeq(20L)
+                .build();
+        when(fleetRuntimeService.get(1L)).thenReturn(Optional.of(latest));
+
+        RealFleetAdapter adapter = new RealFleetAdapter(
+                fleetRuntimeService, mock(FleetTelemetryPersistenceService.class), noopSwapCoordinator(), fleetGeoResolver,
+                mock(GeofenceBreachService.class));
+        VehicleTelemetryRequest delayed = telemetryRequest(19L);
+        delayed.setReportTime(latestTime.minusSeconds(2));
+
+        assertFalse(adapter.ingestTelemetry(realVehicle(), delayed));
+        verify(fleetRuntimeService, never()).save(any(FleetRuntime.class));
     }
 
     @Test

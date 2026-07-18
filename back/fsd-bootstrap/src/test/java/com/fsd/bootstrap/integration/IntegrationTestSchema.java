@@ -3,7 +3,7 @@ package com.fsd.bootstrap.integration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * H2 schema for bootstrap integration tests (aligned with V7/V8/V9).
+ * H2 schema for bootstrap integration tests (aligned with current entity columns).
  */
 final class IntegrationTestSchema {
 
@@ -79,6 +79,12 @@ final class IntegrationTestSchema {
                     capacity_limit INT,
                     service_hours VARCHAR(32),
                     avg_service_seconds INT,
+                    anchor_node_code VARCHAR(64),
+                    service_direction VARCHAR(32),
+                    allowed_vehicle_types VARCHAR(255),
+                    unreachable_reason VARCHAR(64),
+                    unreachable_until TIMESTAMP,
+                    station_confidence VARCHAR(8),
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -181,6 +187,18 @@ final class IntegrationTestSchema {
                     delivery_zone VARCHAR(32) DEFAULT 'BOTH',
                     max_load_capacity INT,
                     current_load INT DEFAULT 0,
+                    width_cm INT,
+                    length_cm INT,
+                    height_cm INT,
+                    turning_radius_m DECIMAL(10,2),
+                    allowed_road_classes VARCHAR(255),
+                    max_speed_kmh INT,
+                    current_speed_kmh DECIMAL(10,2),
+                    current_heading DECIMAL(10,2),
+                    manual_override TINYINT DEFAULT 0,
+                    emergency_mode TINYINT DEFAULT 0,
+                    safety_buffer_meters DECIMAL(10,2),
+                    current_map_version_id BIGINT,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -275,6 +293,10 @@ final class IntegrationTestSchema {
                     slot_code VARCHAR(64) NOT NULL,
                     slot_name VARCHAR(128) NOT NULL,
                     slot_type VARCHAR(32) NOT NULL,
+                    facing_direction VARCHAR(16),
+                    entry_node_code VARCHAR(64),
+                    exit_node_code VARCHAR(64),
+                    blocking_main_road TINYINT DEFAULT 0,
                     coord_x DECIMAL(12,4) NOT NULL,
                     coord_y DECIMAL(12,4) NOT NULL,
                     coord_lng DECIMAL(10,6),
@@ -300,6 +322,11 @@ final class IntegrationTestSchema {
                     status VARCHAR(32) NOT NULL,
                     occupied_vehicle_id BIGINT,
                     max_power_kw DECIMAL(8,2),
+                    entry_node_code VARCHAR(64),
+                    exit_node_code VARCHAR(64),
+                    plug_type VARCHAR(32),
+                    reservation_state VARCHAR(32),
+                    estimated_release_at TIMESTAMP,
                     sort_order INT DEFAULT 0,
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -358,6 +385,16 @@ final class IntegrationTestSchema {
                     status VARCHAR(32) NOT NULL,
                     speed_limit_kmh INT DEFAULT 15,
                     congestion_level INT NOT NULL DEFAULT 0,
+                    width_meters DECIMAL(10,2),
+                    road_class VARCHAR(32),
+                    access_state VARCHAR(32),
+                    polyline_geojson CLOB,
+                    allowed_vehicle_types VARCHAR(255),
+                    turn_restriction VARCHAR(32),
+                    gate_code VARCHAR(64),
+                    block_reason VARCHAR(255),
+                    blocked_from TIMESTAMP,
+                    blocked_until TIMESTAMP,
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -379,6 +416,7 @@ final class IntegrationTestSchema {
                     weight_plugged_standby_bonus DECIMAL(10,4) NOT NULL DEFAULT 80.0,
                     min_assignable_soc INT NOT NULL DEFAULT 30,
                     full_soc INT NOT NULL DEFAULT 100,
+                    energy_recovery_mode VARCHAR(32) DEFAULT 'CHARGE',
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

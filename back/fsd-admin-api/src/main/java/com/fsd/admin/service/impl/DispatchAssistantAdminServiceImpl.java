@@ -5,7 +5,6 @@ import com.fsd.admin.service.DispatchAssistantAdminService;
 import com.fsd.admin.vo.AdminAssistantAction;
 import com.fsd.admin.vo.AdminAssistantResponse;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
-import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.vo.DispatchInterventionQueueResponse;
 import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
@@ -26,14 +25,11 @@ public class DispatchAssistantAdminServiceImpl implements DispatchAssistantAdmin
     private static final Pattern VEHICLE_CODE_PATTERN = Pattern.compile("(PARK-[A-Z0-9-]+|REAL-[A-Z0-9-]+|VEH-[A-Z0-9-]+)", Pattern.CASE_INSENSITIVE);
 
     private final DispatchAdminQueryService dispatchAdminQueryService;
-    private final DispatchExceptionService dispatchExceptionService;
     private final ParkPilotService parkPilotService;
 
     public DispatchAssistantAdminServiceImpl(DispatchAdminQueryService dispatchAdminQueryService,
-                                             DispatchExceptionService dispatchExceptionService,
                                              ParkPilotService parkPilotService) {
         this.dispatchAdminQueryService = dispatchAdminQueryService;
-        this.dispatchExceptionService = dispatchExceptionService;
         this.parkPilotService = parkPilotService;
     }
 

@@ -24,6 +24,8 @@ import dev.samstevens.totp.secret.SecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
 import dev.samstevens.totp.time.TimeProvider;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -48,6 +50,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private static final int MAX_LOGIN_ATTEMPTS_PER_MINUTE = 10;
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final String TOKEN_SEPARATOR = ".";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final AdminUserMapper adminUserMapper;
     private final AdminSessionMapper adminSessionMapper;
@@ -95,7 +98,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         log.warn("fsd.security.admin.token-hmac-key not set and field-encryption key unavailable; "
                 + "using a random per-instance HMAC key. Session tokens will NOT survive restarts.");
         byte[] random = new byte[32];
-        new java.security.SecureRandom().nextBytes(random);
+        SECURE_RANDOM.nextBytes(random);
         return random;
     }
 
@@ -287,7 +290,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
             mac.init(new SecretKeySpec(tokenHmacKey, HMAC_ALGORITHM));
             byte[] digest = mac.doFinal(sessionSecret.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
-        } catch (Exception ex) {
+        } catch (GeneralSecurityException ex) {
             log.warn("Failed to sign session token: {}", ex.getMessage());
             return "";
         }

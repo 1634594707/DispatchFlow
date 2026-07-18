@@ -20,6 +20,12 @@ public class ParkGeofenceResponse {
 
     private String fenceType;
 
+    /** L1_CORE / L1_CANDIDATE_ENVELOPE / SAFETY_RESTRICTED. */
+    private String scopeCode;
+
+    /** Whether this polygon may grant automatic dispatch eligibility. */
+    private Boolean dispatchable;
+
     /** GCJ-02 polygon vertices [lng, lat] */
     private List<List<BigDecimal>> polygon;
 

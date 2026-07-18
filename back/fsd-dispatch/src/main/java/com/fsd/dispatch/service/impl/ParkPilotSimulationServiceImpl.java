@@ -772,6 +772,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.targetY = state.chargingPoint.getY();
         vehicle.setCurrentLongitude(state.chargingPoint.getX());
         vehicle.setCurrentLatitude(state.chargingPoint.getY());
+        syncGeoPositionFromPoint(state, state.chargingPoint);
         bindPluggedStandby(vehicle, state);
     }
 
@@ -779,6 +780,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         ensureStandbyLocation(vehicle, state);
         vehicle.setCurrentLongitude(state.chargingPoint.getX());
         vehicle.setCurrentLatitude(state.chargingPoint.getY());
+        syncGeoPositionFromPoint(state, state.chargingPoint);
         state.targetCode = state.chargingPoint.getCode();
         state.targetType = "STANDBY";
         state.targetX = state.chargingPoint.getX();
@@ -882,6 +884,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             vehicle.setCurrentLongitude(end.getX());
             vehicle.setCurrentLatitude(end.getY());
             state.routeIndex = state.route.size();
+            return;
         }
         syncParkCoordsFromGeo(vehicle, state);
     }
@@ -1083,6 +1086,12 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.targetType = "STANDBY";
         state.targetX = state.standbyPoint.getX();
         state.targetY = state.standbyPoint.getY();
+        if (!schematic
+                && state.standbyPoint.getLongitude() != null
+                && state.standbyPoint.getLatitude() != null) {
+            state.geoLongitude = state.standbyPoint.getLongitude();
+            state.geoLatitude = state.standbyPoint.getLatitude();
+        }
         state.route = List.of();
         state.routeIndex = 0;
         recordPoint(state, vehicle);
@@ -1256,16 +1265,42 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             state.routeIndex = 0;
             return;
         }
+        if (state.lastX.compareTo(point.getX()) == 0 && state.lastY.compareTo(point.getY()) == 0) {
+            state.route = List.of(point);
+            state.routeIndex = 1;
+            if (PilotFleetSupport.isGeoPilotVehicle(vehicle)) {
+                syncGeoPositionFromPoint(state, point);
+            }
+            return;
+        }
         state.route = planRoute(vehicle.getId(), state.lastX, state.lastY, point.getX(), point.getY());
         state.routeIndex = state.route.size() > 1 ? 1 : state.route.size();
         if (PilotFleetSupport.isGeoPilotVehicle(vehicle)) {
-            beginGeoRouteForTarget(state, state.lastX, state.lastY, point.getX(), point.getY());
+            GeoPoint from = state.geoLongitude != null && state.geoLatitude != null
+                    ? new GeoPoint(state.geoLongitude, state.geoLatitude)
+                    : snapGeo(parkGeoTransformService.toGcj02(state.lastX, state.lastY).orElse(null));
+            GeoPoint to = point.getLongitude() != null && point.getLatitude() != null
+                    ? new GeoPoint(point.getLongitude(), point.getLatitude())
+                    : snapGeo(parkGeoTransformService.toGcj02(point.getX(), point.getY()).orElse(null));
+            beginGeoRoute(vehicle, state, from, to);
         } else {
             state.geoFollower = null;
             state.plannedGeoPolyline = List.of();
             state.routeSource = null;
             state.routeInvalid = false;
         }
+    }
+
+    private void syncGeoPositionFromPoint(SimulationMotionState state, ParkPointResponse point) {
+        if (point.getLongitude() == null || point.getLatitude() == null) {
+            return;
+        }
+        state.geoLongitude = point.getLongitude();
+        state.geoLatitude = point.getLatitude();
+        state.geoFollower = null;
+        state.plannedGeoPolyline = List.of();
+        state.routeSource = null;
+        state.routeInvalid = false;
     }
 
     private List<ParkPointResponse> planRoute(Long vehicleId,

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fsd.admin.service.AnalyticsAdminService;
 import com.fsd.dispatch.entity.ReportScheduleEntity;
 import com.fsd.dispatch.mapper.ReportScheduleMapper;
+import jakarta.mail.MessagingException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -59,7 +60,7 @@ public class ReportEmailScheduler {
                 sendReport(schedule);
                 schedule.setLastSentAt(now);
                 reportScheduleMapper.updateById(schedule);
-            } catch (Exception ex) {
+            } catch (RuntimeException | MessagingException ex) {
                 log.warn("Failed to send scheduled report id={}: {}", schedule.getId(), ex.getMessage());
             }
         }
@@ -76,12 +77,12 @@ public class ReportEmailScheduler {
                     : schedule.getLastSentAt();
             LocalDateTime next = cron.next(last);
             return next != null && !next.isAfter(now);
-        } catch (Exception ex) {
+        } catch (IllegalArgumentException ex) {
             return false;
         }
     }
 
-    private void sendReport(ReportScheduleEntity schedule) throws Exception {
+    private void sendReport(ReportScheduleEntity schedule) throws MessagingException {
         byte[] pdf = analyticsAdminService.exportPdf(LocalDate.now(), schedule.getParkId());
         List<String> recipients = Arrays.stream(schedule.getRecipients().split(","))
                 .map(String::trim)

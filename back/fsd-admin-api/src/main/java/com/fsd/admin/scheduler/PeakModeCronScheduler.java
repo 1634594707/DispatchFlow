@@ -68,7 +68,7 @@ public class PeakModeCronScheduler {
             LocalDateTime last = lastFiredAt == null ? now.minusMinutes(2) : lastFiredAt;
             LocalDateTime next = cron.next(last);
             return next != null && !next.isAfter(now);
-        } catch (Exception ex) {
+        } catch (IllegalArgumentException ex) {
             return false;
         }
     }

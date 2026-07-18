@@ -43,11 +43,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import com.lowagie.text.Document;
+import com.lowagie.text.DocumentException;
 import com.lowagie.text.Font;
 import com.lowagie.text.FontFactory;
 import com.lowagie.text.Paragraph;
@@ -329,7 +331,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     public String exportCsv(String dataset, String period) {
         String normalized = normalizePeriod(period);
         StringBuilder sb = new StringBuilder();
-        switch (dataset == null ? "" : dataset.toLowerCase()) {
+        switch (dataset == null ? "" : dataset.toLowerCase(Locale.ROOT)) {
             case "orders" -> {
                 sb.append("orderNo,status,priority,createdAt\n");
                 loadOrdersSince(rangeStart(normalized)).forEach(order ->
@@ -521,8 +523,9 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         if (period == null || period.isBlank()) {
             return "week";
         }
-        return switch (period.toLowerCase()) {
-            case "day", "week", "month" -> period.toLowerCase();
+        String normalized = period.toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "day", "week", "month" -> normalized;
             default -> "week";
         };
     }
@@ -720,7 +723,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         AdminAnalyticsDailySummaryResponse summary = getDailySummary(target, parkId);
         AdminAnalyticsEfficiencyResponse efficiency = getEfficiency("day", parkId);
         AdminAnalyticsChainKpiResponse chain = getChainKpi("day", parkId);
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
             Document document = new Document();
             PdfWriter.getInstance(document, out);
             document.open();
@@ -737,8 +741,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                     + " 分, 单车日均: " + chain.getTasksPerVehiclePerDay(), bodyFont));
             document.close();
             return out.toByteArray();
-        } catch (Exception ex) {
-            throw new RuntimeException("PDF export failed", ex);
+        } catch (DocumentException ex) {
+            throw new IllegalStateException("PDF export failed", ex);
         }
     }
 
