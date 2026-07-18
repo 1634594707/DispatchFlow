@@ -165,14 +165,14 @@ test('task list dispatch reassign and cancel trigger real user-path APIs', async
 
   await page.goto('/tasks')
   await page.getByRole('row', { name: /TK-101/ }).getByRole('button', { name: '派单' }).click()
-  await page.getByRole('combobox', { name: '选择车辆' }).click()
+  await page.getByPlaceholder('请选择在线空闲车辆').click()
   await page.getByTitle(/VH-001/).click()
   await Promise.all([
     page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/tasks/101/manual-assign'),
     page.getByRole('button', { name: '确 定' }).click(),
   ])
   await page.getByRole('row', { name: /TK-102/ }).getByRole('button', { name: '改派' }).click()
-  await page.getByRole('combobox', { name: '新车辆' }).click()
+  await page.getByPlaceholder('请选择新车辆').click()
   await page.getByTitle(/VH-001/).click()
   await page.getByPlaceholder('请输入改派原因（至少5个字符）').fill('车辆临时调整')
   await Promise.all([
@@ -182,7 +182,7 @@ test('task list dispatch reassign and cancel trigger real user-path APIs', async
   await page.getByRole('row', { name: /TK-102/ }).getByRole('button', { name: '取消' }).click()
   await Promise.all([
     page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/tasks/102/cancel'),
-    page.getByRole('button', { name: '确认' }).click(),
+    page.locator('.ant-popconfirm .ant-btn-primary').click(),
   ])
 
   expect(calls.map(call => new URL(call.path).pathname)).toEqual([
@@ -208,7 +208,7 @@ test('order list cancel triggers real user-path API', async ({ page }) => {
   await page.getByRole('row', { name: /OD-301/ }).getByRole('button', { name: '取消' }).click()
   await Promise.all([
     page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/orders/301/cancel'),
-    page.getByRole('button', { name: '确认' }).click(),
+    page.locator('.ant-popconfirm .ant-btn-primary').click(),
   ])
 
   expect(calls).toEqual([{ remark: '订单列表取消' }])
@@ -226,7 +226,7 @@ test('exception reassignment submits selected vehicle from drawer', async ({ pag
 
   await page.goto('/exceptions')
   await page.getByRole('row', { name: /车辆故障/ }).getByRole('button', { name: '处理' }).click()
-  await page.getByRole('combobox', { name: '选择车辆' }).click()
+  await page.getByPlaceholder('请选择在线空闲车辆').click()
   await page.getByTitle(/VH-002/).click()
   await page.getByPlaceholder('请描述处理方案（至少10个字符）').fill('重新派单到空闲车辆处理')
   await Promise.all([
