@@ -52,6 +52,18 @@ async function mockDispatchWorkbench(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // Catch-all fallback registered FIRST so it has the LOWEST priority (Playwright
+  // matches routes LIFO). seedAdminSession and test-specific page.route() calls
+  // register later and therefore take precedence. Returns empty containers so
+  // list/detail pages can render without hanging on unmocked ancillary APIs
+  // (parks dropdown, vehicle options, etc.).
+  await page.route(api('/admin/**'), route => {
+    const url = new URL(route.request().url())
+    if (url.pathname.endsWith('/query') || url.pathname.includes('/list')) {
+      return route.fulfill({ json: ok({ records: [], total: 0, pageNo: 1, pageSize: 10 }) })
+    }
+    return route.fulfill({ json: ok({}) })
+  })
   await seedAdminSession(page)
   await installConsoleGate(page)
   await page.route(/\/manifest\.webmanifest(\?.*)?$/, route => route.fulfill({ contentType: 'application/manifest+json', json: { name: 'DispatchFlow', icons: [] } }))
