@@ -46,7 +46,8 @@ class AnalyticsExportRowLimitTest {
                 mock(VehicleMapper.class),
                 mock(FleetRuntimeService.class),
                 mock(ParkMapper.class),
-                mock(AdminParkScopeService.class));
+                mock(AdminParkScopeService.class),
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         ReflectionTestUtils.setField(service, "exportMaxRows", 2);
     }
 

@@ -115,7 +115,7 @@
 - [ ] 评估 `antd` 约 1.3 MB chunk，按页面或功能拆分可延迟加载的组件。
 - [ ] 对工作台、任务列表、车辆列表和地图快照接口执行 SQL、Redis、序列化和响应体大小分析。
 - [x] 对导出数据量设置上限；超过上限时使用异步报表作业和历史报表查询。CSV 导出行数上限 fsd.admin.export.max-rows（默认 50000），超限抛 EXPORT_ROW_LIMIT_EXCEEDED 并提示缩小范围或改用报表计划与历史报表下载；`AnalyticsExportRowLimitTest` 覆盖上限内正常导出与超限拒绝。
-- [ ] 为实时连接、Outbox、RabbitMQ、Redis、数据库查询和导出任务增加 Prometheus 指标；本轮已完成实时连接、SSE ticket 和 Outbox 指标，RabbitMQ/Redis/数据库/导出指标仍待补齐。
+- [x] 为实时连接、Outbox、RabbitMQ、Redis、数据库查询和导出任务增加 Prometheus 指标；实时连接（调度流 + 遥测流独立前缀）、SSE ticket 和 Outbox 指标已注册，本轮新增 `InfraMetricsBinder`：RabbitMQ 各业务队列积压深度 gauge（dispatchflow.rabbitmq.queue.backlog）、Redis 可用性与 ping 延迟 gauge（dispatchflow.redis.available / ping.latency.ms），以及导出任务计数器（dispatchflow.export.requests{dataset,result} / dispatchflow.export.rows）；数据库连接池指标由 Spring Boot Actuator 自动暴露的 HikariCP/JDBC meters 提供。InfraMetricsBinderTest 覆盖队列积压与 Redis 探测。
 - [ ] 在 `docs/DispatchFlow_生产运维清单_2026-07-18.md` 中补充本路线图新增的监控、告警和回滚项。
 - [ ] 生产环境健康检查覆盖 `/internal/actuator/health`、前端首页、登录、SSE ticket、工作台快照和车辆监控。
 

@@ -57,6 +57,7 @@ import com.lowagie.text.Paragraph;
 import com.lowagie.text.pdf.PdfWriter;
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.atomic.AtomicInteger;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -79,6 +80,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     private final FleetRuntimeService fleetRuntimeService;
     private final ParkMapper parkMapper;
     private final AdminParkScopeService adminParkScopeService;
+    private final MeterRegistry meterRegistry;
 
     public AnalyticsAdminServiceImpl(OrderMapper orderMapper,
                                      DispatchTaskMapper dispatchTaskMapper,
@@ -89,7 +91,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                                      VehicleMapper vehicleMapper,
                                      FleetRuntimeService fleetRuntimeService,
                                      ParkMapper parkMapper,
-                                     AdminParkScopeService adminParkScopeService) {
+                                     AdminParkScopeService adminParkScopeService,
+                                     MeterRegistry meterRegistry) {
         this.orderMapper = orderMapper;
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.exceptionRecordMapper = exceptionRecordMapper;
@@ -100,6 +103,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         this.fleetRuntimeService = fleetRuntimeService;
         this.parkMapper = parkMapper;
         this.adminParkScopeService = adminParkScopeService;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -348,6 +352,29 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         String normalized = normalizePeriod(period);
         StringBuilder sb = new StringBuilder();
         AtomicInteger rows = new AtomicInteger();
+        String datasetTag = dataset == null ? "unknown" : dataset.toLowerCase(Locale.ROOT);
+        try {
+            return doExportCsv(dataset, normalized, parkId, rows, datasetTag);
+        } catch (BusinessException ex) {
+            meterRegistry.counter("dispatchflow.export.requests",
+                    "dataset", datasetTag, "result", ex.getCode()).increment();
+            throw ex;
+        } catch (Exception ex) {
+            meterRegistry.counter("dispatchflow.export.requests",
+                    "dataset", datasetTag, "result", "error").increment();
+            throw ex;
+        } finally {
+            if (rows.get() > 0) {
+                meterRegistry.counter("dispatchflow.export.rows", "dataset", datasetTag).increment(rows.get());
+            }
+            meterRegistry.counter("dispatchflow.export.requests",
+                    "dataset", datasetTag, "result", "completed").increment();
+        }
+    }
+
+    private String doExportCsv(String dataset, String normalized, Long parkId,
+                               AtomicInteger rows, String datasetTag) {
+        StringBuilder sb = new StringBuilder();
         switch (dataset == null ? "" : dataset.toLowerCase(Locale.ROOT)) {
             case "orders" -> {
                 sb.append("orderNo,status,priority,createdAt\n");
