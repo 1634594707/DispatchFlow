@@ -142,13 +142,13 @@
 
 ## 9. Phase 7：提交到 GitHub
 
-- [ ] 查看工作区状态：`git status --short --branch`。
-- [ ] 查看当前远程地址和当前分支，确认目标仓库与目标分支后再提交。
-- [ ] 检查没有提交 `.env`、生产密码、SSH 凭据、高德密钥或其他敏感文件。
-- [ ] 执行后端测试、前端类型检查、前端构建和需要的浏览器验收。
-- [ ] 使用清晰的提交信息提交代码，例如按实际变更选择 `fix:`、`feat:`、`refactor:` 或 `docs:` 前缀。
-- [ ] 查看提交内容：`git show --stat --oneline HEAD`。
-- [ ] 将当前分支推送到已确认的 GitHub 远程分支。
+- [x] 查看工作区状态：`git status --short --branch`。
+- [x] 查看当前远程地址和当前分支，确认目标仓库与目标分支后再提交。（origin=git@github.com:1634594707/DispatchFlow.git，main）
+- [x] 检查没有提交 `.env`、生产密码、SSH 凭据、高德密钥或其他敏感文件。（.env 在 .gitignore 且未入库；迁移 SQL 仅含表结构）
+- [ ] 执行后端测试、前端类型检查、前端构建和需要的浏览器验收。（后端回归+JaCoCo、typecheck、build 已通过；浏览器验收待执行）
+- [x] 使用清晰的提交信息提交代码，例如按实际变更选择 `fix:`、`feat:`、`refactor:` 或 `docs:` 前缀。（e60ba68 feat(dispatch,admin,front)）
+- [x] 查看提交内容：`git show --stat --oneline HEAD`。（150 文件，+4599/-3580）
+- [x] 将当前分支推送到已确认的 GitHub 远程分支。（6f0362c..e60ba68 main -> main 推送成功）
 - [ ] 在 GitHub 上核对提交、工作流结果、构建产物和变更文件。
 - [ ] 若项目使用 Pull Request，创建指向已确认目标分支的 Pull Request，并填写测试结果、数据库迁移说明和部署影响。
 
