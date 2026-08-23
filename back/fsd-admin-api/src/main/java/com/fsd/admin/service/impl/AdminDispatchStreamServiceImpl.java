@@ -103,6 +103,18 @@ public class AdminDispatchStreamServiceImpl implements AdminDispatchStreamServic
         return parkIds;
     }
 
+    /** 统一心跳：30s 注释帧保活（路线图 4.1，与遥测流一致）。 */
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 30000L)
+    public void heartbeat() {
+        for (EmitterRegistration registration : emitters) {
+            try {
+                registration.emitter().send(SseEmitter.event().comment("ping"));
+            } catch (Exception e) {
+                removeEmitter(registration, "heartbeat-failure");
+            }
+        }
+    }
+
     private void removeEmitter(EmitterRegistration registration, String reason) {
         if (emitters.remove(registration)) {
             if (registration.context() != null) {

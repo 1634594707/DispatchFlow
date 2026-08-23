@@ -64,7 +64,7 @@
 - [x] Redis ticket 设置 TTL，并通过 Lua 原子 `GET`+`DEL` 保证一次性消费语义；已补充 Redis 写入、失效、重复消费和非法 payload 测试。
 - [x] 明确生产部署是单实例还是多实例；若使用多实例，SSE ticket、连接状态和事件分发必须跨实例可用。生产 docker-compose.prod.yml 当前为单实例（fsd-backend 单容器）。多实例就绪改造已完成：流事件队列由共享固定队列改为每实例匿名自动删除队列（AnonymousQueue 绑定同一交换机），消除多实例下 RabbitMQ 轮询消费导致的 SSE 事件丢失；SSE ticket 已 Redis 跨实例、Outbox 租约/fencing 与消费幂等本就多实例安全；系统健康监控改为跟踪实际动态队列名。
 - [x] 为 SSE 增加连接建立失败、ticket 失效、重连次数、最大连接数和断开原因指标。AdminSseMetrics 新增 connections.peak / connections.limit / connections.reconnects / connections.closed.by.reason{reason=completed|timeout|error|send-failure}；连接超限拒绝计入 connections.rejected；同用户 60 秒窗口内断开后重连计一次重连；`AdminSseMetricsTest` 覆盖峰值/上限/按原因分组/重连窗口。
-- [ ] 统一 `/api/admin/dispatch/stream` 与 `/api/admin/fleet/telemetry/stream` 的认证、心跳、超时和重连策略。
+- [x] 统一 `/api/admin/dispatch/stream` 与 `/api/admin/fleet/telemetry/stream` 的认证、心跳、超时和重连策略。两流均使用一次性 ticket（同一签发端点）；遥测流取消"永不超时"，与调度流共用 fsd.admin.sse.timeout-ms 与 max-connections 上限；两流均每 30s 下发 ping 注释帧心跳；遥测流新增独立 telemetry.* 连接指标；前端两流均为指数退避重连策略。FleetTelemetryStreamServiceImplTest 覆盖统一超时、上限拒绝与心跳清理。
 
 ### 4.2 Outbox 与消息消费
 
@@ -81,7 +81,7 @@
 - [x] 页面不再分别维护相同数据的独立定时器。
 - [x] SSE 正常时只处理事件和快照；SSE 断开时启用统一降级轮询。
 - [x] 页面隐藏时停止降级轮询，页面重新可见时执行一次增量刷新。
-- [ ] 统一显示实时连接状态、最后事件时间、最后快照时间和降级模式。统一 Store 已记录上述状态，顶栏已区分实时与降级模式；事件/快照时间的完整可视化仍待补齐。
+- [x] 统一显示实时连接状态、最后事件时间、最后快照时间和降级模式。顶栏状态指示器升级为完整可视化：连接颜色 + "降级"标记（仅降级时显示）+ 最后事件相对时间 + 最后快照相对时间，悬停 tooltip 显示全部状态明细；数据源为统一 realtime store 的 lastEventAt/lastSnapshotAt/status。
 - [ ] 车辆监控的 3 秒降级轮询、工作台 30 秒刷新、订单/任务列表 10 秒刷新必须收敛到统一策略。订单/任务/车辆列表已移除独立定时器并接入统一 Store；车辆监控的专用 telemetry 降级轮询和工作台页面级刷新仍待进一步收敛。
 
 ## 5. Phase 3：车辆运行态和地图数据可靠性
@@ -108,7 +108,7 @@
 - [x] 后端权限检查统一使用资源、动作和园区范围，不以单独的页面路由判断作为授权依据。六类必选资源端点已全部接入矩阵校验（任务详情/时间线/派车/取消/改派/优先级/批量 + 车辆列表/查询/详情 + 基础设施 28 个写端点 + 分析导出）；园区范围继续由 ensureTaskPark/ensureOrderPark/ensureBatchTaskPark 在矩阵判定之后强制执行。
 - [x] 前端路由 `requiresAdmin` 只负责隐藏入口和改善体验，后端继续执行最终授权。（已核实 router 守卫仅重定向到 /workbench；后端拦截器 + 权限矩阵为最终授权层）
 - [x] 验证移动端公开接口、管理端接口、SSE 接口和车辆网关接口的认证边界。`ApiAuthBoundaryTest`：移动下单缺 Key/无效 Key/限流爆发三类拒绝；车辆网关拒绝 SIM 配置遥测上报；管理端 token 边界由 AdminAuthInterceptor 与控制器测试覆盖；SSE ticket 一次性消费由 AdminSseTicketServiceImplTest 覆盖。
-- [ ] 验证导出 URL、SSE ticket、日志接口和敏感字段不会出现在普通访问日志或前端错误提示中。
+- [x] 验证导出 URL、SSE ticket、日志接口和敏感字段不会出现在普通访问日志或前端错误提示中。`GlobalExceptionHandlerSanitizationTest` 验证未捕获异常仅返回固定文案（不泄露异常消息/类名/连接串），BusinessException 仅透出业务码与业务消息；导出走 Header 认证、URL 仅含 dataset/period/parkId 无凭据参数；SSE ticket 为一次性 + 60s TTL（AdminSseTicketServiceImplTest 覆盖），即使被访问日志记录也已失效不可重放。
 
 ## 7. Phase 5：性能与运维
 

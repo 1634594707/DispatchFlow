@@ -149,9 +149,17 @@
             </template>
           </a-dropdown>
 
-          <!-- Connection indicator -->
-          <a-tooltip :title="realtimeStore.status === 'connected' ? '实时连接正常' : realtimeStore.status === 'degraded' ? '实时连接断开，已启用降级刷新' : '实时连接断开'">
-            <span class="stream-indicator" :class="{ online: realtimeStore.status === 'connected', degraded: realtimeStore.status === 'degraded' }" />
+          <!-- 连接状态完整可视化（路线图 4.3）：状态 + 最后事件时间 + 最后快照时间 + 降级模式 -->
+          <a-tooltip :title="realtimeTooltip">
+            <span class="realtime-status" data-testid="realtime-status">
+              <span
+                class="stream-indicator"
+                :class="{ online: realtimeStore.status === 'connected', degraded: realtimeStore.status === 'degraded' }"
+              />
+              <span v-if="realtimeStore.status === 'degraded'" class="realtime-degraded-tag">降级</span>
+              <span class="realtime-time mono">事件 {{ realtimeLastEventLabel }}</span>
+              <span class="realtime-time mono">快照 {{ realtimeLastSnapshotLabel }}</span>
+            </span>
           </a-tooltip>
 
           <ApiErrorBadge />
@@ -391,6 +399,32 @@ const resp = useResponsive()
 
 const assistantOpen = ref(false)
 const paletteItems = computed(() => commandPalette.buildItems())
+
+// ── 实时连接状态完整可视化（路线图 4.3） ─────────────────
+function realtimeTimeLabel(iso: string | null): string {
+  if (!iso) return '--'
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
+  if (seconds < 60) return `${seconds}s 前`
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m 前`
+  return new Date(iso).toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+const realtimeLastEventLabel = computed(() => realtimeTimeLabel(realtimeStore.lastEventAt))
+const realtimeLastSnapshotLabel = computed(() => realtimeTimeLabel(realtimeStore.lastSnapshotAt))
+
+const realtimeTooltip = computed(() => {
+  const statusText =
+    realtimeStore.status === 'connected'
+      ? '实时连接正常'
+      : realtimeStore.status === 'degraded'
+        ? '实时连接断开，已启用降级轮询'
+        : '实时连接断开'
+  return [
+    statusText,
+    `最后事件：${realtimeLastEventLabel.value}`,
+    `最后快照：${realtimeLastSnapshotLabel.value}`,
+  ].join('\n')
+})
 
 const collapsed = ref(false)
 const mobileDrawerOpen = ref(false)
@@ -964,6 +998,32 @@ onUnmounted(() => {
 }
 
 /* ── Stream indicator ───────────────────────────────────── */
+.realtime-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+
+  .realtime-time {
+    font-size: 12px;
+    color: var(--fsd-text-secondary);
+  }
+
+  .realtime-degraded-tag {
+    font-size: 12px;
+    padding: 0 4px;
+    border-radius: 2px;
+    color: #faad14;
+    border: 1px solid #faad14;
+  }
+
+  @media (max-width: 768px) {
+    .realtime-time {
+      display: none;
+    }
+  }
+}
+
 .stream-indicator {
   width: 8px;
   height: 8px;
