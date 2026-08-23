@@ -3,6 +3,7 @@ package com.fsd.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.admin.service.AnalyticsAdminService;
+import com.fsd.common.exception.BusinessException;
 import com.fsd.admin.service.AdminParkScopeService;
 import com.fsd.admin.vo.AdminAnalyticsChargingHistoryItem;
 import com.fsd.admin.vo.AdminAnalyticsChainKpiResponse;
@@ -55,12 +56,18 @@ import com.lowagie.text.FontFactory;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.pdf.PdfWriter;
 import java.io.ByteArrayOutputStream;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
 
     private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ofPattern("MM-dd");
+
+    /** 单次导出最大数据行数（路线图 Phase 5）；超限提示改用报表计划/历史报表。 */
+    @Value("${fsd.admin.export.max-rows:50000}")
+    private int exportMaxRows;
 
     private final OrderMapper orderMapper;
     private final DispatchTaskMapper dispatchTaskMapper;
@@ -340,24 +347,25 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     public String exportCsv(String dataset, String period, Long parkId) {
         String normalized = normalizePeriod(period);
         StringBuilder sb = new StringBuilder();
+        AtomicInteger rows = new AtomicInteger();
         switch (dataset == null ? "" : dataset.toLowerCase(Locale.ROOT)) {
             case "orders" -> {
                 sb.append("orderNo,status,priority,createdAt\n");
                 filterOrdersByPark(loadOrdersSince(rangeStart(normalized)), parkId).forEach(order ->
-                        sb.append(csv(order.getOrderNo())).append(',')
+                        appendRow(sb, rows, () -> sb.append(csv(order.getOrderNo())).append(',')
                                 .append(csv(order.getStatus())).append(',')
                                 .append(csv(order.getPriority())).append(',')
-                                .append(order.getCreatedAt()).append('\n'));
+                                .append(order.getCreatedAt()).append('\n')));
             }
             case "tasks" -> {
                 sb.append("taskNo,status,orderId,vehicleId,createdAt,finishTime\n");
                 filterTasksByPark(loadTasksSince(rangeStart(normalized)), parkId).forEach(task ->
-                        sb.append(csv(task.getTaskNo())).append(',')
+                        appendRow(sb, rows, () -> sb.append(csv(task.getTaskNo())).append(',')
                                 .append(csv(task.getStatus())).append(',')
                                 .append(task.getOrderId()).append(',')
                                 .append(task.getVehicleId()).append(',')
                                 .append(task.getCreatedAt()).append(',')
-                                .append(task.getFinishTime()).append('\n'));
+                                .append(task.getFinishTime()).append('\n')));
             }
             case "exceptions" -> {
                 sb.append("exceptionType,status,severity,occurTime,resolvedTime\n");
@@ -366,11 +374,11 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                                 .orderByDesc(DispatchExceptionRecordEntity::getOccurTime))
                         .stream()
                         .filter(item -> adminParkScopeService.matchesOrder(item.getOrderId(), parkId))
-                        .forEach(item -> sb.append(csv(item.getExceptionType())).append(',')
+                        .forEach(item -> appendRow(sb, rows, () -> sb.append(csv(item.getExceptionType())).append(',')
                                 .append(csv(item.getExceptionStatus())).append(',')
                                 .append(csv(item.getSeverity())).append(',')
                                 .append(item.getOccurTime()).append(',')
-                                .append(item.getResolvedTime()).append('\n'));
+                                .append(item.getResolvedTime()).append('\n')));
             }
             case "vehicles" -> {
                 sb.append("vehicleCode,vehicleName,onlineStatus,dispatchStatus,batteryLevel\n");
@@ -379,15 +387,24 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                                 .orderByAsc(VehicleEntity::getVehicleCode))
                         .stream()
                         .filter(vehicle -> matchesVehicleEntityPark(vehicle, parkId))
-                        .forEach(vehicle -> sb.append(csv(vehicle.getVehicleCode())).append(',')
+                        .forEach(vehicle -> appendRow(sb, rows, () -> sb.append(csv(vehicle.getVehicleCode())).append(',')
                                 .append(csv(vehicle.getVehicleName())).append(',')
                                 .append(csv(vehicle.getOnlineStatus())).append(',')
                                 .append(csv(vehicle.getDispatchStatus())).append(',')
-                                .append(vehicle.getBatteryLevel()).append('\n'));
+                                .append(vehicle.getBatteryLevel()).append('\n')));
             }
             default -> throw new IllegalArgumentException("Unsupported dataset: " + dataset);
         }
         return sb.toString();
+    }
+
+    /** 追加一行并执行导出行数上限检查（路线图 Phase 5）。 */
+    private void appendRow(StringBuilder sb, AtomicInteger rows, Runnable appender) {
+        if (rows.incrementAndGet() > exportMaxRows) {
+            throw new BusinessException("EXPORT_ROW_LIMIT_EXCEEDED",
+                    "导出数据量超过上限（" + exportMaxRows + " 行），请缩小时间范围，或使用报表计划与历史报表下载");
+        }
+        appender.run();
     }
 
     private AdminAnalyticsChargingHistoryItem toHistoryItem(ChargingSessionEntity session,

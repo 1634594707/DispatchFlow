@@ -280,8 +280,8 @@ async function handleExport() {
       'orders-week.csv',
     )
     message.success('订单导出已开始')
-  } catch {
-    message.error('订单导出失败，请重试')
+  } catch (err) {
+    message.error(err instanceof Error && err.message ? err.message : '订单导出失败，请重试')
   }
 }
 

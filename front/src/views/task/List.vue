@@ -105,30 +105,33 @@
             <a-button type="link" size="small" @click="router.push(`/tasks/${record.taskId}`)">
               查看
             </a-button>
+            <a-tag v-if="record.status === 'ASSIGNING'" color="processing">派车处理中…</a-tag>
             <a-button
               v-if="authStore.canWrite && canDispatch(record.status)"
               type="link"
               size="small"
+              :disabled="isActionBusy(record.taskId)"
               @click="openDispatchModal(record)"
             >
-              派单
+              {{ isActionBusy(record.taskId) ? '处理中…' : '派单' }}
             </a-button>
             <a-button
               v-if="authStore.canWrite && canReassign(record.status)"
               type="link"
               size="small"
+              :disabled="isActionBusy(record.taskId)"
               @click="openReassignModal(record)"
             >
               改派
             </a-button>
             <a-popconfirm
-              v-if="authStore.canWrite && canCancel(record.status)"
+              v-if="authStore.canWrite && canCancel(record.status) && !isActionBusy(record.taskId)"
               title="确认取消该任务？"
               ok-text="确认"
               cancel-text="取消"
               @confirm="handleCancel(record)"
             >
-              <a-button type="link" size="small" danger>取消</a-button>
+              <a-button type="link" size="small" danger :loading="isActionBusy(record.taskId)">取消</a-button>
             </a-popconfirm>
           </div>
         </template>
@@ -359,8 +362,8 @@ async function handleExport() {
       'tasks-week.csv',
     )
     message.success('任务导出已开始')
-  } catch {
-    message.error('任务导出失败，请重试')
+  } catch (err) {
+    message.error(err instanceof Error && err.message ? err.message : '任务导出失败，请重试')
   }
 }
 
@@ -373,6 +376,12 @@ function handleTableChange(pag: any) {
 const dispatchModalVisible = ref(false)
 const dispatchLoading = ref(false)
 const assignableVehiclesLoading = ref(false)
+/** 进行中的单条操作任务 ID（路线图 3.2：处理中禁用重复操作） */
+const actionTaskIds = ref<Set<number>>(new Set())
+
+function isActionBusy(taskId: number) {
+  return actionTaskIds.value.has(taskId)
+}
 const currentTask = ref<TaskAdminListItem | null>(null)
 const dispatchForm = reactive({ vehicleId: undefined as number | undefined, remark: '' })
 const assignableVehicles = ref<ParkVehicleSnapshot[]>([])
@@ -470,12 +479,16 @@ async function handleReassign() {
 }
 
 async function handleCancel(record: TaskAdminListItem) {
+  if (isActionBusy(record.taskId)) return
+  actionTaskIds.value.add(record.taskId)
   try {
     await cancelTask(record.taskId, '任务列表取消', parkScope.selectedParkId)
     message.success('任务已取消')
     fetchData()
   } catch {
     // handled by interceptor
+  } finally {
+    actionTaskIds.value.delete(record.taskId)
   }
 }
 

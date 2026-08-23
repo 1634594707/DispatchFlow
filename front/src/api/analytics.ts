@@ -84,6 +84,18 @@ export function getAnalyticsExportUrl(dataset: string, period = 'week', parkId?:
 
 export async function downloadAnalyticsFile(url: string, filename?: string) {
   const response = await request.get<any, Blob>(url, { responseType: 'blob' })
+  // 后端业务错误（如导出超限 EXPORT_ROW_LIMIT_EXCEEDED）以 JSON 返回：解析并抛出业务提示
+  if (response.type && response.type.includes('application/json')) {
+    const text = await response.text()
+    let message = '导出失败，请稍后重试'
+    try {
+      const parsed = JSON.parse(text)
+      message = parsed?.message || parsed?.error || message
+    } catch {
+      /* 保持默认提示 */
+    }
+    throw new Error(message)
+  }
   const blobUrl = URL.createObjectURL(response)
   const link = document.createElement('a')
   link.href = blobUrl

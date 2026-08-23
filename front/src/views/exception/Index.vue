@@ -325,8 +325,8 @@ async function handleExport() {
       'exceptions-week.csv',
     )
     message.success('异常导出已开始')
-  } catch {
-    message.error('异常导出失败，请重试')
+  } catch (err) {
+    message.error(err instanceof Error && err.message ? err.message : '异常导出失败，请重试')
   }
 }
 
