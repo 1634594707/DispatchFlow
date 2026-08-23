@@ -8,6 +8,7 @@ import com.fsd.dispatch.vo.DispatchWorkbenchResponse;
 import com.fsd.dispatch.vo.DispatchSummaryResponse;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
 import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
+import com.fsd.dispatch.vo.TaskTimelineResponse;
 import java.util.List;
 
 public interface DispatchAdminQueryService {
@@ -21,6 +22,9 @@ public interface DispatchAdminQueryService {
     PageResponse<DispatchTaskListItemResponse> queryTasks(DispatchTaskQueryRequest request);
 
     DispatchTaskDetailResponse getTaskDetail(Long taskId);
+
+    /** 统一任务时间线读取模型（路线图 3.2）：订单创建→派车→回报→异常→重试/改派→终态。 */
+    TaskTimelineResponse getTaskTimeline(Long taskId);
 
     List<DispatchExceptionListItemResponse> listExceptions();
 

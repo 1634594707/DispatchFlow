@@ -53,6 +53,7 @@ import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
 import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
+import com.fsd.dispatch.vo.TaskTimelineResponse;
 import com.fsd.order.service.OrderAdminQueryService;
 import com.fsd.order.service.OrderStateService;
 import com.fsd.admin.service.OrderAdminDetailService;
@@ -238,6 +239,17 @@ public class AdminDispatchController {
 
     public ApiResponse<DispatchTaskDetailResponse> getTaskDetail(Long taskId, HttpServletRequest request) {
         return getTaskDetail(taskId, null, request);
+    }
+
+    @GetMapping("/tasks/{taskId}/timeline")
+    @Operation(summary = "Get unified task timeline", description = "订单创建、派车、车辆回报、执行、异常、重试、改派、取消和完成事件的统一时间线（路线图 3.2）")
+    public ApiResponse<TaskTimelineResponse> getTaskTimeline(@PathVariable Long taskId,
+                                                             @RequestParam(required = false) Long parkId,
+                                                             HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        TaskTimelineResponse timeline = dispatchAdminQueryService.getTaskTimeline(taskId);
+        ensureTaskPark(taskId, parkId);
+        return ApiResponse.success(timeline);
     }
 
     @PostMapping("/tasks/{taskId}/auto-assign")

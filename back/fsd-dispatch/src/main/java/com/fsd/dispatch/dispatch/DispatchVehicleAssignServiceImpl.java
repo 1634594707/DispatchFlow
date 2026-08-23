@@ -5,6 +5,7 @@ import com.fsd.dispatch.config.DispatchScoringProperties;
 import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.fleet.PilotFleetSupport;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
+import com.fsd.dispatch.fleet.policy.TelemetryFreshnessPolicy;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
@@ -50,6 +51,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
     private final DispatchGeoDistanceService dispatchGeoDistanceService;
     private final MapfRoutePlannerService mapfRoutePlannerService;
     private final com.fsd.dispatch.service.ChargingSessionService chargingSessionService;
+    private final TelemetryFreshnessPolicy telemetryFreshnessPolicy;
 
     public DispatchVehicleAssignServiceImpl(VehicleService vehicleService,
                                             ParkStationService parkStationService,
@@ -64,7 +66,8 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                                             DispatchAutomationRuleService automationRuleService,
                                             DispatchGeoDistanceService dispatchGeoDistanceService,
                                             MapfRoutePlannerService mapfRoutePlannerService,
-                                            com.fsd.dispatch.service.ChargingSessionService chargingSessionService) {
+                                            com.fsd.dispatch.service.ChargingSessionService chargingSessionService,
+                                            TelemetryFreshnessPolicy telemetryFreshnessPolicy) {
         this.vehicleService = vehicleService;
         this.parkStationService = parkStationService;
         this.parkRoutePlannerService = parkRoutePlannerService;
@@ -79,6 +82,7 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         this.dispatchGeoDistanceService = dispatchGeoDistanceService;
         this.mapfRoutePlannerService = mapfRoutePlannerService;
         this.chargingSessionService = chargingSessionService;
+        this.telemetryFreshnessPolicy = telemetryFreshnessPolicy;
     }
 
     @Override
@@ -132,7 +136,17 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                     "No online idle vehicle available in fleet");
         }
 
-        List<VehicleEntity> socEligible = idleOnline.stream()
+        // 遥测新鲜度门禁（路线图 5.1）：数据年龄超过统一阈值或从未上报的车辆禁止派车
+        List<VehicleEntity> freshTelemetry = idleOnline.stream()
+                .filter(vehicle -> !telemetryFreshnessPolicy.isStale(vehicle.getLastReportTime()))
+                .toList();
+        if (freshTelemetry.isEmpty() && !idleOnline.isEmpty()) {
+            return DispatchAssignResult.failure(DispatchAssignFailReason.TELEMETRY_STALE,
+                    "All idle vehicles have stale telemetry beyond threshold "
+                            + telemetryFreshnessPolicy.threshold().toSeconds() + "s");
+        }
+
+        List<VehicleEntity> socEligible = freshTelemetry.stream()
                 .filter(vehicle -> normalizeSoc(vehicle.getBatteryLevel()) >= energy.getMinAssignableSoc())
                 .filter(vehicle -> !isUnderMaintenance(vehicle))
                 .filter(vehicle -> matchesRequiredVehicleType(order, vehicle))

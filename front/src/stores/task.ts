@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { queryTasks, getTaskDetail } from '@/api/task'
-import type { TaskAdminListItem, TaskDetailResponse, TaskQueryRequest } from '@/types/task'
+import { queryTasks, getTaskDetail, getTaskTimeline } from '@/api/task'
+import type { TaskAdminListItem, TaskDetailResponse, TaskQueryRequest, TaskTimelineResponse } from '@/types/task'
 import type { PageResponse } from '@/types/api'
 import { useParkScopeStore } from '@/stores/parkScope'
 
@@ -12,6 +12,7 @@ export const useTaskStore = defineStore('task', () => {
   const loading = ref(false)
   const detail = ref<TaskDetailResponse | null>(null)
   const detailLoading = ref(false)
+  const timeline = ref<TaskTimelineResponse | null>(null)
 
   async function fetchList(params: TaskQueryRequest) {
     loading.value = true
@@ -30,16 +31,22 @@ export const useTaskStore = defineStore('task', () => {
   async function fetchDetail(taskId: number) {
     detailLoading.value = true
     detail.value = null
+    timeline.value = null
     try {
-      const res = await getTaskDetail(taskId, parkScope.selectedParkId)
-      detail.value = res.data
+      const [detailRes, timelineRes] = await Promise.all([
+        getTaskDetail(taskId, parkScope.selectedParkId),
+        getTaskTimeline(taskId, parkScope.selectedParkId),
+      ])
+      detail.value = detailRes.data
+      timeline.value = timelineRes.data
     } catch (e) {
       detail.value = null
+      timeline.value = null
       console.error('Failed to fetch task detail', e)
     } finally {
       detailLoading.value = false
     }
   }
 
-  return { list, total, loading, detail, detailLoading, fetchList, fetchDetail }
+  return { list, total, loading, detail, detailLoading, timeline, fetchList, fetchDetail }
 })

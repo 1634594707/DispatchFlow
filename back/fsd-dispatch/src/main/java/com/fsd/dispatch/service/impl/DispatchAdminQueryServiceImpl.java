@@ -10,6 +10,7 @@ import com.fsd.dispatch.entity.DispatchRouteEntity;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.mapper.DispatchExceptionRecordMapper;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
+import com.fsd.dispatch.mapper.DispatchTaskOperateLogMapper;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
@@ -24,6 +25,7 @@ import com.fsd.dispatch.vo.DispatchExceptionListItemResponse;
 import com.fsd.dispatch.vo.DispatchInterventionQueueResponse;
 import com.fsd.dispatch.vo.DispatchOpenExceptionBrief;
 import com.fsd.dispatch.vo.DispatchSummaryResponse;
+import com.fsd.dispatch.vo.TaskTimelineResponse;
 import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
 import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
 import com.fsd.order.entity.OrderEntity;
@@ -48,6 +50,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
 
     private final DispatchTaskMapper dispatchTaskMapper;
     private final DispatchExceptionRecordMapper exceptionRecordMapper;
+    private final DispatchTaskOperateLogMapper operateLogMapper;
     private final DispatchTaskService dispatchTaskService;
     private final DispatchExceptionService dispatchExceptionService;
     private final ParkPilotService parkPilotService;
@@ -58,6 +61,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
 
     public DispatchAdminQueryServiceImpl(DispatchTaskMapper dispatchTaskMapper,
                                          DispatchExceptionRecordMapper exceptionRecordMapper,
+                                         DispatchTaskOperateLogMapper operateLogMapper,
                                          DispatchTaskService dispatchTaskService,
                                          DispatchExceptionService dispatchExceptionService,
                                          ParkPilotService parkPilotService,
@@ -67,6 +71,7 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
                                          DispatchRouteService dispatchRouteService) {
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.exceptionRecordMapper = exceptionRecordMapper;
+        this.operateLogMapper = operateLogMapper;
         this.dispatchTaskService = dispatchTaskService;
         this.dispatchExceptionService = dispatchExceptionService;
         this.parkPilotService = parkPilotService;
@@ -133,6 +138,103 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
         detail.setOpenExceptionCount(openExceptions.size());
         detail.setOpenExceptions(openExceptions);
         return detail;
+    }
+
+
+    @Override
+    public TaskTimelineResponse getTaskTimeline(Long taskId) {
+        DispatchTaskEntity task = dispatchTaskMapper.selectById(taskId);
+        if (task == null || Integer.valueOf(1).equals(task.getDeleted())) {
+            throw new com.fsd.common.exception.BusinessException("DISPATCH_TASK_NOT_FOUND", "Dispatch task not found");
+        }
+
+        List<TaskTimelineResponse.Entry> entries = new ArrayList<>();
+
+        OrderEntity order = task.getOrderId() == null ? null : orderMapper.selectById(task.getOrderId());
+        if (order != null) {
+            entries.add(TaskTimelineResponse.Entry.builder()
+                    .time(order.getCreatedAt())
+                    .eventType("CREATE_ORDER")
+                    .afterStatus(order.getStatus())
+                    .source(resolveOrderSource(order))
+                    .message("订单创建")
+                    .exception(false)
+                    .build());
+        }
+
+        List<com.fsd.dispatch.entity.DispatchTaskOperateLogEntity> logs = operateLogMapper.selectList(
+                new LambdaQueryWrapper<com.fsd.dispatch.entity.DispatchTaskOperateLogEntity>()
+                        .eq(com.fsd.dispatch.entity.DispatchTaskOperateLogEntity::getTaskId, taskId)
+                        .orderByAsc(com.fsd.dispatch.entity.DispatchTaskOperateLogEntity::getId));
+        for (com.fsd.dispatch.entity.DispatchTaskOperateLogEntity logEntry : logs) {
+            boolean failureLike = "FINISH_FAILED".equals(logEntry.getOperateType())
+                    || "COMMAND_FAILED".equals(logEntry.getOperateType())
+                    || "ENTER_MANUAL_PENDING".equals(logEntry.getOperateType());
+            entries.add(TaskTimelineResponse.Entry.builder()
+                    .time(logEntry.getCreatedAt())
+                    .eventType(logEntry.getOperateType())
+                    .beforeStatus(logEntry.getBeforeStatus())
+                    .afterStatus(logEntry.getAfterStatus())
+                    .source(logEntry.getOperatorType())
+                    .operatorName(logEntry.getOperatorName())
+                    .message(firstNonBlank(logEntry.getOperateRemark(), logEntry.getAfterStatus()))
+                    .failReason(failureLike ? firstNonBlank(logEntry.getOperateRemark(), task.getFailReasonMsg()) : null)
+                    .exception(failureLike)
+                    .build());
+        }
+
+        List<DispatchExceptionRecordEntity> exceptions = exceptionRecordMapper.selectList(
+                new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
+                        .eq(DispatchExceptionRecordEntity::getTaskId, taskId)
+                        .orderByAsc(DispatchExceptionRecordEntity::getId));
+        for (DispatchExceptionRecordEntity exception : exceptions) {
+            entries.add(TaskTimelineResponse.Entry.builder()
+                    .time(exception.getOccurTime())
+                    .eventType("EXCEPTION_RAISED")
+                    .afterStatus(exception.getExceptionStatus())
+                    .source("SYSTEM")
+                    .message(exception.getExceptionMsg())
+                    .failReason(exception.getExceptionMsg())
+                    .exception(true)
+                    .severity(exception.getSeverity())
+                    .build());
+            if (exception.getResolvedTime() != null) {
+                entries.add(TaskTimelineResponse.Entry.builder()
+                        .time(exception.getResolvedTime())
+                        .eventType("EXCEPTION_RESOLVED")
+                        .beforeStatus(exception.getExceptionStatus())
+                        .afterStatus("RESOLVED")
+                        .source("DISPATCHER")
+                        .operatorName(exception.getResolverId())
+                        .message(firstNonBlank(exception.getResolveAction(), "异常已处理"))
+                        .exception(false)
+                        .build());
+            }
+        }
+
+        entries.sort(Comparator.comparing(TaskTimelineResponse.Entry::getTime,
+                Comparator.nullsLast(Comparator.naturalOrder())));
+
+        return TaskTimelineResponse.builder()
+                .taskId(task.getId())
+                .taskNo(task.getTaskNo())
+                .taskStatus(task.getStatus())
+                .orderId(task.getOrderId())
+                .entries(entries)
+                .build();
+    }
+
+    private String resolveOrderSource(OrderEntity order) {
+        return order.getSourceType() == null || order.getSourceType().isBlank()
+                ? "SYSTEM"
+                : ("PARK".equals(order.getSourceType()) ? "MOBILE" : "SYSTEM");
+    }
+
+    private String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        return fallback;
     }
 
     @Override

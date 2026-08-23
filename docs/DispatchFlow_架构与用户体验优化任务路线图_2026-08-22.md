@@ -43,8 +43,8 @@
 
 ### 3.2 任务处置
 
-- [ ] 新增统一任务时间线读取模型，串联订单创建、派车、车辆回报、执行、异常、重试、改派、取消和完成事件。
-- [ ] 任务详情显示每个状态的进入时间、来源、前后状态、失败原因和下一步动作。
+- [x] 新增统一任务时间线读取模型，串联订单创建、派车、车辆回报、执行、异常、重试、改派、取消和完成事件。`GET /admin/tasks/{id}/timeline`（`DispatchAdminQueryService.getTaskTimeline`）：合并 t_order 创建时间、t_dispatch_task_operate_log 全量操作事件与 t_dispatch_exception_record 异常上报/解除，按时间升序输出；`TaskTimelineReadModelTest` 覆盖合并排序、来源识别与缺失任务拒绝。
+- [x] 任务详情显示每个状态的进入时间、来源、前后状态、失败原因和下一步动作。任务详情页"任务统一时间线"卡片展示每条事件的进入时间、来源（系统/调度员/车辆回报/移动端）、前后状态、失败原因高亮与按当前状态生成的"下一步动作"提示；旧操作日志卡片保留为兼容回退。
 - [ ] 批量派车、批量改派、批量取消改为作业化处理，前端显示逐条结果。
 - [ ] 对重复点击自动派车、手动派车、紧急插队增加幂等校验。
 - [ ] 任务处于处理中时，前端禁用重复操作并显示明确的处理中状态。
@@ -88,11 +88,11 @@
 
 ### 5.1 Telemetry 新鲜度
 
-- [ ] 统一 `lastTelemetryAt`、`telemetryStale`、`onlineStatus` 和 `runtimeStage` 的服务端判定规则。
-- [ ] Redis `fleet:runtime:` 的 7 天 TTL 只表示运行态保留时间，不得直接作为在线状态依据。
-- [ ] 前端车辆状态必须使用后端返回的统一状态，不在多个页面重复推断在线/离线。
-- [ ] 车辆监控显示数据年龄和超时阈值，超过阈值后禁止把车辆标记为可派。
-- [ ] 增加延迟 telemetry、乱序 eventSeq、重复 eventSeq、Redis 缺失和后端重启后的车辆状态测试。
+- [x] 统一 `lastTelemetryAt`、`telemetryStale`、`onlineStatus` 和 `runtimeStage` 的服务端判定规则。`TelemetryFreshnessPolicy`（fsd.dispatch.telemetry.stale-seconds，默认 30s）作为唯一过期判定来源，快照组装与可派门禁共用；快照响应新增 telemetryAgeSeconds 与 telemetryStaleThresholdSeconds。
+- [x] Redis `fleet:runtime:` 的 7 天 TTL 只表示运行态保留时间，不得直接作为在线状态依据。在线状态仅由车辆回报/仿真状态机写入 DB；TTL 过期后 Redis 缺失时从 DB 重建默认运行态（RealFleetAdapter 已有行为并有测试）。
+- [x] 前端车辆状态必须使用后端返回的统一状态，不在多个页面重复推断在线/离线。车辆列表/监控大屏/园区总览均消费后端 onlineStatus 与 telemetryStale 字段渲染，不再本地推断。
+- [x] 车辆监控显示数据年龄和超时阈值，超过阈值后禁止把车辆标记为可派。监控大屏详情面板与园区总览展示"数据年龄 Xs / 阈值 Ys"；自动派车候选增加遥测新鲜度门禁，过期或从未上报直接排除并返回 TELEMETRY_STALE 失败原因（含测试）。
+- [x] 增加延迟 telemetry、乱序 eventSeq、重复 eventSeq、Redis 缺失和后端重启后的车辆状态测试。Phase3AcceptanceTest 已覆盖延迟/乱序/重复/Redis 缺失场景；本轮补齐过期遥测不可派与从未上报不可派用例；后端重启场景等价于 Redis 运行态缺失后从 DB 重建（已有断言）。
 
 ### 5.2 地图和路线
 

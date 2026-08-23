@@ -45,6 +45,12 @@ public class ParkVehicleSnapshotResponse {
 
     private Boolean telemetryStale;
 
+    /** 数据年龄（秒）：当前时间 - 最后遥测时间。 */
+    private Long telemetryAgeSeconds;
+
+    /** 服务端统一的遥测过期阈值（秒），前端据此展示数据年龄与告警。 */
+    private Long telemetryStaleThresholdSeconds;
+
     private String runtimeStage;
 
     private String targetCode;

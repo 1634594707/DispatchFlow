@@ -109,21 +109,47 @@
           </a-card>
         </div>
 
-        <a-card title="操作日志时间线" size="small" style="margin-bottom: 16px;">
-          <a-timeline v-if="operateLogs.length > 0">
-            <a-timeline-item v-for="log in operateLogs" :key="log.id" :color="logColor(log.operateType)">
-              <p>{{ operateTypeLabel(log.operateType) }}</p>
-              <p v-if="log.beforeStatus || log.afterStatus" class="mono text-secondary">
-                {{ log.beforeStatus || '-' }} → {{ log.afterStatus || '-' }}
+        <!-- 统一任务时间线（路线图 3.2）：订单创建→派车→回报→异常→重试/改派→终态，含来源/前后状态/失败原因 -->
+        <a-card title="任务统一时间线" size="small" style="margin-bottom: 16px;">
+          <p v-if="nextActionHint" class="next-action-hint">下一步动作：{{ nextActionHint }}</p>
+          <a-timeline v-if="timelineEntries.length > 0">
+            <a-timeline-item
+              v-for="(entry, index) in timelineEntries"
+              :key="index"
+              :color="entry.exception ? 'red' : timelineColor(entry.eventType)"
+            >
+              <p>
+                {{ timelineEventTypeLabel(entry.eventType) }}
+                <a-tag v-if="entry.severity" color="orange" style="margin-left: 4px">{{ entry.severity }}</a-tag>
+              </p>
+              <p v-if="entry.beforeStatus || entry.afterStatus" class="mono text-secondary">
+                {{ entry.beforeStatus || '-' }} → {{ entry.afterStatus || '-' }}
               </p>
               <p class="text-secondary">
-                {{ log.operatorName || log.operatorType }}
-                <span v-if="log.operateRemark"> · {{ log.operateRemark }}</span>
+                {{ sourceLabel(entry.source) }}{{ entry.operatorName ? ' · ' + entry.operatorName : '' }}
+                <span v-if="entry.message"> · {{ entry.message }}</span>
               </p>
-              <span class="mono text-secondary">{{ formatTime(log.createdAt) }}</span>
+              <p v-if="entry.failReason" class="fail-reason">失败原因：{{ entry.failReason }}</p>
+              <span class="mono text-secondary">{{ formatTime(entry.time) }}</span>
             </a-timeline-item>
           </a-timeline>
-          <a-empty v-else description="暂无操作日志" />
+          <!-- 兼容回退：统一时间线不可用时展示历史操作日志 -->
+          <template v-else>
+            <a-timeline v-if="operateLogs.length > 0">
+              <a-timeline-item v-for="log in operateLogs" :key="log.id" :color="logColor(log.operateType)">
+                <p>{{ operateTypeLabel(log.operateType) }}</p>
+                <p v-if="log.beforeStatus || log.afterStatus" class="mono text-secondary">
+                  {{ log.beforeStatus || '-' }} → {{ log.afterStatus || '-' }}
+                </p>
+                <p class="text-secondary">
+                  {{ log.operatorName || log.operatorType }}
+                  <span v-if="log.operateRemark"> · {{ log.operateRemark }}</span>
+                </p>
+                <span class="mono text-secondary">{{ formatTime(log.createdAt) }}</span>
+              </a-timeline-item>
+            </a-timeline>
+            <a-empty v-else description="暂无时间线数据" />
+          </template>
         </a-card>
 
         <a-card title="任务状态时间线" size="small">
@@ -208,6 +234,52 @@ const vehicleOptions = ref<{ label: string; value: number }[]>([])
 const geoTrackingLink = computed(() =>
   buildGeoTrackingLink(store.detail?.orderId, store.detail?.vehicleId ?? undefined),
 )
+
+/** 统一时间线条目（路线图 3.2），来自 /admin/tasks/{id}/timeline 读取模型。 */
+const timelineEntries = computed(() => store.timeline?.entries ?? [])
+
+/** 下一步动作提示：按当前状态给出操作建议（路线图 3.2）。 */
+const nextActionHint = computed(() => {
+  const s = store.detail?.status
+  if (s === TaskStatus.PENDING) return '等待派车，可执行自动派车或手动派车'
+  if (s === TaskStatus.ASSIGNING) return '自动派车进行中，正在选择最优车辆'
+  if (s === TaskStatus.MANUAL_PENDING) return '自动派单失败，请人工派车或取消任务'
+  if (s === TaskStatus.ASSIGNED) return '已派车，等待车辆开始执行'
+  if (s === TaskStatus.EXECUTING) return '配送执行中，等待车辆回报完成'
+  if (s === TaskStatus.SUCCESS) return '任务已完成'
+  if (s === TaskStatus.FAILED) return '任务失败，请排查原因后重新下单'
+  if (s === TaskStatus.CANCELLED) return '任务已取消'
+  return null
+})
+
+function timelineEventTypeLabel(type: string) {
+  const map: Record<string, string> = {
+    CREATE_ORDER: '订单创建', CREATE_TASK: '创建任务', AUTO_ASSIGN: '自动派车',
+    MANUAL_ASSIGN: '手动派车', UNASSIGN_TASK: '人工接管退回', REASSIGN: '改派换车',
+    CANCEL_TASK: '取消任务', START_EXECUTE: '开始执行', FINISH_SUCCESS: '配送完成',
+    FINISH_FAILED: '配送失败', TASK_RETRY: '失败重试', RESET_FOR_AUTO_ASSIGN: '重置待派',
+    ENTER_MANUAL_PENDING: '转人工处理', ISSUE_COMMAND: '下发车辆指令',
+    COMMAND_FAILED: '车辆指令失败', EXCEPTION_RESOLVE: '异常处置',
+    EXCEPTION_RAISED: '异常上报', EXCEPTION_RESOLVED: '异常解除',
+  }
+  return map[type] || type
+}
+
+function sourceLabel(source?: string | null) {
+  const map: Record<string, string> = {
+    SYSTEM: '系统', DISPATCHER: '调度员', VEHICLE: '车辆回报', MOBILE: '移动端',
+  }
+  if (!source) return '系统'
+  return map[source] || source
+}
+
+function timelineColor(type: string) {
+  if (type === 'FINISH_SUCCESS') return 'green'
+  if (type === 'START_EXECUTE' || type === 'ISSUE_COMMAND' || type === 'EXCEPTION_RESOLVED') return 'cyan'
+  if (type === 'AUTO_ASSIGN' || type === 'MANUAL_ASSIGN' || type === 'REASSIGN') return 'blue'
+  if (type === 'CREATE_ORDER' || type === 'CREATE_TASK') return 'gray'
+  return 'gray'
+}
 
 const canAutoAssign = computed(() => {
   const s = store.detail?.status
@@ -370,6 +442,19 @@ watch(() => parkScope.selectedParkId, fetchData)
 
 <style scoped lang="less">
 @mobile-break: 768px;
+
+.fail-reason {
+  margin: 2px 0;
+  color: #cf1322;
+}
+
+.next-action-hint {
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  background: #e6f4ff;
+  border-radius: 4px;
+  color: #0958d9;
+}
 
 .detail-grid {
   display: grid;

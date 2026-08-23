@@ -254,10 +254,16 @@ const selectedStationDispatchLabel = computed(() => {
 })
 
 const selectedVehicleTelemetryLabel = computed(() => {
-  const value = selectedVehicle.value?.lastTelemetryAt
+  const vehicle = selectedVehicle.value
+  const value = vehicle?.lastTelemetryAt
   if (!value) return '无上报时间'
+  // 数据年龄 + 服务端统一阈值（路线图 5.1）：超过阈值的数据不允许作为可派依据
+  const ageText =
+    typeof vehicle?.telemetryAgeSeconds === 'number'
+      ? ` · 数据年龄 ${vehicle.telemetryAgeSeconds}s / 阈值 ${vehicle.telemetryStaleThresholdSeconds ?? '-'}s`
+      : ''
   const time = new Date(value).toLocaleTimeString('zh-CN', { hour12: false })
-  return selectedVehicle.value?.telemetryStale ? `${time} · 数据陈旧` : time
+  return vehicle?.telemetryStale ? `${time}${ageText} · 数据陈旧，不可派车` : `${time}${ageText}`
 })
 
 const mapUpdatedLabel = computed(() =>

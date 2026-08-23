@@ -365,6 +365,16 @@
             <StatusBadge :status="selectedVehicle.onlineStatus" type="online" />
           </div>
           <div class="detail-row">
+            <span>数据年龄</span>
+            <span
+              class="detail-flag"
+              :class="{ danger: selectedVehicle.telemetryStale }"
+              :title="'超过服务端阈值后车辆不可派车'"
+            >
+              {{ telemetryAgeLabel(selectedVehicle) }}
+            </span>
+          </div>
+          <div class="detail-row">
             <span>调度状态</span>
             <StatusBadge :status="selectedVehicle.dispatchStatus" type="dispatch" />
           </div>
@@ -957,6 +967,13 @@ function targetLabel(targetType: string | null) {
 function formatVehicleTarget(vehicle: ParkVehicleSnapshot) {
   if (!vehicle.targetCode) return '--'
   return `${targetLabel(vehicle.targetType)} ${vehicle.targetCode}`
+}
+
+function telemetryAgeLabel(vehicle: ParkVehicleSnapshot) {
+  if (vehicle.telemetryAgeSeconds == null) return '无上报'
+  const threshold = vehicle.telemetryStaleThresholdSeconds
+  const base = `${vehicle.telemetryAgeSeconds}s / 阈值 ${threshold ?? '-'}s`
+  return vehicle.telemetryStale ? `${base}（不可派车）` : base
 }
 
 function linkModeLabel(mode?: string, vehicleCode?: string) {

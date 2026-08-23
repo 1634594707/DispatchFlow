@@ -123,7 +123,8 @@ class DispatchVehicleAssignServiceImplTest {
                 automationRuleService,
                 dispatchGeoDistanceService,
                 mapfRoutePlannerService,
-                chargingSessionService);
+                chargingSessionService,
+                new com.fsd.dispatch.fleet.policy.TelemetryFreshnessPolicy(30));
     }
 
     @Test
@@ -149,6 +150,8 @@ class DispatchVehicleAssignServiceImplTest {
         VehicleEntity low = new VehicleEntity();
         low.setId(1L);
         low.setBatteryLevel(10);
+        // 遥测新鲜度门禁要求候选车辆有最新上报（路线图 5.1）
+        low.setLastReportTime(java.time.LocalDateTime.now());
         when(vehicleService.listAssignableVehicles()).thenReturn(List.of(low));
 
         DispatchAssignResult result = assignService.selectBestVehicle(order);
@@ -228,6 +231,42 @@ class DispatchVehicleAssignServiceImplTest {
         entity.setBatteryLevel(soc);
         entity.setCurrentLongitude(x);
         entity.setCurrentLatitude(y);
+        // 遥测新鲜度门禁要求候选车辆有最新上报（路线图 5.1）
+        entity.setLastReportTime(java.time.LocalDateTime.now());
         return entity;
+    }
+
+    @Test
+    void shouldRejectStaleTelemetryVehicleWithDedicatedReason() {
+        OrderEntity order = new OrderEntity();
+        order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
+        order.setParkId(1L);
+
+        VehicleEntity stale = vehicle(9L, "PARK-09", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(150));
+        stale.setLastReportTime(java.time.LocalDateTime.now().minusSeconds(600));
+        when(vehicleService.listAssignableVehicles()).thenReturn(List.of(stale));
+
+        DispatchAssignResult result = assignService.selectBestVehicle(order);
+
+        assertFalse(result.isSuccess());
+        assertEquals(DispatchAssignFailReason.TELEMETRY_STALE, result.getFailReason());
+    }
+
+    @Test
+    void shouldRejectVehicleWithoutAnyTelemetryReport() {
+        OrderEntity order = new OrderEntity();
+        order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
+        order.setParkId(1L);
+
+        VehicleEntity neverReported = vehicle(8L, "PARK-08", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(150));
+        neverReported.setLastReportTime(null);
+        when(vehicleService.listAssignableVehicles()).thenReturn(List.of(neverReported));
+
+        DispatchAssignResult result = assignService.selectBestVehicle(order);
+
+        assertFalse(result.isSuccess());
+        assertEquals(DispatchAssignFailReason.TELEMETRY_STALE, result.getFailReason());
     }
 }

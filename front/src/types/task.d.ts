@@ -66,6 +66,28 @@ export interface TaskDetailResponse {
   openExceptions?: OpenExceptionBrief[]
 }
 
+/** 统一任务时间线（路线图 3.2） */
+export interface TaskTimelineEntry {
+  time: string | null
+  eventType: string
+  beforeStatus?: string | null
+  afterStatus?: string | null
+  source?: string | null
+  operatorName?: string | null
+  message?: string | null
+  failReason?: string | null
+  exception?: boolean
+  severity?: string | null
+}
+
+export interface TaskTimelineResponse {
+  taskId: number
+  taskNo: string
+  taskStatus: string
+  orderId: number | null
+  entries: TaskTimelineEntry[]
+}
+
 export interface DispatchForm {
   vehicleId: number
   remark?: string

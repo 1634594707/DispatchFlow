@@ -4,6 +4,7 @@ import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.model.FleetTrajectoryPoint;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
+import com.fsd.dispatch.fleet.policy.TelemetryFreshnessPolicy;
 import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
@@ -17,16 +18,19 @@ import org.springframework.stereotype.Component;
 @Component
 public class FleetSnapshotAssembler {
 
-    private static final Duration TELEMETRY_STALE_AFTER = Duration.ofSeconds(30);
-
     private final FleetChargePolicy fleetChargePolicy;
 
     private final ParkGeoTransformService parkGeoTransformService;
 
+    /** 遥测新鲜度统一判定（路线图 5.1）：阈值与可派判定共用同一规则。 */
+    private final TelemetryFreshnessPolicy telemetryFreshnessPolicy;
+
     public FleetSnapshotAssembler(FleetChargePolicy fleetChargePolicy,
-                                  ParkGeoTransformService parkGeoTransformService) {
+                                  ParkGeoTransformService parkGeoTransformService,
+                                  TelemetryFreshnessPolicy telemetryFreshnessPolicy) {
         this.fleetChargePolicy = fleetChargePolicy;
         this.parkGeoTransformService = parkGeoTransformService;
+        this.telemetryFreshnessPolicy = telemetryFreshnessPolicy;
     }
 
     public ParkVehicleSnapshotResponse assemble(VehicleEntity vehicle, FleetRuntime runtime) {
@@ -53,7 +57,9 @@ public class FleetSnapshotAssembler {
                         ? effectiveRuntime.getHeading()
                         : toDouble(vehicle.getCurrentHeading()))
                 .lastTelemetryAt(effectiveRuntime.getLastTelemetryAt())
-                .telemetryStale(isTelemetryStale(effectiveRuntime.getLastTelemetryAt()))
+                .telemetryStale(telemetryFreshnessPolicy.isStale(effectiveRuntime.getLastTelemetryAt()))
+                .telemetryAgeSeconds(telemetryFreshnessPolicy.ageSeconds(effectiveRuntime.getLastTelemetryAt()))
+                .telemetryStaleThresholdSeconds(telemetryFreshnessPolicy.threshold().toSeconds())
                 .runtimeStage(effectiveRuntime.getRuntimeStage())
                 .targetCode(effectiveRuntime.getTargetCode())
                 .targetType(effectiveRuntime.getTargetType())
@@ -113,11 +119,6 @@ public class FleetSnapshotAssembler {
 
     private static <T> T firstNonNull(T primary, T fallback) {
         return primary != null ? primary : fallback;
-    }
-
-    private static boolean isTelemetryStale(LocalDateTime lastTelemetryAt) {
-        return lastTelemetryAt == null
-                || lastTelemetryAt.isBefore(LocalDateTime.now().minus(TELEMETRY_STALE_AFTER));
     }
 
     private static Double toDouble(java.math.BigDecimal value) {

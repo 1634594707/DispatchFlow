@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 import type { ApiResponse, PageResponse } from '@/types/api'
-import type { TaskQueryRequest, TaskAdminListItem, TaskDetailResponse } from '@/types/task'
+import type { TaskQueryRequest, TaskAdminListItem, TaskDetailResponse, TaskTimelineResponse } from '@/types/task'
 
 export interface TaskAssignResponse {
   taskId: number
@@ -31,6 +31,13 @@ export function queryTasks(data: TaskQueryRequest) {
 
 export function getTaskDetail(taskId: number, parkId?: number) {
   return request.get<any, ApiResponse<TaskDetailResponse>>(`/admin/tasks/${taskId}`, {
+    params: parkId != null ? { parkId } : undefined,
+  })
+}
+
+/** 统一任务时间线（路线图 3.2）：订单创建→派车→回报→异常→重试/改派→终态 */
+export function getTaskTimeline(taskId: number, parkId?: number) {
+  return request.get<any, ApiResponse<TaskTimelineResponse>>(`/admin/tasks/${taskId}/timeline`, {
     params: parkId != null ? { parkId } : undefined,
   })
 }

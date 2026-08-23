@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
+import com.fsd.dispatch.fleet.policy.TelemetryFreshnessPolicy;
 import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.vehicle.entity.VehicleEntity;
 import java.math.BigDecimal;
@@ -17,7 +18,8 @@ class FleetSnapshotAssemblerTest {
 
     private final FleetSnapshotAssembler assembler = new FleetSnapshotAssembler(
             mock(FleetChargePolicy.class),
-            new ParkGeoTransformService(new ParkPilotProperties()));
+            new ParkGeoTransformService(new ParkPilotProperties()),
+            new TelemetryFreshnessPolicy(30));
 
     @Test
     void shouldPreferRedisGeoOverParkTransform() {

@@ -88,6 +88,10 @@ export interface ParkVehicleSnapshot {
   heading?: number | null
   lastTelemetryAt?: string | null
   telemetryStale?: boolean
+  /** 数据年龄（秒）：当前时间 - 最后遥测时间 */
+  telemetryAgeSeconds?: number | null
+  /** 服务端统一遥测过期阈值（秒） */
+  telemetryStaleThresholdSeconds?: number | null
   runtimeStage: string
   targetCode: string | null
   targetType: string | null
