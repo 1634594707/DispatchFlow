@@ -41,6 +41,9 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
     private final AdminDispatchStreamService dispatchStreamService;
     private final DispatchLockMetrics dispatchLockMetrics;
 
+    /** 实时流队列实际名称（每实例匿名队列，路线图 4.1）。 */
+    private final String streamQueueName;
+
     public SystemHealthAdminServiceImpl(DataSource dataSource,
                                         ObjectProvider<RedisConnectionFactory> redisConnectionFactoryProvider,
                                         ObjectProvider<ConnectionFactory> rabbitConnectionFactoryProvider,
@@ -48,7 +51,8 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
                                         DispatchEventOutboxMapper outboxMapper,
                                         ApiRequestMetrics apiRequestMetrics,
                                         AdminDispatchStreamService dispatchStreamService,
-                                        DispatchLockMetrics dispatchLockMetrics) {
+                                        DispatchLockMetrics dispatchLockMetrics,
+                                        org.springframework.amqp.core.Queue dispatchStreamQueue) {
         this.dataSource = dataSource;
         this.redisConnectionFactoryProvider = redisConnectionFactoryProvider;
         this.rabbitConnectionFactoryProvider = rabbitConnectionFactoryProvider;
@@ -57,6 +61,7 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
         this.apiRequestMetrics = apiRequestMetrics;
         this.dispatchStreamService = dispatchStreamService;
         this.dispatchLockMetrics = dispatchLockMetrics;
+        this.streamQueueName = dispatchStreamQueue.getName();
     }
 
     @Override
@@ -106,7 +111,7 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
         }
         return List.of(
                 queueBacklog(rabbitAdmin, DispatchMessagingConfig.DISPATCH_AUDIT_QUEUE),
-                queueBacklog(rabbitAdmin, DispatchMessagingConfig.DISPATCH_STREAM_QUEUE),
+                queueBacklog(rabbitAdmin, streamQueueName),
                 queueBacklog(rabbitAdmin, DispatchMessagingConfig.DISPATCH_WEBHOOK_QUEUE));
     }
 
@@ -239,7 +244,7 @@ public class SystemHealthAdminServiceImpl implements SystemHealthAdminService {
             RabbitAdmin rabbitAdmin = rabbitAdminProvider.getIfAvailable();
             if (rabbitAdmin != null) {
                 queueDepths.put(DispatchMessagingConfig.DISPATCH_AUDIT_QUEUE, queueDepth(rabbitAdmin, DispatchMessagingConfig.DISPATCH_AUDIT_QUEUE));
-                queueDepths.put(DispatchMessagingConfig.DISPATCH_STREAM_QUEUE, queueDepth(rabbitAdmin, DispatchMessagingConfig.DISPATCH_STREAM_QUEUE));
+                queueDepths.put(streamQueueName, queueDepth(rabbitAdmin, streamQueueName));
                 queueDepths.put(DispatchMessagingConfig.DISPATCH_WEBHOOK_QUEUE, queueDepth(rabbitAdmin, DispatchMessagingConfig.DISPATCH_WEBHOOK_QUEUE));
             }
             long backlog = queueDepths.values().stream()

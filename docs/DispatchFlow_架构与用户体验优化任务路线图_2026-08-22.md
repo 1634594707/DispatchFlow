@@ -62,7 +62,7 @@
 
 - [x] 将 `AdminSseTicketServiceImpl` 当前内存 `ConcurrentHashMap` 改为 Redis 存储；ticket payload 使用专用 JSON 结构，Redis 不可用时拒绝签发/消费，不回退进程内存。
 - [x] Redis ticket 设置 TTL，并通过 Lua 原子 `GET`+`DEL` 保证一次性消费语义；已补充 Redis 写入、失效、重复消费和非法 payload 测试。
-- [ ] 明确生产部署是单实例还是多实例；若使用多实例，SSE ticket、连接状态和事件分发必须跨实例可用。
+- [x] 明确生产部署是单实例还是多实例；若使用多实例，SSE ticket、连接状态和事件分发必须跨实例可用。生产 docker-compose.prod.yml 当前为单实例（fsd-backend 单容器）。多实例就绪改造已完成：流事件队列由共享固定队列改为每实例匿名自动删除队列（AnonymousQueue 绑定同一交换机），消除多实例下 RabbitMQ 轮询消费导致的 SSE 事件丢失；SSE ticket 已 Redis 跨实例、Outbox 租约/fencing 与消费幂等本就多实例安全；系统健康监控改为跟踪实际动态队列名。
 - [x] 为 SSE 增加连接建立失败、ticket 失效、重连次数、最大连接数和断开原因指标。AdminSseMetrics 新增 connections.peak / connections.limit / connections.reconnects / connections.closed.by.reason{reason=completed|timeout|error|send-failure}；连接超限拒绝计入 connections.rejected；同用户 60 秒窗口内断开后重连计一次重连；`AdminSseMetricsTest` 覆盖峰值/上限/按原因分组/重连窗口。
 - [ ] 统一 `/api/admin/dispatch/stream` 与 `/api/admin/fleet/telemetry/stream` 的认证、心跳、超时和重连策略。
 
@@ -104,10 +104,10 @@
 
 ## 6. Phase 4：权限和安全边界
 
-- [ ] 建立统一权限资源表，至少覆盖任务读取、任务派车、任务取消、车辆读取、基础设施写入和分析导出。
-- [ ] 后端权限检查统一使用资源、动作和园区范围，不以单独的页面路由判断作为授权依据。
-- [ ] 前端路由 `requiresAdmin` 只负责隐藏入口和改善体验，后端继续执行最终授权。
-- [ ] 验证移动端公开接口、管理端接口、SSE 接口和车辆网关接口的认证边界。
+- [x] 建立统一权限资源表，至少覆盖任务读取、任务派车、任务取消、车辆读取、基础设施写入和分析导出。`AdminResource × AdminAction → AdminRole` 矩阵（`AdminPermissionService`）：TASK.READ 全员、TASK.ASSIGN/CANCEL 仅 OPERATOR+ADMIN、VEHICLE.READ 全员、INFRASTRUCTURE.WRITE 仅 ADMIN、ANALYTICS_EXPORT.EXECUTE 全员；未登记组合默认拒绝；`AdminPermissionMatrixTest` 锁定契约。
+- [x] 后端权限检查统一使用资源、动作和园区范围，不以单独的页面路由判断作为授权依据。六类必选资源端点已全部接入矩阵校验（任务详情/时间线/派车/取消/改派/优先级/批量 + 车辆列表/查询/详情 + 基础设施 28 个写端点 + 分析导出）；园区范围继续由 ensureTaskPark/ensureOrderPark/ensureBatchTaskPark 在矩阵判定之后强制执行。
+- [x] 前端路由 `requiresAdmin` 只负责隐藏入口和改善体验，后端继续执行最终授权。（已核实 router 守卫仅重定向到 /workbench；后端拦截器 + 权限矩阵为最终授权层）
+- [x] 验证移动端公开接口、管理端接口、SSE 接口和车辆网关接口的认证边界。`ApiAuthBoundaryTest`：移动下单缺 Key/无效 Key/限流爆发三类拒绝；车辆网关拒绝 SIM 配置遥测上报；管理端 token 边界由 AdminAuthInterceptor 与控制器测试覆盖；SSE ticket 一次性消费由 AdminSseTicketServiceImplTest 覆盖。
 - [ ] 验证导出 URL、SSE ticket、日志接口和敏感字段不会出现在普通访问日志或前端错误提示中。
 
 ## 7. Phase 5：性能与运维

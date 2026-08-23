@@ -1,6 +1,9 @@
 package com.fsd.admin.controller;
 
+import com.fsd.admin.auth.AdminAction;
 import com.fsd.admin.auth.AdminAuthSupport;
+import com.fsd.admin.auth.AdminPermissionService;
+import com.fsd.admin.auth.AdminResource;
 import com.fsd.admin.service.AnalyticsAdminService;
 import com.fsd.admin.vo.AdminPeakCompareResponse;
 import com.fsd.admin.vo.AdminAnalyticsChainKpiResponse;
@@ -35,9 +38,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminAnalyticsController {
 
     private final AnalyticsAdminService analyticsAdminService;
+    private final AdminPermissionService adminPermissionService;
 
-    public AdminAnalyticsController(AnalyticsAdminService analyticsAdminService) {
+    public AdminAnalyticsController(AnalyticsAdminService analyticsAdminService,
+                                    AdminPermissionService adminPermissionService) {
         this.analyticsAdminService = analyticsAdminService;
+        this.adminPermissionService = adminPermissionService;
     }
 
     @GetMapping("/efficiency")
@@ -170,7 +176,7 @@ public class AdminAnalyticsController {
                           @RequestParam(required = false) Long parkId,
                           HttpServletRequest httpRequest,
                           HttpServletResponse response) throws IOException {
-        AdminAuthSupport.requireAuth(httpRequest);
+        adminPermissionService.check(httpRequest, AdminResource.ANALYTICS_EXPORT, AdminAction.EXECUTE);
         String csv = analyticsAdminService.exportCsv(dataset, period, parkId);
         String filename = dataset + "-" + period + ".csv";
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

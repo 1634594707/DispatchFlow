@@ -95,6 +95,8 @@ class AdminDispatchControllerTest {
     private AdminAuthService adminAuthService;
     @Mock
     private HttpServletRequest httpServletRequest;
+    @Mock
+    private com.fsd.admin.auth.AdminPermissionService adminPermissionService;
 
     @InjectMocks
     private AdminDispatchController adminDispatchController;

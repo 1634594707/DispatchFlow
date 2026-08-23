@@ -53,6 +53,9 @@ import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
 import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
+import com.fsd.admin.auth.AdminAction;
+import com.fsd.admin.auth.AdminPermissionService;
+import com.fsd.admin.auth.AdminResource;
 import com.fsd.dispatch.vo.TaskTimelineResponse;
 import com.fsd.order.service.OrderAdminQueryService;
 import com.fsd.order.service.OrderStateService;
@@ -107,6 +110,7 @@ public class AdminDispatchController {
     private final AdminAuthService adminAuthService;
     private final CoordinateTransformService coordinateTransformService;
     private final ParkMapper parkMapper;
+    private final AdminPermissionService adminPermissionService;
 
     public AdminDispatchController(OrderAdminQueryService orderAdminQueryService,
                                    OrderQueryService orderQueryService,
@@ -128,7 +132,8 @@ public class AdminDispatchController {
                                    MobileOrderAuthService mobileOrderAuthService,
                                    AdminAuthService adminAuthService,
                                    CoordinateTransformService coordinateTransformService,
-                                   ParkMapper parkMapper) {
+                                   ParkMapper parkMapper,
+                                   AdminPermissionService adminPermissionService) {
         this.orderAdminQueryService = orderAdminQueryService;
         this.orderStateService = orderStateService;
         this.orderAdminDetailService = orderAdminDetailService;
@@ -149,6 +154,7 @@ public class AdminDispatchController {
         this.adminAuthService = adminAuthService;
         this.coordinateTransformService = coordinateTransformService;
         this.parkMapper = parkMapper;
+        this.adminPermissionService = adminPermissionService;
     }
 
     @GetMapping("/orders")
@@ -231,7 +237,7 @@ public class AdminDispatchController {
     public ApiResponse<DispatchTaskDetailResponse> getTaskDetail(@PathVariable Long taskId,
                                                                  @RequestParam(required = false) Long parkId,
                                                                  HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        adminPermissionService.check(request, AdminResource.TASK, AdminAction.READ);
         DispatchTaskDetailResponse detail = taskAdminDetailService.getEnrichedDetail(taskId);
         ensureOrderPark(detail.getOrderId(), parkId);
         return ApiResponse.success(detail);
@@ -246,7 +252,7 @@ public class AdminDispatchController {
     public ApiResponse<TaskTimelineResponse> getTaskTimeline(@PathVariable Long taskId,
                                                              @RequestParam(required = false) Long parkId,
                                                              HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        adminPermissionService.check(request, AdminResource.TASK, AdminAction.READ);
         TaskTimelineResponse timeline = dispatchAdminQueryService.getTaskTimeline(taskId);
         ensureTaskPark(taskId, parkId);
         return ApiResponse.success(timeline);
@@ -262,7 +268,7 @@ public class AdminDispatchController {
     public ApiResponse<DispatchTaskAssignResponse> autoAssignTask(@PathVariable Long taskId,
                                                                   @RequestParam(required = false) Long parkId,
                                                                   HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        adminPermissionService.check(request, AdminResource.TASK, AdminAction.ASSIGN);
         ensureTaskPark(taskId, parkId);
         return ApiResponse.success(dispatchTaskService.autoAssignTask(taskId));
     }
@@ -282,7 +288,7 @@ public class AdminDispatchController {
                                                                     @Valid @RequestBody AdminTaskManualAssignRequest request,
                                                                     @RequestParam(required = false) Long parkId,
                                                                     HttpServletRequest httpRequest) {
-        AdminAuthSupport.requireAuth(httpRequest);
+        adminPermissionService.check(httpRequest, AdminResource.TASK, AdminAction.ASSIGN);
         ensureTaskPark(taskId, parkId);
         DispatchTaskManualAssignRequest assignRequest = new DispatchTaskManualAssignRequest();
         assignRequest.setVehicleId(request.getVehicleId());
@@ -309,7 +315,7 @@ public class AdminDispatchController {
                                                                 @RequestBody(required = false) AdminTaskCancelRequest body,
                                                                 @RequestParam(required = false) Long parkId,
                                                                 HttpServletRequest httpRequest) {
-        AdminAuthSupport.requireAuth(httpRequest);
+        adminPermissionService.check(httpRequest, AdminResource.TASK, AdminAction.CANCEL);
         ensureTaskPark(taskId, parkId);
         OperatorIdentity operator = resolveOperator(httpRequest);
         String remark = body != null ? body.getRemark() : null;
@@ -333,7 +339,7 @@ public class AdminDispatchController {
                                                                 @Valid @RequestBody AdminTaskManualAssignRequest request,
                                                                 @RequestParam(required = false) Long parkId,
                                                                 HttpServletRequest httpRequest) {
-        AdminAuthSupport.requireAuth(httpRequest);
+        adminPermissionService.check(httpRequest, AdminResource.TASK, AdminAction.ASSIGN);
         ensureTaskPark(taskId, parkId);
         DispatchTaskManualAssignRequest assignRequest = new DispatchTaskManualAssignRequest();
         assignRequest.setVehicleId(request.getVehicleId());
@@ -359,7 +365,7 @@ public class AdminDispatchController {
     public ApiResponse<Void> bumpTaskPriority(@PathVariable Long taskId,
                                               @RequestParam(required = false) Long parkId,
                                               HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        adminPermissionService.check(request, AdminResource.TASK, AdminAction.ASSIGN);
         ensureTaskPark(taskId, parkId);
         taskPriorityAdminService.bumpTaskPriority(taskId);
         return ApiResponse.success(null);
@@ -378,7 +384,7 @@ public class AdminDispatchController {
     })
     public ApiResponse<AdminBatchTaskResultResponse> batchAutoAssign(@Valid @RequestBody AdminBatchTaskRequest request,
                                                                      HttpServletRequest httpRequest) {
-        AdminAuthSupport.requireAuth(httpRequest);
+        adminPermissionService.check(httpRequest, AdminResource.TASK, AdminAction.ASSIGN);
         ensureBatchTaskPark(request);
         OperatorIdentity operator = resolveOperator(httpRequest);
         return ApiResponse.success(batchTaskAdminService.batchAutoAssign(request, operator.id(), operator.name()));
@@ -393,7 +399,7 @@ public class AdminDispatchController {
     })
     public ApiResponse<AdminBatchTaskResultResponse> batchCancel(@Valid @RequestBody AdminBatchTaskRequest request,
                                                                  HttpServletRequest httpRequest) {
-        AdminAuthSupport.requireAuth(httpRequest);
+        adminPermissionService.check(httpRequest, AdminResource.TASK, AdminAction.CANCEL);
         ensureBatchTaskPark(request);
         OperatorIdentity operator = resolveOperator(httpRequest);
         return ApiResponse.success(batchTaskAdminService.batchCancel(request, operator.id(), operator.name()));
@@ -408,7 +414,7 @@ public class AdminDispatchController {
     })
     public ApiResponse<AdminBatchTaskResultResponse> batchReassign(@Valid @RequestBody AdminBatchTaskRequest request,
                                                                    HttpServletRequest httpRequest) {
-        AdminAuthSupport.requireAuth(httpRequest);
+        adminPermissionService.check(httpRequest, AdminResource.TASK, AdminAction.ASSIGN);
         ensureBatchTaskPark(request);
         OperatorIdentity operator = resolveOperator(httpRequest);
         return ApiResponse.success(batchTaskAdminService.batchReassign(request, operator.id(), operator.name()));
@@ -423,7 +429,7 @@ public class AdminDispatchController {
     })
     public ApiResponse<AdminBatchTaskResultResponse> batchUnassign(@Valid @RequestBody AdminBatchTaskRequest request,
                                                                    HttpServletRequest httpRequest) {
-        AdminAuthSupport.requireAuth(httpRequest);
+        adminPermissionService.check(httpRequest, AdminResource.TASK, AdminAction.CANCEL);
         ensureBatchTaskPark(request);
         OperatorIdentity operator = resolveOperator(httpRequest);
         return ApiResponse.success(batchTaskAdminService.batchUnassign(request, operator.id(), operator.name()));
@@ -530,7 +536,7 @@ public class AdminDispatchController {
     @Operation(summary = "List all vehicles")
     public ApiResponse<List<VehicleAdminListItemResponse>> listVehicles(
         @RequestParam(required = false) Long parkId, HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        adminPermissionService.check(request, AdminResource.VEHICLE, AdminAction.READ);
         return ApiResponse.success(parkId == null
                 ? vehicleAdminQueryService.listVehicles()
                 : vehicleAdminQueryService.listVehicles(parkId));
@@ -545,7 +551,7 @@ public class AdminDispatchController {
     public ApiResponse<PageResponse<VehicleAdminListItemResponse>> queryVehicles(
             @Valid @RequestBody AdminVehicleQueryRequest body,
             HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        adminPermissionService.check(request, AdminResource.VEHICLE, AdminAction.READ);
         return ApiResponse.success(adminQueryFacadeService.queryVehicles(body));
     }
 
@@ -554,7 +560,7 @@ public class AdminDispatchController {
     public ApiResponse<VehicleAdminDetailResponse> getVehicleDetail(@PathVariable Long vehicleId,
                                                                     @RequestParam(required = false) Long parkId,
                                                                     HttpServletRequest request) {
-        AdminAuthSupport.requireAuth(request);
+        adminPermissionService.check(request, AdminResource.VEHICLE, AdminAction.READ);
         VehicleAdminDetailResponse detail = vehicleAdminQueryService.getVehicleDetail(vehicleId);
         if (parkId != null && !parkId.equals(detail.getParkId())) {
             throw new BusinessException("PARK_SCOPE_DENIED", "记录不属于当前园区");

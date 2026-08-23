@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fsd.admin.auth.AdminAuthSupport;
+import com.fsd.admin.auth.AdminPermissionService;
 import com.fsd.admin.service.AnalyticsAdminService;
 import com.fsd.common.enums.AdminRole;
 import com.fsd.common.exception.BusinessException;
@@ -31,7 +32,7 @@ class AdminAnalyticsControllerExportRoleTest {
     @BeforeEach
     void setUp() {
         analyticsAdminService = mock(AnalyticsAdminService.class);
-        controller = new AdminAnalyticsController(analyticsAdminService);
+        controller = new AdminAnalyticsController(analyticsAdminService, new AdminPermissionService());
         response = new MockHttpServletResponse();
         when(analyticsAdminService.exportCsv(anyString(), anyString(), anyLong())).thenReturn("order_no\nO1\n");
     }
@@ -65,7 +66,7 @@ class AdminAnalyticsControllerExportRoleTest {
     void exportShouldForwardParkAndPeriodFilters() throws Exception {
         analyticsAdminService = mock(AnalyticsAdminService.class);
         when(analyticsAdminService.exportCsv("tasks", "day", 7L)).thenReturn("filtered");
-        controller = new AdminAnalyticsController(analyticsAdminService);
+        controller = new AdminAnalyticsController(analyticsAdminService, new AdminPermissionService());
 
         MockHttpServletRequest request = authenticatedRequest(AdminRole.OPERATOR);
         controller.exportCsv("tasks", "day", 7L, request, response);
@@ -77,7 +78,7 @@ class AdminAnalyticsControllerExportRoleTest {
         analyticsAdminService = mock(AnalyticsAdminService.class);
         String csv = "csv-" + role.name().toLowerCase();
         when(analyticsAdminService.exportCsv(anyString(), anyString(), anyLong())).thenReturn(csv);
-        controller = new AdminAnalyticsController(analyticsAdminService);
+        controller = new AdminAnalyticsController(analyticsAdminService, new AdminPermissionService());
 
         MockHttpServletRequest request = authenticatedRequest(role);
         controller.exportCsv("orders", "week", 3L, request, response);

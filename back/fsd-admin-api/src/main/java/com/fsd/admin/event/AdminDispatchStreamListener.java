@@ -20,7 +20,8 @@ public class AdminDispatchStreamListener {
         this.streamService = streamService;
     }
 
-    @RabbitListener(queues = DispatchMessagingConfig.DISPATCH_STREAM_QUEUE)
+    /** SpEL 引用匿名队列：每实例独立队列，多实例下各自收到全量流事件（路线图 4.1）。 */
+    @RabbitListener(queues = "#{dispatchStreamQueue.name}")
     public void onEvent(DispatchDomainEvent event) {
         if (!streamService.hasClients()) {
             return;
