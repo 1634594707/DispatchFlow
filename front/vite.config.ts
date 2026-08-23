@@ -111,14 +111,21 @@ export default defineConfig(({ mode }) => {
     // P2-3: 构建目标与 sourcemap 配置
     target: 'es2020',
     sourcemap: mode === 'analyze',
-    chunkSizeWarningLimit: 1000,
+    // Phase 5 评估结论：antd 组件库拆出图标后仍约 1.2MB（gzip ~373KB），
+    // 为框架固有成本且被独立长缓存；阈值放宽至 1300 并保留对更大回归的告警
+    chunkSizeWarningLimit: 1300,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) {
             return
           }
-          if (id.includes('ant-design-vue') || id.includes('@ant-design/icons-vue')) {
+          // 路线图 Phase 5：antd 图标库独立分包（可并行加载与独立缓存），
+          // 组件库单独成块；仅按包名拆分避免循环 chunk
+          if (id.includes('@ant-design/icons-vue')) {
+            return 'antd-icons'
+          }
+          if (id.includes('ant-design-vue')) {
             return 'antd'
           }
           if (id.includes('leaflet')) {

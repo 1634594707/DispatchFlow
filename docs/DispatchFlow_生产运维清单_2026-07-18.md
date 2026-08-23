@@ -52,3 +52,35 @@
 - `.env` 仅保存在服务器，权限为 `600`，不得进入源码包或聊天记录。
 - 每 90 天轮换数据库、RabbitMQ、管理端密钥；人员变更时立即轮换。
 - Nginx、Docker、MySQL 和系统安全更新按月评估，先备份再执行。
+
+## 实时链路与导出监控（2026-08-22 路线图新增）
+
+Prometheus 端点：`/internal/actuator/prometheus`（默认已暴露）。本路线图新增指标及建议告警：
+
+| 指标 | 说明 | 告警建议 |
+| --- | --- | --- |
+| `dispatchflow_sse_connections_active` / `...telemetry.connections.active` | 调度流 / 遥测流活跃连接数 | 突降为 0 且工作台有人使用 |
+| `dispatchflow_sse_connections_rejected`（含 telemetry） | 连接被拒（达到 max-connections 上限） | > 0 即需扩容或调大上限 |
+| `dispatchflow_sse_connections_closed_by_reason` | 断开原因分组（completed/timeout/error/send-failure/heartbeat-failure） | error/send-failure 持续增长 |
+| `dispatchflow_sse_connections_reconnects` | 同用户 60s 内重连次数 | 持续 > 0 提示网络或服务端不稳 |
+| `dispatchflow_outbox_events_dead_letter`（死信数量） | Outbox 超过最大重试进入 DEAD_LETTER | > 0 立即排查失败原因 |
+| `dispatchflow_rabbitmq_queue_backlog{queue=...}` | 各业务队列积压深度 | > 100 WARNING；> 500 CRITICAL |
+| `dispatchflow_redis_available` / `dispatchflow_redis_ping_latency_ms` | Redis 可用性与探测延迟 | available = 0；延迟 > 200 ms |
+| `dispatchflow_export_requests{dataset,result}` / `dispatchflow_export_rows` | 导出请求与行数；result=EXPORT_ROW_LIMIT_EXCEEDED 表示超限被拒 | limit_exceeded 频发提示用户缩小范围或配置异步报表 |
+
+### 导出与报表
+
+- CSV 导出行数上限 `fsd.admin.export.max-rows`（默认 50000）；超限返回 `EXPORT_ROW_LIMIT_EXCEEDED` 并提示改用报表计划/历史报表。
+- 大数据量导出一律引导至"定时报表 + 报表历史"，避免同步导出拖垮工作台。
+
+### SSE 双流策略速查
+
+- 认证：两流均需一次性 ticket（`POST /api/admin/sse-ticket`，Redis 存储，60 s TTL，消费即失效）。
+- 超时：共用 `fsd.admin.sse.timeout-ms`；连接上限：共用 `fsd.admin.sse.max-connections`。
+- 心跳：每 30 s 下发 ping 注释帧；前端指数退避重连（1s→30s，最多 10 次）。
+- 多实例：事件队列为每实例匿名自动删除队列；ticket 在 Redis 跨实例共享；Outbox 租约/fencing 保证不重复投递。
+
+### 回滚补充
+
+- 本路线图新增迁移 V48（车辆园区作用域）、V49（Outbox 租约）、V50（订单幂等表）：回滚代码版本时**不要删除**已执行的 Flyway 历史；旧代码遇到新表无影响。
+- 流队列改名后首次启动会自动声明新的匿名队列并绑定交换机；旧 `fsd.dispatch.stream.queue` 可在确认无消费后手动清理。
