@@ -15,6 +15,7 @@ export interface VehicleQueryRequest {
 
 export interface VehicleAdminListItem {
   vehicleId: number
+  parkId?: number | null
   vehicleCode: string
   vehicleName: string
   onlineStatus: OnlineStatus
@@ -40,6 +41,7 @@ export interface VehicleAdminListItem {
 
 export interface VehicleDetailResponse {
   vehicleId: number
+  parkId?: number | null
   vehicleCode: string
   vehicleName: string
   vehicleType: string

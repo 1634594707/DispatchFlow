@@ -128,19 +128,28 @@ public class VehicleServiceImpl implements VehicleService {
 
     @Override
     public VehicleSummaryResponse getSummary() {
-        long onlineCount = vehicleMapper.selectCount(new LambdaQueryWrapper<VehicleEntity>()
-                .eq(VehicleEntity::getDeleted, 0)
-                .eq(VehicleEntity::getOnlineStatus, VehicleOnlineStatus.ONLINE.name()));
-        long idleCount = vehicleMapper.selectCount(new LambdaQueryWrapper<VehicleEntity>()
-                .eq(VehicleEntity::getDeleted, 0)
-                .eq(VehicleEntity::getDispatchStatus, VehicleDispatchStatus.IDLE.name()));
-        long busyCount = vehicleMapper.selectCount(new LambdaQueryWrapper<VehicleEntity>()
-                .eq(VehicleEntity::getDeleted, 0)
-                .eq(VehicleEntity::getDispatchStatus, VehicleDispatchStatus.BUSY.name()));
+        return getSummary(null);
+    }
+
+    @Override
+    public VehicleSummaryResponse getSummary(Long parkId) {
+        long onlineCount = countByStatus(VehicleOnlineStatus.ONLINE.name(), null, parkId);
+        long idleCount = countByStatus(null, VehicleDispatchStatus.IDLE.name(), parkId);
+        long busyCount = countByStatus(null, VehicleDispatchStatus.BUSY.name(), parkId);
         return VehicleSummaryResponse.builder()
                 .onlineCount(onlineCount)
                 .idleCount(idleCount)
                 .busyCount(busyCount)
                 .build();
+    }
+
+    private long countByStatus(String onlineStatus, String dispatchStatus, Long parkId) {
+        LambdaQueryWrapper<VehicleEntity> wrapper = new LambdaQueryWrapper<VehicleEntity>()
+                .eq(VehicleEntity::getDeleted, 0);
+        if (onlineStatus != null) wrapper.eq(VehicleEntity::getOnlineStatus, onlineStatus);
+        if (dispatchStatus != null) wrapper.eq(VehicleEntity::getDispatchStatus, dispatchStatus);
+        if (parkId != null) wrapper.eq(VehicleEntity::getParkId, parkId);
+        Long count = vehicleMapper.selectCount(wrapper);
+        return count == null ? 0L : count;
     }
 }

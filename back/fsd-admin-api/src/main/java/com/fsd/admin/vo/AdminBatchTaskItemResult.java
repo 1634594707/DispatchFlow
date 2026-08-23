@@ -25,4 +25,7 @@ public class AdminBatchTaskItemResult {
     private String reasonMessage;
 
     private List<String> suggestions;
+
+    /** 失败原因是否为瞬时类（锁冲突/无车/系统错误等），可整批重试；状态类拒绝不可重试。 */
+    private boolean retryable;
 }

@@ -99,13 +99,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { SearchOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import dayjs, { type Dayjs } from 'dayjs'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { queryOperateLogs, exportOperateLogs, fetchConfigAuditLogs } from '@/api/operateLog'
 import type { OperateLogItem, OperateLogQueryRequest, ConfigAuditLogItem, ConfigAuditQueryRequest } from '@/types/operateLog'
 import { DEFAULT_PAGE_SIZE } from '@/config'
+import { useParkScopeStore } from '@/stores/parkScope'
 
 const activeTab = ref('operate')
 
@@ -123,6 +124,7 @@ const query = reactive<OperateLogQueryRequest>({
   operateType: undefined,
   operatorName: '',
 })
+const parkScope = useParkScopeStore()
 
 const operateTypeOptions = [
   'CREATE_TASK', 'AUTO_ASSIGN', 'MANUAL_ASSIGN', 'REASSIGN', 'CANCEL_TASK',
@@ -173,6 +175,7 @@ function buildQuery(): OperateLogQueryRequest {
     ...query,
     startTime: timeRange.value?.[0]?.format('YYYY-MM-DD HH:mm:ss'),
     endTime: timeRange.value?.[1]?.format('YYYY-MM-DD HH:mm:ss'),
+    parkId: parkScope.selectedParkId,
     pageNo: pageNo.value,
     pageSize: pageSize.value,
   }
@@ -211,7 +214,7 @@ function handleTableChange(pag: { current: number; pageSize: number }) {
 }
 
 async function handleExport() {
-  await exportOperateLogs({ ...query, pageNo: 1, pageSize: 10000 })
+  await exportOperateLogs({ ...query, parkId: parkScope.selectedParkId, pageNo: 1, pageSize: 10000 })
 }
 
 /* ---- 配置审计 ---- */
@@ -323,6 +326,10 @@ function handleTabChange() {
 }
 
 onMounted(loadData)
+watch(() => parkScope.scopeVersion, () => {
+  pageNo.value = 1
+  void loadData()
+})
 </script>
 
 <style scoped lang="less">

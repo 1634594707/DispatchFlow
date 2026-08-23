@@ -39,7 +39,7 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
 
     @Override
     public PageResponse<OrderAdminListItemResponse> queryOrders(AdminOrderQueryRequest request) {
-        List<OrderAdminListItemResponse> filtered = orderAdminQueryService.listOrders().stream()
+        List<OrderAdminListItemResponse> filtered = orderAdminQueryService.listOrders(request.getParkId()).stream()
                 .filter(matchOrder(request))
                 .toList();
         return paginate(filtered, request.getPageNo(), request.getPageSize());
@@ -52,7 +52,7 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
 
     @Override
     public PageResponse<DispatchExceptionListItemResponse> queryExceptions(AdminExceptionQueryRequest request) {
-        List<DispatchExceptionListItemResponse> filtered = dispatchAdminQueryService.listExceptions().stream()
+        List<DispatchExceptionListItemResponse> filtered = dispatchAdminQueryService.listExceptions(request.getParkId()).stream()
                 .filter(matchException(request))
                 .toList();
         return paginate(filtered, request.getPageNo(), request.getPageSize());
@@ -60,7 +60,7 @@ public class AdminQueryFacadeServiceImpl implements AdminQueryFacadeService {
 
     @Override
     public PageResponse<VehicleAdminListItemResponse> queryVehicles(AdminVehicleQueryRequest request) {
-        List<VehicleAdminListItemResponse> filtered = vehicleAdminQueryService.listVehicles().stream()
+        List<VehicleAdminListItemResponse> filtered = vehicleAdminQueryService.listVehicles(request.getParkId()).stream()
                 .filter(matchVehicle(request))
                 .toList();
         return paginate(filtered, request.getPageNo(), request.getPageSize());

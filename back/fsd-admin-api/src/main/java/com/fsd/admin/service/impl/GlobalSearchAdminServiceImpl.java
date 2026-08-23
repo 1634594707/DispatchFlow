@@ -33,6 +33,11 @@ public class GlobalSearchAdminServiceImpl implements GlobalSearchAdminService {
 
     @Override
     public AdminGlobalSearchResponse search(String keyword, int limit) {
+        return search(keyword, limit, null);
+    }
+
+    @Override
+    public AdminGlobalSearchResponse search(String keyword, int limit, Long parkId) {
         String normalized = keyword == null ? "" : keyword.trim();
         // perType 为服务端计算的边界整数（3-10），用于分页 size；不再通过 .last("LIMIT " + n) 拼接。
         int perType = Math.max(3, Math.min(limit, 30) / 3);
@@ -46,10 +51,14 @@ public class GlobalSearchAdminServiceImpl implements GlobalSearchAdminService {
         // concatenation pattern entirely so future refactors cannot introduce injection.
         Page<OrderEntity> orderPage = new Page<>(1, perType);
         LambdaQueryWrapper<OrderEntity> orderQuery = new LambdaQueryWrapper<OrderEntity>()
-                .like(OrderEntity::getOrderNo, normalized)
+                .eq(OrderEntity::getDeleted, 0)
+                .and(wrapper -> wrapper
+                        .like(OrderEntity::getOrderNo, normalized)
+                        .or()
+                        .eq(numericId != null, OrderEntity::getId, numericId))
                 .orderByDesc(OrderEntity::getId);
-        if (numericId != null) {
-            orderQuery.or().eq(OrderEntity::getId, numericId);
+        if (parkId != null) {
+            orderQuery.eq(OrderEntity::getParkId, parkId);
         }
         orderMapper.selectPage(orderPage, orderQuery)
                 .getRecords()
@@ -63,10 +72,14 @@ public class GlobalSearchAdminServiceImpl implements GlobalSearchAdminService {
                         .build()));
         Page<DispatchTaskEntity> taskPage = new Page<>(1, perType);
         LambdaQueryWrapper<DispatchTaskEntity> taskQuery = new LambdaQueryWrapper<DispatchTaskEntity>()
-                .like(DispatchTaskEntity::getTaskNo, normalized)
+                .eq(DispatchTaskEntity::getDeleted, 0)
+                .and(wrapper -> wrapper
+                        .like(DispatchTaskEntity::getTaskNo, normalized)
+                        .or()
+                        .eq(numericId != null, DispatchTaskEntity::getId, numericId))
                 .orderByDesc(DispatchTaskEntity::getId);
-        if (numericId != null) {
-            taskQuery.or().eq(DispatchTaskEntity::getId, numericId);
+        if (parkId != null) {
+            taskQuery.apply("order_id IN (SELECT id FROM t_order WHERE deleted = 0 AND park_id = {0})", parkId);
         }
         dispatchTaskMapper.selectPage(taskPage, taskQuery)
                 .getRecords()
@@ -80,13 +93,16 @@ public class GlobalSearchAdminServiceImpl implements GlobalSearchAdminService {
                         .build()));
         Page<VehicleEntity> vehiclePage = new Page<>(1, perType);
         LambdaQueryWrapper<VehicleEntity> vehicleQuery = new LambdaQueryWrapper<VehicleEntity>()
+                .eq(VehicleEntity::getDeleted, 0)
                 .and(wrapper -> wrapper
                         .like(VehicleEntity::getVehicleCode, normalized)
                         .or()
-                        .like(VehicleEntity::getVehicleName, normalized))
+                        .like(VehicleEntity::getVehicleName, normalized)
+                        .or()
+                        .eq(numericId != null, VehicleEntity::getId, numericId))
                 .orderByDesc(VehicleEntity::getId);
-        if (numericId != null) {
-            vehicleQuery.or().eq(VehicleEntity::getId, numericId);
+        if (parkId != null) {
+            vehicleQuery.eq(VehicleEntity::getParkId, parkId);
         }
         vehicleMapper.selectPage(vehiclePage, vehicleQuery)
                 .getRecords()

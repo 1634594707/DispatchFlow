@@ -30,7 +30,7 @@ public class FleetTelemetryScheduler {
         try {
             List<ParkResponse> parks = parkPilotService.listParks();
             for (ParkResponse park : parks) {
-                List<ParkVehicleSnapshotResponse> vehicles = parkPilotService.listVehicleSnapshots();
+                List<ParkVehicleSnapshotResponse> vehicles = parkPilotService.listVehicleSnapshots(park.getParkId());
                 streamService.broadcast(park.getParkId(), vehicles);
             }
         } catch (Exception e) {

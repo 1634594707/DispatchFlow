@@ -169,9 +169,11 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     private void ensurePilotFleet(String prefix, int targetCount, boolean schematic) {
         List<VehicleEntity> existing = listPilotVehicles(prefix);
+        Long defaultParkId = parkStationService.requireDefaultPark().getId();
         for (int i = existing.size(); i < targetCount; i++) {
             ParkPointResponse spawn = schematic ? getStandbySpot(i) : getGeoStandbySpot(i);
             VehicleEntity vehicle = new VehicleEntity();
+            vehicle.setParkId(defaultParkId);
             vehicle.setVehicleCode(prefix + String.format(Locale.ROOT, "%02d", i + 1));
             vehicle.setVehicleName((schematic ? "园区仿真车 " : "短驳仿真车 ") + (i + 1));
             vehicle.setVehicleType("L4_DELIVERY");

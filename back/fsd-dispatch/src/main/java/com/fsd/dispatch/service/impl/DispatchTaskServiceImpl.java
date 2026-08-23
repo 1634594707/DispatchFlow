@@ -926,6 +926,8 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
         payload.put("taskNo", taskEntity.getTaskNo());
 
         payload.put("orderId", taskEntity.getOrderId());
+        OrderEntity order = orderStateService.getOrder(taskEntity.getOrderId());
+        payload.put("parkId", order == null ? null : order.getParkId());
 
         payload.put("vehicleId", taskEntity.getVehicleId());
 

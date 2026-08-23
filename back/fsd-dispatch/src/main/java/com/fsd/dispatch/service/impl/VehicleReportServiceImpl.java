@@ -178,6 +178,7 @@ public class VehicleReportServiceImpl implements VehicleReportService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("taskId", taskEntity.getId());
         payload.put("orderId", taskEntity.getOrderId());
+        payload.put("parkId", resolveTaskParkId(taskEntity));
         payload.put("vehicleId", taskEntity.getVehicleId());
         payload.put("status", taskEntity.getStatus());
         payload.put("startTime", taskEntity.getStartTime());

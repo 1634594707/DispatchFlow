@@ -133,13 +133,13 @@ export const useWorkbenchStore = defineStore('workbench', () => {
   }
 
   async function dispatchAuto(taskId: number) {
-    const res = await autoAssignTask(taskId)
+    const res = await autoAssignTask(taskId, parkScope.selectedParkId)
     await fetchQueue()
     return res.data
   }
 
   async function dispatchManual(taskId: number, vehicleId: number, remark?: string) {
-    const res = await manualAssignTask(taskId, { vehicleId, remark })
+    const res = await manualAssignTask(taskId, { vehicleId, remark }, parkScope.selectedParkId)
     await fetchQueue()
     return res.data
   }

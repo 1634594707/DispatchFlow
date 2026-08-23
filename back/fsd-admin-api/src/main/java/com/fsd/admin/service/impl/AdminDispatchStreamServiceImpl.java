@@ -3,6 +3,7 @@ package com.fsd.admin.service.impl;
 import com.fsd.admin.config.AdminSseProperties;
 import com.fsd.admin.auth.AdminAuthContext;
 import com.fsd.admin.service.AdminDispatchStreamService;
+import com.fsd.admin.metrics.AdminSseMetrics;
 import com.fsd.common.exception.BusinessException;
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -22,10 +23,12 @@ public class AdminDispatchStreamServiceImpl implements AdminDispatchStreamServic
     private static final Logger log = LoggerFactory.getLogger(AdminDispatchStreamServiceImpl.class);
 
     private final AdminSseProperties properties;
+    private final AdminSseMetrics metrics;
     private final CopyOnWriteArrayList<EmitterRegistration> emitters = new CopyOnWriteArrayList<>();
 
-    public AdminDispatchStreamServiceImpl(AdminSseProperties properties) {
+    public AdminDispatchStreamServiceImpl(AdminSseProperties properties, AdminSseMetrics metrics) {
         this.properties = properties;
+        this.metrics = metrics;
     }
 
     @Override
@@ -36,15 +39,18 @@ public class AdminDispatchStreamServiceImpl implements AdminDispatchStreamServic
     @Override
     public SseEmitter createStream(AdminAuthContext context, Long parkId) {
         if (emitters.size() >= properties.getMaxConnections()) {
+            metrics.connectionRejected();
             throw new BusinessException("SSE_CONNECTION_LIMIT_EXCEEDED", "SSE 连接数已达上限");
         }
         SseEmitter emitter = new SseEmitter(properties.getTimeoutMs());
         EmitterRegistration registration = new EmitterRegistration(emitter, context, parkId);
         emitters.add(registration);
+        metrics.connectionOpened();
 
-        emitter.onCompletion(() -> removeEmitter(registration));
-        emitter.onTimeout(() -> removeEmitter(registration));
-        emitter.onError(e -> removeEmitter(registration));
+        metrics.reconnectIfRecent(context == null ? null : context.getUsername());
+        emitter.onCompletion(() -> removeEmitter(registration, "completed"));
+        emitter.onTimeout(() -> removeEmitter(registration, "timeout"));
+        emitter.onError(e -> removeEmitter(registration, "error"));
 
         return emitter;
     }
@@ -71,7 +77,9 @@ public class AdminDispatchStreamServiceImpl implements AdminDispatchStreamServic
                 deadEmitters.add(registration);
             }
         }
-        emitters.removeAll(deadEmitters);
+        for (EmitterRegistration deadEmitter : deadEmitters) {
+            removeEmitter(deadEmitter, "send-failure");
+        }
     }
 
     @Override
@@ -84,8 +92,24 @@ public class AdminDispatchStreamServiceImpl implements AdminDispatchStreamServic
         return emitters.size();
     }
 
-    private void removeEmitter(EmitterRegistration registration) {
-        emitters.remove(registration);
+    @Override
+    public List<Long> getActiveParkIds() {
+        List<Long> parkIds = new ArrayList<>();
+        for (EmitterRegistration registration : emitters) {
+            if (!parkIds.contains(registration.parkId())) {
+                parkIds.add(registration.parkId());
+            }
+        }
+        return parkIds;
+    }
+
+    private void removeEmitter(EmitterRegistration registration, String reason) {
+        if (emitters.remove(registration)) {
+            if (registration.context() != null) {
+                metrics.markDisconnected(registration.context().getUsername());
+            }
+            metrics.connectionClosed(reason);
+        }
     }
 
     void registerEmitterForTest(SseEmitter emitter, Long parkId) {
@@ -111,7 +135,11 @@ public class AdminDispatchStreamServiceImpl implements AdminDispatchStreamServic
 
     private record EmitterRegistration(SseEmitter emitter, AdminAuthContext context, Long parkId) {
         private boolean matchesPark(Long eventParkId) {
-            return parkId == null || eventParkId == null || Objects.equals(parkId, eventParkId);
+            // A null connection scope means "all parks". Scoped connections only
+            // receive events explicitly tagged with their own park.
+            return parkId == null
+                    ? true
+                    : eventParkId != null && Objects.equals(parkId, eventParkId);
         }
     }
 }

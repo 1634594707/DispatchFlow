@@ -10,6 +10,8 @@ public class AdminOperateLogQueryRequest {
 
     private Long vehicleId;
 
+    private Long parkId;
+
     private String operateType;
 
     private String operatorName;

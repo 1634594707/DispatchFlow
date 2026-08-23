@@ -71,6 +71,7 @@ export interface ParkLayout {
 }
 
 export interface ParkVehicleSnapshot {
+  parkId?: number | null
   vehicleId: number
   vehicleCode: string
   vehicleName: string
@@ -161,6 +162,8 @@ export interface ParkOrderSnapshot {
 }
 
 export interface ParkOrderCreateRequest {
+  /** 幂等键：每次下单意图生成一次，网络重试复用；重复提交后端返回原订单 */
+  idempotencyKey: string
   parkId?: number
   routeId?: number
   externalOrderNo?: string
@@ -182,4 +185,6 @@ export interface ParkOrderCreateResponse {
   taskStatus: string | null
   vehicleId: number | null
   message: string
+  /** true：本次响应为幂等重放（重复提交返回原订单） */
+  replayed?: boolean
 }

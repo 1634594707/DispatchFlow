@@ -28,7 +28,13 @@ public interface ParkPilotService {
 
     List<ParkVehicleSnapshotResponse> listVehicleSnapshots();
 
+    List<ParkVehicleSnapshotResponse> listVehicleSnapshots(Long parkId);
+
     List<ParkOrderSnapshotResponse> listOrderSnapshots();
+
+    default List<ParkOrderSnapshotResponse> listOrderSnapshots(Long parkId) {
+        return listOrderSnapshots();
+    }
 
     List<ParkGeofenceResponse> listGeofences(Long parkId);
 

@@ -145,9 +145,29 @@ async function runAction(action: AssistantAction) {
       title: '确认批量自动派车',
       content: `将对 ${taskIds.length} 个待处理任务触发自动派车，是否继续？`,
       async onOk() {
-        await batchAutoAssign(taskIds)
+        try {
+          const res = await batchAutoAssign(taskIds, parkScope.selectedParkId)
+          const result = res.data
+          if (result && Array.isArray(result.results) && result.failureCount > 0) {
+            const failedLines = result.results
+              .filter((item) => !item.success)
+              .map((item) => {
+                const retryHint = item.retryable ? '（可重试）' : ''
+                return (item.taskNo || String(item.taskId)) + '：' + (item.message || item.reasonMessage || '失败') + retryHint
+              })
+            Modal.info({
+              title: '批量派车部分失败：' + result.successCount + '/' + result.total + ' 成功',
+              content: failedLines.join('\n'),
+              width: 480,
+            })
+          } else if (result) {
+            message.success('批量自动派车完成：' + result.successCount + '/' + result.total + ' 成功')
+          }
+        } catch (err) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+          message.error(msg || '批量自动派车失败')
+        }
         await workbenchStore.fetchQueue()
-        message.success('已触发批量自动派车')
       },
     })
     return

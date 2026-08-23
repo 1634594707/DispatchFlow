@@ -30,8 +30,9 @@ public class AdminDispatchStreamController {
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @SecurityRequirement(name = "")
     @Operation(summary = "Dispatch SSE stream", description = "Real-time push for dashboard, workbench, and exception alerts. Auth via `ticket` query param.")
-    public SseEmitter stream(@RequestParam String ticket) {
+    public SseEmitter stream(@RequestParam String ticket,
+                             @RequestParam(required = false) Long parkId) {
         AdminAuthContext context = ticketService.consume(ticket);
-        return streamService.createStream(context, null);
+        return streamService.createStream(context, parkId);
     }
 }

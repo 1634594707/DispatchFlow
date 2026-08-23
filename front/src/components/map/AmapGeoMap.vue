@@ -32,6 +32,40 @@
         <span class="amap-geo-map__level-label">{{ opt.label }}</span>
       </button>
     </div>
+
+    <!-- 图层显隐控制器 -->
+    <div
+      v-if="!loading && !error && showLayerSwitcher && currentLevel !== 'L0'"
+      class="amap-geo-map__layer-switcher"
+      role="group"
+      aria-label="地图图层显隐"
+    >
+      <div class="amap-geo-map__layer-title">图层</div>
+      <button
+        type="button"
+        class="amap-geo-map__layer-toggle"
+        :class="{ active: layerVisibility.markers }"
+        @click="toggleLayer('markers')"
+      >
+        <span class="layer-dot markers"></span>车辆与站点
+      </button>
+      <button
+        type="button"
+        class="amap-geo-map__layer-toggle"
+        :class="{ active: layerVisibility.polylines }"
+        @click="toggleLayer('polylines')"
+      >
+        <span class="layer-dot polylines"></span>路径走廊
+      </button>
+      <button
+        type="button"
+        class="amap-geo-map__layer-toggle"
+        :class="{ active: layerVisibility.polygons }"
+        @click="toggleLayer('polygons')"
+      >
+        <span class="layer-dot polygons"></span>电子围栏
+      </button>
+    </div>
   </div>
 </template>
 
@@ -101,6 +135,8 @@ const props = withDefaults(
     mapLevel?: MapLevel
     /** 是否显示右上角层级切换器（默认 true） */
     showLevelSwitcher?: boolean
+    /** 是否显示图层控制器（默认 true） */
+    showLayerSwitcher?: boolean
   }>(),
   {
     markers: () => [],
@@ -111,6 +147,7 @@ const props = withDefaults(
     fitViewOnChange: false,
     mapLevel: 'L1',
     showLevelSwitcher: true,
+    showLayerSwitcher: true,
   },
 )
 
@@ -125,18 +162,30 @@ const loading = ref(true)
 const error = ref('')
 const handle = shallowRef<GeoMapHandle | null>(null)
 const currentLevel = ref<MapLevel>(props.mapLevel)
+const layerVisibility = ref({
+  markers: true,
+  polylines: true,
+  polygons: true,
+})
+
+function toggleLayer(layer: 'markers' | 'polylines' | 'polygons') {
+  layerVisibility.value[layer] = !layerVisibility.value[layer]
+  if (layer === 'markers') handle.value?.setMarkers(visibleMarkers.value)
+  if (layer === 'polylines') handle.value?.setPolylines(visiblePolylines.value)
+  if (layer === 'polygons') handle.value?.setPolygons(visiblePolygons.value)
+}
 
 const preset = computed<LevelPreset>(() => LEVEL_PRESETS[currentLevel.value])
 
 /** 按层级过滤后的可见元素 */
 const visibleMarkers = computed<GeoMapMarker[]>(() =>
-  preset.value.showMarkers ? props.markers : [],
+  preset.value.showMarkers && layerVisibility.value.markers ? props.markers : [],
 )
 const visiblePolylines = computed<GeoMapPolyline[]>(() =>
-  preset.value.showPolylines ? props.polylines : [],
+  preset.value.showPolylines && layerVisibility.value.polylines ? props.polylines : [],
 )
 const visiblePolygons = computed<GeoMapPolygon[]>(() =>
-  preset.value.showPolygons ? props.polygons : [],
+  preset.value.showPolygons && layerVisibility.value.polygons ? props.polygons : [],
 )
 const visibleCircles = computed<GeoMapCircle[]>(() =>
   preset.value.showCircles ? props.circles : [],
@@ -391,6 +440,73 @@ watch(
 .amap-geo-map__level-label {
   flex: 1;
   text-align: left;
+}
+
+/* 图层显隐控制器样式 */
+.amap-geo-map__layer-switcher {
+  position: absolute;
+  top: 140px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: rgba(11, 16, 24, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.amap-geo-map__layer-title {
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fsd-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.amap-geo-map__layer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--fsd-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--fsd-text-primary);
+  }
+
+  &.active {
+    color: var(--fsd-text-primary);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .layer-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+
+    &.markers {
+      background: var(--fsd-accent);
+    }
+    &.polylines {
+      background: #38bdf8;
+    }
+    &.polygons {
+      background: #a855f7;
+    }
+  }
 }
 </style>
 

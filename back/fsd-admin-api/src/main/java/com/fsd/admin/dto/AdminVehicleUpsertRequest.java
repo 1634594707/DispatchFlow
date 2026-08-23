@@ -1,11 +1,15 @@
 package com.fsd.admin.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
 public class AdminVehicleUpsertRequest {
+
+    @NotNull(message = "车辆所属园区不能为空")
+    private Long parkId;
 
     @NotBlank(message = "车辆编码不能为空")
     @Size(max = 64)

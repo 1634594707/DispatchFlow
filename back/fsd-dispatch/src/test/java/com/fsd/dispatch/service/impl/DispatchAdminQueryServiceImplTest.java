@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import org.mockito.stubbing.Answer;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -136,6 +137,20 @@ class DispatchAdminQueryServiceImplTest {
         assertEquals(1, result.getTotal());
         assertEquals(1, result.getRecords().size());
         assertEquals("TSK-30", result.getRecords().getFirst().getTaskNo());
+    }
+
+    @Test
+    void getSummaryWithParkIdShouldUseScopedTaskCounts() {
+        when(dispatchTaskMapper.selectCount(any())).thenReturn(1L, 2L, 3L, 4L, 5L);
+
+        var summary = dispatchAdminQueryService.getSummary(7L);
+
+        assertEquals(1L, summary.getPendingCount());
+        assertEquals(2L, summary.getAssigningCount());
+        assertEquals(3L, summary.getManualPendingCount());
+        assertEquals(4L, summary.getExecutingCount());
+        assertEquals(5L, summary.getFailedCount());
+        verify(dispatchTaskMapper, org.mockito.Mockito.times(5)).selectCount(any());
     }
 
     @SuppressWarnings("unchecked")

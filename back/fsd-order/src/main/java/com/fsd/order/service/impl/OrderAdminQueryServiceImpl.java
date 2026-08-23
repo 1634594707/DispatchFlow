@@ -36,4 +36,27 @@ public class OrderAdminQueryServiceImpl implements OrderAdminQueryService {
                         .build())
                 .toList();
     }
+
+    @Override
+    public List<OrderAdminListItemResponse> listOrders(Long parkId) {
+        LambdaQueryWrapper<OrderEntity> wrapper = new LambdaQueryWrapper<OrderEntity>()
+                .eq(OrderEntity::getDeleted, 0)
+                .orderByDesc(OrderEntity::getCreatedAt);
+        if (parkId != null) {
+            wrapper.eq(OrderEntity::getParkId, parkId);
+        }
+        return orderMapper.selectList(wrapper).stream()
+                .map(order -> OrderAdminListItemResponse.builder()
+                        .orderId(order.getId())
+                        .orderNo(order.getOrderNo())
+                        .externalOrderNo(order.getExternalOrderNo())
+                        .status(order.getStatus())
+                        .priority(order.getPriority())
+                        .dispatchTaskId(order.getDispatchTaskId())
+                        .parkId(order.getParkId())
+                        .createdAt(order.getCreatedAt())
+                        .updatedAt(order.getUpdatedAt())
+                        .build())
+                .toList();
+    }
 }

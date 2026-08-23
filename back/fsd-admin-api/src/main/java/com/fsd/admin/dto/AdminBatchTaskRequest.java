@@ -7,6 +7,8 @@ import lombok.Data;
 @Data
 public class AdminBatchTaskRequest {
 
+    private Long parkId;
+
     @NotEmpty(message = "任务 ID 列表不能为空")
     private List<Long> taskIds;
 

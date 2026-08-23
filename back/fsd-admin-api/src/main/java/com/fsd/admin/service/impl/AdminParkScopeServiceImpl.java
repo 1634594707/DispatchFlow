@@ -43,6 +43,9 @@ public class AdminParkScopeServiceImpl implements AdminParkScopeService {
         if (parkId == null || vehicle == null) {
             return true;
         }
+        if (vehicle.getParkId() != null) {
+            return parkId.equals(vehicle.getParkId());
+        }
         if (vehicle.getCurrentOrderId() != null) {
             return matchesOrder(vehicle.getCurrentOrderId(), parkId);
         }
@@ -59,6 +62,9 @@ public class AdminParkScopeServiceImpl implements AdminParkScopeService {
     public boolean matchesVehicleSnapshot(ParkVehicleSnapshotResponse vehicle, Long parkId) {
         if (parkId == null || vehicle == null) {
             return true;
+        }
+        if (vehicle.getParkId() != null) {
+            return parkId.equals(vehicle.getParkId());
         }
         if (vehicle.getCurrentOrderId() != null) {
             return matchesOrder(vehicle.getCurrentOrderId(), parkId);

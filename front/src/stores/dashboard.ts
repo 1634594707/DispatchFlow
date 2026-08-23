@@ -28,6 +28,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   function applySummary(next: DashboardSummary) {
+    if (next.parkId != null && next.parkId !== parkScope.selectedParkId) return
     summary.value = next
     lastUpdated.value = new Date().toLocaleTimeString('zh-CN')
   }

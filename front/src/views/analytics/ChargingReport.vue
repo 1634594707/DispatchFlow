@@ -93,12 +93,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { getAnalyticsChargingOverview } from '@/api/analytics'
 import { fetchChargingPiles } from '@/api/infrastructure'
 import type { AnalyticsChargingOverview } from '@/types/analytics'
+import { useParkScopeStore } from '@/stores/parkScope'
 
 interface StationInfo {
   stationCount: number
@@ -111,6 +112,7 @@ const FAST_POWER_THRESHOLD_KW = 60
 const router = useRouter()
 const loading = ref(false)
 const overview = ref<AnalyticsChargingOverview | null>(null)
+const parkScope = useParkScopeStore()
 const stationInfo = ref<StationInfo | null>(null)
 
 const totalPileCount = computed(() => overview.value?.totalPileCount ?? 0)
@@ -138,8 +140,8 @@ async function loadData() {
   loading.value = true
   try {
     const [overviewRes, pilesRes] = await Promise.all([
-      getAnalyticsChargingOverview(),
-      fetchChargingPiles(),
+      getAnalyticsChargingOverview(parkScope.selectedParkId),
+      fetchChargingPiles(parkScope.selectedParkId),
     ])
     overview.value = overviewRes.data
 
@@ -158,6 +160,7 @@ async function loadData() {
 }
 
 onMounted(loadData)
+watch(() => parkScope.scopeVersion, () => { void loadData() })
 </script>
 
 <style scoped lang="less">

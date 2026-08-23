@@ -11,7 +11,15 @@ public interface OperateLogAdminService {
 
     List<AdminOperateLogResponse> listByTaskId(Long taskId);
 
+    default List<AdminOperateLogResponse> listByTaskId(Long taskId, Long parkId) {
+        return listByTaskId(taskId);
+    }
+
     List<AdminOperateLogResponse> listByVehicleId(Long vehicleId);
+
+    default List<AdminOperateLogResponse> listByVehicleId(Long vehicleId, Long parkId) {
+        return listByVehicleId(vehicleId);
+    }
 
     String exportCsv(AdminOperateLogQueryRequest request);
 }

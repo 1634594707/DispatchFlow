@@ -1,6 +1,7 @@
 package com.fsd.admin.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -13,16 +14,20 @@ import com.fsd.admin.dto.AdminTaskQueryRequest;
 import com.fsd.admin.dto.AdminVehicleQueryRequest;
 import com.fsd.admin.service.AdminAuthService;
 import com.fsd.admin.service.AdminDashboardService;
+import com.fsd.admin.service.AdminParkScopeService;
 import com.fsd.admin.service.AdminQueryFacadeService;
 import com.fsd.admin.service.OrderAdminDetailService;
 import com.fsd.admin.service.TaskAdminDetailService;
 import com.fsd.admin.vo.AdminDashboardSummaryResponse;
 import com.fsd.common.model.PageResponse;
 import com.fsd.common.model.ApiResponse;
+import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.vo.DispatchExceptionListItemResponse;
 import com.fsd.dispatch.vo.DispatchInterventionQueueResponse;
 import com.fsd.dispatch.dto.ParkOrderCreateRequest;
 import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
+import com.fsd.dispatch.entity.DispatchTaskEntity;
+import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchTaskService;
 import com.fsd.dispatch.service.DispatchAdminQueryService;
@@ -69,9 +74,13 @@ class AdminDispatchControllerTest {
     @Mock
     private DispatchTaskService dispatchTaskService;
     @Mock
+    private DispatchTaskMapper dispatchTaskMapper;
+    @Mock
     private DispatchExceptionService dispatchExceptionService;
     @Mock
     private AdminDashboardService adminDashboardService;
+    @Mock
+    private AdminParkScopeService adminParkScopeService;
     @Mock
     private AdminQueryFacadeService adminQueryFacadeService;
     @Mock
@@ -111,6 +120,27 @@ class AdminDispatchControllerTest {
     }
 
     @Test
+    void shouldPassParkScopeToLegacyListEndpoints() {
+        when(orderAdminQueryService.listOrders(2L)).thenReturn(List.of());
+        when(dispatchAdminQueryService.listTasks(2L)).thenReturn(List.of());
+        when(dispatchAdminQueryService.listExceptions(2L)).thenReturn(List.of());
+        when(vehicleAdminQueryService.listVehicles(2L)).thenReturn(List.of());
+        when(parkPilotService.listOrderSnapshots(2L)).thenReturn(List.of());
+
+        adminDispatchController.listOrders(2L, httpServletRequest);
+        adminDispatchController.listTasks(2L, httpServletRequest);
+        adminDispatchController.listExceptions(2L, httpServletRequest);
+        adminDispatchController.listVehicles(2L, httpServletRequest);
+        adminDispatchController.listParkOrders(2L, httpServletRequest);
+
+        verify(orderAdminQueryService).listOrders(2L);
+        verify(dispatchAdminQueryService).listTasks(2L);
+        verify(dispatchAdminQueryService).listExceptions(2L);
+        verify(vehicleAdminQueryService).listVehicles(2L);
+        verify(parkPilotService).listOrderSnapshots(2L);
+    }
+
+    @Test
     void shouldReturnTaskDetail() {
         when(taskAdminDetailService.getEnrichedDetail(10L)).thenReturn(
                 DispatchTaskDetailResponse.builder().taskId(10L).status("ASSIGNED").build()
@@ -120,6 +150,33 @@ class AdminDispatchControllerTest {
 
         assertEquals(10L, response.getData().getTaskId());
         assertEquals("ASSIGNED", response.getData().getStatus());
+    }
+
+    @Test
+    void shouldRejectTaskDetailOutsideParkScope() {
+        when(taskAdminDetailService.getEnrichedDetail(10L)).thenReturn(
+                DispatchTaskDetailResponse.builder().taskId(10L).orderId(100L).status("ASSIGNED").build()
+        );
+        when(adminParkScopeService.matchesOrder(100L, 2L)).thenReturn(false);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> adminDispatchController.getTaskDetail(10L, 2L, httpServletRequest));
+
+        assertEquals("PARK_SCOPE_DENIED", ex.getCode());
+    }
+
+    @Test
+    void shouldRejectTaskWriteOutsideParkScope() {
+        DispatchTaskEntity task = new DispatchTaskEntity();
+        task.setId(10L);
+        task.setOrderId(100L);
+        when(dispatchTaskMapper.selectById(10L)).thenReturn(task);
+        when(adminParkScopeService.matchesOrder(100L, 2L)).thenReturn(false);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> adminDispatchController.autoAssignTask(10L, 2L, httpServletRequest));
+
+        assertEquals("PARK_SCOPE_DENIED", ex.getCode());
     }
 
     @Test
@@ -145,6 +202,16 @@ class AdminDispatchControllerTest {
         ApiResponse<OrderDetailResponse> response = adminDispatchController.getOrderDetail(1L, httpServletRequest);
 
         assertEquals("ORD-1", response.getData().getOrderNo());
+    }
+
+    @Test
+    void shouldRejectOrderDetailOutsideParkScope() {
+        when(adminParkScopeService.matchesOrder(1L, 2L)).thenReturn(false);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> adminDispatchController.getOrderDetail(1L, 2L, httpServletRequest));
+
+        assertEquals("PARK_SCOPE_DENIED", ex.getCode());
     }
 
     @Test
@@ -234,6 +301,18 @@ class AdminDispatchControllerTest {
 
         assertEquals("V-1", listResponse.getData().getFirst().getVehicleCode());
         assertEquals("V-1", detailResponse.getData().getVehicleCode());
+    }
+
+    @Test
+    void shouldRejectVehicleDetailOutsideParkScope() {
+        when(vehicleAdminQueryService.getVehicleDetail(1L)).thenReturn(
+                VehicleAdminDetailResponse.builder().vehicleId(1L).parkId(7L).vehicleCode("V-1").build()
+        );
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> adminDispatchController.getVehicleDetail(1L, 2L, httpServletRequest));
+
+        assertEquals("PARK_SCOPE_DENIED", ex.getCode());
     }
 
     @Test

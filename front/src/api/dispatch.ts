@@ -76,10 +76,12 @@ export async function getFleetTelemetryStreamUrl(parkId?: number): Promise<strin
   return base ? `${base}${path}${query}` : `${path}${query}`
 }
 
-export async function getDispatchStreamUrl(): Promise<string> {
+export async function getDispatchStreamUrl(parkId?: number): Promise<string> {
   const base = import.meta.env.VITE_API_BASE_URL || ''
   const path = '/api/admin/dispatch/stream'
   const ticket = (await issueAdminSseTicket()).data.ticket
-  const query = `?ticket=${encodeURIComponent(ticket)}`
+  const params = new URLSearchParams({ ticket })
+  if (parkId != null) params.set('parkId', String(parkId))
+  const query = `?${params.toString()}`
   return base ? `${base}${path}${query}` : `${path}${query}`
 }

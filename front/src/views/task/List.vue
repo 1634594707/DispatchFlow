@@ -226,8 +226,10 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useTaskStore } from '@/stores/task'
+import { downloadAnalyticsFile, getAnalyticsExportUrl } from '@/api/analytics'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useAuthStore } from '@/stores/auth'
+import { useRealtimeStore } from '@/stores/realtime'
 import { taskStatusMap } from '@/constants/statusMap'
 import { TaskStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
@@ -242,6 +244,7 @@ const route = useRoute()
 const store = useTaskStore()
 const parkScope = useParkScopeStore()
 const authStore = useAuthStore()
+const realtimeStore = useRealtimeStore()
 
 const queryForm = reactive({
   status: undefined as TaskStatus | undefined,
@@ -252,14 +255,7 @@ const queryForm = reactive({
 
 const pageNo = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
-let silentRefreshTimer: ReturnType<typeof setInterval> | null = null
-
-const ACTIVE_TASK_STATUSES: TaskStatus[] = [
-  TaskStatus.PENDING,
-  TaskStatus.MANUAL_PENDING,
-  TaskStatus.ASSIGNED,
-  TaskStatus.EXECUTING,
-]
+let stopRealtimeRefresh: (() => void) | null = null
 
 const columns = [
   { title: '任务编号', dataIndex: 'taskNo', width: 200 },
@@ -356,11 +352,16 @@ function handleRefresh() {
   fetchData()
 }
 
-function handleExport() {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  const params = new URLSearchParams({ dataset: 'tasks', period: 'week' })
-  if (parkScope.selectedParkId) params.set('parkId', String(parkScope.selectedParkId))
-  window.open(`${base}/api/admin/analytics/export/csv?${params.toString()}`, '_blank')
+async function handleExport() {
+  try {
+    await downloadAnalyticsFile(
+      getAnalyticsExportUrl('tasks', 'week', parkScope.selectedParkId),
+      'tasks-week.csv',
+    )
+    message.success('任务导出已开始')
+  } catch {
+    message.error('任务导出失败，请重试')
+  }
 }
 
 function handleTableChange(pag: any) {
@@ -419,7 +420,7 @@ async function handleDispatch() {
     await manualAssignTask(currentTask.value.taskId, {
       vehicleId: dispatchForm.vehicleId,
       remark: dispatchForm.remark,
-    })
+    }, parkScope.selectedParkId)
     message.success('派单成功')
     dispatchModalVisible.value = false
     fetchData()
@@ -457,7 +458,7 @@ async function handleReassign() {
     await reassignTask(currentTask.value.taskId, {
       vehicleId: reassignForm.newVehicleId,
       remark: reassignForm.reason,
-    })
+    }, parkScope.selectedParkId)
     message.success('改派成功')
     reassignModalVisible.value = false
     fetchData()
@@ -470,27 +471,11 @@ async function handleReassign() {
 
 async function handleCancel(record: TaskAdminListItem) {
   try {
-    await cancelTask(record.taskId, '任务列表取消')
+    await cancelTask(record.taskId, '任务列表取消', parkScope.selectedParkId)
     message.success('任务已取消')
     fetchData()
   } catch {
     // handled by interceptor
-  }
-}
-
-function hasActiveTasksInList() {
-  return store.list.some(item => ACTIVE_TASK_STATUSES.includes(item.status))
-}
-
-function syncSilentRefresh() {
-  if (silentRefreshTimer) {
-    clearInterval(silentRefreshTimer)
-    silentRefreshTimer = null
-  }
-  if (hasActiveTasksInList()) {
-    silentRefreshTimer = setInterval(() => {
-      if (!store.loading) fetchData()
-    }, 10_000)
   }
 }
 
@@ -500,17 +485,14 @@ onMounted(() => {
     queryForm.status = statusParam as TaskStatus
   }
   fetchData()
+  stopRealtimeRefresh = realtimeStore.subscribeRefresh(() => {
+    if (!store.loading) return fetchData()
+  })
 })
 
 onUnmounted(() => {
-  if (silentRefreshTimer) clearInterval(silentRefreshTimer)
+  stopRealtimeRefresh?.()
 })
-
-watch(
-  () => store.list,
-  () => syncSilentRefresh(),
-  { deep: true },
-)
 
 watch(
   () => parkScope.scopeVersion,

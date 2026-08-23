@@ -1,6 +1,7 @@
 import { ref, onUnmounted, computed } from 'vue'
 import { DEMO_CONFIG } from '@/config/demo-config'
 import { createParkOrder } from '@/api/park'
+import { createIdempotencyKey } from '@/composables/useMobileOrderForm'
 
 export function useDemoMode() {
   const demoMode = ref(false)
@@ -26,6 +27,8 @@ export function useDemoMode() {
 
     try {
       await createParkOrder({
+        // 演示模式：每个模板订单独立幂等键，避免演示重复下单占用车辆
+        idempotencyKey: createIdempotencyKey(),
         pickupStationId: template.pickupStationId,
         dropoffStationId: template.dropoffStationId,
         priority: template.priority,

@@ -189,6 +189,13 @@
 
     <a-modal v-model:open="editModalOpen" title="编辑车辆" :confirm-loading="saving" @ok="handleSave">
       <a-form layout="vertical">
+        <a-form-item label="所属园区" required>
+          <a-select
+            v-model:value="form.parkId"
+            :options="parkScope.parkOptions.filter((option) => option.value != null)"
+            placeholder="请选择园区"
+          />
+        </a-form-item>
         <a-form-item label="车辆编码" required><a-input v-model:value="form.vehicleCode" /></a-form-item>
         <a-form-item label="车辆名称" required><a-input v-model:value="form.vehicleName" /></a-form-item>
         <a-form-item label="车辆类型"><a-input v-model:value="form.vehicleType" /></a-form-item>
@@ -234,6 +241,7 @@ import TrajectoryReplayPanel from '@/components/vehicle/TrajectoryReplayPanel.vu
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useVehicleStore } from '@/stores/vehicle'
 import { useAuthStore } from '@/stores/auth'
+import { useParkScopeStore } from '@/stores/parkScope'
 import { fetchVehicleOperateLogs } from '@/api/operateLog'
 import {
   updateVehicle,
@@ -255,6 +263,7 @@ const router = useRouter()
 const route = useRoute()
 const store = useVehicleStore()
 const authStore = useAuthStore()
+const parkScope = useParkScopeStore()
 
 const activeTab = ref('logs')
 const health = ref<VehicleHealth | null>(null)
@@ -269,6 +278,7 @@ const maintenanceModalOpen = ref(false)
 const saving = ref(false)
 
 const form = reactive({
+  parkId: undefined as number | undefined,
   vehicleCode: '',
   vehicleName: '',
   vehicleType: 'GENERAL',
@@ -405,7 +415,7 @@ async function exportTrajectory() {
 
 async function loadExtras(vehicleId: number) {
   const [logsRes, credRes, maintRes, healthRes] = await Promise.allSettled([
-    fetchVehicleOperateLogs(vehicleId),
+    fetchVehicleOperateLogs(vehicleId, parkScope.selectedParkId),
     authStore.isAdmin ? fetchVehicleCredentials(vehicleId) : Promise.resolve({ data: [] }),
     authStore.isAdmin ? fetchVehicleMaintenance(vehicleId) : Promise.resolve({ data: [] }),
     authStore.isOperator ? fetchVehicleHealth(vehicleId) : Promise.resolve({ data: null }),
@@ -421,6 +431,7 @@ async function loadExtras(vehicleId: number) {
 
 function openEdit() {
   if (!store.detail) return
+  form.parkId = store.detail.parkId ?? parkScope.selectedParkId
   form.vehicleCode = store.detail.vehicleCode
   form.vehicleName = store.detail.vehicleName
   form.vehicleType = store.detail.vehicleType
@@ -434,13 +445,18 @@ function openEdit() {
 
 async function handleSave() {
   const vehicleId = Number(route.params.vehicleId)
+  if (!form.parkId) {
+    message.warning('请选择所属园区')
+    return
+  }
+  const parkId = form.parkId
   if (form.linkMode === 'VDA5050' && (!form.vdaManufacturer || !form.vdaSerialNumber)) {
     message.warning('VDA5050 车辆须填写 manufacturer 与 serialNumber')
     return
   }
   saving.value = true
   try {
-    await updateVehicle(vehicleId, { ...form })
+    await updateVehicle(vehicleId, { ...form, parkId })
     message.success('车辆已更新')
     editModalOpen.value = false
     await fetchData()
@@ -488,12 +504,20 @@ async function fetchData() {
   const id = Number(route.params.vehicleId)
   if (id) {
     await store.fetchDetail(id)
-    await loadExtras(id)
+    if (store.detail) {
+      await loadExtras(id)
+    } else {
+      operateLogs.value = []
+      credentials.value = []
+      maintenanceRecords.value = []
+      health.value = null
+    }
   }
 }
 
 onMounted(fetchData)
 watch(() => route.params.vehicleId, fetchData)
+watch(() => parkScope.selectedParkId, fetchData)
 watch(activeTab, (tab) => {
   if (tab === 'trajectory' && authStore.isAdmin) {
     loadTrajectory()

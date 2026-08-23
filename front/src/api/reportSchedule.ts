@@ -2,16 +2,16 @@ import request from '@/utils/request'
 import type { ApiResponse } from '@/types/api'
 import type { AdminReportSchedule, ScheduleExecutionHistoryResponse, ScheduleExecutionRecord } from '@/types/reportSchedule'
 
-export function fetchReportSchedules() {
-  return request.get<any, ApiResponse<AdminReportSchedule[]>>('/admin/report-schedules')
+export function fetchReportSchedules(parkId?: number) {
+  return request.get<any, ApiResponse<AdminReportSchedule[]>>('/admin/report-schedules', { params: { parkId } })
 }
 
-export function upsertReportSchedule(payload: AdminReportSchedule) {
-  return request.post<any, ApiResponse<AdminReportSchedule>>('/admin/report-schedules', payload)
+export function upsertReportSchedule(payload: AdminReportSchedule, parkId?: number) {
+  return request.post<any, ApiResponse<AdminReportSchedule>>('/admin/report-schedules', payload, { params: { parkId } })
 }
 
-export function deleteReportSchedule(id: number) {
-  return request.delete<any, ApiResponse<void>>(`/admin/report-schedules/${id}`)
+export function deleteReportSchedule(id: number, parkId?: number) {
+  return request.delete<any, ApiResponse<void>>(`/admin/report-schedules/${id}`, { params: { parkId } })
 }
 
 /** V5-S4: 获取计划执行历史 */

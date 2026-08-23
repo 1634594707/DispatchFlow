@@ -45,11 +45,18 @@ public class AdminFieldOpsController {
     })
     public ApiResponse<AdminFieldOpsTicketResponse> assign(@PathVariable Long exceptionId,
                                                            @Valid @RequestBody AdminFieldOpsAssignRequest body,
+                                                           @RequestParam(required = false) Long parkId,
                                                            HttpServletRequest request) {
         AdminAuthContext auth = AdminAuthSupport.requireAuth(request);
         AdminAuthSupport.requireAdmin(request);
         return ApiResponse.success(fieldOpsTicketAdminService.assignFromException(
-                exceptionId, body.getAssigneeUserId(), body.getNotes(), auth.getUsername()));
+                exceptionId, body.getAssigneeUserId(), body.getNotes(), auth.getUsername(), parkId));
+    }
+
+    public ApiResponse<AdminFieldOpsTicketResponse> assign(@PathVariable Long exceptionId,
+                                                           @Valid @RequestBody AdminFieldOpsAssignRequest body,
+                                                           HttpServletRequest request) {
+        return assign(exceptionId, body, null, request);
     }
 
     @GetMapping("/tickets")
@@ -60,9 +67,18 @@ public class AdminFieldOpsController {
     })
     public ApiResponse<List<AdminFieldOpsTicketResponse>> list(@RequestParam(required = false) Long assigneeUserId,
                                                                @RequestParam(required = false) String status,
+                                                               @RequestParam(required = false) Long parkId,
                                                                HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
-        return ApiResponse.success(fieldOpsTicketAdminService.listTickets(assigneeUserId, status));
+        return ApiResponse.success(parkId == null
+                ? fieldOpsTicketAdminService.listTickets(assigneeUserId, status)
+                : fieldOpsTicketAdminService.listTickets(assigneeUserId, status, parkId));
+    }
+
+    public ApiResponse<List<AdminFieldOpsTicketResponse>> list(@RequestParam(required = false) Long assigneeUserId,
+                                                               @RequestParam(required = false) String status,
+                                                               HttpServletRequest request) {
+        return list(assigneeUserId, status, null, request);
     }
 
     @PutMapping("/tickets/{ticketId}/status")
@@ -74,9 +90,17 @@ public class AdminFieldOpsController {
     })
     public ApiResponse<AdminFieldOpsTicketResponse> updateStatus(@PathVariable Long ticketId,
                                                                  @Valid @RequestBody AdminFieldOpsStatusUpdateRequest body,
+                                                                 @RequestParam(required = false) Long parkId,
                                                                  HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
-        return ApiResponse.success(fieldOpsTicketAdminService.updateStatus(
-                ticketId, body.getStatus(), body.getNotes()));
+        return ApiResponse.success(parkId == null
+                ? fieldOpsTicketAdminService.updateStatus(ticketId, body.getStatus(), body.getNotes())
+                : fieldOpsTicketAdminService.updateStatus(ticketId, body.getStatus(), body.getNotes(), parkId));
+    }
+
+    public ApiResponse<AdminFieldOpsTicketResponse> updateStatus(@PathVariable Long ticketId,
+                                                                 @Valid @RequestBody AdminFieldOpsStatusUpdateRequest body,
+                                                                 HttpServletRequest request) {
+        return updateStatus(ticketId, body, null, request);
     }
 }

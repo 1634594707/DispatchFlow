@@ -88,9 +88,16 @@ public class AdminAnalyticsController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Charging overview returned"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
     })
-    public ApiResponse<AdminAnalyticsChargingOverviewResponse> chargingOverview(HttpServletRequest request) {
+    public ApiResponse<AdminAnalyticsChargingOverviewResponse> chargingOverview(
+            @RequestParam(required = false) Long parkId, HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
-        return ApiResponse.success(analyticsAdminService.getChargingOverview());
+        return ApiResponse.success(parkId == null
+                ? analyticsAdminService.getChargingOverview()
+                : analyticsAdminService.getChargingOverview(parkId));
+    }
+
+    public ApiResponse<AdminAnalyticsChargingOverviewResponse> chargingOverview(HttpServletRequest request) {
+        return chargingOverview(null, request);
     }
 
     @GetMapping("/park-comparison")
@@ -160,10 +167,11 @@ public class AdminAnalyticsController {
     })
     public void exportCsv(@RequestParam String dataset,
                           @RequestParam(defaultValue = "week") String period,
+                          @RequestParam(required = false) Long parkId,
                           HttpServletRequest httpRequest,
                           HttpServletResponse response) throws IOException {
         AdminAuthSupport.requireAuth(httpRequest);
-        String csv = analyticsAdminService.exportCsv(dataset, period);
+        String csv = analyticsAdminService.exportCsv(dataset, period, parkId);
         String filename = dataset + "-" + period + ".csv";
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType("text/csv; charset=UTF-8");

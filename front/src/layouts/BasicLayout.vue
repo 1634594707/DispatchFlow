@@ -150,8 +150,8 @@
           </a-dropdown>
 
           <!-- Connection indicator -->
-          <a-tooltip :title="realtimeStore.connected ? '实时连接正常' : '实时连接断开'">
-            <span class="stream-indicator" :class="{ online: realtimeStore.connected }" />
+          <a-tooltip :title="realtimeStore.status === 'connected' ? '实时连接正常' : realtimeStore.status === 'degraded' ? '实时连接断开，已启用降级刷新' : '实时连接断开'">
+            <span class="stream-indicator" :class="{ online: realtimeStore.status === 'connected', degraded: realtimeStore.status === 'degraded' }" />
           </a-tooltip>
 
           <ApiErrorBadge />
@@ -975,6 +975,11 @@ onUnmounted(() => {
   &.online {
     background: var(--fsd-success);
     box-shadow: 0 0 8px rgba(45, 224, 138, 0.6);
+  }
+
+  &.degraded {
+    background: var(--fsd-warning, #f5a623);
+    box-shadow: 0 0 8px rgba(245, 166, 35, 0.45);
   }
 }
 

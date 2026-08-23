@@ -43,9 +43,10 @@ export function getParkStations(parkId?: number) {
   })
 }
 
-export function getParkVehicles(options?: { silent?: boolean }) {
+export function getParkVehicles(options?: { silent?: boolean; parkId?: number }) {
   return request.get<any, ApiResponse<ParkVehicleSnapshot[]>>('/admin/park/vehicles', {
     headers: mobileApiHeaders(),
+    params: options?.parkId != null ? { parkId: options.parkId } : undefined,
     skipErrorToast: options?.silent,
   })
 }
@@ -61,9 +62,10 @@ export function getParkOverview() {
   return request.get<any, ApiResponse<import('@/types/park').ParkOverviewItem[]>>('/admin/park/overview')
 }
 
-export function getParkOrders(options?: { silent?: boolean }) {
+export function getParkOrders(options?: { silent?: boolean; parkId?: number }) {
   return request.get<any, ApiResponse<ParkOrderSnapshot[]>>('/admin/park/orders', {
     headers: mobileApiHeaders(),
+    params: options?.parkId != null ? { parkId: options.parkId } : undefined,
     skipErrorToast: options?.silent,
   })
 }

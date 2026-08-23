@@ -10,6 +10,8 @@ public class VehicleAdminListItemResponse {
 
     private Long vehicleId;
 
+    private Long parkId;
+
     private String vehicleCode;
 
     private String vehicleName;

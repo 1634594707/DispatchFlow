@@ -24,7 +24,7 @@ public class DispatchEventRetryScheduler {
 
     @Scheduled(fixedDelayString = "${fsd.dispatch.outbox.retry-delay-ms:30000}")
     public void retryPublish() {
-        List<DispatchEventOutboxEntity> retryableEvents = outboxService.listRetryableEvents(50);
+        List<DispatchEventOutboxEntity> retryableEvents = outboxService.claimRetryableEvents(50);
         for (DispatchEventOutboxEntity entity : retryableEvents) {
             DispatchDomainEvent event = outboxService.rebuildDomainEvent(entity);
             eventPublisher.publishEvent(event);

@@ -20,7 +20,11 @@ public interface AnalyticsAdminService {
 
     AdminAnalyticsChargingOverviewResponse getChargingOverview();
 
-    String exportCsv(String dataset, String period);
+    default AdminAnalyticsChargingOverviewResponse getChargingOverview(Long parkId) {
+        return getChargingOverview();
+    }
+
+    String exportCsv(String dataset, String period, Long parkId);
 
     List<AdminAnalyticsParkCompareItem> getParkComparison(String period);
 

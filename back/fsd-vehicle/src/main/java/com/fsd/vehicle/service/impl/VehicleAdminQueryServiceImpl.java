@@ -29,6 +29,31 @@ public class VehicleAdminQueryServiceImpl implements VehicleAdminQueryService {
                 .stream()
                 .map(vehicle -> VehicleAdminListItemResponse.builder()
                         .vehicleId(vehicle.getId())
+                        .parkId(vehicle.getParkId())
+                        .vehicleCode(vehicle.getVehicleCode())
+                        .vehicleName(vehicle.getVehicleName())
+                        .onlineStatus(vehicle.getOnlineStatus())
+                        .dispatchStatus(vehicle.getDispatchStatus())
+                        .currentTaskId(vehicle.getCurrentTaskId())
+                        .currentOrderId(vehicle.getCurrentOrderId())
+                        .batteryLevel(vehicle.getBatteryLevel())
+                        .lastReportTime(vehicle.getLastReportTime())
+                        .build())
+                .toList();
+    }
+
+    @Override
+    public List<VehicleAdminListItemResponse> listVehicles(Long parkId) {
+        LambdaQueryWrapper<VehicleEntity> wrapper = new LambdaQueryWrapper<VehicleEntity>()
+                .eq(VehicleEntity::getDeleted, 0)
+                .orderByDesc(VehicleEntity::getUpdatedAt);
+        if (parkId != null) {
+            wrapper.eq(VehicleEntity::getParkId, parkId);
+        }
+        return vehicleMapper.selectList(wrapper).stream()
+                .map(vehicle -> VehicleAdminListItemResponse.builder()
+                        .vehicleId(vehicle.getId())
+                        .parkId(vehicle.getParkId())
                         .vehicleCode(vehicle.getVehicleCode())
                         .vehicleName(vehicle.getVehicleName())
                         .onlineStatus(vehicle.getOnlineStatus())
@@ -46,6 +71,7 @@ public class VehicleAdminQueryServiceImpl implements VehicleAdminQueryService {
         VehicleEntity vehicle = vehicleService.getById(vehicleId);
         return VehicleAdminDetailResponse.builder()
                 .vehicleId(vehicle.getId())
+                .parkId(vehicle.getParkId())
                 .vehicleCode(vehicle.getVehicleCode())
                 .vehicleName(vehicle.getVehicleName())
                 .vehicleType(vehicle.getVehicleType())

@@ -27,4 +27,6 @@ public interface VehicleService {
     VehicleEntity updateSnapshot(VehicleReportRequest request);
 
     VehicleSummaryResponse getSummary();
+
+    VehicleSummaryResponse getSummary(Long parkId);
 }

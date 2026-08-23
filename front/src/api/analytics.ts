@@ -30,8 +30,10 @@ export function getAnalyticsDailySummary(date?: string, parkId?: number | null) 
   })
 }
 
-export function getAnalyticsChargingOverview() {
-  return request.get<any, ApiResponse<AnalyticsChargingOverview>>('/admin/analytics/charging')
+export function getAnalyticsChargingOverview(parkId?: number | null) {
+  return request.get<any, ApiResponse<AnalyticsChargingOverview>>('/admin/analytics/charging', {
+    params: parkParams(parkId),
+  })
 }
 
 export function getAnalyticsParkComparison(period: 'day' | 'week' | 'month' = 'week') {
@@ -80,12 +82,12 @@ export function getAnalyticsExportUrl(dataset: string, period = 'week', parkId?:
   return `/admin/analytics/export/csv?${params.toString()}`
 }
 
-export async function downloadAnalyticsFile(url: string) {
+export async function downloadAnalyticsFile(url: string, filename?: string) {
   const response = await request.get<any, Blob>(url, { responseType: 'blob' })
   const blobUrl = URL.createObjectURL(response)
   const link = document.createElement('a')
   link.href = blobUrl
-  link.download = ''
+  link.download = filename || 'dispatchflow-export'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)

@@ -2,8 +2,8 @@ import request from '@/utils/request'
 import type { ApiResponse, PageResponse } from '@/types/api'
 import type { ExceptionQueryRequest, ExceptionAdminListItem, ResolveExceptionRequest } from '@/types/exception'
 
-export function getExceptionList() {
-  return request.get<any, ApiResponse<ExceptionAdminListItem[]>>('/admin/exceptions')
+export function getExceptionList(parkId?: number) {
+  return request.get<any, ApiResponse<ExceptionAdminListItem[]>>('/admin/exceptions', { params: { parkId } })
 }
 
 export function queryExceptions(data: ExceptionQueryRequest) {

@@ -3,8 +3,10 @@ import { ref } from 'vue'
 import { queryOrders, getOrderDetail } from '@/api/order'
 import type { OrderAdminListItem, OrderDetailResponse, OrderQueryRequest } from '@/types/order'
 import type { PageResponse } from '@/types/api'
+import { useParkScopeStore } from '@/stores/parkScope'
 
 export const useOrderStore = defineStore('order', () => {
+  const parkScope = useParkScopeStore()
   const list = ref<OrderAdminListItem[]>([])
   const total = ref(0)
   const loading = ref(false)
@@ -27,10 +29,12 @@ export const useOrderStore = defineStore('order', () => {
 
   async function fetchDetail(orderId: number) {
     detailLoading.value = true
+    detail.value = null
     try {
-      const res = await getOrderDetail(orderId)
+      const res = await getOrderDetail(orderId, parkScope.selectedParkId)
       detail.value = res.data
     } catch (e) {
+      detail.value = null
       console.error('Failed to fetch order detail', e)
     } finally {
       detailLoading.value = false

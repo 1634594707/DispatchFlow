@@ -142,6 +142,13 @@
 
     <a-modal v-model:open="modalOpen" :title="editing ? '编辑车辆' : '新建车辆'" :confirm-loading="saving" @ok="handleSave">
       <a-form layout="vertical">
+        <a-form-item label="所属园区" required>
+          <a-select
+            v-model:value="form.parkId"
+            :options="parkScope.parkOptions.filter((option) => option.value != null)"
+            placeholder="请选择园区"
+          />
+        </a-form-item>
         <a-form-item label="车辆编码" required><a-input v-model:value="form.vehicleCode" /></a-form-item>
         <a-form-item label="车辆名称" required><a-input v-model:value="form.vehicleName" /></a-form-item>
         <a-form-item label="车辆类型"><a-input v-model:value="form.vehicleType" placeholder="如 AGV" /></a-form-item>
@@ -176,6 +183,7 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useVehicleStore } from '@/stores/vehicle'
 import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
+import { useRealtimeStore } from '@/stores/realtime'
 import { createVehicle, updateVehicle, getVehicleDetail } from '@/api/vehicle'
 import { onlineStatusMap, dispatchStatusMap } from '@/constants/statusMap'
 import { DispatchStatus } from '@/constants/enums'
@@ -194,11 +202,13 @@ const route = useRoute()
 const store = useVehicleStore()
 const authStore = useAuthStore()
 const parkScope = useParkScopeStore()
+const realtimeStore = useRealtimeStore()
 
 const modalOpen = ref(false)
 const saving = ref(false)
 const editing = ref<VehicleAdminListItem | null>(null)
 const form = reactive({
+  parkId: undefined as number | undefined,
   vehicleCode: '',
   vehicleName: '',
   vehicleType: 'AGV',
@@ -224,11 +234,7 @@ const queryForm = reactive({
 
 const pageNo = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
-let silentRefreshTimer: ReturnType<typeof setInterval> | null = null
-
-const ACTIVE_DISPATCH_STATUSES: DispatchStatus[] = [
-  DispatchStatus.BUSY,
-]
+let stopRealtimeRefresh: (() => void) | null = null
 
 const columns = [
   { title: '车辆编号', dataIndex: 'vehicleCode', width: 140 },
@@ -306,6 +312,7 @@ function handleTableChange(pag: any) {
 }
 
 function resetForm() {
+  form.parkId = parkScope.selectedParkId
   form.vehicleCode = ''
   form.vehicleName = ''
   form.vehicleType = 'AGV'
@@ -325,7 +332,8 @@ function openCreate() {
 async function openEdit(record: VehicleAdminListItem) {
   editing.value = record
   resetForm()
-  const detail = (await getVehicleDetail(record.vehicleId)).data
+  const detail = (await getVehicleDetail(record.vehicleId, parkScope.selectedParkId)).data
+  form.parkId = detail.parkId ?? parkScope.selectedParkId
   form.vehicleCode = detail.vehicleCode
   form.vehicleName = detail.vehicleName
   form.vehicleType = detail.vehicleType || 'AGV'
@@ -338,7 +346,7 @@ async function openEdit(record: VehicleAdminListItem) {
 }
 
 async function handleSave() {
-  if (!form.vehicleCode || !form.vehicleName) {
+  if (!form.parkId || !form.vehicleCode || !form.vehicleName) {
     message.warning('请填写完整信息')
     return
   }
@@ -348,7 +356,7 @@ async function handleSave() {
   }
   saving.value = true
   try {
-    const payload = { ...form }
+    const payload = { ...form, parkId: form.parkId }
     if (editing.value) {
       await updateVehicle(editing.value.vehicleId, payload)
       message.success('车辆已更新')
@@ -363,42 +371,20 @@ async function handleSave() {
   }
 }
 
-function hasActiveVehiclesInList() {
-  return store.list.some(item =>
-    ACTIVE_DISPATCH_STATUSES.includes(item.dispatchStatus)
-    || (item.onlineStatus === 'ONLINE' && item.currentTaskId != null),
-  )
-}
-
-function syncSilentRefresh() {
-  if (silentRefreshTimer) {
-    clearInterval(silentRefreshTimer)
-    silentRefreshTimer = null
-  }
-  if (hasActiveVehiclesInList()) {
-    silentRefreshTimer = setInterval(() => {
-      if (!store.loading) fetchData()
-    }, 10_000)
-  }
-}
-
 onMounted(() => {
   const onlineParam = route.query.onlineStatus as string
   if (onlineParam) {
     queryForm.onlineStatus = onlineParam as OnlineStatus
   }
   fetchData()
+  stopRealtimeRefresh = realtimeStore.subscribeRefresh(() => {
+    if (!store.loading) return fetchData()
+  })
 })
 
 onUnmounted(() => {
-  if (silentRefreshTimer) clearInterval(silentRefreshTimer)
+  stopRealtimeRefresh?.()
 })
-
-watch(
-  () => store.list,
-  () => syncSilentRefresh(),
-  { deep: true },
-)
 
 watch(
   () => parkScope.scopeVersion,

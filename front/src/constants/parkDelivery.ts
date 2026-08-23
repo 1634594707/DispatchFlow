@@ -1,6 +1,7 @@
 export const parkDeliveryStageLabelMap: Record<string, string> = {
   PENDING_ASSIGNMENT: '待分配',
-  WAITING_DISPATCH: '待派车',
+  WAITING_DISPATCH: '已受理',
+  ASSIGNING: '派车中',
   DISPATCHED: '已派车',
   IN_PROGRESS: '配送中',
   HEADING_TO_PICKUP: '前往取货',

@@ -3,8 +3,10 @@ import { ref } from 'vue'
 import { queryVehicles, getVehicleDetail } from '@/api/vehicle'
 import type { VehicleAdminListItem, VehicleDetailResponse, VehicleQueryRequest } from '@/types/vehicle'
 import type { PageResponse } from '@/types/api'
+import { useParkScopeStore } from '@/stores/parkScope'
 
 export const useVehicleStore = defineStore('vehicle', () => {
+  const parkScope = useParkScopeStore()
   const list = ref<VehicleAdminListItem[]>([])
   const total = ref(0)
   const loading = ref(false)
@@ -27,10 +29,12 @@ export const useVehicleStore = defineStore('vehicle', () => {
 
   async function fetchDetail(vehicleId: number) {
     detailLoading.value = true
+    detail.value = null
     try {
-      const res = await getVehicleDetail(vehicleId)
+      const res = await getVehicleDetail(vehicleId, parkScope.selectedParkId)
       detail.value = res.data
     } catch (e) {
+      detail.value = null
       console.error('Failed to fetch vehicle detail', e)
     } finally {
       detailLoading.value = false

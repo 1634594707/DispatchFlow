@@ -85,6 +85,15 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
     }
 
     @Override
+    public List<DispatchTaskListItemResponse> listTasks(Long parkId) {
+        DispatchTaskQueryRequest request = new DispatchTaskQueryRequest();
+        request.setPageNo(1);
+        request.setPageSize(10_000);
+        request.setParkId(parkId);
+        return queryTasks(request).getRecords();
+    }
+
+    @Override
     public PageResponse<DispatchTaskListItemResponse> queryTasks(DispatchTaskQueryRequest request) {
         int pageNo = request.getPageNo() == null || request.getPageNo() < 1 ? 1 : request.getPageNo();
         int pageSize = request.getPageSize() == null || request.getPageSize() < 1 ? 20 : request.getPageSize();
@@ -142,6 +151,16 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
     }
 
     @Override
+    public List<DispatchExceptionListItemResponse> listExceptions(Long parkId) {
+        if (parkId == null) {
+            return listExceptions();
+        }
+        return listExceptions().stream()
+                .filter(exception -> matchesParkOrder(exception.getOrderId(), parkId))
+                .toList();
+    }
+
+    @Override
     public DispatchInterventionQueueResponse getInterventionQueue() {
         return getInterventionQueue(null);
     }
@@ -171,13 +190,33 @@ public class DispatchAdminQueryServiceImpl implements DispatchAdminQueryService 
 
     @Override
     public DispatchSummaryResponse getSummary() {
-        return dispatchTaskService.getSummary();
+        return getSummary(null);
+    }
+
+    @Override
+    public DispatchSummaryResponse getSummary(Long parkId) {
+        return DispatchSummaryResponse.builder()
+                .pendingCount(countByStatus(parkId, DispatchTaskStatus.PENDING.name()))
+                .assigningCount(countByStatus(parkId, DispatchTaskStatus.ASSIGNING.name()))
+                .manualPendingCount(countByStatus(parkId, DispatchTaskStatus.MANUAL_PENDING.name()))
+                .executingCount(countByStatus(parkId, DispatchTaskStatus.EXECUTING.name()))
+                .failedCount(countByStatus(parkId, DispatchTaskStatus.FAILED.name()))
+                .build();
+    }
+
+    private long countByStatus(Long parkId, String status) {
+        LambdaQueryWrapper<DispatchTaskEntity> wrapper = new LambdaQueryWrapper<DispatchTaskEntity>()
+                .eq(DispatchTaskEntity::getDeleted, 0)
+                .eq(DispatchTaskEntity::getStatus, status);
+        applyParkFilter(wrapper, parkId);
+        Long count = dispatchTaskMapper.selectCount(wrapper);
+        return count == null ? 0L : count;
     }
 
     @Override
     public DispatchWorkbenchResponse getWorkbench(Long parkId) {
         DispatchInterventionQueueResponse intervention = getInterventionQueue(parkId);
-        List<ParkVehicleSnapshotResponse> vehicles = parkPilotService.listVehicleSnapshots();
+        List<ParkVehicleSnapshotResponse> vehicles = parkPilotService.listVehicleSnapshots(parkId);
         DispatchFleetMetricsResponse fleetMetrics = buildFleetMetrics(vehicles);
         return DispatchWorkbenchResponse.builder()
                 .intervention(intervention)

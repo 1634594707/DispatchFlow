@@ -3,8 +3,10 @@ import { ref } from 'vue'
 import { queryTasks, getTaskDetail } from '@/api/task'
 import type { TaskAdminListItem, TaskDetailResponse, TaskQueryRequest } from '@/types/task'
 import type { PageResponse } from '@/types/api'
+import { useParkScopeStore } from '@/stores/parkScope'
 
 export const useTaskStore = defineStore('task', () => {
+  const parkScope = useParkScopeStore()
   const list = ref<TaskAdminListItem[]>([])
   const total = ref(0)
   const loading = ref(false)
@@ -27,10 +29,12 @@ export const useTaskStore = defineStore('task', () => {
 
   async function fetchDetail(taskId: number) {
     detailLoading.value = true
+    detail.value = null
     try {
-      const res = await getTaskDetail(taskId)
+      const res = await getTaskDetail(taskId, parkScope.selectedParkId)
       detail.value = res.data
     } catch (e) {
+      detail.value = null
       console.error('Failed to fetch task detail', e)
     } finally {
       detailLoading.value = false

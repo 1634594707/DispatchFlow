@@ -11,6 +11,14 @@ import { loadMobileOrderMode, persistMobileOrderMode } from '@/constants/parkDel
 import type { MobileOrderMode } from '@/constants/parkDelivery'
 import type { ParkOrderCreateRequest, ParkOrderCreateResponse, ParkSummary, ParkStation } from '@/types/park'
 
+/** 幂等键：每个“下单意图”一个；网络重试复用，仅在下单成功后换新键（路线图 3.3）。 */
+export function createIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'mob-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10)
+}
+
 export function useMobileOrderForm() {
   const loadingParks = ref(false)
   const loadingStations = ref(false)
@@ -23,6 +31,7 @@ export function useMobileOrderForm() {
   const orderMode = ref<MobileOrderMode>(loadMobileOrderMode())
 
   const form = reactive<ParkOrderCreateRequest>({
+    idempotencyKey: createIdempotencyKey(),
     parkId: undefined,
     externalOrderNo: '',
     pickupStationId: undefined as unknown as number,
@@ -94,6 +103,7 @@ export function useMobileOrderForm() {
     try {
       const response = await createParkOrder(
         {
+          idempotencyKey: form.idempotencyKey,
           parkId: form.parkId,
           externalOrderNo: form.externalOrderNo?.trim() || undefined,
           pickupStationId: form.pickupStationId,
@@ -107,9 +117,10 @@ export function useMobileOrderForm() {
         apiKey,
       )
       lastCreatedOrder.value = response.data
+      form.idempotencyKey = createIdempotencyKey()
       form.externalOrderNo = ''
       form.remark = ''
-      message.success('订单已创建')
+      message.success(response.data.replayed ? '检测到重复提交：已返回原订单' : '订单已创建')
       return response.data
     } catch (err: unknown) {
       const msg =

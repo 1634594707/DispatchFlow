@@ -1362,7 +1362,7 @@ async function fetchLayout() {
 }
 
 async function fetchVehicles() {
-  const response = await getParkVehicles()
+  const response = await getParkVehicles({ parkId: effectiveParkId.value })
   vehicles.value = response.data || []
   updateVehicleMarkers()
   drawOrderChains()

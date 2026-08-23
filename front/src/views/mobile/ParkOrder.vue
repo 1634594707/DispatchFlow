@@ -149,6 +149,7 @@ function resolveDefaultMobileApiKey() {
 }
 
 const form = reactive<ParkOrderCreateRequest>({
+  idempotencyKey: createIdempotencyKey(),
   parkId: undefined,
   externalOrderNo: '',
   pickupStationId: undefined as unknown as number,
@@ -159,6 +160,14 @@ const form = reactive<ParkOrderCreateRequest>({
   weight: undefined as number | undefined,
   remark: '',
 })
+
+/** 幂等键：每个“下单意图”一个；网络重试复用，仅在下单成功后换新键（路线图 3.3）。 */
+function createIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'mob-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10)
+}
 
 const parkOptions = computed(() =>
   parks.value.map((park) => ({
@@ -473,7 +482,7 @@ async function fetchOrders() {
 }
 
 async function fetchVehicles() {
-  const response = await getParkVehicles({ silent: true })
+  const response = await getParkVehicles({ silent: true, parkId: form.parkId })
   vehicles.value = response.data || []
 }
 
@@ -511,27 +520,49 @@ function validateForm() {
   return true
 }
 
+function buildOrderPayload(): ParkOrderCreateRequest {
+  return {
+    idempotencyKey: form.idempotencyKey,
+    parkId: form.parkId,
+    externalOrderNo: form.externalOrderNo?.trim() || undefined,
+    pickupStationId: form.pickupStationId,
+    dropoffStationId: form.dropoffStationId,
+    routeId: form.routeId,
+    priority: form.priority || 'P1',
+    orderPriority: form.orderPriority || 'NORMAL',
+    weight: form.weight,
+    remark: form.remark?.trim() || undefined,
+  }
+}
+
+/** 网络层失败（超时/断网，服务端未给出响应）才允许用同一幂等键安全重试。 */
+function isNetworkLevelError(err: unknown): boolean {
+  return !!err && typeof err === 'object' && !('response' in (err as Record<string, unknown>))
+}
+
 async function submitOrder() {
   if (!validateForm()) return
   if (!ensureValidOrderStationIds()) return
   submitting.value = true
+  const payload = buildOrderPayload()
   try {
-    const response = await createParkOrder(
-      {
-        parkId: form.parkId,
-        externalOrderNo: form.externalOrderNo?.trim() || undefined,
-        pickupStationId: form.pickupStationId,
-        dropoffStationId: form.dropoffStationId,
-        routeId: form.routeId,
-        priority: form.priority || 'P1',
-        orderPriority: form.orderPriority || 'NORMAL',
-        weight: form.weight,
-        remark: form.remark?.trim() || undefined,
-      },
-      mobileApiKey.value,
-    )
+    let response
+    try {
+      response = await createParkOrder(payload, mobileApiKey.value)
+    } catch (err: unknown) {
+      // 超时/断网时结果未知：复用同一幂等键重查一次，命中后返回原订单而不是再建一单。
+      if (!isNetworkLevelError(err)) throw err
+      message.loading({ content: '网络超时，正在查询原提交结果…', key: 'idempotent-retry', duration: 0 })
+      response = await createParkOrder(payload, mobileApiKey.value)
+      message.success({ content: '已确认原提交结果', key: 'idempotent-retry', duration: 3 })
+    }
     trackedOrderId.value = response.data.orderId
-    message.success('订单已创建，手机端将自动开始追踪配送')
+    if (response.data.replayed) {
+      message.success('检测到重复提交：已为您返回原订单，不会重复占用车辆')
+    } else {
+      message.success('订单已创建，手机端将自动开始追踪配送')
+    }
+    form.idempotencyKey = createIdempotencyKey()
     form.externalOrderNo = ''
     form.remark = ''
     void refreshTrackingSnapshot()
@@ -541,7 +572,7 @@ async function submitOrder() {
     const msg =
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
       (err instanceof Error ? err.message : '下单失败')
-    message.error(msg.includes('X-Mobile-Api-Key') ? `${msg}（请配置 VITE_MOBILE_API_KEY）` : msg)
+    message.error(msg.includes('X-Mobile-Api-Key') ? msg + '（请配置 VITE_MOBILE_API_KEY）' : msg)
   } finally {
     submitting.value = false
   }

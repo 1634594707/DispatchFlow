@@ -35,6 +35,7 @@ public class FleetSnapshotAssembler {
         java.math.BigDecimal y = firstNonNull(effectiveRuntime.getY(), vehicle.getCurrentLatitude());
         var geo = resolveGeo(effectiveRuntime, x, y);
         return ParkVehicleSnapshotResponse.builder()
+                .parkId(vehicle.getParkId())
                 .vehicleId(vehicle.getId())
                 .vehicleCode(vehicle.getVehicleCode())
                 .vehicleName(vehicle.getVehicleName())

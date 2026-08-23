@@ -1,5 +1,5 @@
 <template>
-  <div class="trend-chart">
+  <div v-if="points && points.length > 0" class="trend-chart">
     <div
       v-for="point in points"
       :key="point.label"
@@ -11,12 +11,18 @@
       <div class="trend-bar-track">
         <div
           class="trend-bar-fill"
-          :style="{ width: `${barWidth(point)}%`, background: color }"
+          :style="{
+            width: `${barWidth(point)}%`,
+            background: fillStyle(point),
+          }"
           :title="`${point.label}: ${valueLabel(point)}`"
         />
       </div>
       <span class="trend-value">{{ valueLabel(point) }}</span>
     </div>
+  </div>
+  <div v-else class="trend-empty">
+    <span class="trend-empty-text">暂无趋势数据</span>
   </div>
 </template>
 
@@ -33,7 +39,7 @@ const props = withDefaults(
   }>(),
   {
     metric: 'completionRate',
-    color: '#22C7E6',
+    color: '#22D3EE',
     clickable: false,
   },
 )
@@ -54,6 +60,15 @@ function barWidth(point: AnalyticsTrendPoint) {
     return (point.totalCount / maxValue.value) * 100
   }
   return point.completionRate
+}
+
+function fillStyle(point: AnalyticsTrendPoint) {
+  if (props.metric === 'completionRate') {
+    if (point.completionRate < 60) return '#F87171'
+    if (point.completionRate < 85) return '#FBBF24'
+    return 'linear-gradient(90deg, #06B6D4, #22D3EE)'
+  }
+  return props.color || 'linear-gradient(90deg, #F87171, #FB7185)'
 }
 
 function valueLabel(point: AnalyticsTrendPoint) {
@@ -77,6 +92,13 @@ function onBarClick(point: AnalyticsTrendPoint) {
   gap: 10px;
 }
 
+.trend-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--fsd-text-tertiary);
+  font-size: 12px;
+}
+
 .trend-bar-row {
   display: grid;
   grid-template-columns: 44px 1fr 52px;
@@ -86,10 +108,14 @@ function onBarClick(point: AnalyticsTrendPoint) {
   &.clickable {
     cursor: pointer;
     border-radius: 4px;
-    padding: 2px 4px;
-    margin: -2px -4px;
+    padding: 3px 6px;
+    margin: -3px -6px;
+    transition: background 0.15s ease;
     &:hover {
-      background: rgba(34, 199, 230, 0.08);
+      background: rgba(34, 211, 238, 0.08);
+      .trend-label {
+        color: var(--fsd-accent);
+      }
     }
   }
 }
@@ -97,7 +123,8 @@ function onBarClick(point: AnalyticsTrendPoint) {
 .trend-label {
   font-size: 11px;
   color: var(--fsd-text-tertiary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--fsd-font-mono);
+  transition: color 0.15s ease;
 }
 
 .trend-bar-track {
@@ -110,13 +137,13 @@ function onBarClick(point: AnalyticsTrendPoint) {
 .trend-bar-fill {
   height: 100%;
   border-radius: 999px;
-  transition: width 0.3s ease;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .trend-value {
   font-size: 11px;
   color: var(--fsd-text-secondary);
   text-align: right;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--fsd-font-mono);
 }
 </style>

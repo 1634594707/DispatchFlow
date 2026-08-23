@@ -235,6 +235,7 @@ import PageContainer from '@/components/common/PageContainer.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useExceptionStore } from '@/stores/exception'
+import { downloadAnalyticsFile, getAnalyticsExportUrl } from '@/api/analytics'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useAuthStore } from '@/stores/auth'
 import { exceptionTypeMap, exceptionStatusMap } from '@/constants/statusMap'
@@ -317,11 +318,16 @@ function handleRefresh() {
   fetchData()
 }
 
-function handleExport() {
-  const base = import.meta.env.VITE_API_BASE_URL || ''
-  const params = new URLSearchParams({ dataset: 'exceptions', period: 'week' })
-  if (parkScope.selectedParkId) params.set('parkId', String(parkScope.selectedParkId))
-  window.open(`${base}/api/admin/analytics/export/csv?${params.toString()}`, '_blank')
+async function handleExport() {
+  try {
+    await downloadAnalyticsFile(
+      getAnalyticsExportUrl('exceptions', 'week', parkScope.selectedParkId),
+      'exceptions-week.csv',
+    )
+    message.success('异常导出已开始')
+  } catch {
+    message.error('异常导出失败，请重试')
+  }
 }
 
 function handleTableChange(pag: any) {

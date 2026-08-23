@@ -10,6 +10,10 @@ import com.fsd.dispatch.entity.DispatchExceptionRecordEntity;
 import com.fsd.dispatch.event.DispatchEventPublisher;
 import com.fsd.dispatch.event.DispatchEventType;
 import com.fsd.dispatch.mapper.DispatchExceptionRecordMapper;
+import com.fsd.order.entity.OrderEntity;
+import com.fsd.order.mapper.OrderMapper;
+import com.fsd.vehicle.entity.VehicleEntity;
+import com.fsd.vehicle.mapper.VehicleMapper;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchTaskOperateLogService;
 import java.time.LocalDateTime;
@@ -36,13 +40,25 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
     private final DispatchExceptionRecordMapper exceptionRecordMapper;
     private final DispatchEventPublisher eventPublisher;
     private final DispatchTaskOperateLogService operateLogService;
+    private final OrderMapper orderMapper;
+    private final VehicleMapper vehicleMapper;
 
     public DispatchExceptionServiceImpl(DispatchExceptionRecordMapper exceptionRecordMapper,
                                         DispatchEventPublisher eventPublisher,
                                         DispatchTaskOperateLogService operateLogService) {
+        this(exceptionRecordMapper, eventPublisher, operateLogService, null, null);
+    }
+
+    public DispatchExceptionServiceImpl(DispatchExceptionRecordMapper exceptionRecordMapper,
+                                        DispatchEventPublisher eventPublisher,
+                                        DispatchTaskOperateLogService operateLogService,
+                                        OrderMapper orderMapper,
+                                        VehicleMapper vehicleMapper) {
         this.exceptionRecordMapper = exceptionRecordMapper;
         this.eventPublisher = eventPublisher;
         this.operateLogService = operateLogService;
+        this.orderMapper = orderMapper;
+        this.vehicleMapper = vehicleMapper;
     }
 
     @Override
@@ -242,6 +258,16 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         payload.put("exceptionId", entity.getId());
         payload.put("taskId", entity.getTaskId());
         payload.put("orderId", entity.getOrderId());
+        Long parkId = null;
+        if (entity.getOrderId() != null) {
+            OrderEntity order = orderMapper == null ? null : orderMapper.selectById(entity.getOrderId());
+            parkId = order == null ? null : order.getParkId();
+        }
+        if (parkId == null && entity.getVehicleId() != null) {
+            VehicleEntity vehicle = vehicleMapper == null ? null : vehicleMapper.selectById(entity.getVehicleId());
+            parkId = vehicle == null ? null : vehicle.getParkId();
+        }
+        payload.put("parkId", parkId);
         payload.put("vehicleId", entity.getVehicleId());
         payload.put("exceptionType", entity.getExceptionType());
         payload.put("exceptionStatus", entity.getExceptionStatus());

@@ -7,6 +7,7 @@ import com.fsd.dispatch.event.DispatchDomainEvent;
 import com.fsd.dispatch.event.DispatchEventType;
 import java.time.Instant;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -25,39 +26,35 @@ public class AdminDispatchStreamListener {
             return;
         }
         String eventType = event.getEventType();
-        streamService.broadcast("event", Map.of(
-                "eventType", eventType,
-                "businessKey", event.getBusinessKey(),
-                "eventTime", event.getEventTime(),
-                "ts", Instant.now().toString()
-        ));
+        streamService.broadcast("event", envelope(event, null), event.getParkId());
 
         if (DispatchEventType.EXCEPTION_OPEN.equals(eventType)) {
-            streamService.broadcast("exception", Map.of(
-                    "eventType", eventType,
-                    "businessKey", event.getBusinessKey(),
-                    "payload", event.getPayload(),
-                    "eventTime", event.getEventTime(),
-                    "ts", Instant.now().toString()
-            ));
+            streamService.broadcast("exception", envelope(event, event.getPayload()), event.getParkId());
         }
 
         if (OpenExceptionEscalationScheduler.EVENT_ESCALATED.equals(eventType)) {
-            streamService.broadcast("exception-escalated", Map.of(
-                    "eventType", eventType,
-                    "businessKey", event.getBusinessKey(),
-                    "payload", event.getPayload(),
-                    "eventTime", event.getEventTime(),
-                    "ts", Instant.now().toString()
-            ));
+            streamService.broadcast("exception-escalated", envelope(event, event.getPayload()), event.getParkId());
         }
 
         if (isWorkbenchEvent(eventType)) {
-            streamService.broadcast("workbench-refresh", Map.of("ts", Instant.now().toString()));
+            streamService.broadcast("workbench-refresh", envelope(event, null), event.getParkId());
         }
         if (isDashboardEvent(eventType)) {
-            streamService.broadcast("dashboard-refresh", Map.of("ts", Instant.now().toString()));
+            streamService.broadcast("dashboard-refresh", envelope(event, null), event.getParkId());
         }
+    }
+
+    private Map<String, Object> envelope(DispatchDomainEvent event, Object payload) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("eventId", event.getEventId());
+        result.put("eventType", event.getEventType());
+        result.put("businessKey", event.getBusinessKey());
+        result.put("parkId", event.getParkId());
+        result.put("eventTime", event.getEventTime());
+        result.put("eventVersion", event.getEventVersion());
+        result.put("ts", Instant.now().toString());
+        if (payload != null) result.put("payload", payload);
+        return result;
     }
 
     private boolean isWorkbenchEvent(String eventType) {

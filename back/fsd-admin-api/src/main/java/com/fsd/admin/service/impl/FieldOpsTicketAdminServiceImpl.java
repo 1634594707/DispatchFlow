@@ -12,6 +12,8 @@ import com.fsd.dispatch.entity.FieldOpsTicketEntity;
 import com.fsd.dispatch.mapper.DispatchExceptionRecordMapper;
 import com.fsd.dispatch.mapper.FieldOpsTicketMapper;
 import com.fsd.dispatch.service.DispatchExceptionService;
+import com.fsd.order.entity.OrderEntity;
+import com.fsd.order.mapper.OrderMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -24,25 +26,36 @@ public class FieldOpsTicketAdminServiceImpl implements FieldOpsTicketAdminServic
     private final DispatchExceptionRecordMapper exceptionRecordMapper;
     private final AdminUserMapper adminUserMapper;
     private final DispatchExceptionService dispatchExceptionService;
+    private final OrderMapper orderMapper;
 
     public FieldOpsTicketAdminServiceImpl(FieldOpsTicketMapper ticketMapper,
                                           DispatchExceptionRecordMapper exceptionRecordMapper,
                                           AdminUserMapper adminUserMapper,
-                                          DispatchExceptionService dispatchExceptionService) {
+                                          DispatchExceptionService dispatchExceptionService,
+                                          OrderMapper orderMapper) {
         this.ticketMapper = ticketMapper;
         this.exceptionRecordMapper = exceptionRecordMapper;
         this.adminUserMapper = adminUserMapper;
         this.dispatchExceptionService = dispatchExceptionService;
+        this.orderMapper = orderMapper;
     }
 
     @Override
     @Transactional
     public AdminFieldOpsTicketResponse assignFromException(Long exceptionId, Long assigneeUserId,
                                                            String notes, String operator) {
+        return assignFromException(exceptionId, assigneeUserId, notes, operator, null);
+    }
+
+    @Override
+    @Transactional
+    public AdminFieldOpsTicketResponse assignFromException(Long exceptionId, Long assigneeUserId,
+                                                           String notes, String operator, Long parkId) {
         DispatchExceptionRecordEntity exception = exceptionRecordMapper.selectById(exceptionId);
         if (exception == null) {
             throw new BusinessException("EXCEPTION_NOT_FOUND", "异常记录不存在");
         }
+        ensureExceptionPark(exception, parkId);
         AdminUserEntity assignee = adminUserMapper.selectById(assigneeUserId);
         if (assignee == null || assignee.getDeleted() != null && assignee.getDeleted() != 0) {
             throw new BusinessException("ASSIGNEE_NOT_FOUND", "指派用户不存在");
@@ -61,6 +74,11 @@ public class FieldOpsTicketAdminServiceImpl implements FieldOpsTicketAdminServic
 
     @Override
     public List<AdminFieldOpsTicketResponse> listTickets(Long assigneeUserId, String status) {
+        return listTickets(assigneeUserId, status, null);
+    }
+
+    @Override
+    public List<AdminFieldOpsTicketResponse> listTickets(Long assigneeUserId, String status, Long parkId) {
         LambdaQueryWrapper<FieldOpsTicketEntity> query = new LambdaQueryWrapper<FieldOpsTicketEntity>()
                 .orderByDesc(FieldOpsTicketEntity::getCreatedAt);
         if (assigneeUserId != null) {
@@ -70,6 +88,7 @@ public class FieldOpsTicketAdminServiceImpl implements FieldOpsTicketAdminServic
             query.eq(FieldOpsTicketEntity::getStatus, status);
         }
         return ticketMapper.selectList(query).stream()
+                .filter(ticket -> matchesTicketPark(ticket, parkId))
                 .map(ticket -> {
                     DispatchExceptionRecordEntity exception = exceptionRecordMapper.selectById(ticket.getExceptionId());
                     AdminUserEntity assignee = adminUserMapper.selectById(ticket.getAssigneeUserId());
@@ -81,10 +100,18 @@ public class FieldOpsTicketAdminServiceImpl implements FieldOpsTicketAdminServic
     @Override
     @Transactional
     public AdminFieldOpsTicketResponse updateStatus(Long ticketId, String status, String notes) {
+        return updateStatus(ticketId, status, notes, null);
+    }
+
+    @Override
+    @Transactional
+    public AdminFieldOpsTicketResponse updateStatus(Long ticketId, String status, String notes, Long parkId) {
         FieldOpsTicketEntity ticket = ticketMapper.selectById(ticketId);
         if (ticket == null) {
             throw new BusinessException("TICKET_NOT_FOUND", "工单不存在");
         }
+        DispatchExceptionRecordEntity currentException = exceptionRecordMapper.selectById(ticket.getExceptionId());
+        ensureExceptionPark(currentException, parkId);
         if (status != null && !status.isBlank()) {
             validateStatusTransition(ticket.getStatus(), status);
             ticket.setStatus(status);
@@ -128,6 +155,31 @@ public class FieldOpsTicketAdminServiceImpl implements FieldOpsTicketAdminServic
         request.setResolverId("FIELD_OPS");
         request.setResolverName("FIELD_OPS");
         dispatchExceptionService.resolveException(exceptionId, request);
+    }
+
+    private void ensureExceptionPark(DispatchExceptionRecordEntity exception, Long parkId) {
+        if (parkId == null) {
+            return;
+        }
+        if (exception == null || exception.getOrderId() == null) {
+            throw new BusinessException("PARK_SCOPE_DENIED", "异常记录没有可验证的园区");
+        }
+        OrderEntity order = orderMapper.selectById(exception.getOrderId());
+        if (order == null || !parkId.equals(order.getParkId())) {
+            throw new BusinessException("PARK_SCOPE_DENIED", "记录不属于当前园区");
+        }
+    }
+
+    private boolean matchesTicketPark(FieldOpsTicketEntity ticket, Long parkId) {
+        if (parkId == null) {
+            return true;
+        }
+        DispatchExceptionRecordEntity exception = exceptionRecordMapper.selectById(ticket.getExceptionId());
+        if (exception == null || exception.getOrderId() == null) {
+            return false;
+        }
+        OrderEntity order = orderMapper.selectById(exception.getOrderId());
+        return order != null && parkId.equals(order.getParkId());
     }
 
     private AdminFieldOpsTicketResponse toResponse(FieldOpsTicketEntity ticket,

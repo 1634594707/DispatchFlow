@@ -186,9 +186,15 @@ public class ParkPilotServiceImpl implements ParkPilotService {
 
     @Override
     public List<ParkVehicleSnapshotResponse> listVehicleSnapshots() {
+        return listVehicleSnapshots(null);
+    }
+
+    @Override
+    public List<ParkVehicleSnapshotResponse> listVehicleSnapshots(Long parkId) {
         parkPilotSimulationService.initializeVehiclesIfNeeded();
         List<VehicleEntity> vehicles = vehicleMapper.selectList(null).stream()
                 .filter(vehicle -> vehicle.getDeleted() == null || vehicle.getDeleted() == 0)
+                .filter(vehicle -> parkId == null || parkId.equals(vehicle.getParkId()))
                 .filter(vehicle -> isMonitorVehicle(vehicle.getVehicleCode()))
                 .toList();
         List<VehicleEntity> simVehicles = vehicles.stream().filter(this::isSimulationVehicle).toList();
@@ -224,6 +230,11 @@ public class ParkPilotServiceImpl implements ParkPilotService {
 
     @Override
     public List<ParkOrderSnapshotResponse> listOrderSnapshots() {
+        return listOrderSnapshots(null);
+    }
+
+    @Override
+    public List<ParkOrderSnapshotResponse> listOrderSnapshots(Long parkId) {
         Map<Long, DispatchTaskEntity> taskById = dispatchTaskMapper.selectList(null).stream()
                 .filter(task -> task.getDeleted() == null || task.getDeleted() == 0)
                 .collect(Collectors.toMap(DispatchTaskEntity::getId, Function.identity(), (left, right) -> left));
@@ -232,7 +243,9 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                 .filter(vehicle -> vehicle.getCurrentTaskId() != null)
                 .collect(Collectors.toMap(ParkVehicleSnapshotResponse::getCurrentTaskId, Function.identity(), (left, right) -> left));
 
-        ParkEntity defaultPark = parkStationService.requireDefaultPark();
+        ParkEntity defaultPark = parkId == null
+                ? parkStationService.requireDefaultPark()
+                : parkStationService.requirePark(parkId);
         Set<Long> stationIds = parkStationService.listStations(defaultPark.getId()).stream()
                 .map(ParkStationResponse::getStationId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));

@@ -25,12 +25,12 @@ export async function fetchConfigAuditLogs(data: ConfigAuditQueryRequest): Promi
   }
 }
 
-export function fetchTaskOperateLogs(taskId: number) {
-  return request.get<any, ApiResponse<OperateLogItem[]>>(`/admin/operate-logs/tasks/${taskId}`)
+export function fetchTaskOperateLogs(taskId: number, parkId?: number) {
+  return request.get<any, ApiResponse<OperateLogItem[]>>(`/admin/operate-logs/tasks/${taskId}`, { params: { parkId } })
 }
 
-export function fetchVehicleOperateLogs(vehicleId: number) {
-  return request.get<any, ApiResponse<OperateLogItem[]>>(`/admin/operate-logs/vehicles/${vehicleId}`)
+export function fetchVehicleOperateLogs(vehicleId: number, parkId?: number) {
+  return request.get<any, ApiResponse<OperateLogItem[]>>(`/admin/operate-logs/vehicles/${vehicleId}`, { params: { parkId } })
 }
 
 export async function exportOperateLogs(data: OperateLogQueryRequest) {

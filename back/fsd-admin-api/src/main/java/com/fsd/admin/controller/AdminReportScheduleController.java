@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -39,9 +40,16 @@ public class AdminReportScheduleController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required")
     })
-    public ApiResponse<List<AdminReportScheduleResponse>> list(HttpServletRequest request) {
+    public ApiResponse<List<AdminReportScheduleResponse>> list(
+            @RequestParam(required = false) Long parkId, HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
-        return ApiResponse.success(reportScheduleAdminService.list());
+        return ApiResponse.success(parkId == null
+                ? reportScheduleAdminService.list()
+                : reportScheduleAdminService.list(parkId));
+    }
+
+    public ApiResponse<List<AdminReportScheduleResponse>> list(HttpServletRequest request) {
+        return list(null, request);
     }
 
     @PostMapping
@@ -53,9 +61,17 @@ public class AdminReportScheduleController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required")
     })
     public ApiResponse<AdminReportScheduleResponse> upsert(@Valid @RequestBody AdminReportScheduleUpsertRequest body,
+                                                           @RequestParam(required = false) Long parkId,
                                                            HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
-        return ApiResponse.success(reportScheduleAdminService.upsert(body));
+        return ApiResponse.success(parkId == null
+                ? reportScheduleAdminService.upsert(body)
+                : reportScheduleAdminService.upsert(body, parkId));
+    }
+
+    public ApiResponse<AdminReportScheduleResponse> upsert(@Valid @RequestBody AdminReportScheduleUpsertRequest body,
+                                                           HttpServletRequest request) {
+        return upsert(body, null, request);
     }
 
     @DeleteMapping("/{id}")
@@ -65,9 +81,19 @@ public class AdminReportScheduleController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required")
     })
-    public ApiResponse<Void> delete(@PathVariable Long id, HttpServletRequest request) {
+    public ApiResponse<Void> delete(@PathVariable Long id,
+                                    @RequestParam(required = false) Long parkId,
+                                    HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
-        reportScheduleAdminService.delete(id);
+        if (parkId == null) {
+            reportScheduleAdminService.delete(id);
+        } else {
+            reportScheduleAdminService.delete(id, parkId);
+        }
         return ApiResponse.success(null);
+    }
+
+    public ApiResponse<Void> delete(@PathVariable Long id, HttpServletRequest request) {
+        return delete(id, null, request);
     }
 }

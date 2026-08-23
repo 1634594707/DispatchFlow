@@ -10,6 +10,8 @@ import lombok.Data;
 @Builder
 public class ParkVehicleSnapshotResponse {
 
+    private Long parkId;
+
     private Long vehicleId;
 
     private String vehicleCode;

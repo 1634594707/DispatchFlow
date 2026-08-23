@@ -7,6 +7,8 @@ import lombok.Data;
 @Builder
 public class AdminDashboardSummaryResponse {
 
+    private Long parkId;
+
     private long pendingCount;
 
     private long assigningCount;

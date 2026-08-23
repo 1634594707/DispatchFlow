@@ -2,11 +2,11 @@ import { getDispatchStreamUrl as buildDispatchStreamPath } from '@/api/dispatch'
 import type { DispatchStreamClient, DispatchStreamHandlers } from '@/types/realtime'
 import { registerSSEConnection } from '@/utils/sseConnectionRegistry'
 
-function getDispatchStreamUrl(): Promise<string> {
-  return buildDispatchStreamPath()
+function getDispatchStreamUrl(parkId?: number): Promise<string> {
+  return buildDispatchStreamPath(parkId)
 }
 
-export function createDispatchStreamClient(handlers: DispatchStreamHandlers): DispatchStreamClient {
+export function createDispatchStreamClient(handlers: DispatchStreamHandlers, parkId?: number): DispatchStreamClient {
   let eventSource: EventSource | null = null
   let retryCount = 0
   let retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -67,7 +67,7 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers): Di
   async function connect() {
     if (stopped) return
     teardownEventSource()
-    eventSource = new EventSource(await getDispatchStreamUrl())
+    eventSource = new EventSource(await getDispatchStreamUrl(parkId))
 
     eventSource.onopen = () => {
       retryCount = 0

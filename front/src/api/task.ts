@@ -21,50 +21,62 @@ export interface TaskManualAssignRequest {
   remark?: string
 }
 
-export function getTaskList() {
-  return request.get<any, ApiResponse<TaskAdminListItem[]>>('/admin/tasks')
+export function getTaskList(parkId?: number) {
+  return request.get<any, ApiResponse<TaskAdminListItem[]>>('/admin/tasks', { params: { parkId } })
 }
 
 export function queryTasks(data: TaskQueryRequest) {
   return request.post<any, ApiResponse<PageResponse<TaskAdminListItem>>>('/admin/tasks/query', data)
 }
 
-export function getTaskDetail(taskId: number) {
-  return request.get<any, ApiResponse<TaskDetailResponse>>(`/admin/tasks/${taskId}`)
+export function getTaskDetail(taskId: number, parkId?: number) {
+  return request.get<any, ApiResponse<TaskDetailResponse>>(`/admin/tasks/${taskId}`, {
+    params: parkId != null ? { parkId } : undefined,
+  })
 }
 
-export function autoAssignTask(taskId: number) {
-  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/auto-assign`)
+export function autoAssignTask(taskId: number, parkId?: number) {
+  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/auto-assign`, undefined, {
+    params: parkId != null ? { parkId } : undefined,
+  })
 }
 
-export function manualAssignTask(taskId: number, data: TaskManualAssignRequest) {
-  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/manual-assign`, data)
+export function manualAssignTask(taskId: number, data: TaskManualAssignRequest, parkId?: number) {
+  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/manual-assign`, data, {
+    params: parkId != null ? { parkId } : undefined,
+  })
 }
 
-export function cancelTask(taskId: number, remark?: string) {
-  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/cancel`, { remark })
+export function cancelTask(taskId: number, remark?: string, parkId?: number) {
+  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/cancel`, { remark }, {
+    params: parkId != null ? { parkId } : undefined,
+  })
 }
 
-export function reassignTask(taskId: number, data: TaskManualAssignRequest) {
-  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/reassign`, data)
+export function reassignTask(taskId: number, data: TaskManualAssignRequest, parkId?: number) {
+  return request.post<any, ApiResponse<TaskAssignResponse>>(`/admin/tasks/${taskId}/reassign`, data, {
+    params: parkId != null ? { parkId } : undefined,
+  })
 }
 
-export function batchAutoAssign(taskIds: number[]) {
-  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/auto-assign', { taskIds })
+export function batchAutoAssign(taskIds: number[], parkId?: number) {
+  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/auto-assign', { taskIds, parkId })
 }
 
-export function batchCancelTasks(taskIds: number[], remark?: string) {
-  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/cancel', { taskIds, remark })
+export function batchCancelTasks(taskIds: number[], remark?: string, parkId?: number) {
+  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/cancel', { taskIds, remark, parkId })
 }
 
-export function batchReassignTasks(taskIds: number[], vehicleId: number, remark?: string) {
-  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/reassign', { taskIds, vehicleId, remark })
+export function batchReassignTasks(taskIds: number[], vehicleId: number, remark?: string, parkId?: number) {
+  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/reassign', { taskIds, vehicleId, remark, parkId })
 }
 
-export function batchUnassignTasks(taskIds: number[], remark?: string) {
-  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/unassign', { taskIds, remark })
+export function batchUnassignTasks(taskIds: number[], remark?: string, parkId?: number) {
+  return request.post<any, ApiResponse<import('@/types/operateLog').BatchTaskResult>>('/admin/tasks/batch/unassign', { taskIds, remark, parkId })
 }
 
-export function bumpTaskPriority(taskId: number) {
-  return request.post<any, ApiResponse<null>>(`/admin/tasks/${taskId}/bump-priority`)
+export function bumpTaskPriority(taskId: number, parkId?: number) {
+  return request.post<any, ApiResponse<null>>(`/admin/tasks/${taskId}/bump-priority`, undefined, {
+    params: parkId != null ? { parkId } : undefined,
+  })
 }

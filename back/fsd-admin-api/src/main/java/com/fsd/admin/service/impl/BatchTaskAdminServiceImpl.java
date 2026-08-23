@@ -31,14 +31,14 @@ public class BatchTaskAdminServiceImpl implements BatchTaskAdminService {
     public AdminBatchTaskResultResponse batchAutoAssign(AdminBatchTaskRequest request,
                                                         String operatorId,
                                                         String operatorName) {
-        return executeBatch(request.getTaskIds(), (taskId) -> dispatchTaskService.autoAssignTask(taskId));
+        return executeBatch("AUTO_ASSIGN", request.getTaskIds(), (taskId) -> dispatchTaskService.autoAssignTask(taskId));
     }
 
     @Override
     public AdminBatchTaskResultResponse batchCancel(AdminBatchTaskRequest request,
                                                     String operatorId,
                                                     String operatorName) {
-        return executeBatch(request.getTaskIds(), (taskId) ->
+        return executeBatch("CANCEL", request.getTaskIds(), (taskId) ->
                 dispatchTaskService.cancelTask(taskId, operatorId, operatorName, request.getRemark()));
     }
 
@@ -54,7 +54,7 @@ public class BatchTaskAdminServiceImpl implements BatchTaskAdminService {
         assignRequest.setOperatorId(operatorId);
         assignRequest.setOperatorName(operatorName);
         assignRequest.setRemark(request.getRemark());
-        return executeBatch(request.getTaskIds(), (taskId) -> {
+        return executeBatch("REASSIGN", request.getTaskIds(), (taskId) -> {
             DispatchTaskEntity task = dispatchTaskMapper.selectById(taskId);
             if (task != null && "ASSIGNED".equals(task.getStatus())) {
                 return dispatchTaskService.reassignTask(taskId, assignRequest);
@@ -67,20 +67,30 @@ public class BatchTaskAdminServiceImpl implements BatchTaskAdminService {
     public AdminBatchTaskResultResponse batchUnassign(AdminBatchTaskRequest request,
                                                       String operatorId,
                                                       String operatorName) {
-        return executeBatch(request.getTaskIds(), (taskId) ->
-                dispatchTaskService.cancelTask(taskId, operatorId, operatorName, request.getRemark()));
+        // 人工接管：释放车辆并退回 PENDING 重新排队，而不是取消任务（对齐任务状态机契约）。
+        return executeBatch("UNASSIGN", request.getTaskIds(), (taskId) ->
+                dispatchTaskService.unassignTask(taskId, operatorId, operatorName, request.getRemark()));
     }
 
-    private AdminBatchTaskResultResponse executeBatch(List<Long> taskIds,
+    /** 瞬时失败原因：允许整批重试（路线图 2.2 可重试条目契约）。 */
+    private static final java.util.Set<String> RETRYABLE_REASON_CODES = java.util.Set.of(
+            "NO_VEHICLE", "CONFLICT", "HUB_CAPACITY_FULL", "ROUTE_OCCUPANCY_FULL",
+            "DISPATCH_TASK_LOCKED");
+
+    private AdminBatchTaskResultResponse executeBatch(String operation,
+                                                      List<Long> taskIds,
                                                       TaskAction action) {
         List<AdminBatchTaskItemResult> results = new ArrayList<>();
+        List<Long> retryableTaskIds = new ArrayList<>();
         int success = 0;
         for (Long taskId : taskIds) {
             DispatchTaskEntity task = dispatchTaskMapper.selectById(taskId);
             String taskNo = task != null ? task.getTaskNo() : String.valueOf(taskId);
             try {
                 DispatchTaskAssignResponse response = action.run(taskId);
-                boolean ok = isSuccessResponse(response);
+                boolean ok = isSuccessResponse(operation, response);
+                boolean retryable = !ok && response.getReasonCode() != null
+                        && RETRYABLE_REASON_CODES.contains(response.getReasonCode());
                 AdminBatchTaskItemResult item = AdminBatchTaskItemResult.builder()
                         .taskId(taskId)
                         .taskNo(taskNo)
@@ -90,42 +100,64 @@ public class BatchTaskAdminServiceImpl implements BatchTaskAdminService {
                         .reasonCode(response.getReasonCode())
                         .reasonMessage(response.getReasonMessage())
                         .suggestions(response.getSuggestions())
+                        .retryable(retryable)
                         .message(ok ? response.getMessage() : firstNonBlank(response.getReasonMessage(), response.getMessage()))
                         .build();
                 results.add(item);
                 if (ok) {
                     success++;
+                } else if (retryable) {
+                    retryableTaskIds.add(taskId);
                 }
             } catch (BusinessException ex) {
+                boolean retryable = RETRYABLE_REASON_CODES.contains(ex.getCode());
                 results.add(AdminBatchTaskItemResult.builder()
                         .taskId(taskId)
                         .taskNo(taskNo)
                         .success(false)
+                        .reasonCode(ex.getCode())
+                        .retryable(retryable)
                         .message(ex.getMessage())
                         .build());
+                if (retryable) {
+                    retryableTaskIds.add(taskId);
+                }
             } catch (Exception ex) {
+                // 非业务异常视为系统瞬时错误，可重试
                 results.add(AdminBatchTaskItemResult.builder()
                         .taskId(taskId)
                         .taskNo(taskNo)
                         .success(false)
+                        .reasonCode("SYSTEM_ERROR")
+                        .retryable(true)
                         .message(ex.getMessage())
                         .build());
+                retryableTaskIds.add(taskId);
             }
         }
         return AdminBatchTaskResultResponse.builder()
+                .operation(operation)
                 .total(taskIds.size())
                 .successCount(success)
                 .failureCount(taskIds.size() - success)
                 .results(results)
+                .retryableTaskIds(retryableTaskIds)
+                .operatedAt(java.time.LocalDateTime.now())
                 .build();
     }
 
-    private boolean isSuccessResponse(DispatchTaskAssignResponse response) {
+    /** 按操作类型判定成功终态：派车/改派=ASSIGNED|EXECUTING，取消=CANCELLED，人工接管=PENDING。 */
+    private boolean isSuccessResponse(String operation, DispatchTaskAssignResponse response) {
         if (response == null || response.getStatus() == null) {
             return false;
         }
-        return DispatchTaskStatus.ASSIGNED.name().equals(response.getStatus())
-                || DispatchTaskStatus.EXECUTING.name().equals(response.getStatus());
+        String status = response.getStatus();
+        return switch (operation == null ? "" : operation) {
+            case "CANCEL" -> DispatchTaskStatus.CANCELLED.name().equals(status);
+            case "UNASSIGN" -> DispatchTaskStatus.PENDING.name().equals(status);
+            default -> DispatchTaskStatus.ASSIGNED.name().equals(status)
+                    || DispatchTaskStatus.EXECUTING.name().equals(status);
+        };
     }
 
     private String firstNonBlank(String primary, String fallback) {

@@ -14,17 +14,27 @@ public interface DispatchAdminQueryService {
 
     List<DispatchTaskListItemResponse> listTasks();
 
+    default List<DispatchTaskListItemResponse> listTasks(Long parkId) {
+        return listTasks();
+    }
+
     PageResponse<DispatchTaskListItemResponse> queryTasks(DispatchTaskQueryRequest request);
 
     DispatchTaskDetailResponse getTaskDetail(Long taskId);
 
     List<DispatchExceptionListItemResponse> listExceptions();
 
+    default List<DispatchExceptionListItemResponse> listExceptions(Long parkId) {
+        return listExceptions();
+    }
+
     DispatchInterventionQueueResponse getInterventionQueue();
 
     DispatchInterventionQueueResponse getInterventionQueue(Long parkId);
 
     DispatchSummaryResponse getSummary();
+
+    DispatchSummaryResponse getSummary(Long parkId);
 
     DispatchWorkbenchResponse getWorkbench(Long parkId);
 }

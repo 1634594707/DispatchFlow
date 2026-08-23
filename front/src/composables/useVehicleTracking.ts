@@ -8,7 +8,7 @@ import { ref, computed } from 'vue'
 import { getParkVehicles } from '@/api/park'
 import type { ParkVehicleSnapshot } from '@/types/park'
 
-export function useVehicleTracking() {
+export function useVehicleTracking(parkId?: () => number | null | undefined) {
   const vehicles = ref<ParkVehicleSnapshot[]>([])
   const activeFilter = ref('all')
 
@@ -45,7 +45,7 @@ export function useVehicleTracking() {
   }
 
   async function refreshVehicles() {
-    const response = await getParkVehicles()
+    const response = await getParkVehicles({ parkId: parkId?.() ?? undefined })
     vehicles.value = response.data || []
   }
 

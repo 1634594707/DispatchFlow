@@ -1,6 +1,7 @@
 package com.fsd.admin.service;
 
 import com.fsd.admin.auth.AdminAuthContext;
+import java.util.List;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 public interface AdminDispatchStreamService {
@@ -16,4 +17,6 @@ public interface AdminDispatchStreamService {
     boolean hasClients();
 
     int getActiveConnectionCount();
+
+    List<Long> getActiveParkIds();
 }

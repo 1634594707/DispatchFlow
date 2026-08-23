@@ -3,6 +3,7 @@ export interface OperateLogItem {
   taskId: number
   taskNo?: string
   vehicleId?: number
+  parkId?: number
   operateType: string
   beforeStatus?: string
   afterStatus?: string
@@ -16,6 +17,7 @@ export interface OperateLogItem {
 export interface OperateLogQueryRequest {
   taskId?: number
   vehicleId?: number
+  parkId?: number
   operateType?: string
   operatorName?: string
   startTime?: string
@@ -65,11 +67,18 @@ export interface BatchTaskItemResult {
   reasonCode?: string
   reasonMessage?: string
   suggestions?: string[]
+  /** 瞬时失败可整批重试 */
+  retryable?: boolean
 }
 
 export interface BatchTaskResult {
+  /** 操作类型：AUTO_ASSIGN / CANCEL / REASSIGN / UNASSIGN */
+  operation?: string
   total: number
   successCount: number
   failureCount: number
   results: BatchTaskItemResult[]
+  /** 失败原因属瞬时类、允许直接重试的任务 ID 列表 */
+  retryableTaskIds?: number[]
+  operatedAt?: string
 }

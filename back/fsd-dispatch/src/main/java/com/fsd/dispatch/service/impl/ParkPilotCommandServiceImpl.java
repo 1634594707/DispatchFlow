@@ -8,6 +8,7 @@ import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.service.DispatchRouteService;
 import com.fsd.dispatch.service.ParkPilotCommandService;
 import com.fsd.dispatch.service.DispatchPauseControlService;
+import com.fsd.dispatch.service.ParkOrderIdempotencyService;
 import com.fsd.dispatch.service.ParkStationService;
 import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
 import com.fsd.dispatch.vo.DispatchTaskCreateResponse;
@@ -32,17 +33,20 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
     private final ParkStationService parkStationService;
     private final DispatchPauseControlService dispatchPauseControlService;
     private final DispatchRouteService dispatchRouteService;
+    private final ParkOrderIdempotencyService parkOrderIdempotencyService;
 
     public ParkPilotCommandServiceImpl(OrderService orderService,
                                        DispatchTaskService dispatchTaskService,
                                        ParkStationService parkStationService,
                                        DispatchPauseControlService dispatchPauseControlService,
-                                       DispatchRouteService dispatchRouteService) {
+                                       DispatchRouteService dispatchRouteService,
+                                       ParkOrderIdempotencyService parkOrderIdempotencyService) {
         this.orderService = orderService;
         this.dispatchTaskService = dispatchTaskService;
         this.parkStationService = parkStationService;
         this.dispatchPauseControlService = dispatchPauseControlService;
         this.dispatchRouteService = dispatchRouteService;
+        this.parkOrderIdempotencyService = parkOrderIdempotencyService;
     }
 
     @Override
@@ -51,6 +55,13 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
         ParkEntity park = request.getParkId() == null
                 ? parkStationService.requireDefaultPark()
                 : parkStationService.requirePark(request.getParkId());
+
+        // 幂等占位：重复提交直接重放原订单结果，不再创建新资源（路线图 3.3）。
+        ParkOrderCreateResponse replayed = parkOrderIdempotencyService.tryReserve(request, park.getId());
+        if (replayed != null) {
+            return replayed;
+        }
+
         if (dispatchPauseControlService.isDispatchPaused(park.getId())) {
             throw new BusinessException("DISPATCH_PAUSED", "当前园区已暂停新派单，暂不接受移动下单");
         }
@@ -90,7 +101,7 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
         DispatchTaskCreateResponse taskResponse = dispatchTaskService.createTask(taskRequest);
         DispatchTaskAssignResponse assignResponse = dispatchTaskService.autoAssignTask(taskResponse.getTaskId());
 
-        return ParkOrderCreateResponse.builder()
+        ParkOrderCreateResponse response = ParkOrderCreateResponse.builder()
                 .orderId(orderResponse.getOrderId())
                 .orderNo(orderResponse.getOrderNo())
                 .orderStatus(orderResponse.getStatus())
@@ -99,7 +110,10 @@ public class ParkPilotCommandServiceImpl implements ParkPilotCommandService {
                 .taskStatus(assignResponse.getStatus())
                 .vehicleId(assignResponse.getVehicleId())
                 .message(assignResponse.getMessage())
+                .replayed(false)
                 .build();
+        parkOrderIdempotencyService.completeReservation(request, response);
+        return response;
     }
 
     private String resolveExternalOrderNo(String externalOrderNo) {

@@ -118,28 +118,39 @@
               v-for="task in taskCards"
               :key="task.taskId"
               class="task-card"
-              :class="{ selected: selectedTaskId === task.taskId }"
+              :class="{
+                selected: selectedTaskId === task.taskId,
+                'urgent-task': (task.waitMinutes ?? 0) > 15 || task.orderPriority === 'P0' || task.orderPriority === 'P1',
+              }"
               @click="selectedTaskId = task.taskId"
             >
               <div class="task-main">
-                <span class="task-priority">{{ task.orderPriority || 'P2' }}</span>
+                <span
+                  class="task-priority"
+                  :class="{
+                    'p-high': task.orderPriority === 'P0' || task.orderPriority === 'P1',
+                    'p-med': task.orderPriority === 'P2',
+                  }"
+                >{{ task.orderPriority || 'P2' }}</span>
                 <div>
-                  <strong>{{ task.taskNo }}</strong
-                  ><small
-                    >等待 {{ task.waitMinutes ?? 0 }} 分钟 ·
-                    {{ taskStatusLabel(task.status) }}</small
-                  >
+                  <strong>{{ task.taskNo }}</strong>
+                  <small :class="{ 'wait-warning': (task.waitMinutes ?? 0) > 15 }">
+                    等待 {{ task.waitMinutes ?? 0 }} 分钟 ·
+                    {{ taskStatusLabel(task.status) }}
+                  </small>
                 </div>
               </div>
-              <button
-                v-if="authStore.canWrite"
-                type="button"
-                class="dispatch-button"
-                :disabled="dispatchingTaskId === task.taskId"
-                @click.stop="autoDispatch(task.taskId)"
-              >
-                {{ dispatchingTaskId === task.taskId ? '派车中' : '自动派车' }}
-              </button>
+              <div class="task-actions-inline">
+                <button
+                  v-if="authStore.canWrite"
+                  type="button"
+                  class="dispatch-button"
+                  :disabled="dispatchingTaskId === task.taskId"
+                  @click.stop="autoDispatch(task.taskId)"
+                >
+                  {{ dispatchingTaskId === task.taskId ? '派车中' : '自动派车' }}
+                </button>
+              </div>
             </article>
           </div>
         </section>
@@ -797,11 +808,26 @@ button {
 .task-priority {
   padding: 4px 6px;
   border-radius: 6px;
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.08);
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.1);
   font:
     700 10px 'Geist Mono',
     monospace;
+}
+.task-priority.p-high {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.14);
+}
+.task-priority.p-med {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+}
+.task-card.urgent-task {
+  border-left: 3px solid #f87171;
+}
+.wait-warning {
+  color: #f87171 !important;
+  font-weight: 600;
 }
 .task-main div {
   display: grid;

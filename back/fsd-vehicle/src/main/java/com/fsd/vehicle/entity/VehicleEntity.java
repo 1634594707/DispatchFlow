@@ -14,6 +14,8 @@ public class VehicleEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    private Long parkId;
+
     private String vehicleCode;
 
     private String vehicleName;

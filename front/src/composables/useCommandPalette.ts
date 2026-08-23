@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import { globalSearch } from '@/api/search'
 import { useAuthStore } from '@/stores/auth'
 import { useWorkbenchStore } from '@/stores/workbench'
+import { useParkScopeStore } from '@/stores/parkScope'
 import { buildNavCommandItems } from '@/config/navigation'
 import type { GlobalSearchItem } from '@/types/phase10'
 
@@ -18,6 +19,7 @@ export function useCommandPalette() {
   const router = useRouter()
   const authStore = useAuthStore()
   const workbenchStore = useWorkbenchStore()
+  const parkScope = useParkScopeStore()
   const visible = ref(false)
   const keyword = ref('')
   const loading = ref(false)
@@ -51,7 +53,7 @@ export function useCommandPalette() {
     }
     loading.value = true
     try {
-      const res = await globalSearch(q, 12)
+      const res = await globalSearch(q, 12, parkScope.selectedParkId)
       searchResults.value = res.data.items || []
       activeIndex.value = 0
     } catch {

@@ -68,6 +68,7 @@ import {
   syncDefaultMobileOrderStations,
 } from '@/maps/stationLayers'
 import { parkDeliveryDemoRoutes } from '@/constants/parkDelivery'
+import { createIdempotencyKey } from '@/composables/useMobileOrderForm'
 import type { ParkOrderCreateRequest, ParkStation } from '@/types/park'
 
 const props = defineProps<{
@@ -86,6 +87,7 @@ const loadingStations = ref(false)
 const stations = ref<ParkStation[]>([])
 
 const form = reactive<ParkOrderCreateRequest>({
+  idempotencyKey: createIdempotencyKey(),
   parkId: undefined,
   externalOrderNo: '',
   pickupStationId: undefined as unknown as number,
@@ -184,7 +186,12 @@ async function handleSubmit() {
   submitting.value = true
   try {
     const res = await createParkOrder({ ...form })
-    message.success(res.data?.message || `订单 ${res.data?.orderNo} 已创建`)
+    if (res.data?.replayed) {
+      message.success('重复提交已拦截：返回原订单 ' + (res.data?.orderNo || ''))
+    } else {
+      message.success(res.data?.message || `订单 ${res.data?.orderNo} 已创建`)
+    }
+    form.idempotencyKey = createIdempotencyKey()
     emit('created')
     emit('update:open', false)
   } catch (e: unknown) {

@@ -1,6 +1,11 @@
 import type { DashboardSummary } from '@/types/dashboard'
 
 export interface WorkbenchStreamPayload {
+  eventId?: string
+  eventType?: string
+  parkId?: number | null
+  eventTime?: string
+  eventVersion?: number
   ts: string
   pendingCount: number
   manualPendingCount: number
@@ -8,14 +13,18 @@ export interface WorkbenchStreamPayload {
 }
 
 export interface DispatchStreamEventPayload {
+  eventId?: string
   eventType: string
+  parkId?: number | null
   businessKey?: string
   eventTime?: string
   ts: string
 }
 
 export interface ExceptionStreamPayload {
+  eventId?: string
   eventType: string
+  parkId?: number | null
   businessKey?: string
   payload?: Record<string, unknown>
   eventTime?: string
@@ -27,8 +36,8 @@ export type StreamHandler<T = unknown> = (payload: T) => void
 export interface DispatchStreamHandlers {
   onDashboard?: StreamHandler<DashboardSummary>
   onWorkbench?: StreamHandler<WorkbenchStreamPayload>
-  onWorkbenchRefresh?: StreamHandler<{ ts: string }>
-  onDashboardRefresh?: StreamHandler<{ ts: string }>
+  onWorkbenchRefresh?: StreamHandler<{ ts: string; parkId?: number | null }>
+  onDashboardRefresh?: StreamHandler<{ ts: string; parkId?: number | null }>
   onException?: StreamHandler<ExceptionStreamPayload>
   onEvent?: StreamHandler<DispatchStreamEventPayload>
   onPing?: StreamHandler<{ ts: string }>

@@ -58,11 +58,39 @@ public class OperateLogAdminServiceImpl implements OperateLogAdminService {
     }
 
     @Override
+    public List<AdminOperateLogResponse> listByTaskId(Long taskId, Long parkId) {
+        if (!taskMatchesPark(taskId, parkId)) {
+            return List.of();
+        }
+        return listByTaskId(taskId);
+    }
+
+    @Override
     public List<AdminOperateLogResponse> listByVehicleId(Long vehicleId) {
         List<Long> taskIds = dispatchTaskMapper.selectList(new LambdaQueryWrapper<DispatchTaskEntity>()
                         .eq(DispatchTaskEntity::getVehicleId, vehicleId)
                         .eq(DispatchTaskEntity::getDeleted, 0))
                 .stream()
+                .map(DispatchTaskEntity::getId)
+                .toList();
+        if (taskIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, String> taskNoById = taskNoMap(taskIds);
+        return operateLogService.listByTaskIds(taskIds).stream()
+                .map(log -> toResponse(log, taskNoById.get(log.getTaskId())))
+                .toList();
+    }
+
+    @Override
+    public List<AdminOperateLogResponse> listByVehicleId(Long vehicleId, Long parkId) {
+        LambdaQueryWrapper<DispatchTaskEntity> wrapper = new LambdaQueryWrapper<DispatchTaskEntity>()
+                .eq(DispatchTaskEntity::getVehicleId, vehicleId)
+                .eq(DispatchTaskEntity::getDeleted, 0);
+        if (parkId != null) {
+            wrapper.apply("order_id IN (SELECT id FROM t_order WHERE deleted = 0 AND park_id = {0})", parkId);
+        }
+        List<Long> taskIds = dispatchTaskMapper.selectList(wrapper).stream()
                 .map(DispatchTaskEntity::getId)
                 .toList();
         if (taskIds.isEmpty()) {
@@ -125,6 +153,10 @@ public class OperateLogAdminServiceImpl implements OperateLogAdminService {
             }
             wrapper.in(DispatchTaskOperateLogEntity::getTaskId, taskIds);
         }
+        if (request.getParkId() != null) {
+            wrapper.apply("task_id IN (SELECT t.id FROM t_dispatch_task t JOIN t_order o ON o.id = t.order_id "
+                    + "WHERE t.deleted = 0 AND o.deleted = 0 AND o.park_id = {0})", request.getParkId());
+        }
         wrapper.orderByDesc(DispatchTaskOperateLogEntity::getCreatedAt);
         List<DispatchTaskOperateLogEntity> entities = operateLogMapper.selectList(wrapper);
         List<Long> taskIds = entities.stream().map(DispatchTaskOperateLogEntity::getTaskId).distinct().toList();
@@ -143,6 +175,17 @@ public class OperateLogAdminServiceImpl implements OperateLogAdminService {
                         .in(DispatchTaskEntity::getId, taskIds))
                 .stream()
                 .collect(Collectors.toMap(DispatchTaskEntity::getId, DispatchTaskEntity::getTaskNo));
+    }
+
+    private boolean taskMatchesPark(Long taskId, Long parkId) {
+        if (parkId == null) {
+            return true;
+        }
+        return !dispatchTaskMapper.selectList(new LambdaQueryWrapper<DispatchTaskEntity>()
+                        .eq(DispatchTaskEntity::getId, taskId)
+                        .eq(DispatchTaskEntity::getDeleted, 0)
+                        .apply("order_id IN (SELECT id FROM t_order WHERE deleted = 0 AND park_id = {0})", parkId))
+                .isEmpty();
     }
 
     private AdminOperateLogResponse toResponse(DispatchTaskOperateLogEntity entity, String taskNo) {

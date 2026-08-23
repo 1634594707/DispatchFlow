@@ -29,6 +29,12 @@ public class DispatchEventOutboxEntity {
 
     private LocalDateTime nextRetryTime;
 
+    private String claimToken;
+
+    private LocalDateTime claimedAt;
+
+    private LocalDateTime leaseUntil;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

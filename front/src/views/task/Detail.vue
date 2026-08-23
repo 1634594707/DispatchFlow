@@ -181,6 +181,7 @@ import { message } from 'ant-design-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useTaskStore } from '@/stores/task'
+import { useParkScopeStore } from '@/stores/parkScope'
 import { getVehicleDetail, queryVehicles } from '@/api/vehicle'
 import { autoAssignTask, manualAssignTask, cancelTask, reassignTask } from '@/api/task'
 import { fetchTaskOperateLogs } from '@/api/operateLog'
@@ -193,6 +194,7 @@ import type { OperateLogItem } from '@/types/operateLog'
 const router = useRouter()
 const route = useRoute()
 const store = useTaskStore()
+const parkScope = useParkScopeStore()
 
 const vehicleDetail = ref<VehicleDetailResponse | null>(null)
 const operateLogs = ref<OperateLogItem[]>([])
@@ -248,7 +250,7 @@ function logColor(type: string) {
 
 async function loadVehicle(vehicleId: number) {
   try {
-    vehicleDetail.value = (await getVehicleDetail(vehicleId)).data
+    vehicleDetail.value = (await getVehicleDetail(vehicleId, parkScope.selectedParkId)).data
   } catch {
     vehicleDetail.value = null
   }
@@ -256,7 +258,7 @@ async function loadVehicle(vehicleId: number) {
 
 async function loadOperateLogs(taskId: number) {
   try {
-    operateLogs.value = (await fetchTaskOperateLogs(taskId)).data
+    operateLogs.value = (await fetchTaskOperateLogs(taskId, parkScope.selectedParkId)).data
   } catch {
     operateLogs.value = []
   }
@@ -268,6 +270,7 @@ async function loadAssignableVehicles() {
     const res = await queryVehicles({
       onlineStatus: 'ONLINE' as any,
       dispatchStatus: DispatchStatus.IDLE,
+      parkId: parkScope.selectedParkId,
       pageNo: 1,
       pageSize: 100,
     })
@@ -284,7 +287,7 @@ async function handleAutoAssign() {
   const taskId = Number(route.params.taskId)
   actionLoading.value = true
   try {
-    await autoAssignTask(taskId)
+    await autoAssignTask(taskId, parkScope.selectedParkId)
     message.success('自动派车已提交')
     await fetchData()
   } finally {
@@ -318,10 +321,10 @@ async function submitAssign() {
   try {
     const payload = { vehicleId: assignForm.vehicleId, remark: assignForm.remark }
     if (assignMode.value === 'reassign') {
-      await reassignTask(taskId, payload)
+      await reassignTask(taskId, payload, parkScope.selectedParkId)
       message.success('改派成功')
     } else {
-      await manualAssignTask(taskId, payload)
+      await manualAssignTask(taskId, payload, parkScope.selectedParkId)
       message.success('手动派车成功')
     }
     assignModalOpen.value = false
@@ -335,7 +338,7 @@ async function handleCancel() {
   const taskId = Number(route.params.taskId)
   actionLoading.value = true
   try {
-    await cancelTask(taskId)
+    await cancelTask(taskId, undefined, parkScope.selectedParkId)
     message.success('任务已取消')
     await fetchData()
   } finally {
@@ -347,6 +350,11 @@ async function fetchData() {
   const id = Number(route.params.taskId)
   if (!id) return
   await store.fetchDetail(id)
+  if (!store.detail) {
+    operateLogs.value = []
+    vehicleDetail.value = null
+    return
+  }
   await loadOperateLogs(id)
   if (store.detail?.vehicleId) {
     await loadVehicle(store.detail.vehicleId)
@@ -357,6 +365,7 @@ async function fetchData() {
 
 onMounted(fetchData)
 watch(() => route.params.taskId, fetchData)
+watch(() => parkScope.selectedParkId, fetchData)
 </script>
 
 <style scoped lang="less">

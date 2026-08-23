@@ -98,7 +98,8 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.12</version>
+                <!-- 0.8.14 起官方支持 Java 25（class file major 69），测试 JDK 与项目 Java 21 统一由 release 编译约束 -->
+                <version>0.8.14</version>
                 <executions>
                     <execution>
                         <goals>

@@ -34,8 +34,9 @@ public class AdminGlobalSearchController {
     })
     public ApiResponse<AdminGlobalSearchResponse> search(@RequestParam String keyword,
                                                         @RequestParam(defaultValue = "20") int limit,
+                                                        @RequestParam(required = false) Long parkId,
                                                         HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
-        return ApiResponse.success(globalSearchAdminService.search(keyword, limit));
+        return ApiResponse.success(globalSearchAdminService.search(keyword, limit, parkId));
     }
 }

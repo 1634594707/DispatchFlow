@@ -4,11 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fsd.admin.config.AdminSseProperties;
+import com.fsd.admin.metrics.AdminSseMetrics;
 import com.fsd.common.exception.BusinessException;
 import java.io.IOException;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class AdminDispatchStreamServiceImplTest {
 
@@ -16,7 +18,8 @@ class AdminDispatchStreamServiceImplTest {
     void createStreamShouldRejectWhenConnectionLimitReached() {
         AdminSseProperties properties = new AdminSseProperties();
         properties.setMaxConnections(1);
-        AdminDispatchStreamServiceImpl service = new AdminDispatchStreamServiceImpl(properties);
+        AdminDispatchStreamServiceImpl service = new AdminDispatchStreamServiceImpl(properties,
+                new AdminSseMetrics(new SimpleMeterRegistry()));
         service.createStream(null, 1L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.createStream(null, 1L));
@@ -27,7 +30,8 @@ class AdminDispatchStreamServiceImplTest {
     @Test
     void broadcastShouldOnlySendToMatchingPark() {
         AdminSseProperties properties = new AdminSseProperties();
-        AdminDispatchStreamServiceImpl service = new AdminDispatchStreamServiceImpl(properties);
+        AdminDispatchStreamServiceImpl service = new AdminDispatchStreamServiceImpl(properties,
+                new AdminSseMetrics(new SimpleMeterRegistry()));
         CapturingEmitter parkOneEmitter = new CapturingEmitter();
         CapturingEmitter parkTwoEmitter = new CapturingEmitter();
         service.registerEmitterForTest(parkOneEmitter, 1L);
@@ -37,6 +41,23 @@ class AdminDispatchStreamServiceImplTest {
 
         assertEquals(1, parkOneEmitter.sendCount);
         assertEquals(0, parkTwoEmitter.sendCount);
+
+        service.broadcast("workbench", Map.of("parkId", 2L));
+        assertEquals(1, parkOneEmitter.sendCount);
+        assertEquals(1, parkTwoEmitter.sendCount);
+    }
+
+    @Test
+    void allParkConnectionShouldReceiveScopedEvents() {
+        AdminSseProperties properties = new AdminSseProperties();
+        AdminDispatchStreamServiceImpl service = new AdminDispatchStreamServiceImpl(properties,
+                new AdminSseMetrics(new SimpleMeterRegistry()));
+        CapturingEmitter allParksEmitter = new CapturingEmitter();
+        service.registerEmitterForTest(allParksEmitter, null);
+
+        service.broadcast("dashboard", Map.of("parkId", 1L));
+
+        assertEquals(1, allParksEmitter.sendCount);
     }
 
     private static class CapturingEmitter extends SseEmitter {

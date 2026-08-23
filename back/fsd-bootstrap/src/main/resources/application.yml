@@ -58,7 +58,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE_INCLUDE:health}
+        include: ${MANAGEMENT_ENDPOINTS_EXPOSURE_INCLUDE:health,prometheus,metrics}
       base-path: /internal/actuator
   endpoint:
     prometheus:
@@ -395,6 +395,8 @@ fsd:
     outbox:
       retry-delay-ms: ${FSD_DISPATCH_OUTBOX_RETRY_DELAY_MS:30000}
       retry-enabled: ${FSD_DISPATCH_OUTBOX_RETRY_ENABLED:true}
+      max-retries: ${FSD_DISPATCH_OUTBOX_MAX_RETRIES:5}
+      lease-seconds: ${FSD_DISPATCH_OUTBOX_LEASE_SECONDS:60}
     lock:
       ttl: ${FSD_DISPATCH_LOCK_TTL:10s}
   alert:

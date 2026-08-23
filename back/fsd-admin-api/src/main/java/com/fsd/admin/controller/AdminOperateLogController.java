@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -42,17 +43,23 @@ public class AdminOperateLogController {
     @GetMapping("/tasks/{taskId}")
     @Operation(summary = "List operation logs by task")
     public ApiResponse<List<AdminOperateLogResponse>> listByTask(@PathVariable Long taskId,
+                                                                 @RequestParam(required = false) Long parkId,
                                                                  HttpServletRequest httpRequest) {
         AdminAuthSupport.requireAdmin(httpRequest);
-        return ApiResponse.success(operateLogAdminService.listByTaskId(taskId));
+        return ApiResponse.success(parkId == null
+                ? operateLogAdminService.listByTaskId(taskId)
+                : operateLogAdminService.listByTaskId(taskId, parkId));
     }
 
     @GetMapping("/vehicles/{vehicleId}")
     @Operation(summary = "List operation logs by vehicle")
     public ApiResponse<List<AdminOperateLogResponse>> listByVehicle(@PathVariable Long vehicleId,
+                                                                    @RequestParam(required = false) Long parkId,
                                                                     HttpServletRequest httpRequest) {
         AdminAuthSupport.requireAdmin(httpRequest);
-        return ApiResponse.success(operateLogAdminService.listByVehicleId(vehicleId));
+        return ApiResponse.success(parkId == null
+                ? operateLogAdminService.listByVehicleId(vehicleId)
+                : operateLogAdminService.listByVehicleId(vehicleId, parkId));
     }
 
     @PostMapping("/export")

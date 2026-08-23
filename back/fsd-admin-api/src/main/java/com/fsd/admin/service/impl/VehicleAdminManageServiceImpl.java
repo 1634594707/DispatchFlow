@@ -10,6 +10,8 @@ import com.fsd.common.enums.VehicleDispatchStatus;
 import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.common.enums.VehicleOnlineStatus;
 import com.fsd.common.exception.BusinessException;
+import com.fsd.dispatch.entity.ParkEntity;
+import com.fsd.dispatch.mapper.ParkMapper;
 import com.fsd.vehicle.entity.VehicleCredentialEntity;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.entity.VehicleMaintenanceEntity;
@@ -28,15 +30,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class VehicleAdminManageServiceImpl implements VehicleAdminManageService {
 
     private final VehicleMapper vehicleMapper;
+    private final ParkMapper parkMapper;
     private final VehicleCredentialMapper vehicleCredentialMapper;
     private final VehicleMaintenanceMapper vehicleMaintenanceMapper;
     private final VehicleAdminQueryService vehicleAdminQueryService;
 
     public VehicleAdminManageServiceImpl(VehicleMapper vehicleMapper,
+                                         ParkMapper parkMapper,
                                          VehicleCredentialMapper vehicleCredentialMapper,
                                          VehicleMaintenanceMapper vehicleMaintenanceMapper,
                                          VehicleAdminQueryService vehicleAdminQueryService) {
         this.vehicleMapper = vehicleMapper;
+        this.parkMapper = parkMapper;
         this.vehicleCredentialMapper = vehicleCredentialMapper;
         this.vehicleMaintenanceMapper = vehicleMaintenanceMapper;
         this.vehicleAdminQueryService = vehicleAdminQueryService;
@@ -155,6 +160,8 @@ public class VehicleAdminManageServiceImpl implements VehicleAdminManageService 
     }
 
     private void applyVehicleFields(VehicleEntity vehicle, AdminVehicleUpsertRequest request) {
+        requirePark(request.getParkId());
+        vehicle.setParkId(request.getParkId());
         vehicle.setVehicleCode(request.getVehicleCode().trim());
         vehicle.setVehicleName(request.getVehicleName().trim());
         vehicle.setVehicleType(request.getVehicleType() != null ? request.getVehicleType() : "GENERAL");
@@ -214,6 +221,14 @@ public class VehicleAdminManageServiceImpl implements VehicleAdminManageService 
             throw new BusinessException("VEHICLE_NOT_FOUND", "车辆不存在");
         }
         return vehicle;
+    }
+
+    private ParkEntity requirePark(Long parkId) {
+        ParkEntity park = parkId == null ? null : parkMapper.selectById(parkId);
+        if (park == null || park.getDeleted() != null && park.getDeleted() != 0) {
+            throw new BusinessException("PARK_NOT_FOUND", "园区不存在");
+        }
+        return park;
     }
 
     private void validateMaintenanceType(String type) {

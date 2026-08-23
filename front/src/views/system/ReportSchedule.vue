@@ -104,13 +104,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed } from 'vue'
+import { onMounted, reactive, ref, computed, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { deleteReportSchedule, fetchReportSchedules, upsertReportSchedule, fetchScheduleExecutionHistory, triggerScheduleExecution } from '@/api/reportSchedule'
 import type { AdminReportSchedule, ScheduleExecutionRecord, ScheduleExecutionStats } from '@/types/reportSchedule'
+import { useParkScopeStore } from '@/stores/parkScope'
 
 dayjs.extend(utc)
 
@@ -118,6 +119,7 @@ const loading = ref(false)
 const rows = ref<AdminReportSchedule[]>([])
 const modalOpen = ref(false)
 const form = reactive<AdminReportSchedule>({ cronExpression: '0 0 8 * * MON-FRI', recipients: '', enabled: false })
+const parkScope = useParkScopeStore()
 
 /* ---- V5-S4: 执行历史 ---- */
 const historyDrawerOpen = ref(false)
@@ -175,7 +177,7 @@ const cronPreviews = computed(() => {
 async function load() {
   loading.value = true
   try {
-    rows.value = (await fetchReportSchedules()).data
+    rows.value = (await fetchReportSchedules(parkScope.selectedParkId)).data
     // 加载每个计划的执行统计
     await Promise.all(rows.value.map(loadExecutionStats))
   } finally {
@@ -217,7 +219,7 @@ function edit(record: AdminReportSchedule) {
 }
 
 async function save() {
-  await upsertReportSchedule(form)
+  await upsertReportSchedule(form, parkScope.selectedParkId)
   message.success('已保存')
   modalOpen.value = false
   await load()
@@ -225,7 +227,7 @@ async function save() {
 
 async function remove(record: AdminReportSchedule) {
   if (!record.id) return
-  await deleteReportSchedule(record.id)
+  await deleteReportSchedule(record.id, parkScope.selectedParkId)
   await load()
 }
 
@@ -297,6 +299,9 @@ function formatTime(value: string) {
 }
 
 onMounted(load)
+watch(() => parkScope.scopeVersion, () => {
+  void load()
+})
 </script>
 
 <style scoped>

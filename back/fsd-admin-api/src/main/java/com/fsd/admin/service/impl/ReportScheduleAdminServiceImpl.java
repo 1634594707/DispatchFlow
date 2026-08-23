@@ -26,8 +26,21 @@ public class ReportScheduleAdminServiceImpl implements ReportScheduleAdminServic
     }
 
     @Override
+    public List<AdminReportScheduleResponse> list(Long parkId) {
+        return reportScheduleMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ReportScheduleEntity>()
+                        .eq(parkId != null, ReportScheduleEntity::getParkId, parkId)
+                        .orderByDesc(ReportScheduleEntity::getUpdatedAt))
+                .stream().map(this::toResponse).toList();
+    }
+
+    @Override
     @Transactional
     public AdminReportScheduleResponse upsert(AdminReportScheduleUpsertRequest request) {
+        return upsert(request, null);
+    }
+
+    @Override
+    public AdminReportScheduleResponse upsert(AdminReportScheduleUpsertRequest request, Long scopeParkId) {
         ReportScheduleEntity entity;
         if (request.getId() == null) {
             entity = new ReportScheduleEntity();
@@ -37,6 +50,12 @@ public class ReportScheduleAdminServiceImpl implements ReportScheduleAdminServic
             if (entity == null) {
                 throw new BusinessException("SCHEDULE_NOT_FOUND", "定时任务不存在");
             }
+            if (scopeParkId != null && !scopeParkId.equals(entity.getParkId())) {
+                throw new BusinessException("PARK_SCOPE_DENIED", "定时任务不属于当前园区");
+            }
+        }
+        if (scopeParkId != null && !scopeParkId.equals(request.getParkId())) {
+            throw new BusinessException("PARK_SCOPE_DENIED", "定时任务园区必须与当前园区一致");
         }
         entity.setParkId(request.getParkId());
         entity.setCronExpression(request.getCronExpression());
@@ -54,6 +73,22 @@ public class ReportScheduleAdminServiceImpl implements ReportScheduleAdminServic
     @Override
     @Transactional
     public void delete(Long id) {
+        reportScheduleMapper.deleteById(id);
+    }
+
+    @Override
+    public void delete(Long id, Long scopeParkId) {
+        if (scopeParkId == null) {
+            delete(id);
+            return;
+        }
+        ReportScheduleEntity entity = reportScheduleMapper.selectById(id);
+        if (entity == null) {
+            throw new BusinessException("SCHEDULE_NOT_FOUND", "定时任务不存在");
+        }
+        if (!scopeParkId.equals(entity.getParkId())) {
+            throw new BusinessException("PARK_SCOPE_DENIED", "定时任务不属于当前园区");
+        }
         reportScheduleMapper.deleteById(id);
     }
 

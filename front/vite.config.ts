@@ -1,10 +1,13 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+
+  return {
   plugins: [
     vue(),
     VitePWA({
@@ -99,7 +102,7 @@ export default defineConfig(({ mode }) => ({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: env.VITE_API_PROXY || 'http://localhost:8080',
         changeOrigin: true,
       },
     },
@@ -135,4 +138,5 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-}))
+  }
+})

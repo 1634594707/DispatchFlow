@@ -236,18 +236,26 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
 
     @Override
     public AdminAnalyticsChargingOverviewResponse getChargingOverview() {
+        return getChargingOverview(null);
+    }
+
+    @Override
+    public AdminAnalyticsChargingOverviewResponse getChargingOverview(Long parkId) {
         List<ChargingSessionEntity> activeSessions = chargingSessionMapper.selectList(
                 new LambdaQueryWrapper<ChargingSessionEntity>()
                         .eq(ChargingSessionEntity::getDeleted, 0)
                         .eq(ChargingSessionEntity::getSessionStatus, ChargingSessionStatus.ACTIVE.name())
+                        .eq(parkId != null, ChargingSessionEntity::getParkId, parkId)
                         .orderByDesc(ChargingSessionEntity::getStartTime));
 
         Map<Long, VehicleEntity> vehicles = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
-                        .eq(VehicleEntity::getDeleted, 0))
+                        .eq(VehicleEntity::getDeleted, 0)
+                        .eq(parkId != null, VehicleEntity::getParkId, parkId))
                 .stream()
                 .collect(Collectors.toMap(VehicleEntity::getId, Function.identity(), (a, b) -> a));
         Map<Long, ChargingPileEntity> piles = chargingPileMapper.selectList(new LambdaQueryWrapper<ChargingPileEntity>()
-                        .eq(ChargingPileEntity::getDeleted, 0))
+                        .eq(ChargingPileEntity::getDeleted, 0)
+                        .eq(parkId != null, ChargingPileEntity::getParkId, parkId))
                 .stream()
                 .collect(Collectors.toMap(ChargingPileEntity::getId, Function.identity(), (a, b) -> a));
 
@@ -281,6 +289,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 new LambdaQueryWrapper<ChargingSessionEntity>()
                         .eq(ChargingSessionEntity::getDeleted, 0)
                         .eq(ChargingSessionEntity::getSessionStatus, ChargingSessionStatus.COMPLETED.name())
+                        .eq(parkId != null, ChargingSessionEntity::getParkId, parkId)
                         .orderByDesc(ChargingSessionEntity::getEndTime));
         List<ChargingSessionEntity> recentCompleted = recentCompletedPage.getRecords();
 
@@ -328,13 +337,13 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     }
 
     @Override
-    public String exportCsv(String dataset, String period) {
+    public String exportCsv(String dataset, String period, Long parkId) {
         String normalized = normalizePeriod(period);
         StringBuilder sb = new StringBuilder();
         switch (dataset == null ? "" : dataset.toLowerCase(Locale.ROOT)) {
             case "orders" -> {
                 sb.append("orderNo,status,priority,createdAt\n");
-                loadOrdersSince(rangeStart(normalized)).forEach(order ->
+                filterOrdersByPark(loadOrdersSince(rangeStart(normalized)), parkId).forEach(order ->
                         sb.append(csv(order.getOrderNo())).append(',')
                                 .append(csv(order.getStatus())).append(',')
                                 .append(csv(order.getPriority())).append(',')
@@ -342,7 +351,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
             }
             case "tasks" -> {
                 sb.append("taskNo,status,orderId,vehicleId,createdAt,finishTime\n");
-                loadTasksSince(rangeStart(normalized)).forEach(task ->
+                filterTasksByPark(loadTasksSince(rangeStart(normalized)), parkId).forEach(task ->
                         sb.append(csv(task.getTaskNo())).append(',')
                                 .append(csv(task.getStatus())).append(',')
                                 .append(task.getOrderId()).append(',')
@@ -355,6 +364,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 exceptionRecordMapper.selectList(new LambdaQueryWrapper<DispatchExceptionRecordEntity>()
                                 .ge(DispatchExceptionRecordEntity::getOccurTime, rangeStart(normalized))
                                 .orderByDesc(DispatchExceptionRecordEntity::getOccurTime))
+                        .stream()
+                        .filter(item -> adminParkScopeService.matchesOrder(item.getOrderId(), parkId))
                         .forEach(item -> sb.append(csv(item.getExceptionType())).append(',')
                                 .append(csv(item.getExceptionStatus())).append(',')
                                 .append(csv(item.getSeverity())).append(',')
@@ -366,6 +377,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
                                 .eq(VehicleEntity::getDeleted, 0)
                                 .orderByAsc(VehicleEntity::getVehicleCode))
+                        .stream()
+                        .filter(vehicle -> matchesVehicleEntityPark(vehicle, parkId))
                         .forEach(vehicle -> sb.append(csv(vehicle.getVehicleCode())).append(',')
                                 .append(csv(vehicle.getVehicleName())).append(',')
                                 .append(csv(vehicle.getOnlineStatus())).append(',')
@@ -614,6 +627,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         return adminParkScopeService.matchesVehicle(
                 VehicleAdminListItemResponse.builder()
                         .vehicleId(vehicle.getId())
+                        .parkId(vehicle.getParkId())
                         .currentOrderId(vehicle.getCurrentOrderId())
                         .currentTaskId(vehicle.getCurrentTaskId())
                         .build(),
