@@ -8,6 +8,7 @@ import type { ExceptionAdminListItem } from '@/types/exception'
 import type { TaskAdminListItem } from '@/types/task'
 import type { ResolveExceptionRequest } from '@/types/exception'
 import type { ParkLayout, ParkVehicleSnapshot } from '@/types/park'
+import { exceptionDedupKey } from '@/utils/notificationDisplay'
 
 const TASK_ORDER_KEY = 'fsd_workbench_task_order'
 
@@ -69,6 +70,19 @@ export const useWorkbenchStore = defineStore('workbench', () => {
 
   const interventionTotal = computed(() => pendingCount.value + manualPendingCount.value)
 
+  function compactOpenExceptions(items: ExceptionAdminListItem[]) {
+    const seen = new Set<string>()
+    return [...items]
+      .filter((item) => !item.exceptionStatus || item.exceptionStatus === 'OPEN')
+      .sort((a, b) => Date.parse(b.occurTime || b.createdAt) - Date.parse(a.occurTime || a.createdAt))
+      .filter((item) => {
+        const key = exceptionDedupKey(item)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+  }
+
   function mapPoolFilter(): WorkbenchTaskFilter {
     return taskFilter.value === 'ALL' ? 'ALL' : taskFilter.value
   }
@@ -106,7 +120,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       const res = await getDispatchWorkbench(parkScope.selectedParkId)
       const data = res.data
       const intervention = data.intervention
-      openExceptions.value = intervention?.openExceptions || []
+      openExceptions.value = compactOpenExceptions(intervention?.openExceptions || [])
       pendingCount.value = intervention?.pendingCount ?? 0
       manualPendingCount.value = intervention?.manualPendingCount ?? 0
       openExceptionCount.value = intervention?.openExceptionCount ?? openExceptions.value.length

@@ -3,6 +3,7 @@ import { DEFAULT_ALERT_RULES } from '@/types/alert'
 
 const STORAGE_KEY = 'fsd_alert_rules'
 const HISTORY_KEY = 'fsd_alert_history'
+const HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000
 const MAX_HISTORY = 50
 
 let audioCtx: AudioContext | null = null
@@ -63,7 +64,21 @@ export function saveAlertRules(rules: AlertRuleConfig) {
 export function loadAlertHistory(): AlertHistoryItem[] {
   try {
     const raw = localStorage.getItem(HISTORY_KEY)
-    return raw ? JSON.parse(raw) : []
+    const history = (raw ? JSON.parse(raw) : []) as AlertHistoryItem[]
+    const cutoff = Date.now() - HISTORY_RETENTION_MS
+    const seen = new Set<string>()
+    const cleaned = history.filter((item) => {
+      const timestamp = Date.parse(item.createdAt)
+      if (Number.isFinite(timestamp) && timestamp < cutoff) return false
+      const key = `${item.eventType}|${item.message.replace(/TSK[A-Z0-9_-]+/gi, '任务').replace(/ZJF-[A-Z0-9_-]+/gi, '车辆')}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    if (cleaned.length !== history.length) {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(cleaned))
+    }
+    return cleaned
   } catch {
     return []
   }

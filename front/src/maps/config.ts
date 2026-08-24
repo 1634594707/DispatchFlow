@@ -20,11 +20,16 @@ function readConfigValue(key: keyof ImportMetaEnv): string {
 }
 
 export function getMapConfig() {
-  const provider = (readConfigValue('VITE_MAP_PROVIDER') || 'AMAP').toUpperCase() as MapProviderId
+  const configuredProvider = readConfigValue('VITE_MAP_PROVIDER').toUpperCase()
+  const amapKey = readConfigValue('VITE_AMAP_KEY')
+  const amapSecurityCode = readConfigValue('VITE_AMAP_SECURITY_CODE')
+  // AMap is opt-in when no provider or keys are supplied. This keeps the
+  // local-graph/schematic fallback healthy instead of showing a false outage.
+  const provider = (configuredProvider || (amapKey && amapSecurityCode ? 'AMAP' : 'SCHEMATIC')) as MapProviderId
   return {
     provider,
-    amapKey: readConfigValue('VITE_AMAP_KEY'),
-    amapSecurityCode: readConfigValue('VITE_AMAP_SECURITY_CODE'),
+    amapKey,
+    amapSecurityCode,
     defaultCenter: parseCenter(readConfigValue('VITE_AMAP_DEFAULT_CENTER') || undefined),
     defaultZoom: Number(readConfigValue('VITE_AMAP_DEFAULT_ZOOM') || 15),
   }
