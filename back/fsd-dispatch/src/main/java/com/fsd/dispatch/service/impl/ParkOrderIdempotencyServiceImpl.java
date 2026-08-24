@@ -1,6 +1,7 @@
 package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fsd.common.exception.BusinessException;
@@ -178,7 +179,7 @@ public class ParkOrderIdempotencyServiceImpl implements ParkOrderIdempotencyServ
                     .vehicleId(node.path("vehicleId").isNumber() ? node.path("vehicleId").asLong() : null)
                     .message(node.path("message").asText(null))
                     .build();
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.warn("Deserialize order idempotency snapshot failed", e);
             return null;
         }

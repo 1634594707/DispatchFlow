@@ -350,7 +350,6 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     @Override
     public String exportCsv(String dataset, String period, Long parkId) {
         String normalized = normalizePeriod(period);
-        StringBuilder sb = new StringBuilder();
         AtomicInteger rows = new AtomicInteger();
         String datasetTag = dataset == null ? "unknown" : dataset.toLowerCase(Locale.ROOT);
         try {

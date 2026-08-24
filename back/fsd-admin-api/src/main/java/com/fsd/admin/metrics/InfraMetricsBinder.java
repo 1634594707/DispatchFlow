@@ -24,7 +24,6 @@ public class InfraMetricsBinder {
 
     private final ObjectProvider<RabbitAdmin> rabbitAdminProvider;
     private final ObjectProvider<RedisConnectionFactory> redisConnectionFactoryProvider;
-    private final java.util.List<Queue> streamQueues;
     private final AtomicInteger redisAvailable = new AtomicInteger(0);
     private final AtomicLong redisPingLatencyMs = new AtomicLong(-1);
 
@@ -34,7 +33,6 @@ public class InfraMetricsBinder {
                               MeterRegistry registry) {
         this.rabbitAdminProvider = rabbitAdminProvider;
         this.redisConnectionFactoryProvider = redisConnectionFactoryProvider;
-        this.streamQueues = queues;
 
         for (Queue queue : queues) {
             String name = queue.getName();
@@ -64,7 +62,7 @@ public class InfraMetricsBinder {
             connection.ping();
             redisPingLatencyMs.set(System.currentTimeMillis() - start);
             redisAvailable.set(1);
-        } catch (Exception ex) {
+        } catch (RuntimeException ex) {
             redisAvailable.set(0);
         }
     }

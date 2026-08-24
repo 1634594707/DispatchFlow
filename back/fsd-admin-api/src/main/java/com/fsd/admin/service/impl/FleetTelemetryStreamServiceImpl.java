@@ -144,7 +144,8 @@ public class FleetTelemetryStreamServiceImpl implements FleetTelemetryStreamServ
             for (SseEmitter emitter : emitterList) {
                 try {
                     emitter.send(SseEmitter.event().comment("ping"));
-                } catch (Exception e) {
+                } catch (IOException e) {
+                    log.debug("Heartbeat failed for emitter, will remove: {}", e.getMessage());
                     deadEmitters.add(emitter);
                 }
             }
@@ -152,8 +153,9 @@ public class FleetTelemetryStreamServiceImpl implements FleetTelemetryStreamServ
                 removeEmitter(key, dead);
                 try {
                     dead.complete();
-                } catch (Exception ignored) {
-                    // 已断连发射器 complete 可能再抛错，忽略
+                } catch (RuntimeException e) {
+                    // 已移除的发射器 complete 可能再抛错，不影响清理结果
+                    log.debug("complete() failed for removed emitter: {}", e.getMessage());
                 }
             }
         }
