@@ -3,7 +3,6 @@ package com.fsd.bootstrap;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = "com.fsd")
 @MapperScan(basePackages = {
@@ -12,7 +11,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         "com.fsd.vehicle.mapper",
         "com.fsd.admin.mapper"
 })
-@EnableScheduling
 public class FsdCoreApplication {
 
     public static void main(String[] args) {
