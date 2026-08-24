@@ -541,6 +541,8 @@ function isNetworkLevelError(err: unknown): boolean {
 }
 
 async function submitOrder() {
+  // 防重复提交（路线图 3.2/8.2）：处理中直接忽略后续触发
+  if (submitting.value) return
   if (!validateForm()) return
   if (!ensureValidOrderStationIds()) return
   submitting.value = true
