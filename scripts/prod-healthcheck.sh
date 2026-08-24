@@ -7,6 +7,9 @@ set -uo pipefail
 
 BASE_URL="${BASE_URL:-https://app.aplicity.online}"
 API_BASE="${API_BASE:-$BASE_URL/api}"
+# The backend health endpoint is intentionally not exposed through public Nginx.
+# On the production host, use the backend container unless a dedicated internal URL is supplied.
+BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 
 pass=0
@@ -31,8 +34,16 @@ skip_check() {
 echo "== DispatchFlow 生产健康检查 $(date '+%F %T') =="
 echo "   BASE_URL=$BASE_URL"
 
-# 1. 后端健康检查
-body=$(curl -fsS --max-time 10 "$BASE_URL/internal/actuator/health" 2>/dev/null || true)
+# 1. 后端健康检查。/internal 不对公网暴露，默认从生产宿主机进入后端容器检查。
+if [ -n "$BACKEND_HEALTH_URL" ]; then
+  body=$(curl -fsS --max-time 10 "$BACKEND_HEALTH_URL" 2>/dev/null || true)
+elif command -v docker >/dev/null 2>&1 \
+  && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'fsd-backend'; then
+  body=$(docker exec fsd-backend curl -fsS --max-time 10 \
+    http://127.0.0.1:8080/internal/actuator/health 2>/dev/null || true)
+else
+  body=""
+fi
 if printf '%s' "$body" | grep -q 'UP'; then
   pass_check "后端 /internal/actuator/health UP"
 else
