@@ -117,6 +117,7 @@ function formatTime(value: string) {
 
 <style scoped lang="less">
 .notify-panel {
+  box-sizing: border-box;
   width: 360px;
   max-width: calc(100vw - 32px);
   max-height: min(560px, calc(100vh - 96px));
@@ -200,7 +201,9 @@ function formatTime(value: string) {
 }
 
 .notify-item {
+  box-sizing: border-box;
   width: 100%;
+  min-height: 0;
   display: grid;
   gap: 5px;
   padding: 10px 11px;
@@ -210,6 +213,10 @@ function formatTime(value: string) {
   text-align: left;
   cursor: pointer;
   transition: border-color 0.2s var(--fsd-ease), background 0.2s var(--fsd-ease);
+  appearance: none;
+  font: inherit;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .notify-item:hover {
@@ -252,6 +259,21 @@ function formatTime(value: string) {
 .notify-time {
   color: var(--fsd-text-tertiary);
   font-size: 11px;
+}
+
+@media (max-width: 480px) {
+  .notify-panel {
+    width: min(360px, calc(100vw - 28px));
+    max-height: calc(100vh - 92px);
+  }
+
+  .notify-list {
+    max-height: 270px;
+  }
+
+  .notify-ref {
+    display: none;
+  }
 }
 
 .notify-overflow {

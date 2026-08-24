@@ -3,6 +3,8 @@ import { DEFAULT_ALERT_RULES } from '@/types/alert'
 
 const STORAGE_KEY = 'fsd_alert_rules'
 const HISTORY_KEY = 'fsd_alert_history'
+const HISTORY_SCHEMA_KEY = 'fsd_alert_history_schema'
+const HISTORY_SCHEMA_VERSION = '3'
 const HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000
 const MAX_HISTORY = 50
 
@@ -63,6 +65,11 @@ export function saveAlertRules(rules: AlertRuleConfig) {
 
 export function loadAlertHistory(): AlertHistoryItem[] {
   try {
+    if (localStorage.getItem(HISTORY_SCHEMA_KEY) !== HISTORY_SCHEMA_VERSION) {
+      localStorage.removeItem(HISTORY_KEY)
+      localStorage.setItem(HISTORY_SCHEMA_KEY, HISTORY_SCHEMA_VERSION)
+      return []
+    }
     const raw = localStorage.getItem(HISTORY_KEY)
     const history = (raw ? JSON.parse(raw) : []) as AlertHistoryItem[]
     const cutoff = Date.now() - HISTORY_RETENTION_MS
