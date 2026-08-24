@@ -5,18 +5,22 @@
         <a-button v-if="authStore.isAdmin" type="primary" @click="openCreate">
           <PlusOutlined /> 新建车辆
         </a-button>
-        <a-button @click="handleRefresh">
-          <ReloadOutlined /> 刷新
-        </a-button>
+        <a-button @click="handleRefresh"> <ReloadOutlined /> 刷新 </a-button>
       </a-space>
     </template>
 
-    <div class="search-bar">
+    <QueryToolbar
+      title="筛选条件"
+      :result-summary="`共 ${store.total} 条结果`"
+      :active-chips="activeFilterChips"
+      @remove="removeFilterChip"
+      @clear="handleReset"
+    >
       <a-select
         v-model:value="queryForm.onlineStatus"
         placeholder="在线状态"
         allow-clear
-        style="width: 140px;"
+        style="width: 140px"
       >
         <a-select-option v-for="(cfg, key) in onlineStatusMap" :key="key" :value="key">
           {{ cfg.label }}
@@ -26,7 +30,7 @@
         v-model:value="queryForm.dispatchStatus"
         placeholder="调度状态"
         allow-clear
-        style="width: 140px;"
+        style="width: 140px"
       >
         <a-select-option v-for="(cfg, key) in dispatchStatusMap" :key="key" :value="key">
           {{ cfg.label }}
@@ -36,7 +40,7 @@
         v-model:value="queryForm.deliveryZone"
         placeholder="配送区域"
         allow-clear
-        style="width: 140px;"
+        style="width: 140px"
       >
         <a-select-option value="GEO_DELIVERY">地理配送</a-select-option>
         <a-select-option value="SCHEMATIC">园区内部</a-select-option>
@@ -46,13 +50,11 @@
         v-model:value="queryForm.vehicleCode"
         placeholder="车辆编号"
         allow-clear
-        style="width: 180px;"
+        style="width: 180px"
       />
-      <a-button type="primary" @click="handleSearch">
-        <SearchOutlined /> 查询
-      </a-button>
+      <a-button type="primary" @click="handleSearch"> <SearchOutlined /> 查询 </a-button>
       <a-button @click="handleReset">重置</a-button>
-    </div>
+    </QueryToolbar>
 
     <a-table
       :columns="columns"
@@ -81,9 +83,11 @@
           <StatusBadge :status="record.dispatchStatus" type="dispatch" />
         </template>
         <template v-else-if="column.dataIndex === 'deliveryZone'">
-          <a-tag v-if="record.deliveryZone === 'GEO_DELIVERY'" color="processing">地理配送</a-tag>
-          <a-tag v-else-if="record.deliveryZone === 'SCHEMATIC'" color="success">园区内部</a-tag>
-          <a-tag v-else>通用</a-tag>
+          <a-tag v-if="record.deliveryZone === 'GEO_DELIVERY'" class="metadata-tag">地理配送</a-tag>
+          <a-tag v-else-if="record.deliveryZone === 'SCHEMATIC'" class="metadata-tag"
+            >园区内部</a-tag
+          >
+          <a-tag v-else class="metadata-tag">通用</a-tag>
         </template>
         <template v-else-if="column.key === 'dimensions'">
           <span v-if="record.widthCm != null || record.lengthCm != null" class="mono-text">
@@ -92,12 +96,18 @@
           <span v-else class="text-muted">-</span>
         </template>
         <template v-else-if="column.key === 'turningRadiusM'">
-          <span v-if="record.turningRadiusM != null" class="mono-text">{{ record.turningRadiusM }}</span>
+          <span v-if="record.turningRadiusM != null" class="mono-text">{{
+            record.turningRadiusM
+          }}</span>
           <span v-else class="text-muted">-</span>
         </template>
         <template v-else-if="column.key === 'allowedRoadClasses'">
           <template v-if="record.allowedRoadClasses">
-            <a-tag v-for="(cls, idx) in record.allowedRoadClasses.split(',')" :key="idx" color="blue" style="margin-bottom: 2px">
+            <a-tag
+              v-for="(cls, idx) in record.allowedRoadClasses.split(',')"
+              :key="idx"
+              class="metadata-tag road-class-tag"
+            >
               {{ cls.trim() }}
             </a-tag>
           </template>
@@ -116,7 +126,7 @@
         <template v-else-if="column.dataIndex === 'batteryLevel'">
           <a-progress
             :percent="record.batteryLevel"
-            :stroke-color="record.batteryLevel < 20 ? '#FF5C7C' : '#2DE08A'"
+            :stroke-color="record.batteryLevel < 20 ? 'var(--fsd-error)' : 'var(--fsd-success)'"
             size="small"
             :style="{ width: '80px' }"
           />
@@ -131,16 +141,27 @@
         </template>
         <template v-else-if="column.dataIndex === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="router.push(`/vehicles/${record.vehicleId}`)">
+            <a-button
+              type="link"
+              size="small"
+              @click="router.push(`/vehicles/${record.vehicleId}`)"
+            >
               查看详情
             </a-button>
-            <a-button v-if="authStore.isAdmin" type="link" size="small" @click="openEdit(record)">编辑</a-button>
+            <a-button v-if="authStore.isAdmin" type="link" size="small" @click="openEdit(record)"
+              >编辑</a-button
+            >
           </a-space>
         </template>
       </template>
     </a-table>
 
-    <a-modal v-model:open="modalOpen" :title="editing ? '编辑车辆' : '新建车辆'" :confirm-loading="saving" @ok="handleSave">
+    <a-modal
+      v-model:open="modalOpen"
+      :title="editing ? '编辑车辆' : '新建车辆'"
+      :confirm-loading="saving"
+      @ok="handleSave"
+    >
       <a-form layout="vertical">
         <a-form-item label="所属园区" required>
           <a-select
@@ -149,9 +170,15 @@
             placeholder="请选择园区"
           />
         </a-form-item>
-        <a-form-item label="车辆编码" required><a-input v-model:value="form.vehicleCode" /></a-form-item>
-        <a-form-item label="车辆名称" required><a-input v-model:value="form.vehicleName" /></a-form-item>
-        <a-form-item label="车辆类型"><a-input v-model:value="form.vehicleType" placeholder="如 AGV" /></a-form-item>
+        <a-form-item label="车辆编码" required
+          ><a-input v-model:value="form.vehicleCode"
+        /></a-form-item>
+        <a-form-item label="车辆名称" required
+          ><a-input v-model:value="form.vehicleName"
+        /></a-form-item>
+        <a-form-item label="车辆类型"
+          ><a-input v-model:value="form.vehicleType" placeholder="如 AGV"
+        /></a-form-item>
         <a-form-item label="连接模式">
           <a-select v-model:value="form.linkMode" :options="linkModeOptions" />
         </a-form-item>
@@ -178,6 +205,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { ReloadOutlined, SearchOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import QueryToolbar from '@/components/common/QueryToolbar.vue'
+import type { FilterChip } from '@/components/common/QueryToolbar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useVehicleStore } from '@/stores/vehicle'
@@ -230,6 +259,37 @@ const queryForm = reactive({
   dispatchStatus: undefined as DispatchStatus | undefined,
   deliveryZone: undefined as VehicleDeliveryZone | undefined,
   vehicleCode: '',
+})
+
+const activeFilterChips = computed((): FilterChip[] => {
+  const chips: FilterChip[] = []
+  if (queryForm.onlineStatus) {
+    chips.push({
+      key: 'onlineStatus',
+      label: `在线：${onlineStatusMap[queryForm.onlineStatus]?.label || queryForm.onlineStatus}`,
+    })
+  }
+  if (queryForm.dispatchStatus) {
+    chips.push({
+      key: 'dispatchStatus',
+      label: `调度：${dispatchStatusMap[queryForm.dispatchStatus]?.label || queryForm.dispatchStatus}`,
+    })
+  }
+  if (queryForm.deliveryZone) {
+    const deliveryZoneLabels: Record<VehicleDeliveryZone, string> = {
+      GEO_DELIVERY: '地理配送',
+      SCHEMATIC: '园区内部',
+      BOTH: '通用',
+    }
+    chips.push({
+      key: 'deliveryZone',
+      label: `区域：${deliveryZoneLabels[queryForm.deliveryZone]}`,
+    })
+  }
+  if (queryForm.vehicleCode.trim()) {
+    chips.push({ key: 'vehicleCode', label: `车辆：${queryForm.vehicleCode.trim()}` })
+  }
+  return chips
 })
 
 const pageNo = ref(1)
@@ -285,6 +345,14 @@ function fetchData() {
     pageNo: pageNo.value,
     pageSize: pageSize.value,
   })
+}
+
+function removeFilterChip(key: string) {
+  if (key === 'onlineStatus') queryForm.onlineStatus = undefined
+  if (key === 'dispatchStatus') queryForm.dispatchStatus = undefined
+  if (key === 'deliveryZone') queryForm.deliveryZone = undefined
+  if (key === 'vehicleCode') queryForm.vehicleCode = ''
+  handleSearch()
 }
 
 function handleSearch() {
@@ -398,20 +466,14 @@ watch(
 <style scoped lang="less">
 @mobile-break: 768px;
 
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.metadata-tag {
+  color: var(--fsd-text-secondary);
+  border-color: var(--fsd-border);
+  background: var(--fsd-bg-hover);
+}
 
-  @media (max-width: @mobile-break) {
-    flex-direction: column;
-    align-items: stretch;
-
-    > * {
-      width: 100% !important;
-    }
-  }
+.road-class-tag {
+  margin-bottom: 2px;
 }
 
 .link-cell {
@@ -447,6 +509,6 @@ watch(
 }
 
 :deep(.row-offline-alert) {
-  background: rgba(255, 92, 124, 0.08) !important;
+  background: var(--fsd-error-bg) !important;
 }
 </style>

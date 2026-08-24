@@ -212,7 +212,7 @@ function formatTime(value: string) {
   background: rgba(18, 24, 33, 0.5);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s var(--fsd-ease), background 0.2s var(--fsd-ease);
+  transition: border-color var(--fsd-transition-base), background-color var(--fsd-transition-base);
   appearance: none;
   font: inherit;
   overflow: hidden;

@@ -1,11 +1,5 @@
 <template>
   <div class="login-page">
-    <div class="login-bg">
-      <div class="grid-overlay" />
-      <div class="glow glow-1" />
-      <div class="glow glow-2" />
-    </div>
-
     <div class="login-card animate-fade-in-up">
       <div class="login-brand">
         <div class="brand-icon">
@@ -15,11 +9,7 @@
         <p>找家纺网 · 叠石桥 L1 无人车短驳调度</p>
       </div>
 
-      <a-form
-        layout="vertical"
-        :model="form"
-        @finish="handleLogin"
-      >
+      <a-form layout="vertical" :model="form" @finish="handleLogin">
         <a-form-item
           label="用户名"
           name="username"
@@ -56,7 +46,12 @@
           name="totpCode"
           :rules="[{ required: true, message: '请输入 6 位验证码' }]"
         >
-          <a-input v-model:value="form.totpCode" size="large" maxlength="6" placeholder="Authenticator 验证码" />
+          <a-input
+            v-model:value="form.totpCode"
+            size="large"
+            maxlength="6"
+            placeholder="Authenticator 验证码"
+          />
         </a-form-item>
 
         <a-button
@@ -111,7 +106,11 @@ function isSafeRedirect(redirect: string): boolean {
 
 async function handleLogin() {
   try {
-    const result = await authStore.login(form.username, form.password, needsTotp.value ? form.totpCode : undefined)
+    const result = await authStore.login(
+      form.username,
+      form.password,
+      needsTotp.value ? form.totpCode : undefined,
+    )
     if (result.data.requiresTotp && !result.data.token) {
       needsTotp.value = true
       message.info('请输入 Authenticator 验证码')
@@ -140,55 +139,14 @@ async function handleLogin() {
   overflow: hidden;
 }
 
-.login-bg {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.grid-overlay {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(34, 199, 230, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 199, 230, 0.035) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 30%, transparent 100%);
-  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 30%, transparent 100%);
-}
-
-.glow {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.4;
-}
-
-.glow-1 {
-  width: 420px;
-  height: 420px;
-  background: var(--fsd-accent);
-  top: -120px;
-  right: 8%;
-}
-
-.glow-2 {
-  width: 320px;
-  height: 320px;
-  background: var(--fsd-accent);
-  bottom: -60px;
-  left: 12%;
-}
-
 .login-card {
   position: relative;
-  width: 408px;
-  padding: 44px 40px 40px;
-  background: rgba(18, 24, 33, 0.86);
-  border: 1px solid var(--fsd-border-active);
-  border-radius: var(--fsd-radius-xl);
-  box-shadow: var(--fsd-shadow-elevated);
-  backdrop-filter: blur(16px) saturate(140%);
+  width: min(408px, calc(100vw - 32px));
+  padding: 40px;
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-lg);
+  background: var(--fsd-surface-raised);
+  box-shadow: var(--fsd-shadow-popover);
 }
 
 .login-brand {
@@ -198,15 +156,14 @@ async function handleLogin() {
   .brand-icon {
     display: inline-flex;
     margin-bottom: 16px;
-    border-radius: 14px;
-    box-shadow: 0 8px 24px rgba(34, 199, 230, 0.32);
+    border-radius: var(--fsd-radius-lg);
   }
 
   .brand-icon svg {
     width: 52px;
     height: 52px;
     display: block;
-    border-radius: 14px;
+    border-radius: var(--fsd-radius-lg);
   }
 
   h1 {
@@ -214,10 +171,7 @@ async function handleLogin() {
     font-size: 26px;
     font-weight: 700;
     letter-spacing: -0.02em;
-    background: linear-gradient(90deg, var(--fsd-text-primary) 0%, var(--fsd-accent) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--fsd-text-primary);
   }
 
   p {

@@ -25,33 +25,48 @@ import {
   statusColorToSemantic,
 } from '@/constants/statusMap'
 
-const props = withDefaults(defineProps<{
-  status: string
-  type?: 'order' | 'task' | 'online' | 'dispatch' | 'exception'
-    | 'slot' | 'infra' | 'ticket' | 'alert' | 'health' | 'config'
-    | 'user' | 'execution' | 'vehicleHealth'
-  size?: 'sm' | 'md'
-  showDot?: boolean
-}>(), {
-  type: 'order',
-  size: 'md',
-  showDot: true,
-})
+const props = withDefaults(
+  defineProps<{
+    status: string
+    type?:
+      | 'order'
+      | 'task'
+      | 'online'
+      | 'dispatch'
+      | 'exception'
+      | 'slot'
+      | 'infra'
+      | 'ticket'
+      | 'alert'
+      | 'health'
+      | 'config'
+      | 'user'
+      | 'execution'
+      | 'vehicleHealth'
+    size?: 'sm' | 'md'
+    showDot?: boolean
+  }>(),
+  {
+    type: 'order',
+    size: 'md',
+    showDot: true,
+  },
+)
 
 const statusMaps: Record<string, Record<string, { label: string; color: string }>> = {
-  order:         orderStatusMap,
-  task:          taskStatusMap,
-  online:        onlineStatusMap,
-  dispatch:      dispatchStatusMap,
-  exception:     exceptionStatusMap,
-  slot:          slotStatusMap,
-  infra:         infraActiveMap,
-  ticket:        ticketStatusMap,
-  alert:         alertStatusMap,
-  health:        healthStatusMap,
-  config:        configCheckMap,
-  user:          userStatusMap,
-  execution:     executionStatusMap,
+  order: orderStatusMap,
+  task: taskStatusMap,
+  online: onlineStatusMap,
+  dispatch: dispatchStatusMap,
+  exception: exceptionStatusMap,
+  slot: slotStatusMap,
+  infra: infraActiveMap,
+  ticket: ticketStatusMap,
+  alert: alertStatusMap,
+  health: healthStatusMap,
+  config: configCheckMap,
+  user: userStatusMap,
+  execution: executionStatusMap,
   vehicleHealth: vehicleHealthMap,
 }
 
@@ -93,7 +108,6 @@ const sizeClass = computed(() => `fsd-status--${props.size}`)
 
 .fsd-status--critical .fsd-status-dot {
   background: var(--fsd-risk-critical);
-  box-shadow: 0 0 6px rgba(255, 61, 113, 0.45);
 }
 
 .fsd-status--critical .fsd-status-label {

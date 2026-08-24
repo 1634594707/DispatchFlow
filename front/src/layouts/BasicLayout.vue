@@ -82,7 +82,7 @@
             :options="parkScope.parkOptions"
             placeholder="全部园区"
             allow-clear
-            style="width: 168px; margin-right: 8px;"
+            style="width: 168px; margin-right: 8px"
             :loading="parkScope.loading"
             @change="onParkScopeChange"
           />
@@ -102,12 +102,22 @@
               </button>
             </a-tooltip>
             <a-tooltip title="调度快捷指令">
-              <a-button type="text" class="header-icon-btn" aria-label="调度助手" @click="assistantOpen = true">
+              <a-button
+                type="text"
+                class="header-icon-btn"
+                aria-label="调度助手"
+                @click="assistantOpen = true"
+              >
                 <RobotOutlined />
               </a-button>
             </a-tooltip>
             <a-tooltip title="刷新数据">
-              <a-button type="text" class="header-icon-btn" aria-label="刷新数据" @click="refreshScopedData">
+              <a-button
+                type="text"
+                class="header-icon-btn"
+                aria-label="刷新数据"
+                @click="refreshScopedData"
+              >
                 <ReloadOutlined />
               </a-button>
             </a-tooltip>
@@ -133,7 +143,9 @@
               <a-menu @click="handleMobileAction">
                 <a-menu-item key="park">
                   <EnvironmentOutlined />
-                  <span v-if="parkScope.selectedParkId">{{ parkScope.selectedParkName || '已选园区' }}</span>
+                  <span v-if="parkScope.selectedParkId">{{
+                    parkScope.selectedParkName || '已选园区'
+                  }}</span>
                   <span v-else>全部园区</span>
                 </a-menu-item>
                 <a-menu-divider />
@@ -154,9 +166,14 @@
             <span class="realtime-status" data-testid="realtime-status">
               <span
                 class="stream-indicator"
-                :class="{ online: realtimeStore.status === 'connected', degraded: realtimeStore.status === 'degraded' }"
+                :class="{
+                  online: realtimeStore.status === 'connected',
+                  degraded: realtimeStore.status === 'degraded',
+                }"
               />
-              <span v-if="realtimeStore.status === 'degraded'" class="realtime-degraded-tag">降级</span>
+              <span v-if="realtimeStore.status === 'degraded'" class="realtime-degraded-tag"
+                >降级</span
+              >
               <span class="realtime-time mono">事件 {{ realtimeLastEventLabel }}</span>
               <span class="realtime-time mono">快照 {{ realtimeLastSnapshotLabel }}</span>
             </span>
@@ -182,7 +199,12 @@
               />
             </template>
             <a-button type="text" class="header-icon-btn notification-btn" aria-label="通知">
-              <a-badge :count="notificationCount" :overflow-count="99" :show-zero="false" :offset="[-4, 4]">
+              <a-badge
+                :count="notificationCount"
+                :overflow-count="99"
+                :show-zero="false"
+                :offset="[-4, 4]"
+              >
                 <BellOutlined />
               </a-badge>
             </a-button>
@@ -196,7 +218,12 @@
             aria-label="通知"
             @click="mobileNotifyOpen = true"
           >
-            <a-badge :count="notificationCount" :overflow-count="99" :show-zero="false" :offset="[-4, 4]">
+            <a-badge
+              :count="notificationCount"
+              :overflow-count="99"
+              :show-zero="false"
+              :offset="[-4, 4]"
+            >
               <BellOutlined />
             </a-badge>
           </a-button>
@@ -255,7 +282,9 @@
       >
         <component :is="item.icon" class="bottom-nav-icon" />
         <span class="bottom-nav-label">{{ item.label }}</span>
-        <span v-if="item.badge" class="bottom-nav-badge">{{ item.badge > 99 ? '99+' : item.badge }}</span>
+        <span v-if="item.badge" class="bottom-nav-badge">{{
+          item.badge > 99 ? '99+' : item.badge
+        }}</span>
       </button>
     </nav>
 
@@ -284,15 +313,34 @@
       title="通知中心"
       class="fsd-mobile-notify-drawer"
       @close="mobileNotifyOpen = false"
-      @afterOpenChange="(open: boolean) => { if (open) handleNotificationOpen(true) }"
+      @afterOpenChange="
+        (open: boolean) => {
+          if (open) handleNotificationOpen(true)
+        }
+      "
     >
       <NotificationPanel
         :items="notificationItems"
         :loading="notificationLoading"
         :alert-history="alertStore.history"
-        @view-all="mobileNotifyOpen = false; router.push('/exceptions')"
-        @settings="mobileNotifyOpen = false; router.push('/system/alert-settings')"
-        @click-item="(item: ExceptionAdminListItem) => { mobileNotifyOpen = false; goException(item) }"
+        @view-all="
+          () => {
+            mobileNotifyOpen = false
+            router.push('/exceptions')
+          }
+        "
+        @settings="
+          () => {
+            mobileNotifyOpen = false
+            router.push('/system/alert-settings')
+          }
+        "
+        @click-item="
+          (item: ExceptionAdminListItem) => {
+            mobileNotifyOpen = false
+            goException(item)
+          }
+        "
       />
     </a-drawer>
 
@@ -312,7 +360,13 @@
           type="button"
           class="mobile-park-item"
           :class="{ active: !parkScope.selectedParkId }"
-          @click="parkScope.setParkId(undefined as any); mobileParkOpen = false; onParkScopeChange()"
+          @click="
+            () => {
+              parkScope.setParkId(undefined)
+              mobileParkOpen = false
+              onParkScopeChange()
+            }
+          "
         >
           全部园区
         </button>
@@ -322,7 +376,13 @@
           type="button"
           class="mobile-park-item"
           :class="{ active: parkScope.selectedParkId === park.value }"
-          @click="parkScope.setParkId(park.value); mobileParkOpen = false; onParkScopeChange()"
+          @click="
+            () => {
+              parkScope.setParkId(park.value)
+              mobileParkOpen = false
+              onParkScopeChange()
+            }
+          "
         >
           {{ park.label }}
         </button>
@@ -379,11 +439,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useRealtimeStore } from '@/stores/realtime'
 import { useAlertStore } from '@/stores/alert'
 import { ADMIN_AUTH_ENABLED } from '@/config'
-import {
-  BREADCRUMB_PATH_MAP,
-  NAV_PATH_MAP,
-  resolveMenuKeyFromPath,
-} from '@/config/navigation'
+import { BREADCRUMB_PATH_MAP, NAV_PATH_MAP, resolveMenuKeyFromPath } from '@/config/navigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -439,12 +495,12 @@ const sidebarCollapsed = computed({
     if (resp.autoCollapseSidebar.value) return true
     return collapsed.value
   },
-  set: (v) => { collapsed.value = v },
+  set: (v) => {
+    collapsed.value = v
+  },
 })
 
-const sidebarWidth = computed(() =>
-  resp.isTablet.value ? 64 : 208
-)
+const sidebarWidth = computed(() => (resp.isTablet.value ? 64 : 208))
 
 // ── Page title for mobile header ─────────────────────────
 const pageTitle = computed(() => {
@@ -456,8 +512,8 @@ const pageTitle = computed(() => {
 
 // ── Bottom nav items ─────────────────────────────────────
 // V9-UX7: Added badges for orders (pending dispatch) and vehicles (offline)
-const offlineVehicleCount = computed(() =>
-  workbenchStore.parkVehicles.filter(v => v.onlineStatus === 'OFFLINE').length
+const offlineVehicleCount = computed(
+  () => workbenchStore.parkVehicles.filter((v) => v.onlineStatus === 'OFFLINE').length,
 )
 
 const bottomNavItems = computed(() => {
@@ -578,7 +634,7 @@ function handleMobileAction({ key }: { key: string }) {
   }
 }
 
-function handleBottomNav(item: typeof bottomNavItems.value[number]) {
+function handleBottomNav(item: (typeof bottomNavItems.value)[number]) {
   if (item.key === 'more') {
     mobileDrawerOpen.value = true
     return
@@ -612,10 +668,7 @@ async function handleUserMenu({ key }: { key: string }) {
 }
 
 async function refreshBadgeCounts() {
-  await Promise.all([
-    workbenchStore.fetchQueue(),
-    dashboardStore.fetchSummary({ silent: true }),
-  ])
+  await Promise.all([workbenchStore.fetchQueue(), dashboardStore.fetchSummary({ silent: true })])
 }
 
 async function onParkScopeChange() {
@@ -631,7 +684,7 @@ watch(
   () => {
     // Close mobile drawer on navigation
     mobileDrawerOpen.value = false
-  }
+  },
 )
 
 // Auto-init responsive detection
@@ -656,7 +709,7 @@ onUnmounted(() => {
 }
 
 .fsd-main-area {
-  transition: margin-left 0.2s var(--fsd-ease);
+  transition: margin-left var(--fsd-transition-base);
 }
 
 /* ── Sidebar ────────────────────────────────────────────── */
@@ -714,7 +767,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: margin-left 0.2s var(--fsd-ease);
+  transition: margin-left var(--fsd-transition-base);
 
   .header-left {
     display: flex;
@@ -792,7 +845,7 @@ onUnmounted(() => {
 
     &.active {
       color: var(--fsd-accent) !important;
-      background: var(--fsd-accent-glow) !important;
+      background: var(--fsd-accent-selected) !important;
     }
   }
 
@@ -812,15 +865,17 @@ onUnmounted(() => {
     color: var(--fsd-text-tertiary);
     font-size: 13px;
     cursor: pointer;
-    transition: border-color 0.2s var(--fsd-ease), background 0.2s var(--fsd-ease);
+    transition:
+      border-color var(--fsd-transition-base),
+      background-color var(--fsd-transition-base);
 
     &:hover {
-      border-color: var(--fsd-accent);
+      border-color: var(--fsd-border-active);
       background: var(--fsd-bg-base);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--fsd-accent);
+      outline: 2px solid var(--fsd-accent-strong);
       outline-offset: 1px;
     }
   }
@@ -861,7 +916,7 @@ onUnmounted(() => {
     padding: 4px 8px 4px 4px;
     border-radius: 999px;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background-color var(--fsd-transition-base);
 
     &:hover {
       background: var(--fsd-bg-hover);
@@ -897,7 +952,7 @@ onUnmounted(() => {
   padding: var(--fsd-space-6);
   overflow: auto;
   background: var(--fsd-bg-deep);
-  transition: margin-left 0.2s var(--fsd-ease);
+  transition: margin-left var(--fsd-transition-base);
 
   &.fullscreen-mode {
     padding: 0;
@@ -937,7 +992,6 @@ onUnmounted(() => {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--fsd-bg-base);
   border-top: 1px solid var(--fsd-border);
-  backdrop-filter: blur(16px) saturate(140%);
 }
 
 .bottom-nav-item {
@@ -954,11 +1008,11 @@ onUnmounted(() => {
   background: transparent;
   color: var(--fsd-text-tertiary);
   cursor: pointer;
-  transition: color 0.2s var(--fsd-ease);
+  transition: color var(--fsd-transition-base);
   -webkit-tap-highlight-color: transparent;
 
   &:active {
-    transform: scale(0.95);
+    background: var(--fsd-bg-active);
   }
 
   &--active {
@@ -972,7 +1026,7 @@ onUnmounted(() => {
 
 .bottom-nav-icon {
   font-size: 22px;
-  transition: color 0.2s var(--fsd-ease);
+  transition: color var(--fsd-transition-base);
 }
 
 .bottom-nav-label {
@@ -988,7 +1042,7 @@ onUnmounted(() => {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 9px;
+  border-radius: var(--fsd-radius-full);
   background: var(--fsd-error);
   color: #fff;
   font-size: 10px;
@@ -1013,8 +1067,8 @@ onUnmounted(() => {
     font-size: 12px;
     padding: 0 4px;
     border-radius: 2px;
-    color: #faad14;
-    border: 1px solid #faad14;
+    color: var(--fsd-warning);
+    border: 1px solid var(--fsd-warning);
   }
 
   @media (max-width: 768px) {
@@ -1027,19 +1081,17 @@ onUnmounted(() => {
 .stream-indicator {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--fsd-radius-full);
   background: var(--fsd-text-tertiary);
   display: inline-block;
   margin-right: 8px;
 
   &.online {
     background: var(--fsd-success);
-    box-shadow: 0 0 8px rgba(45, 224, 138, 0.6);
   }
 
   &.degraded {
-    background: var(--fsd-warning, #f5a623);
-    box-shadow: 0 0 8px rgba(245, 166, 35, 0.45);
+    background: var(--fsd-warning);
   }
 }
 
@@ -1063,14 +1115,14 @@ onUnmounted(() => {
   font-size: 15px;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s var(--fsd-ease);
+  transition: background-color var(--fsd-transition-base);
 
   &:hover {
     background: var(--fsd-bg-hover);
   }
 
   &.active {
-    background: var(--fsd-accent-glow);
+    background: var(--fsd-accent-selected);
     color: var(--fsd-accent);
     font-weight: 600;
   }
@@ -1079,7 +1131,7 @@ onUnmounted(() => {
 /* ── Transitions ────────────────────────────────────────── */
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s;
+  transition: opacity var(--fsd-transition-base);
 }
 
 .fade-enter-from,
@@ -1088,16 +1140,15 @@ onUnmounted(() => {
 }
 
 .page-fade-enter-active {
-  transition: opacity 0.25s var(--fsd-ease), transform 0.25s var(--fsd-ease);
+  transition: opacity var(--fsd-transition-slow);
 }
 
 .page-fade-leave-active {
-  transition: opacity 0.15s var(--fsd-ease);
+  transition: opacity var(--fsd-transition-fast);
 }
 
 .page-fade-enter-from {
   opacity: 0;
-  transform: translateY(8px);
 }
 
 .page-fade-leave-to {

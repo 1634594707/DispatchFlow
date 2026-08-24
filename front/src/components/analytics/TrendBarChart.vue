@@ -5,7 +5,12 @@
       :key="point.label"
       class="trend-bar-row"
       :class="{ clickable }"
+      :role="clickable ? 'button' : undefined"
+      :tabindex="clickable ? 0 : undefined"
+      :aria-label="clickable ? point.label + ': ' + valueLabel(point) : undefined"
       @click="onBarClick(point)"
+      @keydown.enter="onBarClick(point)"
+      @keydown.space.prevent="onBarClick(point)"
     >
       <span class="trend-label">{{ point.label }}</span>
       <div class="trend-bar-track">
@@ -39,7 +44,7 @@ const props = withDefaults(
   }>(),
   {
     metric: 'completionRate',
-    color: '#22D3EE',
+    color: 'var(--fsd-accent)',
     clickable: false,
   },
 )
@@ -64,11 +69,11 @@ function barWidth(point: AnalyticsTrendPoint) {
 
 function fillStyle(point: AnalyticsTrendPoint) {
   if (props.metric === 'completionRate') {
-    if (point.completionRate < 60) return '#F87171'
-    if (point.completionRate < 85) return '#FBBF24'
-    return 'linear-gradient(90deg, #06B6D4, #22D3EE)'
+    if (point.completionRate < 60) return 'var(--fsd-error)'
+    if (point.completionRate < 85) return 'var(--fsd-warning)'
+    return 'var(--fsd-accent)'
   }
-  return props.color || 'linear-gradient(90deg, #F87171, #FB7185)'
+  return props.color || 'var(--fsd-accent)'
 }
 
 function valueLabel(point: AnalyticsTrendPoint) {
@@ -110,12 +115,17 @@ function onBarClick(point: AnalyticsTrendPoint) {
     border-radius: 4px;
     padding: 3px 6px;
     margin: -3px -6px;
-    transition: background 0.15s ease;
+    transition: background-color var(--fsd-transition-base);
     &:hover {
-      background: rgba(34, 211, 238, 0.08);
+      background: var(--fsd-accent-selected);
       .trend-label {
-        color: var(--fsd-accent);
+        color: var(--fsd-accent-strong);
       }
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--fsd-accent);
+      outline-offset: 2px;
     }
   }
 }
@@ -124,12 +134,12 @@ function onBarClick(point: AnalyticsTrendPoint) {
   font-size: 11px;
   color: var(--fsd-text-tertiary);
   font-family: var(--fsd-font-mono);
-  transition: color 0.15s ease;
+  transition: color var(--fsd-transition-base);
 }
 
 .trend-bar-track {
   height: 8px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fsd-bg-hover);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -137,7 +147,7 @@ function onBarClick(point: AnalyticsTrendPoint) {
 .trend-bar-fill {
   height: 100%;
   border-radius: 999px;
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width var(--fsd-transition-slow);
 }
 
 .trend-value {

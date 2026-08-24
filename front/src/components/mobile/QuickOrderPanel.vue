@@ -1,5 +1,8 @@
 <template>
-  <section class="quick-order-panel">
+  <section
+    class="quick-order-panel"
+    :class="{ 'quick-order-panel--tracking-visible': hasTrackedOrder }"
+  >
     <header class="order-header">
       <div class="header-titles">
         <span class="order-kicker">同城即时送</span>
@@ -34,6 +37,7 @@
             :value="parkId"
             placeholder="选择园区"
             size="large"
+            popup-class-name="mobile-order-select-dropdown"
             :loading="loadingParks"
             :options="parkOptions"
             @update:value="onParkChange"
@@ -50,6 +54,7 @@
                 :value="pickupStationId"
                 placeholder="选择取货服务点"
                 size="large"
+                popup-class-name="mobile-order-select-dropdown"
                 :loading="loadingStations"
                 show-search
                 option-filter-prop="label"
@@ -77,6 +82,7 @@
                 :value="dropoffStationId"
                 placeholder="选择送货服务点"
                 size="large"
+                popup-class-name="mobile-order-select-dropdown"
                 :loading="loadingStations"
                 show-search
                 option-filter-prop="label"
@@ -240,6 +246,7 @@ const props = defineProps<{
   remark: string
   loadingParks?: boolean
   loadingStations?: boolean
+  hasTrackedOrder?: boolean
   parkOptions?: { value: number; label: string }[]
 }>()
 
@@ -339,11 +346,10 @@ const dropoffPreview = computed(() => {
 
 <style scoped lang="less">
 .quick-order-panel {
-  padding: 18px 16px 0;
+  padding: var(--fsd-space-4) var(--fsd-space-4) 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--fsd-bg-base);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   position: relative;
 
   &::before {
@@ -408,11 +414,10 @@ const dropoffPreview = computed(() => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
-  margin: 0 -16px 18px;
-  padding: 10px 16px;
-  background: #f7fbff;
-  border-top: 1px solid #eef6ff;
-  border-bottom: 1px solid #eef6ff;
+  margin: 0 calc(-1 * var(--fsd-space-4)) var(--fsd-space-4);
+  padding: var(--fsd-space-2) var(--fsd-space-4);
+  border-block: 1px solid var(--fsd-border-split);
+  background: var(--fsd-bg-hover);
 
   span {
     display: flex;
@@ -420,7 +425,7 @@ const dropoffPreview = computed(() => {
     justify-content: center;
     gap: 5px;
     min-width: 0;
-    color: #4d6478;
+    color: var(--fsd-text-secondary);
     font-size: 10px;
     white-space: nowrap;
   }
@@ -445,15 +450,18 @@ const dropoffPreview = computed(() => {
 }
 
 .mode-chip {
-  height: 36px;
-  border-radius: var(--fsd-radius-sm);
+  min-height: var(--fsd-touch-target-min);
   border: 1px solid transparent;
+  border-radius: var(--fsd-radius-sm);
   background: transparent;
   color: var(--fsd-text-secondary);
   font-size: 12px;
   font-weight: var(--fsd-font-semibold);
   letter-spacing: -0.005em;
-  transition: all var(--fsd-transition-fast);
+  transition:
+    background-color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
 
   &:hover:not(.active) {
     color: var(--fsd-text-primary);
@@ -461,35 +469,36 @@ const dropoffPreview = computed(() => {
 }
 
 .mode-chip.active {
-  border-color: var(--fsd-border-active);
-  background: var(--fsd-bg-elevated);
-  color: var(--fsd-accent);
-  box-shadow: var(--fsd-shadow-soft);
+  border-color: var(--fsd-accent-border);
+  background: var(--fsd-accent-selected);
+  color: var(--fsd-accent-strong);
 }
 
 /* ── 快速下单按钮 ── */
 .quick-fill-btn {
   width: 100%;
-  height: 44px;
-  margin-bottom: 16px;
-  border-radius: var(--fsd-radius-md);
-  border: 1px dashed var(--fsd-accent-border);
-  background: var(--fsd-accent-bg);
-  color: var(--fsd-accent);
+  min-height: var(--fsd-touch-target-min);
+  margin-bottom: var(--fsd-space-4);
+  border: 1px solid var(--fsd-accent-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-accent-selected);
+  color: var(--fsd-accent-strong);
   font-size: 13px;
   font-weight: var(--fsd-font-semibold);
   letter-spacing: -0.005em;
   cursor: pointer;
-  transition: all var(--fsd-transition-fast);
+  transition:
+    background-color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
 
   &:hover:not(:disabled) {
-    background: rgba(34, 211, 238, 0.14);
-    border-color: var(--fsd-accent);
-    border-style: solid;
+    border-color: var(--fsd-border-active);
+    background: var(--fsd-bg-hover);
   }
 
   &:active:not(:disabled) {
-    transform: scale(0.99);
+    background: var(--fsd-bg-active);
   }
 
   &:disabled {
@@ -529,20 +538,20 @@ const dropoffPreview = computed(() => {
     margin-right: 8px;
     vertical-align: -1px;
     border-radius: 2px;
-    background: var(--fsd-gradient-accent);
+    background: var(--fsd-accent);
   }
 }
 
 .recommend-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  min-height: 32px;
+  gap: var(--fsd-space-1);
+  min-height: var(--fsd-touch-target-min);
   padding: 0 9px;
-  border: 1px solid #d7eaff;
-  border-radius: 6px;
-  background: #f3f8ff;
-  color: var(--fsd-accent);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-bg-hover);
+  color: var(--fsd-accent-strong);
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -556,13 +565,12 @@ const dropoffPreview = computed(() => {
 .address-stack {
   position: relative;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 40px;
-  gap: 8px;
+  grid-template-columns: 18px minmax(0, 1fr) var(--fsd-touch-target-min);
+  gap: var(--fsd-space-2);
   align-items: center;
-  padding: 12px 10px;
-  border: 1px solid #e8edf3;
-  border-radius: 8px;
-  background: #fff;
+  padding: var(--fsd-space-3) var(--fsd-space-2);
+  border-block: 1px solid var(--fsd-border);
+  background: transparent;
 }
 
 .address-fields {
@@ -585,38 +593,36 @@ const dropoffPreview = computed(() => {
 .dropoff-dot {
   width: 9px;
   height: 9px;
-  border-radius: 50%;
+  border-radius: var(--fsd-radius-full);
 }
 
 .pickup-dot {
-  background: #12b886;
-  box-shadow: 0 0 0 3px rgba(18, 184, 134, 0.12);
+  background: var(--fsd-text-tertiary);
 }
 
 .dropoff-dot {
-  background: #1989fa;
-  box-shadow: 0 0 0 3px rgba(25, 137, 250, 0.12);
+  background: var(--fsd-accent);
 }
 
 .rail-line {
   width: 1px;
   min-height: 42px;
-  background: repeating-linear-gradient(to bottom, #c7d1dc 0 4px, transparent 4px 8px);
+  background: var(--fsd-border-strong);
 }
 
 .swap-btn {
-  width: 40px;
-  height: 40px;
-  border: 1px solid #e2e8f0;
-  border-radius: 50%;
-  background: #f8fafc;
-  color: #60758a;
+  width: var(--fsd-touch-target-min);
+  height: var(--fsd-touch-target-min);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-bg-hover);
+  color: var(--fsd-text-secondary);
   font-size: 16px;
   cursor: pointer;
 
   &:active {
-    background: #eef6ff;
-    color: var(--fsd-accent);
+    background: var(--fsd-bg-active);
+    color: var(--fsd-accent-strong);
   }
 }
 
@@ -630,34 +636,27 @@ const dropoffPreview = computed(() => {
 .route-cards {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  position: relative;
+  border-top: 1px solid var(--fsd-border);
 }
 
 .route-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 8px;
-  border: 1px solid var(--fsd-border);
-  background: #fff;
+  gap: var(--fsd-space-3);
+  min-height: var(--fsd-touch-target-min);
+  padding: var(--fsd-space-3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--fsd-border);
+  background: transparent;
   text-align: left;
-  transition: all var(--fsd-transition-fast);
   cursor: pointer;
+  transition: background-color var(--fsd-transition-base);
 
-  &:hover:not(:disabled) {
-    border-color: var(--fsd-accent-border);
+  &:hover:not(:disabled),
+  &:active:not(:disabled) {
     background: var(--fsd-bg-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--fsd-shadow-soft);
   }
-}
-
-.route-card:active:not(:disabled) {
-  transform: scale(0.99);
-  border-color: var(--fsd-accent);
 }
 
 .route-card:disabled {
@@ -688,10 +687,10 @@ const dropoffPreview = computed(() => {
 
 .route-action {
   flex-shrink: 0;
-  padding: 8px 14px;
-  border-radius: 6px;
-  background: #eaf4ff;
-  color: #0877df;
+  padding: 6px 9px;
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-accent-selected);
+  color: var(--fsd-accent-strong);
   font-size: 11px;
   font-weight: var(--fsd-font-bold);
   white-space: nowrap;
@@ -787,7 +786,7 @@ const dropoffPreview = computed(() => {
 
 .weight-chip {
   min-width: 56px;
-  height: 40px;
+  min-height: var(--fsd-touch-target-min);
   padding: 0 14px;
   border-radius: 6px;
   border: 1px solid var(--fsd-border);
@@ -796,7 +795,10 @@ const dropoffPreview = computed(() => {
   font-size: var(--fsd-text-sm);
   font-weight: var(--fsd-font-semibold);
   letter-spacing: 0;
-  transition: all var(--fsd-transition-fast);
+  transition:
+    background-color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
   cursor: pointer;
 
   &:hover {
@@ -809,7 +811,6 @@ const dropoffPreview = computed(() => {
   border-color: var(--fsd-accent);
   background: var(--fsd-accent-bg);
   color: var(--fsd-accent);
-  box-shadow: 0 0 0 1px var(--fsd-accent-border) inset;
 }
 
 .weight-chip-custom.active {
@@ -829,7 +830,7 @@ const dropoffPreview = computed(() => {
 
 .priority-chip {
   min-width: 56px;
-  height: 40px;
+  min-height: var(--fsd-touch-target-min);
   padding: 0 14px;
   border-radius: var(--fsd-radius-sm);
   border: 1px solid var(--fsd-border);
@@ -837,7 +838,10 @@ const dropoffPreview = computed(() => {
   color: var(--fsd-text-secondary);
   font-size: var(--fsd-text-sm);
   font-weight: var(--fsd-font-semibold);
-  transition: all var(--fsd-transition-fast);
+  transition:
+    background-color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -854,7 +858,6 @@ const dropoffPreview = computed(() => {
   border-color: var(--fsd-accent);
   background: var(--fsd-accent-bg);
   color: var(--fsd-accent);
-  box-shadow: 0 0 0 1px var(--fsd-accent-border) inset;
 }
 
 .chip-code {
@@ -874,19 +877,21 @@ const dropoffPreview = computed(() => {
 /* ── 底部固定提交栏（京东结算栏风格） ── */
 .submit-bar {
   position: sticky;
+  right: 0;
   bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   left: 0;
-  right: 0;
   z-index: 5;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  margin: 4px -16px 0;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid var(--fsd-border-split);
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.32);
+  gap: var(--fsd-space-3);
+  margin: var(--fsd-space-1) calc(-1 * var(--fsd-space-4)) 0;
+  padding: var(--fsd-space-3) var(--fsd-space-4);
+  border-top: 1px solid var(--fsd-border);
+  background: var(--fsd-bg-base);
+}
+
+.quick-order-panel--tracking-visible .submit-bar {
+  position: static;
 }
 
 .submit-summary {
@@ -917,28 +922,24 @@ const dropoffPreview = computed(() => {
 .submit-btn {
   flex-shrink: 0;
   min-width: 132px;
-  height: 48px;
-  padding: 0 24px;
-  border: 1px solid var(--fsd-accent-border);
-  border-radius: 8px;
-  background: #1989fa;
-  color: #fff;
+  min-height: 48px;
+  padding: 0 var(--fsd-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-action-primary);
+  color: var(--fsd-text-on-action);
   font-size: var(--fsd-text-md);
-  font-weight: var(--fsd-font-bold);
+  font-weight: var(--fsd-font-semibold);
   letter-spacing: 0;
   cursor: pointer;
-  transition: all var(--fsd-transition-fast);
-  box-shadow: 0 4px 14px rgba(25, 137, 250, 0.24);
+  transition: background-color var(--fsd-transition-base);
 
   &:hover:not(:disabled) {
-    filter: brightness(1.08);
-    box-shadow: 0 6px 20px rgba(34, 211, 238, 0.42);
-    transform: translateY(-1px);
+    background: var(--fsd-action-primary-hover);
   }
 
   &:active:not(:disabled) {
-    transform: translateY(0);
-    filter: brightness(0.96);
+    background: var(--fsd-action-primary-active);
   }
 }
 

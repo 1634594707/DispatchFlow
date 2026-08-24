@@ -19,7 +19,12 @@
     <template v-if="variant === 'table'">
       <div class="skl-table">
         <div class="skl-table-header">
-          <div v-for="col in columns" :key="col" class="skl-line skl-line--xs" :style="{ flex: col }" />
+          <div
+            v-for="col in columns"
+            :key="col"
+            class="skl-line skl-line--xs"
+            :style="{ flex: col }"
+          />
         </div>
         <div v-for="row in rows" :key="row" class="skl-table-row">
           <div v-for="col in columns" :key="col" class="skl-line" :style="{ flex: col }" />
@@ -34,7 +39,12 @@
           <div class="skl-line skl-line--md" />
         </div>
         <div class="skl-chart-area">
-          <div class="skl-chart-bar" v-for="i in 7" :key="i" :style="{ height: `${30 + Math.random() * 60}%` }" />
+          <div
+            class="skl-chart-bar"
+            v-for="i in 7"
+            :key="i"
+            :style="{ height: `${30 + Math.random() * 60}%` }"
+          />
         </div>
       </div>
     </template>
@@ -52,7 +62,12 @@
     <!-- Paragraph text -->
     <template v-if="variant === 'text'">
       <div class="skl-text">
-        <div v-for="i in lines" :key="i" class="skl-line" :class="i === lines ? 'skl-line--short' : 'skl-line--full'" />
+        <div
+          v-for="i in lines"
+          :key="i"
+          class="skl-line"
+          :class="i === lines ? 'skl-line--short' : 'skl-line--full'"
+        />
       </div>
     </template>
 
@@ -101,7 +116,7 @@ withDefaults(
     columns: () => [1, 2, 1.5, 1, 0.8],
     rows: 5,
     lines: 3,
-  }
+  },
 )
 </script>
 
@@ -123,50 +138,46 @@ withDefaults(
   border: 0;
 }
 
-/* ── Shimmer animation ──────────────────────────────────── */
-@keyframes skl-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
 /* ── Base skeleton elements ─────────────────────────────── */
 .skl-line {
   height: 14px;
   border-radius: 6px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.05) 25%,
-    rgba(255, 255, 255, 0.10) 37%,
-    rgba(255, 255, 255, 0.05) 63%
-  );
-  background-size: 200% 100%;
-  animation: skl-shimmer 1.6s ease-in-out infinite;
+  background: var(--fsd-neutral-bg);
   flex: 1;
 
-  &--xs   { width: 60px;  flex: none; }
-  &--short{ width: 120px; flex: none; }
-  &--md   { width: 180px; flex: none; }
-  &--full { width: 100%;  }
+  &--xs {
+    width: 60px;
+    flex: none;
+  }
+  &--short {
+    width: 120px;
+    flex: none;
+  }
+  &--md {
+    width: 180px;
+    flex: none;
+  }
+  &--full {
+    width: 100%;
+  }
 }
 
 .skl-block {
   border-radius: 8px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.04) 25%,
-    rgba(255, 255, 255, 0.09) 37%,
-    rgba(255, 255, 255, 0.04) 63%
-  );
-  background-size: 200% 100%;
-  animation: skl-shimmer 1.6s ease-in-out infinite;
+  background: var(--fsd-neutral-bg);
 
-  &--sm { width: 48px;  height: 48px; }
-  &--md { width: 80px;  height: 80px; }
-  &--lg { width: 100%;  height: 120px; }
+  &--sm {
+    width: 48px;
+    height: 48px;
+  }
+  &--md {
+    width: 80px;
+    height: 80px;
+  }
+  &--lg {
+    width: 100%;
+    height: 120px;
+  }
 }
 
 .skl-avatar {
@@ -174,14 +185,7 @@ withDefaults(
   height: 40px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.04) 25%,
-    rgba(255, 255, 255, 0.09) 37%,
-    rgba(255, 255, 255, 0.04) 63%
-  );
-  background-size: 200% 100%;
-  animation: skl-shimmer 1.6s ease-in-out infinite;
+  background: var(--fsd-neutral-bg);
 }
 
 .skl-inline {
@@ -189,21 +193,14 @@ withDefaults(
   height: 1em;
   border-radius: 4px;
   vertical-align: middle;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.05) 25%,
-    rgba(255, 255, 255, 0.10) 37%,
-    rgba(255, 255, 255, 0.05) 63%
-  );
-  background-size: 200% 100%;
-  animation: skl-shimmer 1.6s ease-in-out infinite;
+  background: var(--fsd-neutral-bg);
 }
 
 /* ── Card skeleton ──────────────────────────────────────── */
 .skl-card {
   background: var(--fsd-bg-base);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
   padding: var(--fsd-space-5);
   display: flex;
   flex-direction: column;
@@ -226,7 +223,7 @@ withDefaults(
 .skl-table {
   background: var(--fsd-bg-base);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
   overflow: hidden;
 }
 
@@ -253,7 +250,7 @@ withDefaults(
 .skl-chart {
   background: var(--fsd-bg-base);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
   padding: var(--fsd-space-5);
 }
 
@@ -272,13 +269,7 @@ withDefaults(
 .skl-chart-bar {
   flex: 1;
   border-radius: 6px 6px 0 0;
-  background: linear-gradient(
-    180deg,
-    rgba(34, 199, 230, 0.18) 0%,
-    rgba(34, 199, 230, 0.04) 100%
-  );
-  animation: skl-shimmer 1.6s ease-in-out infinite;
-  background-size: 200% 100%;
+  background: var(--fsd-neutral-bg);
 }
 
 /* ── Stats skeleton ─────────────────────────────────────── */
@@ -294,7 +285,7 @@ withDefaults(
 .skl-stat-card {
   background: var(--fsd-bg-base);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
   padding: var(--fsd-space-5);
   display: flex;
   flex-direction: column;

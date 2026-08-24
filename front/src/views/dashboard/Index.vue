@@ -10,10 +10,20 @@
         <span v-if="store.lastUpdated && !resp.isPhone.value" class="last-updated">
           <ClockCircleOutlined /> {{ store.lastUpdated }}
         </span>
-        <a-button type="primary" size="large" class="dashboard-btn" @click="router.push('/workbench')">
+        <a-button
+          type="primary"
+          size="large"
+          class="dashboard-btn"
+          @click="router.push('/workbench')"
+        >
           <ControlOutlined /> {{ resp.isPhone.value ? '工作台' : '进入工作台' }}
         </a-button>
-        <a-button v-if="!resp.isPhone.value" :loading="store.loading" size="large" @click="handleRefresh">
+        <a-button
+          v-if="!resp.isPhone.value"
+          :loading="store.loading"
+          size="large"
+          @click="handleRefresh"
+        >
           <ReloadOutlined /> 刷新
         </a-button>
       </div>
@@ -23,35 +33,39 @@
     <div v-if="store.loading && !store.summary" class="dashboard-skeleton">
       <SkeletonLoader variant="stats" :count="resp.statGridCols.value" />
     </div>
-    <div v-else class="stat-cards" :style="{ gridTemplateColumns: `repeat(${resp.statGridCols.value}, 1fr)` }">
-      <MetricCard
-        v-for="(card, idx) in statCards"
+    <div
+      v-else
+      class="stat-cards"
+      :style="{ gridTemplateColumns: `repeat(${resp.statGridCols.value}, 1fr)` }"
+    >
+      <MetricPanel
+        v-for="card in statCards"
         :key="card.key"
-        :class="['animate-fade-in-up', `stagger-${idx + 1}`]"
-        variant="stat"
         :label="card.label"
         :value="card.value"
         :icon="card.icon"
-        :icon-bg="card.iconBg"
-        :icon-color="card.iconColor"
-        :value-color="card.valueColor"
-        :color-theme="card.colorTheme"
-        :action-text="resp.isPhone.value ? undefined : card.actionText"
-        :alert="card.alert"
-        :clickable="true"
+        :tone="card.tone"
+        clickable
         :loading="store.loading"
-        @click="handleCardClick(card)"
-      />
+        @activate="handleCardClick(card)"
+      >
+        <span v-if="!resp.isPhone.value" class="metric-panel-action">
+          {{ card.actionText }} <RightOutlined />
+        </span>
+      </MetricPanel>
     </div>
 
     <!-- Bottom Section: Trend + Quick Nav -->
     <div class="dashboard-bottom">
       <div class="overview-panel animate-fade-in-up stagger-3">
         <div class="panel-header">
-          <h3 class="panel-title">
-            <LineChartOutlined /> 运营趋势
-          </h3>
-          <a-button v-if="!resp.isPhone.value" type="link" size="small" @click="router.push('/analytics')">
+          <h3 class="panel-title"><LineChartOutlined /> 运营趋势</h3>
+          <a-button
+            v-if="!resp.isPhone.value"
+            type="link"
+            size="small"
+            @click="router.push('/analytics')"
+          >
             查看完整报表
           </a-button>
         </div>
@@ -79,8 +93,8 @@
             :class="{ 'nav-item--primary': item.primary }"
             @click="router.push(item.link)"
           >
-            <div class="nav-icon" :style="{ background: item.iconBg }">
-              <component :is="item.icon" :style="{ color: item.iconColor, fontSize: '18px' }" />
+            <div :class="['nav-icon', `nav-icon--${item.tone}`]">
+              <component :is="item.icon" />
             </div>
             <div class="nav-text">
               <span class="nav-label">{{ item.label }}</span>
@@ -109,7 +123,7 @@
 import { computed, onMounted, markRaw, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import TrendBarChart from '@/components/analytics/TrendBarChart.vue'
-import MetricCard from '@/components/common/MetricCard.vue'
+import MetricPanel from '@/components/common/MetricPanel.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import { getAnalyticsEfficiency } from '@/api/analytics'
 import { useResponsive } from '@/composables/useResponsive'
@@ -157,10 +171,7 @@ const statCards = computed(() => {
       label: '待调度订单',
       value: s?.pendingCount ?? '-',
       icon: markRaw(FileTextOutlined),
-      iconBg: 'rgba(34, 199, 230, 0.10)',
-      iconColor: '#22C7E6',
-      colorTheme: 'cyan' as const,
-      valueColor: '#22C7E6',
+      tone: 'accent' as const,
       actionText: '订单列表',
       link: '/orders?status=WAITING_DISPATCH',
       alert: false,
@@ -170,10 +181,7 @@ const statCards = computed(() => {
       label: '执行中任务',
       value: s?.executingCount ?? '-',
       icon: markRaw(CarOutlined),
-      iconBg: 'rgba(255, 192, 77, 0.10)',
-      iconColor: '#FFC04D',
-      colorTheme: 'amber' as const,
-      valueColor: '#FFC04D',
+      tone: 'warning' as const,
       actionText: '任务列表',
       link: '/tasks?status=EXECUTING',
       alert: false,
@@ -183,10 +191,7 @@ const statCards = computed(() => {
       label: '在线车辆',
       value: s?.onlineVehicleCount ?? '-',
       icon: markRaw(ToolOutlined),
-      iconBg: 'rgba(45, 224, 138, 0.10)',
-      iconColor: '#2DE08A',
-      colorTheme: 'green' as const,
-      valueColor: '#2DE08A',
+      tone: 'success' as const,
       actionText: '车辆列表',
       link: '/vehicles?onlineStatus=ONLINE',
       alert: false,
@@ -196,10 +201,7 @@ const statCards = computed(() => {
       label: '未处理异常',
       value: s?.openExceptionCount ?? s?.failedCount ?? '-',
       icon: markRaw(AlertOutlined),
-      iconBg: 'rgba(255, 92, 124, 0.10)',
-      iconColor: '#FF5C7C',
-      colorTheme: 'red' as const,
-      valueColor: '#FF5C7C',
+      tone: 'error' as const,
       actionText: '前往工作台',
       link: '/workbench',
       alert: (s?.openExceptionCount ?? s?.failedCount ?? 0) > 0,
@@ -214,8 +216,7 @@ const navItems = [
     desc: '任务池 · 派车 · 异常处置',
     link: '/workbench',
     icon: markRaw(ControlOutlined),
-    iconBg: 'rgba(34, 199, 230, 0.12)',
-    iconColor: '#22C7E6',
+    tone: 'accent' as const,
     primary: true,
   },
   {
@@ -224,8 +225,7 @@ const navItems = [
     desc: '实时地图 · 车队态势',
     link: '/vehicle-tracking',
     icon: markRaw(HeatMapOutlined),
-    iconBg: 'rgba(45, 224, 138, 0.1)',
-    iconColor: '#2DE08A',
+    tone: 'success' as const,
     primary: false,
   },
   {
@@ -234,8 +234,7 @@ const navItems = [
     desc: '创建与查询运输订单',
     link: '/orders',
     icon: markRaw(FileTextOutlined),
-    iconBg: 'rgba(34, 199, 230, 0.08)',
-    iconColor: '#22C7E6',
+    tone: 'neutral' as const,
     primary: false,
   },
   {
@@ -244,8 +243,7 @@ const navItems = [
     desc: '历史异常查询与归档',
     link: '/exceptions',
     icon: markRaw(UnorderedListOutlined),
-    iconBg: 'rgba(255, 92, 124, 0.08)',
-    iconColor: '#FF5C7C',
+    tone: 'error' as const,
     primary: false,
   },
 ]
@@ -282,7 +280,7 @@ onMounted(() => {
 }
 
 .dashboard-title {
-  font-size: var(--fsd-text-2xl);
+  font-size: var(--fsd-text-xl);
   font-weight: var(--fsd-font-bold);
   color: var(--fsd-text-primary);
   margin: 0;
@@ -291,9 +289,9 @@ onMounted(() => {
 }
 
 .dashboard-subtitle {
-  font-size: var(--fsd-text-sm);
+  font-size: var(--fsd-text-xs);
   color: var(--fsd-text-tertiary);
-  margin-top: 4px;
+  margin-top: var(--fsd-space-1);
   display: block;
 }
 
@@ -344,7 +342,7 @@ onMounted(() => {
 .nav-panel {
   background: var(--fsd-bg-base);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
   padding: var(--fsd-space-5);
 }
 
@@ -413,32 +411,41 @@ onMounted(() => {
   width: 100%;
   padding: 14px var(--fsd-space-4);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius);
-  background: rgba(18, 24, 33, 0.4);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-status);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.2s var(--fsd-ease), background 0.2s var(--fsd-ease);
+  transition:
+    border-color var(--fsd-transition-base),
+    background-color var(--fsd-transition-base);
   min-height: var(--fsd-touch-target-min);
 
   &:hover {
-    border-color: rgba(34, 199, 230, 0.35);
-    background: rgba(34, 199, 230, 0.06);
+    border-color: var(--fsd-border-active);
+    background: var(--fsd-bg-hover);
   }
 
   &:active {
-    transform: scale(0.985);
+    background: var(--fsd-bg-active);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--fsd-accent-strong);
+    outline-offset: 2px;
   }
 
   &--primary {
-    border-color: rgba(34, 199, 230, 0.25);
-    background: rgba(34, 199, 230, 0.08);
+    border-color: var(--fsd-accent-border);
+    background: var(--fsd-accent-selected);
   }
 }
 
 .nav-icon {
   width: 40px;
   height: 40px;
-  border-radius: var(--fsd-radius);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-neutral-bg);
+  color: var(--fsd-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -448,6 +455,27 @@ onMounted(() => {
     width: 44px;
     height: 44px;
   }
+
+  &--accent {
+    background: var(--fsd-accent-selected);
+    color: var(--fsd-accent);
+  }
+  &--success {
+    background: var(--fsd-success-bg);
+    color: var(--fsd-success);
+  }
+  &--error {
+    background: var(--fsd-error-bg);
+    color: var(--fsd-error);
+  }
+}
+
+.metric-panel-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fsd-text-tertiary);
+  font-size: var(--fsd-text-xs);
 }
 
 .nav-text {

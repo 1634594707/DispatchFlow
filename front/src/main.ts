@@ -20,6 +20,10 @@ import '@fontsource/plus-jakarta-sans/700.css'
 import '@fontsource/plus-jakarta-sans/800.css'
 import { stopAllSSEConnections } from '@/utils/sseConnectionRegistry'
 import { initResponsive } from '@/composables/useResponsive'
+import { applyVisualPolicy } from '@/config/visualPolicy'
+
+// Make the visual-only contract inspectable without affecting application behavior.
+applyVisualPolicy(document.documentElement)
 
 // Eagerly initialize responsive breakpoint detection
 initResponsive()
@@ -41,16 +45,20 @@ window.addEventListener('unhandledrejection', (event) => {
 })
 
 // P2-1: 捕获全局资源加载错误
-window.addEventListener('error', (event) => {
-  const target = event.target as EventTarget | null
-  if (!target) return
-  const el = target as HTMLElement
-  if (!el.tagName) return
-  // src / href 仅存在于特定元素上，需分别断言类型
-  const src = (el as HTMLImageElement | HTMLScriptElement).src
-  const href = (el as HTMLLinkElement).href
-  console.error('[Resource Error]', src || href)
-}, true)
+window.addEventListener(
+  'error',
+  (event) => {
+    const target = event.target as EventTarget | null
+    if (!target) return
+    const el = target as HTMLElement
+    if (!el.tagName) return
+    // src / href 仅存在于特定元素上，需分别断言类型
+    const src = (el as HTMLImageElement | HTMLScriptElement).src
+    const href = (el as HTMLLinkElement).href
+    console.error('[Resource Error]', src || href)
+  },
+  true,
+)
 
 app.use(createPinia())
 app.use(router)

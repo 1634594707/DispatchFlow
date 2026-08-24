@@ -812,13 +812,13 @@ onMounted(() => {
 .trend-bar-success {
   height: 100%;
   background: var(--fsd-success);
-  transition: width 0.3s ease;
+  transition: width var(--fsd-transition-slow);
 }
 
 .trend-bar-error {
   height: 100%;
   background: var(--fsd-error);
-  transition: width 0.3s ease;
+  transition: width var(--fsd-transition-slow);
 }
 
 .trend-value {

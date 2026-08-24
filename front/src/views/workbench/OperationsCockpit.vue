@@ -2,9 +2,8 @@
   <main class="ops-cockpit">
     <section class="ops-hero">
       <div class="hero-copy">
-        <span class="eyebrow">DIESHIQIAO · LIVE OPERATIONS</span>
-        <h1>把每一次派送，放回真实道路。</h1>
-        <p>围绕任务、车辆、送货范围与补能约束做决策；历史报表和基础配置退到二级页面。</p>
+        <h1>调度工作台</h1>
+        <p>{{ parkScope.selectedParkName || '全部园区' }} · {{ lastUpdatedLabel }}</p>
       </div>
       <div class="hero-actions">
         <button type="button" class="ghost-action" :disabled="store.loading" @click="refresh">
@@ -36,7 +35,6 @@
       <div class="map-shell">
         <div class="map-toolbar">
           <div>
-            <span class="section-kicker">REAL MAP</span>
             <h2>送货范围与补能走廊</h2>
           </div>
           <div class="map-modes" role="tablist" aria-label="地图场景">
@@ -72,11 +70,30 @@
             <span><i class="legend-line service-range"></i>实际运营范围</span>
             <span><i class="legend-line delivery"></i>配送主线</span>
             <span><i class="legend-line charge"></i>回充走廊</span>
+            <span><i class="legend-line service-range"></i>运营范围 5.5 × 6.2 km</span>
           </div>
-          <div class="coverage-card">
-            <span>本地履约运营范围</span><strong>约 5.5 × 6.2 km</strong
-            ><small>实际服务边界 · 五分区自动派单</small>
-          </div>
+          <section class="map-status-bar" aria-label="地图数据状态">
+            <div class="status-item">
+              <span class="status-label">坐标系</span>
+              <span class="status-value">GCJ-02</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">地图版本</span>
+              <span class="status-value">{{ mapVersionLabel }}</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">路线来源</span>
+              <span class="status-value">{{ routeSourceLabel }}</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">层级</span>
+              <span class="status-value">{{ mapLevel }}</span>
+            </div>
+            <div class="status-item status-time">
+              <span class="status-label">更新时间</span>
+              <span class="status-value">{{ lastUpdatedLabel }}</span>
+            </div>
+          </section>
         </div>
 
         <div class="scene-rail">
@@ -102,7 +119,6 @@
         <section class="decision-panel task-panel">
           <div class="panel-title-row">
             <div>
-              <span class="section-kicker">NEXT ACTION</span>
               <h2>待处理任务</h2>
             </div>
             <button type="button" class="text-link" @click="router.push('/tasks')">
@@ -120,7 +136,10 @@
               class="task-card"
               :class="{
                 selected: selectedTaskId === task.taskId,
-                'urgent-task': (task.waitMinutes ?? 0) > 15 || task.orderPriority === 'P0' || task.orderPriority === 'P1',
+                'urgent-task':
+                  (task.waitMinutes ?? 0) > 15 ||
+                  task.orderPriority === 'P0' ||
+                  task.orderPriority === 'P1',
               }"
               @click="selectedTaskId = task.taskId"
             >
@@ -131,7 +150,8 @@
                     'p-high': task.orderPriority === 'P0' || task.orderPriority === 'P1',
                     'p-med': task.orderPriority === 'P2',
                   }"
-                >{{ task.orderPriority || 'P2' }}</span>
+                  >{{ task.orderPriority || 'P2' }}</span
+                >
                 <div>
                   <strong>{{ task.taskNo }}</strong>
                   <small :class="{ 'wait-warning': (task.waitMinutes ?? 0) > 15 }">
@@ -158,7 +178,6 @@
         <section class="decision-panel charge-panel">
           <div class="panel-title-row">
             <div>
-              <span class="section-kicker">ENERGY POLICY</span>
               <h2>充电派送规则</h2>
             </div>
             <button type="button" class="text-link" @click="router.push('/analytics/charging')">
@@ -185,7 +204,6 @@
         <section class="decision-panel exception-panel">
           <div class="panel-title-row">
             <div>
-              <span class="section-kicker">EXCEPTIONS</span>
               <h2>需要人工介入</h2>
             </div>
             <button type="button" class="text-link" @click="router.push('/exceptions')">
@@ -209,29 +227,6 @@
           <div v-if="exceptionCards.length === 0" class="panel-empty compact">无开放异常</div>
         </section>
       </aside>
-    </section>
-
-    <section class="map-status-bar" aria-label="地图数据状态">
-      <div class="status-item">
-        <span class="status-label">坐标系</span>
-        <span class="status-value">GCJ-02</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">地图版本</span>
-        <span class="status-value">{{ mapVersionLabel }}</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">路线来源</span>
-        <span class="status-value">{{ routeSourceLabel }}</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">层级</span>
-        <span class="status-value">{{ mapLevel }}</span>
-      </div>
-      <div class="status-item status-time">
-        <span class="status-label">更新时间</span>
-        <span class="status-value">{{ lastUpdatedLabel }}</span>
-      </div>
     </section>
 
     <ParkDeliveryOrderModal
@@ -329,7 +324,8 @@ const mapPolylines = computed(() => {
 const fitViewPoints = computed<[number, number][]>(() => {
   if (selectedPlanId.value) return mapPolylines.value.flatMap((line) => line.path)
   const serviceEnvelope = parkGeofences.value.find(
-    (fence) => fence.scopeCode === 'L1_CANDIDATE_ENVELOPE' && fence.fenceCode === 'DEFAULT-BOUNDARY',
+    (fence) =>
+      fence.scopeCode === 'L1_CANDIDATE_ENVELOPE' && fence.fenceCode === 'DEFAULT-BOUNDARY',
   )
   const servicePolygon = serviceEnvelope?.polygon ?? []
   if (servicePolygon.length >= 3) {
@@ -349,7 +345,7 @@ const metrics = computed(() => [
     note: '满足在线与电量约束',
     tone: 'green',
   },
-  { label: '充电中', value: store.chargingCount, note: '正在恢复运力', tone: 'violet' },
+  { label: '充电中', value: store.chargingCount, note: '正在恢复运力', tone: 'neutral' },
 ])
 const taskCards = computed(() => store.taskPool.slice(0, 5))
 const exceptionCards = computed(() => store.openExceptions.slice(0, 4))
@@ -426,26 +422,16 @@ onMounted(() => refresh())
 
 <style scoped lang="less">
 .ops-cockpit {
-  --ops-bg: #070b0f;
-  --ops-panel: rgba(13, 20, 27, 0.88);
-  --ops-border: rgba(151, 178, 199, 0.16);
-  --ops-text: #edf7fb;
-  --ops-muted: #81929f;
-  --ops-cyan: #22d3ee;
+  --ops-bg: var(--fsd-surface-workspace);
+  --ops-panel: var(--fsd-surface-raised);
+  --ops-border: var(--fsd-border);
+  --ops-text: var(--fsd-text-primary);
+  --ops-muted: var(--fsd-text-secondary);
+  --ops-cyan: var(--fsd-accent);
   min-height: 100%;
-  padding: 28px;
+  padding: var(--fsd-space-5);
   color: var(--ops-text);
-  background:
-    linear-gradient(rgba(34, 211, 238, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 211, 238, 0.035) 1px, transparent 1px),
-    radial-gradient(circle at 68% 10%, rgba(20, 184, 166, 0.15), transparent 28%),
-    radial-gradient(circle at 10% 40%, rgba(245, 158, 11, 0.08), transparent 24%), var(--ops-bg);
-  background-size:
-    40px 40px,
-    40px 40px,
-    auto,
-    auto,
-    auto;
+  background: var(--ops-bg);
 }
 
 button {
@@ -460,142 +446,140 @@ button {
 }
 .ops-hero {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 18px 4px 26px;
-}
-.eyebrow,
-.section-kicker {
-  color: var(--ops-cyan);
-  font-family: 'Geist Mono', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+  gap: var(--fsd-space-4);
+  padding: 0 0 var(--fsd-space-4);
 }
 .hero-copy h1 {
-  max-width: 820px;
-  margin: 12px 0 10px;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: clamp(32px, 4vw, 64px);
-  line-height: 1.02;
-  letter-spacing: -0.05em;
+  margin: 0;
+  color: var(--fsd-text-primary);
+  font-size: var(--fsd-text-xl);
+  font-weight: var(--fsd-font-semibold);
+  letter-spacing: var(--fsd-tracking-tight);
+  line-height: var(--fsd-leading-tight);
 }
 .hero-copy p {
-  max-width: 720px;
-  margin: 0;
+  margin: var(--fsd-space-1) 0 0;
   color: var(--ops-muted);
-  font-size: 15px;
+  font-size: var(--fsd-text-xs);
 }
 .hero-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--fsd-space-2);
 }
 .ghost-action,
 .primary-action,
 .dispatch-button {
+  min-height: var(--fsd-touch-target-min);
   border: 1px solid var(--ops-border);
-  border-radius: 10px;
-  padding: 11px 16px;
+  border-radius: var(--fsd-radius-sm);
+  padding: 9px 14px;
   cursor: pointer;
-  transition: 160ms ease;
+  transition:
+    background-color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
 }
 .ghost-action {
   color: var(--ops-text);
-  background: rgba(13, 20, 27, 0.72);
+  background: var(--fsd-surface-raised);
 }
 .primary-action {
-  color: #021116;
+  color: var(--fsd-text-on-action);
   border-color: transparent;
-  background: var(--ops-cyan);
-  font-weight: 800;
+  background: var(--fsd-action-primary);
+  font-weight: var(--fsd-font-semibold);
 }
 .ghost-action:hover {
-  border-color: rgba(34, 211, 238, 0.55);
+  border-color: var(--fsd-border-active);
+  background: var(--fsd-bg-hover);
 }
 .primary-action:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 30px rgba(34, 211, 238, 0.22);
+  background: var(--fsd-action-primary-hover);
+}
+.ghost-action:focus-visible,
+.primary-action:focus-visible,
+.dispatch-button:focus-visible {
+  outline: 2px solid var(--fsd-accent-strong);
+  outline-offset: 2px;
+}
+.primary-action:disabled,
+.ghost-action:disabled,
+.dispatch-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 .pulse-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(110px, 1fr)) auto;
-  border: 1px solid var(--ops-border);
-  border-radius: 14px;
-  background: rgba(7, 12, 17, 0.78);
-  overflow: hidden;
+  border-block: 1px solid var(--ops-border);
 }
 .pulse-metric {
-  padding: 18px 20px;
+  min-width: 0;
+  padding: var(--fsd-space-3) var(--fsd-space-4);
   border-right: 1px solid var(--ops-border);
 }
 .pulse-value {
   display: block;
-  font:
-    700 28px/1 'Geist Mono',
-    monospace;
+  color: var(--ops-text);
+  font-family: var(--fsd-font-mono);
+  font-size: var(--fsd-text-xl);
+  font-weight: var(--fsd-font-semibold);
+  line-height: var(--fsd-leading-tight);
 }
 .pulse-value.cyan {
-  color: #22d3ee;
+  color: var(--fsd-accent);
 }
 .pulse-value.amber {
-  color: #fbbf24;
+  color: var(--fsd-warning);
 }
 .pulse-value.rose {
-  color: #fb7185;
+  color: var(--fsd-error);
 }
 .pulse-value.green {
-  color: #4ade80;
-}
-.pulse-value.violet {
-  color: #c4b5fd;
+  color: var(--fsd-success);
 }
 .pulse-label {
   display: block;
-  margin-top: 8px;
-  font-weight: 700;
+  margin-top: var(--fsd-space-1);
+  font-weight: var(--fsd-font-medium);
 }
 .pulse-note {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--ops-muted);
-  font-size: 11px;
+  font-size: var(--fsd-text-xs);
 }
 .pulse-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 20px;
+  gap: var(--fsd-space-2);
+  padding: 0 var(--fsd-space-4);
   color: var(--ops-muted);
-  font-size: 12px;
+  font-size: var(--fsd-text-xs);
   white-space: nowrap;
 }
 .live-dot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
-  background: #4ade80;
-  box-shadow: 0 0 0 5px rgba(74, 222, 128, 0.08);
+  border-radius: var(--fsd-radius-full);
+  background: var(--fsd-accent);
 }
 
 .command-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(360px, 0.75fr);
-  gap: 18px;
-  margin-top: 18px;
-}
-.map-shell,
-.decision-panel,
-.operating-principles {
-  border: 1px solid var(--ops-border);
-  background: var(--ops-panel);
-  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.18);
+  grid-template-columns: minmax(0, 1.65fr) minmax(340px, 0.75fr);
+  gap: var(--fsd-space-4);
+  margin-top: var(--fsd-space-4);
 }
 .map-shell {
   min-width: 0;
-  border-radius: 18px;
   overflow: hidden;
+  border: 1px solid var(--ops-border);
+  border-radius: var(--fsd-radius-md);
+  background: var(--ops-panel);
 }
 .map-toolbar,
 .panel-title-row {
@@ -605,143 +589,128 @@ button {
   gap: 16px;
 }
 .map-toolbar {
-  padding: 20px 22px 16px;
+  padding: var(--fsd-space-4);
 }
 .map-toolbar h2,
-.panel-title-row h2,
-.operating-principles h2 {
-  margin: 5px 0 0;
-  font-size: 18px;
+.panel-title-row h2 {
+  margin: 0;
+  color: var(--fsd-text-primary);
+  font-size: var(--fsd-text-md);
+  font-weight: var(--fsd-font-semibold);
 }
 .map-modes {
   display: flex;
-  gap: 4px;
-  padding: 4px;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid var(--ops-border);
-  border-radius: 10px;
-  background: #080d12;
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-status);
 }
 .map-modes button {
+  min-height: 32px;
   border: 0;
-  border-radius: 7px;
-  padding: 7px 12px;
+  border-radius: var(--fsd-radius-sm);
+  padding: 6px 10px;
   color: var(--ops-muted);
   background: transparent;
   cursor: pointer;
 }
 .map-modes button.active {
-  color: #031014;
-  background: var(--ops-cyan);
-  font-weight: 800;
+  color: var(--fsd-text-on-action);
+  background: var(--fsd-action-primary);
+  font-weight: var(--fsd-font-semibold);
 }
 .map-stage {
   position: relative;
   height: 610px;
   border-block: 1px solid var(--ops-border);
-  background: #06090d;
+  background: var(--fsd-surface-page);
 }
 .map-stage :deep(.amap-geo-map) {
   height: 100%;
 }
-.map-legend,
-.coverage-card {
+.map-legend {
   position: absolute;
   z-index: 5;
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(5, 11, 16, 0.8);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-overlay);
+  box-shadow: var(--fsd-shadow-popover);
 }
 .map-legend {
-  left: 16px;
-  bottom: 16px;
+  left: var(--fsd-space-3);
+  bottom: 46px;
   display: flex;
+  max-width: calc(100% - 2 * var(--fsd-space-3));
   flex-wrap: wrap;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  font-size: 11px;
-  color: #b8c7d1;
+  gap: var(--fsd-space-2);
+  padding: var(--fsd-space-2) var(--fsd-space-3);
+  color: var(--fsd-text-secondary);
+  font-size: var(--fsd-text-xs);
 }
 .map-legend span {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--fsd-space-1);
 }
 .legend-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--fsd-radius-full);
 }
 .legend-dot.vehicle {
-  background: #22d3ee;
+  background: var(--fsd-accent);
 }
 .legend-dot.station {
-  background: #f8fafc;
+  background: var(--fsd-text-primary);
 }
 .legend-dot.base {
-  background: #fbbf24;
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.18);
+  background: var(--fsd-warning);
 }
 .legend-line {
   width: 18px;
   height: 2px;
 }
 .legend-line.delivery {
-  background: #fbbf24;
+  background: var(--fsd-warning);
 }
 .legend-line.charge {
-  border-top: 2px dashed #fb7185;
+  border-top: 2px dashed var(--fsd-error);
 }
 .legend-line.service-range {
   height: 0;
-  border-top: 2px dashed #13c2c2;
-}
-.coverage-card {
-  right: 16px;
-  bottom: 16px;
-  display: grid;
-  gap: 3px;
-  padding: 12px 14px;
-  border-radius: 10px;
-}
-.coverage-card span,
-.coverage-card small {
-  color: var(--ops-muted);
-  font-size: 10px;
-}
-.coverage-card strong {
-  font:
-    700 16px 'Geist Mono',
-    monospace;
+  border-top: 2px dashed var(--fsd-accent);
 }
 
 .scene-rail {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--ops-border);
+  border-top: 1px solid var(--ops-border);
 }
 .scene-card {
   display: grid;
   grid-template-columns: 4px 1fr auto;
-  gap: 12px;
+  gap: var(--fsd-space-3);
   align-items: center;
-  min-height: 112px;
-  padding: 16px;
+  min-height: 104px;
+  padding: var(--fsd-space-3);
   text-align: left;
   color: inherit;
   border: 0;
-  background: #0c1319;
+  border-right: 1px solid var(--ops-border);
+  background: var(--ops-panel);
   cursor: pointer;
 }
-.scene-card:hover,
+.scene-card:hover {
+  background: var(--fsd-bg-hover);
+}
 .scene-card.selected {
-  background: #121c24;
+  background: var(--fsd-accent-selected);
 }
 .scene-color {
   width: 4px;
   height: 54px;
-  border-radius: 999px;
+  border-radius: var(--fsd-radius-sm);
 }
 .scene-copy {
   display: grid;
@@ -752,7 +721,7 @@ button {
   line-height: 1.45;
 }
 .scene-target {
-  color: #d7e6ee;
+  color: var(--fsd-text-secondary);
   font:
     700 11px 'Geist Mono',
     monospace;
@@ -760,73 +729,79 @@ button {
 
 .decision-stack {
   display: grid;
-  gap: 18px;
+  gap: var(--fsd-space-4);
   align-content: start;
 }
 .decision-panel {
-  border-radius: 16px;
-  padding: 18px;
+  padding: 0 0 var(--fsd-space-4);
+  border-bottom: 1px solid var(--ops-border);
 }
 .text-link {
+  min-height: var(--fsd-touch-target-min);
   padding: 0;
   color: var(--ops-muted);
   border: 0;
   background: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fsd-text-xs);
 }
 .text-link:hover {
-  color: var(--ops-cyan);
+  color: var(--fsd-accent);
+}
+.text-link:focus-visible {
+  outline: 2px solid var(--fsd-accent-strong);
+  outline-offset: 2px;
 }
 .task-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 16px;
+  margin-top: var(--fsd-space-2);
+  border-top: 1px solid var(--ops-border);
 }
 .task-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid transparent;
-  border-radius: 11px;
-  background: #0a1016;
+  gap: var(--fsd-space-3);
+  min-height: var(--fsd-touch-target-min);
+  padding: var(--fsd-space-3) var(--fsd-space-2);
+  border: 0;
+  border-bottom: 1px solid var(--ops-border);
+  background: transparent;
   cursor: pointer;
 }
-.task-card:hover,
+.task-card:hover {
+  background: var(--fsd-bg-hover);
+}
 .task-card.selected {
-  border-color: rgba(34, 211, 238, 0.3);
-  background: rgba(34, 211, 238, 0.055);
+  background: var(--fsd-accent-selected);
 }
 .task-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--fsd-space-2);
   min-width: 0;
 }
 .task-priority {
-  padding: 4px 6px;
-  border-radius: 6px;
-  color: #94a3b8;
-  background: rgba(148, 163, 184, 0.1);
-  font:
-    700 10px 'Geist Mono',
-    monospace;
+  padding: 3px 6px;
+  border-radius: var(--fsd-radius-sm);
+  color: var(--fsd-text-secondary);
+  background: var(--fsd-neutral-bg);
+  font-family: var(--fsd-font-mono);
+  font-size: var(--fsd-text-xs);
+  font-weight: var(--fsd-font-semibold);
 }
 .task-priority.p-high {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.14);
+  color: var(--fsd-error);
+  background: var(--fsd-error-bg);
 }
 .task-priority.p-med {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.12);
+  color: var(--fsd-warning);
+  background: var(--fsd-warning-bg);
 }
 .task-card.urgent-task {
-  border-left: 3px solid #f87171;
+  border-left: 3px solid var(--fsd-error);
 }
 .wait-warning {
-  color: #f87171 !important;
+  color: var(--fsd-error) !important;
   font-weight: 600;
 }
 .task-main div {
@@ -843,40 +818,35 @@ button {
 }
 .dispatch-button {
   flex: 0 0 auto;
-  padding: 7px 10px;
-  color: #baf6ff;
-  background: rgba(34, 211, 238, 0.08);
-  border-color: rgba(34, 211, 238, 0.2);
-  font-size: 11px;
+  min-height: 32px;
+  padding: 5px 9px;
+  color: var(--fsd-text-on-action);
+  background: var(--fsd-action-primary);
+  border-color: transparent;
+  font-size: var(--fsd-text-xs);
 }
 .dispatch-button:disabled {
-  opacity: 0.5;
+  opacity: 0.56;
   cursor: wait;
 }
 .panel-empty {
-  margin-top: 16px;
-  padding: 26px 12px;
+  margin-top: var(--fsd-space-2);
+  padding: var(--fsd-space-5) var(--fsd-space-3);
   color: var(--ops-muted);
   text-align: center;
-  border: 1px dashed var(--ops-border);
-  border-radius: 10px;
+  border-bottom: 1px solid var(--ops-border);
 }
 .panel-empty.compact {
   padding: 16px 8px;
 }
 
-.charge-panel {
-  background: linear-gradient(145deg, rgba(13, 20, 27, 0.94), rgba(22, 18, 12, 0.94));
-}
 .soc-rule {
   display: grid;
   grid-template-columns: 72px 1fr auto;
-  gap: 12px;
+  gap: var(--fsd-space-3);
   align-items: center;
-  margin-top: 10px;
-  padding: 12px;
-  border-radius: 11px;
-  border: 1px solid var(--ops-border);
+  padding: var(--fsd-space-3) 0;
+  border-bottom: 1px solid var(--ops-border);
 }
 .soc-rule div {
   display: grid;
@@ -897,23 +867,23 @@ button {
     monospace;
 }
 .soc-rule.safe .soc-band {
-  color: #4ade80;
+  color: var(--fsd-success);
 }
 .soc-rule.watch .soc-band {
-  color: #fbbf24;
+  color: var(--fsd-warning);
 }
 .soc-rule.danger .soc-band {
-  color: #fb7185;
+  color: var(--fsd-error);
 }
 
 .exception-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 8px 1fr auto;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  margin-top: 8px;
-  padding: 11px 0;
+  gap: var(--fsd-space-2);
+  min-height: var(--fsd-touch-target-min);
+  padding: var(--fsd-space-3) 0;
   color: inherit;
   text-align: left;
   border: 0;
@@ -931,48 +901,48 @@ button {
 .severity {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
-  background: #fbbf24;
+  border-radius: var(--fsd-radius-full);
+  background: var(--fsd-warning);
 }
 .severity.critical,
 .severity.error {
-  background: #fb7185;
-  box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.08);
+  background: var(--fsd-error);
 }
 
 .map-status-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
   display: flex;
-  flex-wrap: wrap;
-  gap: 1px;
-  margin-top: 18px;
-  border: 1px solid var(--ops-border);
-  border-radius: 14px;
-  overflow: hidden;
-  background: var(--ops-border);
+  min-height: 34px;
+  overflow-x: auto;
+  border-top: 1px solid var(--fsd-border);
+  background: var(--fsd-surface-overlay);
 }
 .status-item {
-  display: grid;
-  gap: 4px;
-  padding: 12px 16px;
-  background: #0b1117;
-  flex: 1 1 auto;
-  min-width: 140px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fsd-space-1);
+  min-width: max-content;
+  padding: 8px var(--fsd-space-3);
+  border-right: 1px solid var(--fsd-border-split);
 }
 .status-item.status-time {
-  flex: 1.4 1 180px;
+  margin-left: auto;
 }
 .status-label {
   color: var(--ops-muted);
-  font:
-    700 10px 'Geist Mono',
-    monospace;
-  letter-spacing: 0.16em;
+  font-family: var(--fsd-font-mono);
+  font-size: 10px;
+  font-weight: var(--fsd-font-medium);
 }
 .status-value {
   color: var(--ops-text);
-  font:
-    600 13px 'Geist Mono',
-    monospace;
+  font-family: var(--fsd-font-mono);
+  font-size: 11px;
+  font-weight: var(--fsd-font-medium);
 }
 
 @media (max-width: 1280px) {
@@ -992,7 +962,7 @@ button {
 
 @media (max-width: 900px) {
   .ops-cockpit {
-    padding: 14px;
+    padding: var(--fsd-space-4);
   }
   .ops-hero {
     align-items: flex-start;
@@ -1014,8 +984,9 @@ button {
   .map-stage {
     height: 460px;
   }
-  .coverage-card {
-    display: none;
+  .scene-card {
+    border-right: 0;
+    border-bottom: 1px solid var(--ops-border);
   }
 }
 
@@ -1030,7 +1001,7 @@ button {
     grid-template-columns: 1fr 1fr;
   }
   .pulse-metric {
-    padding: 14px;
+    padding: var(--fsd-space-3);
   }
   .pulse-status {
     grid-column: 1 / -1;
@@ -1043,8 +1014,11 @@ button {
     height: 400px;
   }
   .map-legend {
-    right: 12px;
-    bottom: 12px;
+    right: var(--fsd-space-3);
+    bottom: 46px;
+  }
+  .status-item.status-time {
+    margin-left: 0;
   }
 }
 </style>

@@ -10,9 +10,7 @@
           style="width: 180px"
           @change="loadData"
         />
-        <a-button type="primary" @click="openCreate">
-          <PlusOutlined /> 新建充电桩
-        </a-button>
+        <a-button type="primary" @click="openCreate"> <PlusOutlined /> 新建充电桩 </a-button>
       </a-space>
     </template>
 
@@ -70,7 +68,10 @@
           <span v-else class="text-muted">-</span>
         </template>
         <template v-else-if="column.key === 'reservationState'">
-          <a-tag v-if="record.reservationState" :color="reservationStateColor(record.reservationState)">
+          <a-tag
+            v-if="record.reservationState"
+            :color="reservationStateColor(record.reservationState)"
+          >
             {{ reservationStateLabel(record.reservationState) }}
           </a-tag>
           <span v-else class="text-muted">-</span>
@@ -90,7 +91,12 @@
     >
       <a-form layout="vertical">
         <a-form-item label="所属园区" required>
-          <a-select v-model:value="form.parkId" :options="parkOptions" placeholder="选择园区" @change="loadSlotOptions" />
+          <a-select
+            v-model:value="form.parkId"
+            :options="parkOptions"
+            placeholder="选择园区"
+            @change="loadSlotOptions"
+          />
         </a-form-item>
         <a-row :gutter="16">
           <a-col :span="12">
@@ -115,7 +121,12 @@
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="额定功率(kW)">
-              <a-input-number v-model:value="form.maxPowerKw" :min="0" :step="0.5" style="width: 100%" />
+              <a-input-number
+                v-model:value="form.maxPowerKw"
+                :min="0"
+                :step="0.5"
+                style="width: 100%"
+              />
             </a-form-item>
           </a-col>
           <a-col :span="12">
@@ -154,7 +165,12 @@ const editing = ref<AdminChargingPile | null>(null)
 
 // V5-E5: 充电桩统计
 const freePileCount = computed(() => piles.value.filter((p) => p.status === 'FREE').length)
-const occupiedPileCount = computed(() => piles.value.filter((p) => p.status === 'OCCUPIED' || p.status === 'CHARGING' || p.status === 'RESERVED').length)
+const occupiedPileCount = computed(
+  () =>
+    piles.value.filter(
+      (p) => p.status === 'OCCUPIED' || p.status === 'CHARGING' || p.status === 'RESERVED',
+    ).length,
+)
 const faultPileCount = computed(() => piles.value.filter((p) => p.status === 'FAULT').length)
 
 const form = reactive({
@@ -320,9 +336,9 @@ onMounted(loadData)
   gap: 16px;
   padding: 12px 16px;
   margin-bottom: 16px;
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
   border: 1px solid var(--fsd-border);
-  background: linear-gradient(135deg, rgba(34, 199, 230, 0.08) 0%, rgba(11, 16, 24, 0.6) 100%);
+  background: var(--fsd-surface-raised);
 }
 
 .pile-summary-item {

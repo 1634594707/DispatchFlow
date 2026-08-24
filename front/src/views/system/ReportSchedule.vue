@@ -13,7 +13,11 @@
       <!-- V5-S4: 执行状态指示 -->
       <a-table-column key="statusIndicator" title="状态" width="80">
         <template #default="{ record }">
-          <span class="status-dot" :class="statusDotClass(record)" :title="statusDotTitle(record)" />
+          <span
+            class="status-dot"
+            :class="statusDotClass(record)"
+            :title="statusDotTitle(record)"
+          />
         </template>
       </a-table-column>
       <!-- V5-S4: 执行历史列 -->
@@ -25,7 +29,10 @@
       </a-table-column>
       <a-table-column key="lastResult" title="结果" width="80">
         <template #default="{ record }">
-          <a-tag v-if="getExecutionStats(record)?.lastResult" :color="executionResultColor(getExecutionStats(record)!.lastResult!)">
+          <a-tag
+            v-if="getExecutionStats(record)?.lastResult"
+            :color="executionResultColor(getExecutionStats(record)!.lastResult!)"
+          >
             {{ executionResultLabel(getExecutionStats(record)!.lastResult!) }}
           </a-tag>
           <span v-else class="text-muted">待执行</span>
@@ -33,7 +40,9 @@
       </a-table-column>
       <a-table-column key="nextExecutionTime" title="下次执行" width="170">
         <template #default="{ record }">
-          <span v-if="getExecutionStats(record)?.nextExecutionTime">{{ formatTime(getExecutionStats(record)!.nextExecutionTime!) }}</span>
+          <span v-if="getExecutionStats(record)?.nextExecutionTime">{{
+            formatTime(getExecutionStats(record)!.nextExecutionTime!)
+          }}</span>
           <span v-else class="text-muted">-</span>
         </template>
       </a-table-column>
@@ -56,25 +65,26 @@
     <!-- 编辑/新建表单 -->
     <a-modal v-model:open="modalOpen" title="报表计划" @ok="save">
       <a-form layout="vertical">
-        <a-form-item label="Cron 表达式"><a-input v-model:value="form.cronExpression" placeholder="0 0 8 * * MON-FRI" /></a-form-item>
+        <a-form-item label="Cron 表达式"
+          ><a-input v-model:value="form.cronExpression" placeholder="0 0 8 * * MON-FRI"
+        /></a-form-item>
         <a-form-item v-if="form.cronExpression" label="Cron 预览（最近 5 次执行时间）">
           <ul class="cron-preview-list">
             <li v-for="(t, idx) in cronPreviews" :key="idx">{{ formatTime(t) }}</li>
           </ul>
         </a-form-item>
-        <a-form-item label="收件人（逗号分隔）"><a-input v-model:value="form.recipients" /></a-form-item>
-        <a-form-item label="园区 ID（留空=全园区）"><a-input-number v-model:value="form.parkId" style="width:100%" /></a-form-item>
+        <a-form-item label="收件人（逗号分隔）"
+          ><a-input v-model:value="form.recipients"
+        /></a-form-item>
+        <a-form-item label="园区 ID（留空=全园区）"
+          ><a-input-number v-model:value="form.parkId" style="width: 100%"
+        /></a-form-item>
         <a-form-item label="启用"><a-switch v-model:checked="form.enabled" /></a-form-item>
       </a-form>
     </a-modal>
 
     <!-- V5-S4: 执行历史抽屉 -->
-    <a-drawer
-      v-model:open="historyDrawerOpen"
-      title="执行历史"
-      placement="right"
-      width="520"
-    >
+    <a-drawer v-model:open="historyDrawerOpen" title="执行历史" placement="right" width="520">
       <template v-if="historyRecords.length">
         <a-timeline>
           <a-timeline-item
@@ -92,7 +102,9 @@
               <div class="history-item-detail">
                 <span v-if="rec.durationMs">耗时: {{ rec.durationMs }}ms</span>
                 <span v-if="rec.errorMessage" class="history-error">{{ rec.errorMessage }}</span>
-                <span v-if="rec.nextExecutionTime">下次: {{ formatTime(rec.nextExecutionTime) }}</span>
+                <span v-if="rec.nextExecutionTime"
+                  >下次: {{ formatTime(rec.nextExecutionTime) }}</span
+                >
               </div>
             </div>
           </a-timeline-item>
@@ -109,8 +121,18 @@ import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import PageContainer from '@/components/common/PageContainer.vue'
-import { deleteReportSchedule, fetchReportSchedules, upsertReportSchedule, fetchScheduleExecutionHistory, triggerScheduleExecution } from '@/api/reportSchedule'
-import type { AdminReportSchedule, ScheduleExecutionRecord, ScheduleExecutionStats } from '@/types/reportSchedule'
+import {
+  deleteReportSchedule,
+  fetchReportSchedules,
+  upsertReportSchedule,
+  fetchScheduleExecutionHistory,
+  triggerScheduleExecution,
+} from '@/api/reportSchedule'
+import type {
+  AdminReportSchedule,
+  ScheduleExecutionRecord,
+  ScheduleExecutionStats,
+} from '@/types/reportSchedule'
 import { useParkScopeStore } from '@/stores/parkScope'
 
 dayjs.extend(utc)
@@ -118,7 +140,11 @@ dayjs.extend(utc)
 const loading = ref(false)
 const rows = ref<AdminReportSchedule[]>([])
 const modalOpen = ref(false)
-const form = reactive<AdminReportSchedule>({ cronExpression: '0 0 8 * * MON-FRI', recipients: '', enabled: false })
+const form = reactive<AdminReportSchedule>({
+  cronExpression: '0 0 8 * * MON-FRI',
+  recipients: '',
+  enabled: false,
+})
 const parkScope = useParkScopeStore()
 
 /* ---- V5-S4: 执行历史 ---- */
@@ -299,16 +325,23 @@ function formatTime(value: string) {
 }
 
 onMounted(load)
-watch(() => parkScope.scopeVersion, () => {
-  void load()
-})
+watch(
+  () => parkScope.scopeVersion,
+  () => {
+    void load()
+  },
+)
 </script>
 
 <style scoped>
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
 
 .text-muted {
-  color: var(--fsd-text-tertiary, #6B7787);
+  color: var(--fsd-text-tertiary, #6b7787);
 }
 
 /* V5-S4: 状态指示点 */
@@ -322,12 +355,10 @@ watch(() => parkScope.scopeVersion, () => {
 
 .status-dot.dot-success {
   background-color: var(--fsd-success);
-  box-shadow: 0 0 4px var(--fsd-success);
 }
 
 .status-dot.dot-failure {
   background-color: var(--fsd-error);
-  box-shadow: 0 0 4px var(--fsd-error);
 }
 
 .status-dot.dot-pending {
@@ -339,7 +370,7 @@ watch(() => parkScope.scopeVersion, () => {
   margin: 0;
   padding-left: 16px;
   font-size: 12px;
-  color: var(--fsd-text-secondary, #9BA8B8);
+  color: var(--fsd-text-secondary, #9ba8b8);
   line-height: 1.8;
 }
 
@@ -356,7 +387,7 @@ watch(() => parkScope.scopeVersion, () => {
 }
 
 .history-time {
-  color: var(--fsd-text-tertiary, #6B7787);
+  color: var(--fsd-text-tertiary, #6b7787);
   font-size: 12px;
 }
 
@@ -365,7 +396,7 @@ watch(() => parkScope.scopeVersion, () => {
   flex-wrap: wrap;
   gap: 8px;
   font-size: 12px;
-  color: var(--fsd-text-secondary, #9BA8B8);
+  color: var(--fsd-text-secondary, #9ba8b8);
 }
 
 .history-error {

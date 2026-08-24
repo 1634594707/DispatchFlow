@@ -1,87 +1,111 @@
 <template>
-  <div class="page-container animate-fade-in-up">
-    <div class="page-header">
+  <section class="page-container" :aria-labelledby="titleId">
+    <header class="page-header">
       <div class="page-title-area">
-        <h2 class="page-title">{{ title }}</h2>
-        <span v-if="subtitle" class="page-subtitle">{{ subtitle }}</span>
+        <h1 :id="titleId" class="page-title">{{ title }}</h1>
+        <p v-if="subtitle" class="page-subtitle">{{ subtitle }}</p>
       </div>
-      <div class="page-actions">
+      <div v-if="$slots.actions" class="page-actions">
         <slot name="actions" />
       </div>
-    </div>
+    </header>
     <div class="page-body">
       <slot />
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
-withDefaults(defineProps<{
-  title: string
-  subtitle?: string
-}>(), {
-  subtitle: '',
-})
+import { useId } from 'vue'
+
+withDefaults(
+  defineProps<{
+    title: string
+    subtitle?: string
+  }>(),
+  {
+    subtitle: '',
+  },
+)
+
+const titleId = `page-title-${useId()}`
 </script>
 
 <style scoped lang="less">
-@mobile-break: 768px;
+@mobile-break: 767px;
 
 .page-container {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--fsd-space-5);
+  animation: fsd-fade-in var(--fsd-duration-base) var(--fsd-ease) both;
 }
 
 .page-header {
   display: flex;
-  align-items: center;
+  min-width: 0;
+  align-items: flex-start;
   justify-content: space-between;
-
-  @media (max-width: @mobile-break) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
+  gap: var(--fsd-space-5);
 }
 
 .page-title-area {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--fsd-space-1);
 }
 
 .page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--fsd-text-primary);
-  letter-spacing: -0.02em;
   margin: 0;
-
-  @media (max-width: @mobile-break) {
-    font-size: 18px;
-  }
+  color: var(--fsd-text-heading);
+  font-size: var(--fsd-text-xl);
+  font-weight: var(--fsd-font-semibold);
+  line-height: var(--fsd-leading-tight);
+  letter-spacing: var(--fsd-tracking-tight);
 }
 
 .page-subtitle {
-  font-size: 13px;
+  margin: 0;
   color: var(--fsd-text-tertiary);
+  font-size: var(--fsd-text-xs);
+  line-height: var(--fsd-leading-normal);
 }
 
 .page-actions {
   display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 8px;
-
-  @media (max-width: @mobile-break) {
-    flex-wrap: wrap;
-    width: 100%;
-  }
+  justify-content: flex-end;
+  gap: var(--fsd-space-2);
 }
 
 .page-body {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--fsd-space-4);
+}
+
+@media (max-width: @mobile-break) {
+  .page-header {
+    flex-direction: column;
+    gap: var(--fsd-space-3);
+  }
+
+  .page-actions {
+    width: 100%;
+    max-width: 100%;
+    justify-content: flex-end;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .page-actions :deep(> *) {
+    flex: 0 0 auto;
+  }
 }
 </style>

@@ -4,12 +4,10 @@
       <a-button v-if="authStore.canWrite" type="primary" @click="createModalOpen = true">
         创建短驳订单
       </a-button>
-      <a-button @click="handleRefresh">
-        <ReloadOutlined /> 刷新
-      </a-button>
+      <a-button @click="handleRefresh"> <ReloadOutlined /> 刷新 </a-button>
     </template>
 
-    <QueryFilterCard
+    <QueryToolbar
       title="筛选条件"
       :result-summary="`共 ${store.total} 条结果`"
       :active-chips="activeFilterChips"
@@ -20,7 +18,7 @@
         v-model:value="queryForm.status"
         placeholder="订单状态"
         allow-clear
-        style="width: 160px;"
+        style="width: 160px"
       >
         <a-select-option v-for="(cfg, key) in orderStatusMap" :key="key" :value="key">
           {{ cfg.label }}
@@ -30,7 +28,7 @@
         v-model:value="queryForm.deliveryZone"
         placeholder="配送区域"
         allow-clear
-        style="width: 140px;"
+        style="width: 140px"
       >
         <a-select-option value="GEO_DELIVERY">地理配送</a-select-option>
         <a-select-option value="SCHEMATIC">园区内部</a-select-option>
@@ -39,18 +37,16 @@
         v-model:value="queryForm.orderNo"
         placeholder="订单编号"
         allow-clear
-        style="width: 200px;"
+        style="width: 200px"
       />
-      <a-button type="primary" @click="handleSearch">
-        <SearchOutlined /> 查询
-      </a-button>
+      <a-button type="primary" @click="handleSearch"> <SearchOutlined /> 查询 </a-button>
       <a-button @click="handleReset">重置</a-button>
       <template #extra>
         <a-button :disabled="store.total === 0" @click="handleExport">
           <DownloadOutlined /> 导出
         </a-button>
       </template>
-    </QueryFilterCard>
+    </QueryToolbar>
 
     <!-- V9-UI3: Skeleton screen for initial load -->
     <SkeletonLoader v-if="store.loading && store.list.length === 0" variant="table" :rows="6" />
@@ -78,13 +74,15 @@
           <StatusBadge :status="record.status" type="order" />
         </template>
         <template v-else-if="column.dataIndex === 'priority'">
-          <a-tag :color="priorityColor(record.priority)">
+          <a-tag class="priority-tag" :class="priorityClass(record.priority)">
             {{ record.priority }}
           </a-tag>
         </template>
         <template v-else-if="column.dataIndex === 'deliveryZone'">
-          <a-tag v-if="record.deliveryZone === 'GEO_DELIVERY'" color="processing">地理配送</a-tag>
-          <a-tag v-else-if="record.deliveryZone === 'SCHEMATIC'" color="success">园区内部</a-tag>
+          <a-tag v-if="record.deliveryZone === 'GEO_DELIVERY'" class="metadata-tag">地理配送</a-tag>
+          <a-tag v-else-if="record.deliveryZone === 'SCHEMATIC'" class="metadata-tag"
+            >园区内部</a-tag
+          >
           <span v-else class="text-muted">-</span>
         </template>
         <template v-else-if="column.dataIndex === 'dispatchTaskId'">
@@ -136,8 +134,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
-import QueryFilterCard from '@/components/common/QueryFilterCard.vue'
-import type { FilterChip } from '@/components/common/QueryFilterCard.vue'
+import QueryToolbar from '@/components/common/QueryToolbar.vue'
+import type { FilterChip } from '@/components/common/QueryToolbar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
@@ -218,9 +216,10 @@ function removeFilterChip(key: string) {
   handleSearch()
 }
 
-function priorityColor(p: string) {
-  const map: Record<string, string> = { P0: 'red', P1: 'orange', P2: 'blue', P3: 'default' }
-  return map[p] || 'default'
+function priorityClass(priority: string) {
+  if (priority === 'P0') return 'priority-tag--error'
+  if (priority === 'P1') return 'priority-tag--warning'
+  return 'priority-tag--neutral'
 }
 
 function canCancel(status: OrderStatus) {
@@ -307,26 +306,28 @@ watch(
     fetchData()
   },
 )
-
 </script>
 
 <style scoped lang="less">
 @mobile-break: 768px;
 
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.metadata-tag,
+.priority-tag--neutral {
+  color: var(--fsd-text-secondary);
+  border-color: var(--fsd-border);
+  background: var(--fsd-bg-hover);
+}
 
-  @media (max-width: @mobile-break) {
-    flex-direction: column;
-    align-items: stretch;
+.priority-tag--warning {
+  color: var(--fsd-warning);
+  border-color: var(--fsd-warning);
+  background: var(--fsd-warning-bg);
+}
 
-    > * {
-      width: 100% !important;
-    }
-  }
+.priority-tag--error {
+  color: var(--fsd-error);
+  border-color: var(--fsd-error);
+  background: var(--fsd-error-bg);
 }
 
 .link-cell {

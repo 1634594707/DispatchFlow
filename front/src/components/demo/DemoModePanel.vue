@@ -15,12 +15,14 @@
     </div>
 
     <div class="demo-actions">
-      <a-button size="small" :type="demoMode ? 'default' : 'primary'" @click="demoMode ? stop() : start()">
+      <a-button
+        size="small"
+        :type="demoMode ? 'default' : 'primary'"
+        @click="demoMode ? stop() : start()"
+      >
         {{ demoMode ? '停止演示' : '开始演示' }}
       </a-button>
-      <a-button size="small" :disabled="!demoMode" @click="manualNext">
-        创建演示订单
-      </a-button>
+      <a-button size="small" :disabled="!demoMode" @click="manualNext"> 创建演示订单 </a-button>
     </div>
   </div>
 </template>
@@ -56,14 +58,16 @@ function manualNext() {
   align-items: center;
   gap: 12px;
   padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(11, 16, 24, 0.6);
-  transition: border-color 0.2s, background 0.2s;
+  border-radius: var(--fsd-radius-md);
+  border: 1px solid var(--fsd-border);
+  background: var(--fsd-surface-status);
+  transition:
+    border-color var(--fsd-transition-base),
+    background-color var(--fsd-transition-base);
 
   &.active {
-    border-color: rgba(45, 224, 138, 0.25);
-    background: rgba(45, 224, 138, 0.06);
+    border-color: var(--fsd-success);
+    background: var(--fsd-success-bg);
   }
 }
 
@@ -77,9 +81,9 @@ function manualNext() {
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--fsd-radius-sm);
+  border: 1px solid var(--fsd-border-active);
+  background: var(--fsd-neutral-bg);
   color: var(--fsd-text-secondary);
   font-size: 11px;
   font-weight: 600;
@@ -87,8 +91,8 @@ function manualNext() {
   white-space: nowrap;
 
   &.running {
-    border-color: rgba(45, 224, 138, 0.3);
-    background: rgba(45, 224, 138, 0.08);
+    border-color: var(--fsd-success);
+    background: var(--fsd-success-bg);
     color: var(--fsd-success);
   }
 }
@@ -96,12 +100,8 @@ function manualNext() {
 .demo-pulse {
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--fsd-radius-full);
   background: currentColor;
-}
-
-.demo-badge.running .demo-pulse {
-  animation: demo-pulse 1.6s ease-in-out infinite;
 }
 
 .demo-body {
@@ -133,10 +133,5 @@ function manualNext() {
   align-items: center;
   gap: 6px;
   margin-left: auto;
-}
-
-@keyframes demo-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.85); }
 }
 </style>

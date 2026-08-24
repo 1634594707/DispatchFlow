@@ -14,8 +14,12 @@
       aria-describedby="pwa-install-desc"
       tabindex="-1"
     >
-      <span id="pwa-install-text" class="pwa-install-text">安装 DispatchFlow 到桌面，获得更快的访问体验</span>
-      <span id="pwa-install-desc" class="pwa-install-desc">点击「安装」立即添加到桌面；「暂不」24 小时内不再提示。</span>
+      <span id="pwa-install-text" class="pwa-install-text"
+        >安装 DispatchFlow 到桌面，获得更快的访问体验</span
+      >
+      <span id="pwa-install-desc" class="pwa-install-desc"
+        >点击「安装」立即添加到桌面；「暂不」24 小时内不再提示。</span
+      >
       <div class="pwa-install-actions">
         <a-button size="small" type="primary" @click="handleInstall">安装</a-button>
         <a-button size="small" type="text" @click="pwa.dismissInstall()">暂不</a-button>
@@ -50,7 +54,7 @@ const pwa = usePWAInstall()
 
 watch(
   () => pwa.hasUpdate.value,
-  hasUpdate => {
+  (hasUpdate) => {
     if (!hasUpdate) {
       notification.destroy()
       return
@@ -86,16 +90,15 @@ async function handleInstall() {
   align-items: center;
   gap: 12px;
   padding: 10px 20px;
-  background: var(--fsd-bg-base);
+  background: var(--fsd-surface-overlay);
   border: 1px solid var(--fsd-border);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(12px);
+  border-radius: var(--fsd-radius-lg);
+  box-shadow: var(--fsd-shadow-popover);
   white-space: nowrap;
 }
 
 .pwa-install-bar:focus-visible {
-  outline: 2px solid var(--fsd-accent, #2DE08A);
+  outline: 2px solid var(--fsd-accent-strong);
   outline-offset: 2px;
 }
 

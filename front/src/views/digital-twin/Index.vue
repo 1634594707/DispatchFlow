@@ -13,11 +13,7 @@
     <template v-if="mode === 'SINGLE'">
       <div class="scenario-controls">
         <a-space>
-          <a-select
-            v-model:value="scenario"
-            style="width: 200px"
-            :options="scenarioOptions"
-          />
+          <a-select v-model:value="scenario" style="width: 200px" :options="scenarioOptions" />
           <a-input-number v-model:value="pendingTaskCount" :min="1" :max="200" />
           <a-button type="primary" :loading="simulating" @click="runSimulate">仿真推演</a-button>
           <a-button :loading="loading" @click="load">刷新</a-button>
@@ -155,10 +151,18 @@
     </template>
 
     <div v-if="snapshot" class="metrics-row">
-      <div class="metric-card"><span>待派任务</span><strong>{{ snapshot.pendingTaskCount }}</strong></div>
-      <div class="metric-card"><span>OPEN 异常</span><strong>{{ snapshot.openExceptionCount }}</strong></div>
-      <div class="metric-card"><span>空闲车辆</span><strong>{{ snapshot.idleVehicleCount }}</strong></div>
-      <div class="metric-card warn"><span>低电量</span><strong>{{ snapshot.lowBatteryVehicleCount }}</strong></div>
+      <div class="metric-card">
+        <span>待派任务</span><strong>{{ snapshot.pendingTaskCount }}</strong>
+      </div>
+      <div class="metric-card">
+        <span>OPEN 异常</span><strong>{{ snapshot.openExceptionCount }}</strong>
+      </div>
+      <div class="metric-card">
+        <span>空闲车辆</span><strong>{{ snapshot.idleVehicleCount }}</strong>
+      </div>
+      <div class="metric-card warn">
+        <span>低电量</span><strong>{{ snapshot.lowBatteryVehicleCount }}</strong>
+      </div>
     </div>
 
     <!-- P2-3 / P2-6: 数据时间戳与地图版本号显示 -->
@@ -166,11 +170,11 @@
       <div class="meta-item" :class="{ stale: isDataStale }">
         <span class="meta-label">数据最后更新:</span>
         <span class="meta-value">{{ formattedLastUpdated }}</span>
-        <a-tag v-if="isDataStale" color="error" class="meta-tag">数据延迟</a-tag>
+        <a-tag v-if="isDataStale" class="meta-tag meta-tag--error">数据延迟</a-tag>
       </div>
       <div class="meta-item">
         <span class="meta-label">地图版本:</span>
-        <a-tag color="blue" class="meta-tag">{{ mapVersionLabel }}</a-tag>
+        <a-tag class="meta-tag">{{ mapVersionLabel }}</a-tag>
       </div>
       <!-- P2-1: 轨迹图例 -->
       <div class="meta-item legend">
@@ -201,23 +205,21 @@
           @mouseleave="onMouseLeaveCanvas"
         />
         <div v-if="!loading && loadError" class="twin-empty">{{ loadError }}</div>
-        <div v-else-if="!loading && !hasLayout" class="twin-empty">暂无园区地图数据，请检查默认园区配置</div>
+        <div v-else-if="!loading && !hasLayout" class="twin-empty">
+          暂无园区地图数据，请检查默认园区配置
+        </div>
 
         <!-- V9-UX4: Vehicle hover tooltip -->
         <div
           v-if="hoverTooltip.visible"
           class="vehicle-hover-tooltip"
-          :style="{ left: hoverTooltip.x + 'px', top: (hoverTooltip.y - 28) + 'px' }"
+          :style="{ left: hoverTooltip.x + 'px', top: hoverTooltip.y - 28 + 'px' }"
         >
           {{ hoverTooltip.code }}
         </div>
 
         <!-- Area stats popover -->
-        <div
-          v-if="areaStats && areaStatsVisible"
-          class="area-stats-popover"
-          :style="areaStatsPos"
-        >
+        <div v-if="areaStats && areaStatsVisible" class="area-stats-popover" :style="areaStatsPos">
           <div class="area-stats-content">
             区域内: <strong>{{ areaStats.vehicleCount }}</strong> 辆车,
             <strong>{{ areaStats.stationCount }}</strong> 个站点
@@ -236,15 +238,15 @@
     >
       <template #description>
         <p>
-          <a-tag :color="simulateResult.simulationMode === 'ENGINE' ? 'green' : 'orange'">
+          <a-tag class="meta-tag">
             {{ simulateResult.simulationMode === 'ENGINE' ? '引擎仿真' : '估算仿真' }}
           </a-tag>
-          预计耗时 {{ simulateResult.estimatedMinutes }} 分钟 · 建议投入 {{ simulateResult.recommendedVehicleCount }} 台车
+          预计耗时 {{ simulateResult.estimatedMinutes }} 分钟 · 建议投入
+          {{ simulateResult.recommendedVehicleCount }} 台车
         </p>
         <p v-if="simulateResult.dispatchEfficiency != null">
-          派车效率 {{ simulateResult.dispatchEfficiency }}% ·
-          平均等待 {{ simulateResult.avgWaitTime }} min ·
-          SOC 消耗 {{ simulateResult.socConsumption }}% ·
+          派车效率 {{ simulateResult.dispatchEfficiency }}% · 平均等待
+          {{ simulateResult.avgWaitTime }} min · SOC 消耗 {{ simulateResult.socConsumption }}% ·
           完成订单 {{ simulateResult.completedOrders }}
         </p>
         <ul>
@@ -270,13 +272,13 @@
           <template v-else-if="column.key === 'valueA'">
             <span :class="record.winner === 'A' ? 'winner-cell' : 'loser-cell'">
               {{ text }}
-              <a-tag v-if="record.winner === 'A'" color="green" style="margin-left: 4px">优</a-tag>
+              <a-tag v-if="record.winner === 'A'" class="winner-tag">优</a-tag>
             </span>
           </template>
           <template v-else-if="column.key === 'valueB'">
             <span :class="record.winner === 'B' ? 'winner-cell' : 'loser-cell'">
               {{ text }}
-              <a-tag v-if="record.winner === 'B'" color="green" style="margin-left: 4px">优</a-tag>
+              <a-tag v-if="record.winner === 'B'" class="winner-tag">优</a-tag>
             </span>
           </template>
         </template>
@@ -290,12 +292,7 @@
     </div>
 
     <!-- Vehicle detail drawer -->
-    <a-drawer
-      v-model:open="vehicleDrawerVisible"
-      title="车辆详情"
-      placement="right"
-      width="400"
-    >
+    <a-drawer v-model:open="vehicleDrawerVisible" title="车辆详情" placement="right" width="400">
       <template v-if="selectedVehicle">
         <div class="vehicle-detail">
           <div class="detail-row">
@@ -308,7 +305,13 @@
           </div>
           <div class="detail-row">
             <span class="label">在线状态</span>
-            <a-tag :color="selectedVehicle.onlineStatus === 'ONLINE' ? 'green' : 'default'">
+            <a-tag
+              :class="
+                selectedVehicle.onlineStatus === 'ONLINE'
+                  ? 'status-tag status-tag--success'
+                  : 'status-tag'
+              "
+            >
               {{ selectedVehicle.onlineStatus === 'ONLINE' ? '在线' : '离线' }}
             </a-tag>
           </div>
@@ -332,18 +335,29 @@
           </div>
           <div class="detail-row">
             <span class="label">当前任务</span>
-            <span class="value">{{ selectedVehicle.currentTaskId ? `#${selectedVehicle.currentTaskId}` : '无' }}</span>
+            <span class="value">{{
+              selectedVehicle.currentTaskId ? `#${selectedVehicle.currentTaskId}` : '无'
+            }}</span>
           </div>
           <div class="detail-row">
             <span class="label">当前订单</span>
-            <span class="value">{{ selectedVehicle.currentOrderId ? `#${selectedVehicle.currentOrderId}` : '无' }}</span>
+            <span class="value">{{
+              selectedVehicle.currentOrderId ? `#${selectedVehicle.currentOrderId}` : '无'
+            }}</span>
           </div>
 
           <!-- P2-5: 车辆尺寸与通行约束（仅有值时显示） -->
           <div
-            v-if="selectedVehicle.widthCm != null || selectedVehicle.lengthCm != null || selectedVehicle.turningRadiusM != null || selectedVehicle.allowedRoadClasses"
+            v-if="
+              selectedVehicle.widthCm != null ||
+              selectedVehicle.lengthCm != null ||
+              selectedVehicle.turningRadiusM != null ||
+              selectedVehicle.allowedRoadClasses
+            "
             class="detail-section"
-          >车辆尺寸与通行约束</div>
+          >
+            车辆尺寸与通行约束
+          </div>
           <div v-if="selectedVehicle.widthCm != null" class="detail-row">
             <span class="label">车辆宽度</span>
             <span class="value">{{ selectedVehicle.widthCm }} cm</span>
@@ -359,7 +373,11 @@
           <div v-if="selectedVehicle.allowedRoadClasses" class="detail-row">
             <span class="label">允许道路等级</span>
             <a-space wrap>
-              <a-tag v-for="(cls, idx) in selectedVehicle.allowedRoadClasses.split(',')" :key="idx" color="blue">
+              <a-tag
+                v-for="(cls, idx) in selectedVehicle.allowedRoadClasses.split(',')"
+                :key="idx"
+                class="meta-tag"
+              >
                 {{ cls.trim() }}
               </a-tag>
             </a-space>
@@ -399,7 +417,8 @@
                 <span
                   class="trajectory-type-badge"
                   :style="{ backgroundColor: TRAJECTORY_STYLE[group.type].color }"
-                >{{ TRAJECTORY_TYPE_LABEL[group.type] }}</span>
+                  >{{ TRAJECTORY_TYPE_LABEL[group.type] }}</span
+                >
                 <span class="trajectory-count">{{ group.points.length }} 个点</span>
               </div>
               <div
@@ -421,7 +440,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import PageContainer from '@/components/common/PageContainer.vue'
-import { compareSimulateDigitalTwin, getDigitalTwinSnapshot, simulateDigitalTwin } from '@/api/digitalTwin'
+import {
+  compareSimulateDigitalTwin,
+  getDigitalTwinSnapshot,
+  simulateDigitalTwin,
+} from '@/api/digitalTwin'
 import { useParkScopeStore } from '@/stores/parkScope'
 import type {
   DigitalTwinComparisonResult,
@@ -472,7 +495,9 @@ const compareB = reactive({
 })
 
 // V5-DT1: Vehicle click detection
-const vehiclePositions = ref<Map<number, { x: number; y: number; vehicle: ParkVehicleSnapshot }>>(new Map())
+const vehiclePositions = ref<Map<number, { x: number; y: number; vehicle: ParkVehicleSnapshot }>>(
+  new Map(),
+)
 const selectedVehicle = ref<ParkVehicleSnapshot | null>(null)
 const vehicleDrawerVisible = ref(false)
 
@@ -493,7 +518,9 @@ const areaStats = ref<DigitalTwinAreaStats | null>(null)
 const areaStatsVisible = ref(false)
 const areaStatsPos = ref<{ top: string; left: string }>({ top: '0px', left: '0px' })
 
-const hasLayout = computed(() => Boolean(snapshot.value?.layout?.width && snapshot.value?.layout?.roadNodes?.length))
+const hasLayout = computed(() =>
+  Boolean(snapshot.value?.layout?.width && snapshot.value?.layout?.roadNodes?.length),
+)
 
 const scenarioOptions = [
   { label: '派车高峰', value: 'DISPATCH_PEAK' },
@@ -503,11 +530,11 @@ const scenarioOptions = [
 ]
 
 const batteryColor = computed(() => {
-  if (!selectedVehicle.value) return '#2DE08A'
+  if (!selectedVehicle.value) return '#67C587'
   const lvl = selectedVehicle.value.batteryLevel
-  if (lvl < 20) return '#FF5C7C'
-  if (lvl < 50) return '#FFC04D'
-  return '#2DE08A'
+  if (lvl < 20) return '#EB7474'
+  if (lvl < 50) return '#E3B65B'
+  return '#67C587'
 })
 
 function formatSelectedVehicleBattery() {
@@ -545,10 +572,10 @@ const mapVersionLabel = computed(() => {
 
 // P2-1: 轨迹类型样式映射（颜色 + 是否虚线）
 const TRAJECTORY_STYLE: Record<TrajectoryPointType, { color: string; dash: number[] }> = {
-  PLAN: { color: '#1890ff', dash: [6, 4] },
-  ACTUAL: { color: '#52c41a', dash: [] },
-  PREDICTED: { color: '#fa8c16', dash: [6, 4] },
-  HISTORY: { color: '#8c8c8c', dash: [] },
+  PLAN: { color: '#56B9C8', dash: [6, 4] },
+  ACTUAL: { color: '#67C587', dash: [] },
+  PREDICTED: { color: '#E3B65B', dash: [6, 4] },
+  HISTORY: { color: '#7F8A98', dash: [] },
 }
 
 const TRAJECTORY_TYPE_LABEL: Record<TrajectoryPointType, string> = {
@@ -559,7 +586,10 @@ const TRAJECTORY_TYPE_LABEL: Record<TrajectoryPointType, string> = {
 }
 
 // P2-1: 将车辆的不同轨迹字段统一打上类型标签，便于按颜色渲染
-function labeledTrajectory(points: ParkPoint[] | undefined, fallbackType: TrajectoryPointType): ParkPoint[] {
+function labeledTrajectory(
+  points: ParkPoint[] | undefined,
+  fallbackType: TrajectoryPointType,
+): ParkPoint[] {
   if (!points || points.length === 0) return []
   return points.map((p) => ({ ...p, type: p.type ?? fallbackType }))
 }
@@ -686,7 +716,11 @@ const comparisonRows = computed<ComparisonRow[]>(() => {
   return rows
 })
 
-function pickWinner(a: number | undefined | null, b: number | undefined | null, higherBetter: boolean): 'A' | 'B' | 'TIE' {
+function pickWinner(
+  a: number | undefined | null,
+  b: number | undefined | null,
+  higherBetter: boolean,
+): 'A' | 'B' | 'TIE' {
   if (a == null && b == null) return 'TIE'
   if (a == null) return 'B'
   if (b == null) return 'A'
@@ -783,10 +817,7 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, width, height)
 
-  const gradient = ctx.createLinearGradient(0, 0, 0, height)
-  gradient.addColorStop(0, '#0B1018')
-  gradient.addColorStop(1, '#1A2230')
-  ctx.fillStyle = gradient
+  ctx.fillStyle = '#0E1116'
   ctx.fillRect(0, 0, width, height)
 
   const pad = 48
@@ -797,7 +828,7 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
   const isoY = (x: number, y: number) => offsetY + (x + y) * scale * 0.22
 
   const nodeMap = new Map((layout.roadNodes || []).map((n) => [n.code, n]))
-  ctx.strokeStyle = 'rgba(100, 180, 255, 0.35)'
+  ctx.strokeStyle = 'rgba(86, 185, 200, 0.35)'
   ctx.lineWidth = 2
   for (const seg of layout.roadSegments || []) {
     const from = nodeMap.get(seg.from)
@@ -812,9 +843,9 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
   for (const station of layout.stations || []) {
     const x = isoX(station.x, station.y)
     const y = isoY(station.x, station.y)
-    ctx.fillStyle = 'rgba(34, 199, 230, 0.35)'
+    ctx.fillStyle = 'rgba(86, 185, 200, 0.35)'
     ctx.fillRect(x - 10, y - 6, 20, 12)
-    ctx.fillStyle = '#22C7E6'
+    ctx.fillStyle = '#56B9C8'
     ctx.fillRect(x - 8, y - 14, 16, 8)
   }
 
@@ -857,7 +888,7 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
     if (vehicle.x == null || vehicle.y == null) continue
     const x = isoX(Number(vehicle.x), Number(vehicle.y))
     const y = isoY(Number(vehicle.x), Number(vehicle.y))
-    const color = vehicle.lowBattery ? '#FF5C7C' : vehicle.charging ? '#FFC04D' : '#2DE08A'
+    const color = vehicle.lowBattery ? '#EB7474' : vehicle.charging ? '#E3B65B' : '#67C587'
 
     // V9-UX4: Hover highlight — translucent ring around hovered vehicle
     if (hoveredVehicleId.value === vehicle.vehicleId) {
@@ -881,7 +912,7 @@ function drawTwin(layout: ParkLayout | null, vehicles: ParkVehicleSnapshot[]) {
     ctx.beginPath()
     ctx.arc(x, y - 10, 7, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'
+    ctx.fillStyle = '#EEF2F6'
     ctx.font = '11px sans-serif'
     ctx.fillText(vehicle.vehicleCode, x - 24, y - 22)
 
@@ -1028,7 +1059,7 @@ function onMouseUp(_e: MouseEvent) {
   if (maxX - minX > 20 && maxY - minY > 20) {
     let vCount = 0
     for (const [, pos] of vehiclePositions.value.entries()) {
-      if (pos.x >= minX && pos.x <= maxX && (pos.y - 10) >= minY && (pos.y - 10) <= maxY) {
+      if (pos.x >= minX && pos.x <= maxX && pos.y - 10 >= minY && pos.y - 10 <= maxY) {
         vCount++
       }
     }
@@ -1038,7 +1069,11 @@ function onMouseUp(_e: MouseEvent) {
     let sCount = 0
     if (layout) {
       const pad = 48
-      const scale = Math.min((canvas.clientWidth - pad * 2) / layout.width, (canvas.clientHeight - pad * 2) / layout.height) * 0.9
+      const scale =
+        Math.min(
+          (canvas.clientWidth - pad * 2) / layout.width,
+          (canvas.clientHeight - pad * 2) / layout.height,
+        ) * 0.9
       const offsetX = canvas.clientWidth / 2
       const offsetY = canvas.clientHeight * 0.62
       const isoXfn = (x: number, y: number) => offsetX + (x - y) * scale * 0.5
@@ -1077,7 +1112,7 @@ function onMouseUp(_e: MouseEvent) {
 
 watch(
   () => parkScope.selectedParkId,
-  () => load()
+  () => load(),
 )
 
 onMounted(async () => {
@@ -1163,15 +1198,15 @@ onUnmounted(() => {
   z-index: 10;
   pointer-events: none;
   transform: translateX(-50%);
-  background: var(--fsd-bg-elevated, #1A2230);
+  background: var(--fsd-bg-elevated, #1a2230);
   border: 1px solid var(--fsd-border, rgba(255, 255, 255, 0.07));
-  border-radius: var(--fsd-radius, 6px);
+  border-radius: var(--fsd-radius-md);
   padding: 4px 10px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--fsd-text-primary, #EEF3F9);
+  color: var(--fsd-text-primary, #eef3f9);
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--fsd-shadow-popover);
 }
 
 .twin-empty {
@@ -1295,11 +1330,11 @@ onUnmounted(() => {
 .area-stats-content {
   background: var(--fsd-bg-elevated);
   border: 1px solid var(--fsd-accent);
-  border-radius: var(--fsd-radius);
+  border-radius: var(--fsd-radius-md);
   padding: 8px 14px;
   font-size: 13px;
   color: var(--fsd-text-primary);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--fsd-shadow-popover);
   white-space: nowrap;
 }
 
@@ -1386,7 +1421,7 @@ onUnmounted(() => {
   margin-bottom: 4px;
   background: var(--fsd-bg-elevated);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
   font-size: 13px;
 }
 
@@ -1420,8 +1455,27 @@ onUnmounted(() => {
   color: var(--fsd-text-primary);
 }
 
-.meta-tag {
-  margin-left: 4px;
+.meta-tag,
+.status-tag,
+.winner-tag {
+  margin-left: var(--fsd-space-1);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-neutral-bg);
+  color: var(--fsd-text-secondary);
+}
+
+.meta-tag--error {
+  border-color: var(--fsd-error);
+  background: var(--fsd-error-bg);
+  color: var(--fsd-error);
+}
+
+.status-tag--success,
+.winner-tag {
+  border-color: var(--fsd-success);
+  background: var(--fsd-success-bg);
+  color: var(--fsd-success);
 }
 
 /* P2-1: 轨迹图例 */
@@ -1441,21 +1495,21 @@ onUnmounted(() => {
   border-top-style: solid;
 
   &.plan {
-    border-top-color: #1890ff;
+    border-top-color: var(--fsd-accent);
     border-top-style: dashed;
   }
 
   &.actual {
-    border-top-color: #52c41a;
+    border-top-color: var(--fsd-success);
   }
 
   &.predicted {
-    border-top-color: #fa8c16;
+    border-top-color: var(--fsd-warning);
     border-top-style: dashed;
   }
 
   &.history {
-    border-top-color: #8c8c8c;
+    border-top-color: var(--fsd-text-tertiary);
   }
 }
 
@@ -1514,8 +1568,9 @@ onUnmounted(() => {
   }
 
   &.active .stage-dot {
+    outline: 2px solid var(--fsd-accent-selected);
+    outline-offset: 2px;
     background: var(--fsd-accent);
-    box-shadow: 0 0 0 3px rgba(34, 199, 230, 0.25);
   }
 
   &.active .stage-label {

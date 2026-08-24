@@ -25,20 +25,32 @@
         <span v-if="remainingLabel">{{ remainingLabel }}</span>
       </div>
       <div class="current-order-actions">
-        <button type="button" class="action-btn primary" @click="emit('track', currentOrder.orderId)">
+        <button
+          type="button"
+          class="action-btn primary"
+          @click="emit('track', currentOrder.orderId)"
+        >
           查看轨迹
         </button>
         <button type="button" class="action-btn" @click="emit('order-again', currentOrder.orderId)">
           再来一单
         </button>
-        <a v-if="shareLink" :href="shareLink" target="_blank" rel="noopener" class="action-btn link">
+        <a
+          v-if="shareLink"
+          :href="shareLink"
+          target="_blank"
+          rel="noopener"
+          class="action-btn link"
+        >
           分享轨迹
         </a>
       </div>
     </div>
     <div v-else class="empty-current">
       <p>暂无进行中的订单</p>
-      <button type="button" class="action-btn primary" @click="emit('quick-order')">立即下单</button>
+      <button type="button" class="action-btn primary" @click="emit('quick-order')">
+        立即下单
+      </button>
     </div>
 
     <div v-if="favoriteRoutes.length > 0" class="favorite-routes">
@@ -123,29 +135,11 @@ function stageClass(stage: string) {
 .merchant-home {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px;
-  border-radius: var(--fsd-radius-xl);
+  gap: 16px;
+  padding: 16px;
   border: 1px solid var(--fsd-border);
-  background:
-    radial-gradient(circle at 0% 0%, var(--fsd-accent-subtle), transparent 50%),
-    var(--fsd-bg-base);
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: -40px;
-    right: -40px;
-    width: 160px;
-    height: 160px;
-    border-radius: 50%;
-    background: radial-gradient(circle, var(--fsd-accent-glow), transparent 60%);
-    filter: blur(40px);
-    pointer-events: none;
-    opacity: 0.5;
-  }
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-raised);
 }
 
 .merchant-home-head {
@@ -170,9 +164,8 @@ function stageClass(stage: string) {
     content: '';
     width: 6px;
     height: 6px;
-    border-radius: var(--fsd-radius-full);
+    border-radius: var(--fsd-radius-sm);
     background: var(--fsd-accent);
-    box-shadow: 0 0 8px var(--fsd-accent-muted);
   }
 }
 
@@ -181,14 +174,17 @@ function stageClass(stage: string) {
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
-  border-radius: var(--fsd-radius-full);
   border: 1px solid var(--fsd-border);
-  background: var(--fsd-bg-elevated);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-page);
   color: var(--fsd-text-secondary);
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--fsd-transition-fast);
+  transition:
+    border-color var(--fsd-transition-fast),
+    color var(--fsd-transition-fast),
+    background-color var(--fsd-transition-fast);
 
   &:hover {
     border-color: var(--fsd-border-active);
@@ -198,21 +194,21 @@ function stageClass(stage: string) {
 
 .history-count {
   padding: 1px 6px;
-  border-radius: var(--fsd-radius-full);
-  background: var(--fsd-accent-bg);
-  color: var(--fsd-accent);
-  font-size: 10px;
-  font-weight: 600;
+  border: 1px solid var(--fsd-accent);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-accent-selected);
+  color: var(--fsd-accent-strong);
   font-family: var(--fsd-font-mono);
-  border: 1px solid var(--fsd-accent-border);
+  font-size: 10px;
+  font-weight: var(--fsd-font-semibold);
 }
 
 .current-order-card,
 .empty-current {
   padding: 16px;
-  border-radius: var(--fsd-radius-lg);
   border: 1px solid var(--fsd-border);
-  background: var(--fsd-bg-elevated);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-page);
   position: relative;
 }
 
@@ -235,7 +231,7 @@ function stageClass(stage: string) {
   font-size: 10px;
   font-weight: 600;
   padding: 3px 8px;
-  border-radius: var(--fsd-radius-full);
+  border-radius: var(--fsd-radius-sm);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -247,21 +243,21 @@ function stageClass(stage: string) {
 }
 
 .stage-success {
+  border: 1px solid var(--fsd-success);
+  background: var(--fsd-success-bg);
   color: var(--fsd-success);
-  background: rgba(52, 211, 153, 0.10);
-  border: 1px solid rgba(52, 211, 153, 0.22);
 }
 
 .stage-danger {
+  border: 1px solid var(--fsd-error);
+  background: var(--fsd-error-bg);
   color: var(--fsd-error);
-  background: rgba(248, 113, 113, 0.10);
-  border: 1px solid rgba(248, 113, 113, 0.22);
 }
 
 .stage-default {
+  border: 1px solid var(--fsd-border);
+  background: var(--fsd-surface-page);
   color: var(--fsd-text-secondary);
-  background: rgba(148, 163, 184, 0.10);
-  border: 1px solid var(--fsd-border-active);
 }
 
 .current-order-route {
@@ -293,15 +289,18 @@ function stageClass(stage: string) {
 
 .action-btn {
   padding: 7px 14px;
-  border-radius: var(--fsd-radius-sm);
   border: 1px solid var(--fsd-border);
-  background: var(--fsd-bg-base);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-page);
   color: var(--fsd-text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
-  transition: all var(--fsd-transition-fast);
+  transition:
+    border-color var(--fsd-transition-fast),
+    color var(--fsd-transition-fast),
+    background-color var(--fsd-transition-fast);
 
   &:hover {
     border-color: var(--fsd-border-active);
@@ -310,13 +309,13 @@ function stageClass(stage: string) {
   }
 
   &.primary {
-    border-color: var(--fsd-accent-border);
-    background: var(--fsd-accent-bg);
-    color: var(--fsd-accent);
+    border-color: var(--fsd-action-primary);
+    background: var(--fsd-action-primary);
+    color: var(--fsd-text-on-action);
 
     &:hover {
-      background: rgba(34, 211, 238, 0.14);
-      border-color: var(--fsd-accent);
+      border-color: var(--fsd-action-primary-hover);
+      background: var(--fsd-action-primary-hover);
     }
   }
 
@@ -369,21 +368,18 @@ function stageClass(stage: string) {
   align-items: flex-start;
   gap: 3px;
   padding: 10px 12px;
-  border-radius: var(--fsd-radius-md);
   border: 1px solid var(--fsd-border);
-  background: var(--fsd-bg-base);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-page);
   cursor: pointer;
   text-align: left;
-  transition: all var(--fsd-transition-fast);
+  transition:
+    border-color var(--fsd-transition-fast),
+    background-color var(--fsd-transition-fast);
 
   &:hover {
-    border-color: var(--fsd-accent-border);
-    background: var(--fsd-bg-elevated);
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: translateY(0);
+    border-color: var(--fsd-accent);
+    background: var(--fsd-accent-selected);
   }
 }
 
@@ -413,15 +409,18 @@ function stageClass(stage: string) {
   justify-content: center;
   gap: 6px;
   padding: 12px;
-  border-radius: var(--fsd-radius-md);
-  border: 1px dashed var(--fsd-border-active);
-  background: transparent;
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-page);
   color: var(--fsd-text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
-  transition: all var(--fsd-transition-fast);
+  transition:
+    border-color var(--fsd-transition-fast),
+    color var(--fsd-transition-fast),
+    background-color var(--fsd-transition-fast);
 
   &:hover {
     background: var(--fsd-bg-elevated);
@@ -431,12 +430,13 @@ function stageClass(stage: string) {
   }
 
   &.contact {
-    border-color: rgba(251, 191, 36, 0.28);
+    border-color: var(--fsd-warning);
+    background: var(--fsd-warning-bg);
     color: var(--fsd-warning);
 
     &:hover {
-      background: rgba(251, 191, 36, 0.06);
-      border-color: rgba(251, 191, 36, 0.40);
+      border-color: var(--fsd-warning);
+      background: var(--fsd-warning-bg);
     }
   }
 }

@@ -1,83 +1,67 @@
-// FSD-Core Dark Industrial Command Center Theme
-// Color System
-@primary-color: #22C7E6;
-@primary-hover: #38D9F2;
-@primary-active: #0FA8C6;
-@primary-light-bg: rgba(34, 199, 230, 0.1);
+// Deprecated Less compatibility aliases.
+// New visual work must consume CSS variables from tokens.css or TS constants from config/tokens.ts.
 
-@success-color: #2DE08A;
-@warning-color: #FFC04D;
-@error-color: #FF5C7C;
-@info-color: #22C7E6;
+@primary-color: #56b9c8;
+@primary-hover: #7fd1dd;
+@primary-active: #326f78;
+@primary-light-bg: rgba(86, 185, 200, 0.12);
 
-// Dark Base
-@body-background: #0B1018;
-@component-background: #121821;
-@bg-elevated: #1A2230;
-@bg-container: #121821;
+@success-color: #67c587;
+@warning-color: #e3b65b;
+@error-color: #eb7474;
+@info-color: #a3adba;
 
-// Text
-@text-color: #EEF3F9;
-@text-color-secondary: #9BA8B8;
-@text-color-tertiary: #6B7787;
-@heading-color: #F4F8FC;
+@body-background: #08090c;
+@component-background: #0e1116;
+@bg-elevated: #151a21;
+@bg-container: #0e1116;
 
-// Border
-@border-color-base: rgba(255, 255, 255, 0.07);
-@border-color-split: rgba(255, 255, 255, 0.05);
+@text-color: #eef2f6;
+@text-color-secondary: #a3adba;
+@text-color-tertiary: #7f8a98;
+@heading-color: #f5f7fa;
 
-// Layout
-@layout-body-background: #0B1018;
-@layout-header-background: #121821;
-@layout-sider-background: #121821;
-@layout-trigger-background: #1A2230;
+@border-color-base: rgba(238, 242, 246, 0.1);
+@border-color-split: rgba(238, 242, 246, 0.07);
 
-// Menu
-@menu-dark-bg: #121821;
-@menu-dark-item-active-bg: rgba(34, 199, 230, 0.14);
-@menu-dark-highlight-color: #22C7E6;
-@menu-item-color: #9BA8B8;
-@menu-item-active-bg: rgba(34, 199, 230, 0.1);
+@layout-body-background: @body-background;
+@layout-header-background: @component-background;
+@layout-sider-background: @component-background;
+@layout-trigger-background: @bg-elevated;
 
-// Table
-@table-header-bg: #1A2230;
-@table-row-hover-bg: rgba(34, 199, 230, 0.05);
-@table-border-color: rgba(255, 255, 255, 0.07);
+@menu-dark-bg: @component-background;
+@menu-dark-item-active-bg: @primary-light-bg;
+@menu-dark-highlight-color: @primary-color;
+@menu-item-color: @text-color-secondary;
+@menu-item-active-bg: @primary-light-bg;
 
-// Card
-@card-background: #121821;
-@card-border-color: rgba(255, 255, 255, 0.07);
+@table-header-bg: @bg-elevated;
+@table-row-hover-bg: #1a2028;
+@table-border-color: @border-color-base;
 
-// Input
-@input-bg: #1A2230;
-@input-border-color: rgba(255, 255, 255, 0.07);
-@input-hover-border-color: #22C7E6;
-@input-placeholder-color: #6B7787;
+@card-background: @component-background;
+@card-border-color: @border-color-base;
 
-// Select
-@select-background: #1A2230;
-@select-border-color: rgba(255, 255, 255, 0.07);
-@select-dropdown-bg: #1A2230;
+@input-bg: @bg-elevated;
+@input-border-color: @border-color-base;
+@input-hover-border-color: @primary-color;
+@input-placeholder-color: @text-color-tertiary;
 
-// Modal
-@modal-content-bg: #121821;
-@modal-header-bg: #1A2230;
+@select-background: @bg-elevated;
+@select-border-color: @border-color-base;
+@select-dropdown-bg: @bg-elevated;
 
-// Drawer
-@drawer-bg: #121821;
+@modal-content-bg: @bg-elevated;
+@modal-header-bg: @bg-elevated;
+@drawer-bg: @bg-elevated;
+@processing-color: @primary-color;
 
-// Badge
-@processing-color: #22C7E6;
+@btn-default-bg: @bg-elevated;
+@btn-default-border: @border-color-base;
+@btn-default-color: @text-color;
 
-// Button
-@btn-default-bg: #1A2230;
-@btn-default-border: rgba(255, 255, 255, 0.07);
-@btn-default-color: #EEF3F9;
+@pagination-item-bg: @bg-elevated;
+@pagination-item-bg-active: @primary-light-bg;
 
-// Pagination
-@pagination-item-bg: #1A2230;
-@pagination-item-bg-active: rgba(34, 199, 230, 0.16);
-
-// Font
-@font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-@font-family-code: 'JetBrains Mono', 'Fira Code', monospace;
+@font-family: 'Geist', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+@font-family-code: 'Geist Mono', 'JetBrains Mono', monospace;

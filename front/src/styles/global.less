@@ -6,7 +6,9 @@
   box-sizing: border-box;
 }
 
-html, body, #app {
+html,
+body,
+#app {
   height: 100%;
   width: 100%;
   overflow: hidden;
@@ -14,23 +16,12 @@ html, body, #app {
 
 body {
   font-family: var(--fsd-font-sans);
-  background: var(--fsd-bg-deep);
-  background-image:
-    radial-gradient(900px circle at 12% -5%, rgba(34, 211, 238, 0.06), transparent 45%),
-    radial-gradient(800px circle at 100% 0%, rgba(56, 189, 248, 0.05), transparent 42%);
-  background-attachment: fixed;
+  background: var(--fsd-surface-page);
   color: var(--fsd-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'cv11', 'ss01', 'ss02';
   letter-spacing: -0.005em;
-}
-
-// P3-4: 移动端（触屏设备）禁用 background-attachment: fixed，避免滚动时背景重绘导致卡顿
-@media (pointer: coarse) {
-  body {
-    background-attachment: scroll;
-  }
 }
 
 // Scrollbar
@@ -47,10 +38,10 @@ body {
   background: var(--fsd-border-active);
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: 8px;
+  border-radius: var(--fsd-radius-md);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.24);
+    background: var(--fsd-border-strong);
     background-clip: padding-box;
   }
 }
@@ -76,13 +67,13 @@ body {
 }
 
 .ant-menu-dark .ant-menu-item-selected {
-  background: var(--fsd-accent-glow) !important;
-  color: var(--fsd-accent) !important;
+  background: var(--fsd-accent-selected) !important;
+  color: var(--fsd-accent-strong) !important;
 }
 
 .ant-menu-dark .ant-menu-item {
   color: var(--fsd-text-secondary) !important;
-  border-radius: var(--fsd-radius) !important;
+  border-radius: var(--fsd-radius-sm) !important;
   margin: 2px 8px !important;
 
   &:hover {
@@ -92,17 +83,19 @@ body {
 }
 
 .ant-card {
-  background: var(--fsd-bg-base) !important;
+  background: var(--fsd-surface-workspace) !important;
   border: 1px solid var(--fsd-border) !important;
-  border-radius: var(--fsd-radius-lg) !important;
-  box-shadow: var(--fsd-shadow-card) !important;
-  transition: border-color 0.25s var(--fsd-ease), box-shadow 0.25s var(--fsd-ease),
-    transform 0.25s var(--fsd-ease) !important;
+  border-radius: var(--fsd-radius-md) !important;
+  box-shadow: none !important;
+  transition:
+    border-color var(--fsd-transition-base),
+    background-color var(--fsd-transition-base) !important;
 
   &.ant-card-hoverable:hover {
+    background: var(--fsd-surface-hover) !important;
     border-color: var(--fsd-border-active) !important;
-    box-shadow: var(--fsd-shadow-elevated) !important;
-    transform: translateY(-2px);
+    box-shadow: none !important;
+    transform: none;
   }
 }
 
@@ -115,13 +108,17 @@ body {
   background: var(--fsd-bg-base) !important;
 }
 
+.ant-table-container {
+  border-radius: var(--fsd-radius-md) !important;
+}
+
 .ant-table-thead > tr > th {
   background: var(--fsd-bg-elevated) !important;
   border-bottom: 1px solid var(--fsd-border) !important;
   color: var(--fsd-text-secondary) !important;
   font-weight: 600 !important;
   font-size: 12px !important;
-  }
+}
 
 .ant-table-tbody > tr,
 .ant-table-tbody > tr.ant-table-row {
@@ -157,8 +154,8 @@ body {
   }
 
   &.ant-pagination-item-active {
-    background: var(--fsd-accent-glow) !important;
-    border-color: var(--fsd-accent) !important;
+    background: var(--fsd-accent-selected) !important;
+    border-color: var(--fsd-accent-border) !important;
 
     a {
       color: var(--fsd-accent) !important;
@@ -167,7 +164,10 @@ body {
 }
 
 .ant-btn {
-  transition: all 0.2s var(--fsd-ease) !important;
+  transition:
+    color var(--fsd-transition-fast),
+    background-color var(--fsd-transition-fast),
+    border-color var(--fsd-transition-fast) !important;
 }
 
 .ant-btn-default {
@@ -176,27 +176,45 @@ body {
   color: var(--fsd-text-primary) !important;
 
   &:hover {
-    border-color: var(--fsd-accent) !important;
-    color: var(--fsd-accent) !important;
+    border-color: var(--fsd-border-active) !important;
+    color: var(--fsd-text-primary) !important;
     background: var(--fsd-bg-hover) !important;
   }
 }
 
 .ant-btn-primary {
-  background: var(--fsd-gradient-accent) !important;
-  border: none !important;
-  color: #04141a !important;
+  background: var(--fsd-action-primary) !important;
+  border-color: var(--fsd-action-primary) !important;
+  color: var(--fsd-text-on-action) !important;
   font-weight: 600 !important;
-  box-shadow: 0 2px 10px rgba(34, 211, 238, 0.24) !important;
+  box-shadow: none !important;
 
   &:hover {
-    filter: brightness(1.08) !important;
-    box-shadow: 0 4px 16px rgba(34, 211, 238, 0.34) !important;
-    color: #04141a !important;
+    background: var(--fsd-action-primary-hover) !important;
+    border-color: var(--fsd-action-primary-hover) !important;
+    color: var(--fsd-text-on-action) !important;
+    box-shadow: none !important;
   }
 
   &:active {
-    filter: brightness(0.96) !important;
+    background: var(--fsd-action-primary-active) !important;
+    border-color: var(--fsd-action-primary-active) !important;
+    color: var(--fsd-text-on-action) !important;
+  }
+
+  &:disabled,
+  &.ant-btn-disabled {
+    background: var(--fsd-bg-active) !important;
+    border-color: var(--fsd-border) !important;
+    color: var(--fsd-text-muted) !important;
+    box-shadow: none !important;
+  }
+
+  &.ant-btn-dangerous:not(:disabled) {
+    background: var(--fsd-error) !important;
+    border-color: var(--fsd-error) !important;
+    color: var(--fsd-text-on-action) !important;
+    box-shadow: none !important;
   }
 }
 
@@ -208,7 +226,9 @@ body {
   border: 1px solid var(--fsd-border) !important;
   color: var(--fsd-text-primary) !important;
   border-radius: var(--fsd-radius-sm) !important;
-  transition: border-color 0.2s var(--fsd-ease), box-shadow 0.2s var(--fsd-ease) !important;
+  transition:
+    border-color var(--fsd-transition-base),
+    box-shadow var(--fsd-transition-base) !important;
 
   &:hover,
   &:focus {
@@ -217,7 +237,7 @@ body {
 
   &:focus,
   &-focused {
-    box-shadow: 0 0 0 3px var(--fsd-accent-glow) !important;
+    box-shadow: var(--fsd-focus-ring) !important;
   }
 }
 
@@ -231,7 +251,7 @@ body {
   &-focused,
   &:focus-within {
     border-color: var(--fsd-accent) !important;
-    box-shadow: 0 0 0 2px var(--fsd-accent-glow) !important;
+    box-shadow: var(--fsd-focus-ring) !important;
   }
 
   .ant-input {
@@ -241,7 +261,7 @@ body {
     color: var(--fsd-text-primary) !important;
 
     &::placeholder {
-      color: #64748B !important;
+      color: var(--fsd-text-tertiary) !important;
     }
   }
 
@@ -273,28 +293,29 @@ body {
 
 .ant-select-dropdown,
 .park-select-dropdown {
-  background: rgba(22, 26, 34, 0.94) !important;
+  background: var(--fsd-surface-overlay) !important;
   border: 1px solid var(--fsd-border) !important;
-  border-radius: var(--fsd-radius-md) !important;
-  box-shadow: var(--fsd-shadow-elevated) !important;
-  backdrop-filter: blur(16px) saturate(140%);
+  border-radius: var(--fsd-radius-lg) !important;
+  box-shadow: var(--fsd-shadow-popover) !important;
   font-family: var(--fsd-font-sans) !important;
 }
 
 .ant-select-item {
   color: var(--fsd-text-secondary) !important;
   border-radius: var(--fsd-radius-sm) !important;
-  transition: background 0.18s var(--fsd-ease), color 0.18s var(--fsd-ease) !important;
+  transition:
+    background-color var(--fsd-transition-slow),
+    color var(--fsd-transition-slow) !important;
 
   &-option-active,
   &-option-selected {
-    background: var(--fsd-accent-glow) !important;
-    color: var(--fsd-accent) !important;
+    background: var(--fsd-accent-selected) !important;
+    color: var(--fsd-accent-strong) !important;
   }
 }
 
 .ant-modal-content {
-  background: var(--fsd-bg-base) !important;
+  background: var(--fsd-surface-overlay) !important;
   border: 1px solid var(--fsd-border) !important;
   border-radius: var(--fsd-radius-lg) !important;
   box-shadow: var(--fsd-shadow-elevated) !important;
@@ -308,11 +329,29 @@ body {
 .ant-modal-mask,
 .ant-drawer-mask {
   background: rgba(8, 9, 12, 0.65) !important;
-  backdrop-filter: blur(2px);
 }
 
 .ant-drawer-content {
-  background: var(--fsd-bg-base) !important;
+  background: var(--fsd-surface-overlay) !important;
+}
+
+.ant-drawer-content-wrapper {
+  box-shadow: var(--fsd-shadow-elevated) !important;
+}
+
+.ant-drawer-left .ant-drawer-content-wrapper {
+  border-radius: 0 var(--fsd-radius-lg) var(--fsd-radius-lg) 0;
+  overflow: hidden;
+}
+
+.ant-drawer-right .ant-drawer-content-wrapper {
+  border-radius: var(--fsd-radius-lg) 0 0 var(--fsd-radius-lg);
+  overflow: hidden;
+}
+
+.ant-drawer-bottom .ant-drawer-content-wrapper {
+  border-radius: var(--fsd-radius-lg) var(--fsd-radius-lg) 0 0;
+  overflow: hidden;
 }
 
 .ant-drawer-header {
@@ -322,16 +361,17 @@ body {
 
 .ant-dropdown-menu,
 .ant-popover-inner {
-  background: rgba(22, 26, 34, 0.94) !important;
+  background: var(--fsd-surface-overlay) !important;
   border: 1px solid var(--fsd-border) !important;
-  border-radius: var(--fsd-radius-md) !important;
-  box-shadow: var(--fsd-shadow-elevated) !important;
-  backdrop-filter: blur(16px) saturate(140%);
+  border-radius: var(--fsd-radius-lg) !important;
+  box-shadow: var(--fsd-shadow-popover) !important;
 }
 
 .ant-dropdown-menu-item {
   border-radius: var(--fsd-radius-sm) !important;
-  transition: background 0.18s var(--fsd-ease), color 0.18s var(--fsd-ease) !important;
+  transition:
+    background-color var(--fsd-transition-slow),
+    color var(--fsd-transition-slow) !important;
 
   &:hover {
     background: var(--fsd-bg-hover) !important;
@@ -343,10 +383,18 @@ body {
   border-radius: var(--fsd-radius-sm) !important;
 }
 
-.ant-badge-status-success { background: var(--fsd-success) !important; }
-.ant-badge-status-error { background: var(--fsd-error) !important; }
-.ant-badge-status-warning { background: var(--fsd-warning) !important; }
-.ant-badge-status-processing { background: var(--fsd-accent) !important; }
+.ant-badge-status-success {
+  background: var(--fsd-success) !important;
+}
+.ant-badge-status-error {
+  background: var(--fsd-error) !important;
+}
+.ant-badge-status-warning {
+  background: var(--fsd-warning) !important;
+}
+.ant-badge-status-processing {
+  background: var(--fsd-accent) !important;
+}
 
 .ant-breadcrumb {
   color: var(--fsd-text-tertiary) !important;
@@ -364,26 +412,26 @@ body {
   }
 }
 
-// Animations
+// One-time loading reveal. No translation, scale or decorative staggering.
 @keyframes fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(12px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
 .animate-fade-in-up {
-  animation: fade-in-up 0.4s ease-out both;
+  animation: fade-in-up var(--fsd-duration-base) var(--fsd-ease) both;
 }
 
-.stagger-1 { animation-delay: 0.05s; }
-.stagger-2 { animation-delay: 0.1s; }
-.stagger-3 { animation-delay: 0.15s; }
-.stagger-4 { animation-delay: 0.2s; }
+.stagger-1,
+.stagger-2,
+.stagger-3,
+.stagger-4 {
+  animation-delay: 0ms;
+}
 
 // ── Accessibility: reduced motion ─────────────────────────
 @media (prefers-reduced-motion: reduce) {
@@ -393,24 +441,29 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
 // ── Accessibility: keyboard focus ring ────────────────────
 *:focus-visible {
-  outline: 2px solid var(--fsd-accent);
+  outline: 2px solid var(--fsd-accent-strong);
   outline-offset: 2px;
 }
 
 // ── Guard mode: low-contrast shift duty ───────────────────────
 
 html.fsd-guard-mode {
-  --fsd-accent: #5E9BAB;
-  --fsd-accent-glow: rgba(94, 155, 171, 0.10);
-  --fsd-success: #4A9A75;
-  --fsd-warning: #C29440;
-  --fsd-error: #C45868;
-  --fsd-info: #5E9BAB;
+  --fsd-accent: #5e9bab;
+  --fsd-accent-strong: #79b2bf;
+  --fsd-accent-selected: rgba(94, 155, 171, 0.1);
+  --fsd-action-primary: #79b2bf;
+  --fsd-action-primary-hover: #8abec8;
+  --fsd-action-primary-active: #679faa;
+  --fsd-success: #4a9a75;
+  --fsd-warning: #c29440;
+  --fsd-error: #c45868;
+  --fsd-info: #8b98a6;
 
   .ant-table-thead > tr > th {
     text-transform: none !important;
@@ -433,20 +486,31 @@ html.fsd-guard-mode {
 
 // ── Responsive breakpoints ────────────────────────────────────
 // Aligned with Ant Design Vue 4 grid breakpoints
-@fsd-break-xs: 575px;     // phone
-@fsd-break-sm: 576px;     // large phone / small tablet
-@fsd-break-md: 768px;     // tablet portrait
-@fsd-break-lg: 992px;     // tablet landscape / small laptop
-@fsd-break-xl: 1200px;    // desktop
-@fsd-break-xxl: 1600px;   // large desktop
+@fsd-break-xs: 575px; // phone
+@fsd-break-sm: 576px; // large phone / small tablet
+@fsd-break-md: 768px; // tablet portrait
+@fsd-break-lg: 992px; // tablet landscape / small laptop
+@fsd-break-xl: 1200px; // desktop
+@fsd-break-xxl: 1600px; // large desktop
 
 // ── Responsive: Phone (< 576px) ──────────────────────────────
 @media (max-width: @fsd-break-xs) {
   // Typography
-  h1, .page-title { font-size: 20px; }
-  h2, .section-title { font-size: 18px; }
-  h3, .card-title { font-size: 15px; }
-  body { font-size: 14px; }
+  h1,
+  .page-title {
+    font-size: 20px;
+  }
+  h2,
+  .section-title {
+    font-size: 18px;
+  }
+  h3,
+  .card-title {
+    font-size: 15px;
+  }
+  body {
+    font-size: 14px;
+  }
 
   // Tables: compact on mobile
   .ant-table {
@@ -470,7 +534,7 @@ html.fsd-guard-mode {
 
   // Cards: reduced padding
   .ant-card {
-    border-radius: var(--fsd-radius);
+    border-radius: var(--fsd-radius-md);
 
     .ant-card-body {
       padding: var(--fsd-space-4);

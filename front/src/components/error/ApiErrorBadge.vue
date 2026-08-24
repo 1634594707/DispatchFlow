@@ -180,7 +180,7 @@ function formatRaw(record: { code: string; rawMessage: string; status: number; u
 .expand-icon {
   font-size: 12px;
   color: var(--fsd-text-tertiary);
-  transition: transform 0.2s;
+  transition: transform var(--fsd-transition-base);
 
   &.expanded {
     transform: rotate(90deg);

@@ -1,12 +1,10 @@
 <template>
   <PageContainer title="调度任务" subtitle="管理所有调度任务">
     <template #actions>
-      <a-button @click="handleRefresh">
-        <ReloadOutlined /> 刷新
-      </a-button>
+      <a-button @click="handleRefresh"> <ReloadOutlined /> 刷新 </a-button>
     </template>
 
-    <QueryFilterCard
+    <QueryToolbar
       title="筛选条件"
       :result-summary="`共 ${store.total} 条结果`"
       :active-chips="activeFilterChips"
@@ -17,7 +15,7 @@
         v-model:value="queryForm.status"
         placeholder="任务状态"
         allow-clear
-        style="width: 160px;"
+        style="width: 160px"
       >
         <a-select-option v-for="(cfg, key) in taskStatusMap" :key="key" :value="key">
           {{ cfg.label }}
@@ -27,30 +25,28 @@
         v-model:value="queryForm.taskNo"
         placeholder="任务编号"
         allow-clear
-        style="width: 180px;"
+        style="width: 180px"
       />
       <a-input-number
         v-model:value="queryForm.orderId"
         placeholder="订单ID"
-        style="width: 140px;"
+        style="width: 140px"
         :min="1"
       />
       <a-input-number
         v-model:value="queryForm.vehicleId"
         placeholder="车辆ID"
-        style="width: 140px;"
+        style="width: 140px"
         :min="1"
       />
-      <a-button type="primary" @click="handleSearch">
-        <SearchOutlined /> 查询
-      </a-button>
+      <a-button type="primary" @click="handleSearch"> <SearchOutlined /> 查询 </a-button>
       <a-button @click="handleReset">重置</a-button>
       <template #extra>
         <a-button :disabled="store.total === 0" @click="handleExport">
           <DownloadOutlined /> 导出
         </a-button>
       </template>
-    </QueryFilterCard>
+    </QueryToolbar>
 
     <!-- V9-UI3: Skeleton screen for initial load -->
     <SkeletonLoader v-if="store.loading && store.list.length === 0" variant="table" :rows="6" />
@@ -93,7 +89,7 @@
           <StatusBadge :status="record.status" type="task" />
         </template>
         <template v-else-if="column.dataIndex === 'dispatchType'">
-          <a-tag :color="record.dispatchType === 'AUTO' ? 'cyan' : 'orange'">
+          <a-tag class="metadata-tag">
             {{ record.dispatchType === 'AUTO' ? '自动' : '手动' }}
           </a-tag>
         </template>
@@ -105,7 +101,7 @@
             <a-button type="link" size="small" @click="router.push(`/tasks/${record.taskId}`)">
               查看
             </a-button>
-            <a-tag v-if="record.status === 'ASSIGNING'" color="processing">派车处理中…</a-tag>
+            <span v-if="record.status === 'ASSIGNING'" class="action-status">派车处理中…</span>
             <a-button
               v-if="authStore.canWrite && canDispatch(record.status)"
               type="link"
@@ -131,7 +127,9 @@
               cancel-text="取消"
               @confirm="handleCancel(record)"
             >
-              <a-button type="link" size="small" danger :loading="isActionBusy(record.taskId)">取消</a-button>
+              <a-button type="link" size="small" danger :loading="isActionBusy(record.taskId)"
+                >取消</a-button
+              >
             </a-popconfirm>
           </div>
         </template>
@@ -181,7 +179,7 @@
         message="改派会导致当前车辆释放，请确认是否继续。"
         type="warning"
         show-icon
-        style="margin-bottom: 16px;"
+        style="margin-bottom: 16px"
       />
       <a-form layout="vertical">
         <a-form-item label="当前车辆">
@@ -223,8 +221,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
-import QueryFilterCard from '@/components/common/QueryFilterCard.vue'
-import type { FilterChip } from '@/components/common/QueryFilterCard.vue'
+import QueryToolbar from '@/components/common/QueryToolbar.vue'
+import type { FilterChip } from '@/components/common/QueryToolbar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
@@ -321,7 +319,12 @@ function canReassign(status: TaskStatus) {
 }
 
 function canCancel(status: TaskStatus) {
-  return [TaskStatus.PENDING, TaskStatus.MANUAL_PENDING, TaskStatus.ASSIGNED, TaskStatus.EXECUTING].includes(status)
+  return [
+    TaskStatus.PENDING,
+    TaskStatus.MANUAL_PENDING,
+    TaskStatus.ASSIGNED,
+    TaskStatus.EXECUTING,
+  ].includes(status)
 }
 
 function filterOption(input: string, option: any) {
@@ -387,7 +390,7 @@ const dispatchForm = reactive({ vehicleId: undefined as number | undefined, rema
 const assignableVehicles = ref<ParkVehicleSnapshot[]>([])
 
 const reassignableVehicles = computed(() =>
-  assignableVehicles.value.filter(vehicle => vehicle.vehicleId !== currentTask.value?.vehicleId),
+  assignableVehicles.value.filter((vehicle) => vehicle.vehicleId !== currentTask.value?.vehicleId),
 )
 
 function isAssignableVehicle(vehicle: ParkVehicleSnapshot) {
@@ -426,10 +429,14 @@ async function handleDispatch() {
   }
   dispatchLoading.value = true
   try {
-    await manualAssignTask(currentTask.value.taskId, {
-      vehicleId: dispatchForm.vehicleId,
-      remark: dispatchForm.remark,
-    }, parkScope.selectedParkId)
+    await manualAssignTask(
+      currentTask.value.taskId,
+      {
+        vehicleId: dispatchForm.vehicleId,
+        remark: dispatchForm.remark,
+      },
+      parkScope.selectedParkId,
+    )
     message.success('派单成功')
     dispatchModalVisible.value = false
     fetchData()
@@ -464,10 +471,14 @@ async function handleReassign() {
   }
   reassignLoading.value = true
   try {
-    await reassignTask(currentTask.value.taskId, {
-      vehicleId: reassignForm.newVehicleId,
-      remark: reassignForm.reason,
-    }, parkScope.selectedParkId)
+    await reassignTask(
+      currentTask.value.taskId,
+      {
+        vehicleId: reassignForm.newVehicleId,
+        remark: reassignForm.reason,
+      },
+      parkScope.selectedParkId,
+    )
     message.success('改派成功')
     reassignModalVisible.value = false
     fetchData()
@@ -519,20 +530,16 @@ watch(
 <style scoped lang="less">
 @mobile-break: 768px;
 
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.metadata-tag {
+  color: var(--fsd-text-secondary);
+  border-color: var(--fsd-border);
+  background: var(--fsd-bg-hover);
+}
 
-  @media (max-width: @mobile-break) {
-    flex-direction: column;
-    align-items: stretch;
-
-    > * {
-      width: 100% !important;
-    }
-  }
+.action-status {
+  color: var(--fsd-text-secondary);
+  font-size: var(--fsd-text-xs);
+  white-space: nowrap;
 }
 
 .link-cell {

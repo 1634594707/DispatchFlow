@@ -341,9 +341,9 @@ onUnmounted(() => {
 .park-overview-page {
   position: relative;
   width: 100%;
-  height: calc(100vh - 64px);
   min-height: 520px;
-  background: var(--fsd-bg-deep);
+  height: calc(100vh - 64px);
+  background: var(--fsd-surface-page);
 }
 
 .overview-map {
@@ -358,18 +358,20 @@ onUnmounted(() => {
 
 .route-anomaly-banner {
   position: absolute;
-  top: 12px;
+  top: var(--fsd-space-3);
   left: 50%;
-  transform: translateX(-50%);
   z-index: 20;
-  padding: 8px 16px;
-  border-radius: 6px;
-  background: rgba(255, 77, 109, 0.92);
-  color: #fff;
-  font-size: 13px;
-  pointer-events: none;
   max-width: min(92vw, 520px);
+  padding: var(--fsd-space-2) var(--fsd-space-3);
+  border-left: 3px solid var(--fsd-error);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-overlay);
+  box-shadow: var(--fsd-shadow-popover);
+  color: var(--fsd-error);
+  font-size: var(--fsd-text-sm);
+  pointer-events: none;
   text-align: center;
+  transform: translateX(-50%);
 }
 
 .overview-fallback {
@@ -378,40 +380,42 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--fsd-text-secondary);
 
   .hint {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--fsd-text-tertiary);
+    font-size: var(--fsd-text-xs);
   }
 
   code {
-    color: var(--fsd-success);
+    color: var(--fsd-accent-strong);
   }
 }
 
 .overview-panel {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: var(--fsd-space-4);
+  right: var(--fsd-space-4);
   z-index: 30;
   width: 300px;
-  padding: 16px;
-  border-radius: 8px;
-  background: rgba(11, 16, 24, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #fff;
+  padding: var(--fsd-space-4);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-overlay);
+  box-shadow: var(--fsd-shadow-popover);
+  color: var(--fsd-text-primary);
 
   h1 {
     margin: 0;
-    font-size: 18px;
+    color: var(--fsd-text-heading);
+    font-size: 20px;
     letter-spacing: 0;
   }
 
   .subtitle {
-    margin: 4px 0 8px;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.55);
+    margin: var(--fsd-space-1) 0 var(--fsd-space-2);
+    color: var(--fsd-text-secondary);
+    font-size: var(--fsd-text-xs);
   }
 }
 
@@ -425,42 +429,40 @@ onUnmounted(() => {
 .live-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--fsd-space-1);
   flex: 0 0 auto;
-  color: #8ce9bc;
-  font-size: 11px;
+  color: var(--fsd-accent-strong);
+  font-size: var(--fsd-text-xs);
 
   i {
     width: 6px;
     height: 6px;
-    border-radius: 50%;
-    background: #2de08a;
-    box-shadow: 0 0 0 3px rgba(45, 224, 138, 0.14);
+    border-radius: var(--fsd-radius-full);
+    background: var(--fsd-accent);
   }
 }
 
 .fleet-stats {
   display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
-  font-size: 11px;
-  color: rgba(100, 149, 237, 0.9);
+  gap: var(--fsd-space-3);
+  margin-bottom: var(--fsd-space-3);
+  color: var(--fsd-text-secondary);
+  font-size: var(--fsd-text-xs);
 }
 
 .map-legend {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  padding: 9px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: var(--fsd-space-2);
+  padding: var(--fsd-space-2) 0;
+  border-block: 1px solid var(--fsd-border-split);
 
   span {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--fsd-space-1);
     min-width: 0;
-    color: rgba(255, 255, 255, 0.62);
+    color: var(--fsd-text-secondary);
     font-size: 10px;
     white-space: nowrap;
   }
@@ -472,26 +474,24 @@ onUnmounted(() => {
   border-radius: 2px;
 
   &.pickup {
-    background: #00d4a8;
+    background: var(--fsd-success);
   }
   &.dropoff {
-    background: #3b82f6;
+    background: var(--fsd-accent);
   }
   &.charging {
-    background: #a66cff;
+    background: var(--fsd-warning);
   }
   &.idle {
-    background: #94a3b8;
+    background: var(--fsd-text-tertiary);
   }
 }
 
 .selection-card {
-  margin: 12px 0 4px;
-  padding: 11px;
-  border: 1px solid rgba(34, 199, 230, 0.24);
-  border-left: 3px solid #22c7e6;
-  border-radius: 6px;
-  background: rgba(34, 199, 230, 0.07);
+  margin: var(--fsd-space-3) 0 var(--fsd-space-1);
+  padding: var(--fsd-space-3);
+  border-left: 3px solid var(--fsd-accent);
+  background: var(--fsd-accent-selected);
 }
 
 .selection-title {
@@ -501,7 +501,7 @@ onUnmounted(() => {
 
   strong {
     overflow: hidden;
-    color: #fff;
+    color: var(--fsd-text-primary);
     font-size: 13px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -509,7 +509,7 @@ onUnmounted(() => {
 }
 
 .selection-kicker {
-  color: #72def0;
+  color: var(--fsd-accent-strong);
   font-size: 10px;
 }
 
@@ -531,43 +531,43 @@ onUnmounted(() => {
   }
 
   dt {
-    color: rgba(255, 255, 255, 0.42);
+    color: var(--fsd-text-tertiary);
   }
   dd {
     overflow: hidden;
-    color: rgba(255, 255, 255, 0.78);
+    color: var(--fsd-text-secondary);
     text-align: right;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .danger {
-    color: #ff8a9f;
+    color: var(--fsd-error);
   }
 }
 
 .map-status-bar {
   position: absolute;
-  left: 16px;
-  bottom: 16px;
+  bottom: var(--fsd-space-4);
+  left: var(--fsd-space-4);
   z-index: 15;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--fsd-space-3);
   max-width: calc(100% - 364px);
   padding: 7px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  background: rgba(7, 12, 19, 0.86);
-  color: rgba(255, 255, 255, 0.58);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-overlay);
+  box-shadow: var(--fsd-shadow-popover);
+  color: var(--fsd-text-secondary);
   font-family: 'Geist Mono', monospace;
   font-size: 10px;
-  backdrop-filter: blur(8px);
 }
 
 .park-card {
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: var(--fsd-space-2) 0;
+  border-bottom: 1px solid var(--fsd-border-split);
 
   &:last-child {
     border-bottom: none;
@@ -581,33 +581,33 @@ onUnmounted(() => {
 }
 
 .park-code {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--fsd-text-tertiary);
+  font-size: var(--fsd-text-xs);
 }
 
 .park-stats {
   display: flex;
-  gap: 10px;
-  margin-top: 6px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.68);
+  gap: var(--fsd-space-3);
+  margin-top: var(--fsd-space-1);
+  color: var(--fsd-text-secondary);
+  font-size: var(--fsd-text-sm);
 }
 
 .panel-links {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
+  gap: var(--fsd-space-1);
+  margin-top: var(--fsd-space-3);
 }
 
 .tracking-link {
   display: inline-block;
   font-size: 13px;
-  color: var(--fsd-accent);
+  color: var(--fsd-accent-strong);
   text-decoration: none;
 
   &.secondary {
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--fsd-text-secondary);
   }
 }
 

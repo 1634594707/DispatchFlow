@@ -347,7 +347,7 @@ watch(
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: rgba(11, 16, 24, 0.92);
+  background: var(--fsd-surface-raised);
   color: var(--fsd-text-primary);
   font-size: 14px;
   z-index: 2;
@@ -385,11 +385,10 @@ watch(
   flex-direction: column;
   gap: 4px;
   padding: 6px;
-  background: rgba(11, 16, 24, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  background: var(--fsd-surface-overlay);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-md);
+  box-shadow: var(--fsd-shadow-popover);
 }
 
 .amap-geo-map__level-btn {
@@ -397,25 +396,34 @@ watch(
   align-items: center;
   gap: 8px;
   min-width: 108px;
+  min-height: 32px;
   padding: 6px 10px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--fsd-radius-sm);
   color: var(--fsd-text-secondary);
   font-size: 12px;
   line-height: 1.2;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--fsd-bg-hover);
     color: var(--fsd-text-primary);
   }
 
+  &:focus-visible {
+    outline: 2px solid var(--fsd-accent-strong);
+    outline-offset: 2px;
+  }
+
   &--active {
-    background: rgba(34, 199, 230, 0.16);
-    border-color: rgba(34, 199, 230, 0.45);
-    color: var(--fsd-accent);
+    background: var(--fsd-accent-selected);
+    border-color: var(--fsd-accent-border);
+    color: var(--fsd-accent-strong);
   }
 }
 
@@ -425,16 +433,16 @@ watch(
   justify-content: center;
   width: 24px;
   height: 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
+  background: var(--fsd-neutral-bg);
+  border-radius: var(--fsd-radius-sm);
   font-weight: 600;
   font-size: 11px;
   letter-spacing: 0.5px;
 }
 
 .amap-geo-map__level-btn--active .amap-geo-map__level-code {
-  background: rgba(34, 199, 230, 0.3);
-  color: #fff;
+  background: var(--fsd-action-primary);
+  color: var(--fsd-text-on-action);
 }
 
 .amap-geo-map__level-label {
@@ -452,11 +460,10 @@ watch(
   flex-direction: column;
   gap: 4px;
   padding: 6px;
-  background: rgba(11, 16, 24, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  background: var(--fsd-surface-overlay);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-md);
+  box-shadow: var(--fsd-shadow-popover);
 }
 
 .amap-geo-map__layer-title {
@@ -475,20 +482,22 @@ watch(
   padding: 5px 8px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--fsd-radius-sm);
   color: var(--fsd-text-muted);
   font-size: 11px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--fsd-bg-hover);
     color: var(--fsd-text-primary);
   }
 
   &.active {
-    color: var(--fsd-text-primary);
-    background: rgba(255, 255, 255, 0.04);
+    color: var(--fsd-accent-strong);
+    background: var(--fsd-accent-selected);
   }
 
   .layer-dot {
@@ -497,14 +506,11 @@ watch(
     border-radius: 50%;
     background: currentColor;
 
-    &.markers {
-      background: var(--fsd-accent);
-    }
-    &.polylines {
-      background: #38bdf8;
-    }
+    // Layer names provide the primary distinction; color stays semantic.
+    &.markers,
+    &.polylines,
     &.polygons {
-      background: #a855f7;
+      background: currentColor;
     }
   }
 }
@@ -515,11 +521,11 @@ watch(
   max-width: 220px;
   padding: 6px 10px !important;
   overflow: hidden;
-  border: 1px solid rgba(34, 199, 230, 0.58) !important;
-  border-radius: 6px !important;
-  background: rgba(7, 13, 19, 0.94) !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.34) !important;
-  color: #f3f8fa !important;
+  border: 1px solid var(--fsd-border-active) !important;
+  border-radius: var(--fsd-radius-sm) !important;
+  background: var(--fsd-surface-overlay) !important;
+  box-shadow: var(--fsd-shadow-popover) !important;
+  color: var(--fsd-text-primary) !important;
   font-size: 11px !important;
   font-weight: 700;
   line-height: 1.25 !important;
@@ -527,6 +533,5 @@ watch(
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
-  backdrop-filter: blur(8px);
 }
 </style>

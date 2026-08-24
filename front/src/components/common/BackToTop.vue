@@ -33,7 +33,7 @@ const props = withDefaults(
     threshold: 300,
     target: null,
     ariaLabel: '回到顶部',
-  }
+  },
 )
 
 const { isPhone, prefersReducedMotion } = useResponsive()
@@ -97,7 +97,7 @@ onUnmounted(() => {
   width: 44px;
   height: 44px;
   border: 1px solid var(--fsd-border);
-  border-radius: 50%;
+  border-radius: var(--fsd-radius-full);
   background: var(--fsd-bg-elevated);
   color: var(--fsd-text-secondary);
   font-size: 20px;
@@ -105,24 +105,20 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: var(--fsd-shadow-card);
-  backdrop-filter: blur(12px) saturate(140%);
-  transition: transform 0.2s var(--fsd-ease),
-              opacity 0.2s var(--fsd-ease),
-              background 0.2s var(--fsd-ease),
-              box-shadow 0.2s var(--fsd-ease),
-              border-color 0.2s var(--fsd-ease);
+  box-shadow: none;
+  transition:
+    color var(--fsd-transition-fast),
+    background-color var(--fsd-transition-fast),
+    border-color var(--fsd-transition-fast);
 
   &:hover {
     background: var(--fsd-bg-hover);
-    border-color: var(--fsd-accent);
+    border-color: var(--fsd-accent-border);
     color: var(--fsd-accent);
-    box-shadow: var(--fsd-shadow-glow);
-    transform: translateY(-2px);
   }
 
   &:active {
-    transform: translateY(0) scale(0.95);
+    background: var(--fsd-bg-active);
   }
 
   /* Mobile: adjust position for bottom nav */
@@ -135,21 +131,13 @@ onUnmounted(() => {
 }
 
 /* ── Transition ─────────────────────────────────────────── */
-.btt-fade-enter-active {
-  transition: opacity 0.25s var(--fsd-ease), transform 0.25s var(--fsd-ease-bounce);
-}
-
+.btt-fade-enter-active,
 .btt-fade-leave-active {
-  transition: opacity 0.15s var(--fsd-ease), transform 0.15s var(--fsd-ease-in);
+  transition: opacity var(--fsd-transition-base);
 }
 
-.btt-fade-enter-from {
-  opacity: 0;
-  transform: translateY(12px) scale(0.8);
-}
-
+.btt-fade-enter-from,
 .btt-fade-leave-to {
   opacity: 0;
-  transform: translateY(8px) scale(0.9);
 }
 </style>

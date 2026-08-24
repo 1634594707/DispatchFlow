@@ -1,10 +1,7 @@
 <template>
   <PageContainer :title="`任务详情：${store.detail?.taskNo || route.params.taskId}`">
     <template #actions>
-      <router-link
-        v-if="store.detail?.vehicleId && store.detail?.orderId"
-        :to="geoTrackingLink"
-      >
+      <router-link v-if="store.detail?.vehicleId && store.detail?.orderId" :to="geoTrackingLink">
         <a-button type="primary">地图追踪</a-button>
       </router-link>
       <a-button @click="router.back()">返回列表</a-button>
@@ -12,8 +9,56 @@
 
     <a-spin :spinning="store.detailLoading">
       <template v-if="store.detail">
-        <div class="detail-grid">
-          <a-card title="任务信息" size="small">
+        <section class="detail-summary" aria-label="任务概要">
+          <div class="detail-summary-primary">
+            <span class="detail-summary-label">任务编号</span>
+            <span class="detail-summary-code mono">{{ store.detail.taskNo }}</span>
+          </div>
+          <dl class="detail-summary-metrics">
+            <div class="detail-summary-metric">
+              <dt>当前状态</dt>
+              <dd><StatusBadge :status="store.detail.status" type="task" /></dd>
+            </div>
+            <div class="detail-summary-metric">
+              <dt>关联订单</dt>
+              <dd>
+                <router-link :to="`/orders/${store.detail.orderId}`" class="link">
+                  {{ store.detail.orderId }}
+                </router-link>
+              </dd>
+            </div>
+            <div class="detail-summary-metric">
+              <dt>执行车辆</dt>
+              <dd>
+                <router-link
+                  v-if="store.detail.vehicleId"
+                  :to="`/vehicles/${store.detail.vehicleId}`"
+                  class="link"
+                >
+                  {{ vehicleDetail?.vehicleCode || store.detail.vehicleId }}
+                </router-link>
+                <span v-else class="text-secondary">待派车</span>
+              </dd>
+            </div>
+            <div class="detail-summary-metric">
+              <dt>派单类型</dt>
+              <dd>
+                <a-tag class="metadata-tag">
+                  {{ store.detail.dispatchType === 'AUTO' ? '自动' : '手动' }}
+                </a-tag>
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <div class="detail-sections">
+          <section class="detail-section" aria-labelledby="task-information-heading">
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="task-information-heading">任务信息</h2>
+                <p>订单、站点与异常上下文</p>
+              </div>
+            </div>
             <a-descriptions :column="2" size="small" bordered>
               <a-descriptions-item label="任务编号">
                 <span class="mono">{{ store.detail.taskNo }}</span>
@@ -39,7 +84,7 @@
                 <span v-else class="text-secondary">-</span>
               </a-descriptions-item>
               <a-descriptions-item label="派单类型">
-                <a-tag :color="store.detail.dispatchType === 'AUTO' ? 'cyan' : 'orange'">
+                <a-tag class="metadata-tag">
                   {{ store.detail.dispatchType === 'AUTO' ? '自动' : '手动' }}
                 </a-tag>
               </a-descriptions-item>
@@ -56,9 +101,15 @@
                 {{ store.detail.remark || '-' }}
               </a-descriptions-item>
             </a-descriptions>
-          </a-card>
+          </section>
 
-          <a-card title="车辆信息" size="small">
+          <section class="detail-section" aria-labelledby="task-vehicle-heading">
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="task-vehicle-heading">车辆信息</h2>
+                <p>在线、调度与回传状态</p>
+              </div>
+            </div>
             <template v-if="vehicleDetail">
               <a-descriptions :column="2" size="small" bordered>
                 <a-descriptions-item label="车辆编号">
@@ -78,7 +129,9 @@
                 <a-descriptions-item label="电量">
                   <a-progress
                     :percent="vehicleDetail.batteryLevel"
-                    :stroke-color="vehicleDetail.batteryLevel < 20 ? '#FF5C7C' : '#2DE08A'"
+                    :stroke-color="
+                      vehicleDetail.batteryLevel < 20 ? 'var(--fsd-error)' : 'var(--fsd-success)'
+                    "
                     size="small"
                   />
                 </a-descriptions-item>
@@ -89,11 +142,22 @@
             </template>
             <a-empty v-else-if="!store.detail.vehicleId" description="暂无关联车辆" />
             <a-spin v-else size="small" />
-          </a-card>
+          </section>
 
-          <a-card title="操作" size="small">
+          <section class="detail-section" aria-labelledby="task-actions-heading">
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="task-actions-heading">任务操作</h2>
+                <p>按当前状态执行派车、改派或取消</p>
+              </div>
+            </div>
             <div class="detail-actions">
-              <a-button v-if="canAutoAssign" type="primary" :loading="actionLoading" @click="handleAutoAssign">
+              <a-button
+                v-if="canAutoAssign"
+                type="primary"
+                :loading="actionLoading"
+                @click="handleAutoAssign"
+              >
                 自动派车
               </a-button>
               <a-button v-if="canManualAssign" type="primary" ghost @click="openManualModal">
@@ -106,72 +170,87 @@
                 <a-button danger :loading="actionLoading">取消任务</a-button>
               </a-popconfirm>
             </div>
-          </a-card>
-        </div>
+          </section>
 
-        <!-- 统一任务时间线（路线图 3.2）：订单创建→派车→回报→异常→重试/改派→终态，含来源/前后状态/失败原因 -->
-        <a-card title="任务统一时间线" size="small" style="margin-bottom: 16px;">
-          <p v-if="nextActionHint" class="next-action-hint">下一步动作：{{ nextActionHint }}</p>
-          <a-timeline v-if="timelineEntries.length > 0">
-            <a-timeline-item
-              v-for="(entry, index) in timelineEntries"
-              :key="index"
-              :color="entry.exception ? 'red' : timelineColor(entry.eventType)"
-            >
-              <p>
-                {{ timelineEventTypeLabel(entry.eventType) }}
-                <a-tag v-if="entry.severity" color="orange" style="margin-left: 4px">{{ entry.severity }}</a-tag>
-              </p>
-              <p v-if="entry.beforeStatus || entry.afterStatus" class="mono text-secondary">
-                {{ entry.beforeStatus || '-' }} → {{ entry.afterStatus || '-' }}
-              </p>
-              <p class="text-secondary">
-                {{ sourceLabel(entry.source) }}{{ entry.operatorName ? ' · ' + entry.operatorName : '' }}
-                <span v-if="entry.message"> · {{ entry.message }}</span>
-              </p>
-              <p v-if="entry.failReason" class="fail-reason">失败原因：{{ entry.failReason }}</p>
-              <span class="mono text-secondary">{{ formatTime(entry.time) }}</span>
-            </a-timeline-item>
-          </a-timeline>
-          <!-- 兼容回退：统一时间线不可用时展示历史操作日志 -->
-          <template v-else>
-            <a-timeline v-if="operateLogs.length > 0">
-              <a-timeline-item v-for="log in operateLogs" :key="log.id" :color="logColor(log.operateType)">
-                <p>{{ operateTypeLabel(log.operateType) }}</p>
-                <p v-if="log.beforeStatus || log.afterStatus" class="mono text-secondary">
-                  {{ log.beforeStatus || '-' }} → {{ log.afterStatus || '-' }}
+          <section class="detail-section" aria-labelledby="task-timeline-heading">
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="task-timeline-heading">任务统一时间线</h2>
+                <p>创建、派车、回报、异常与终态</p>
+              </div>
+            </div>
+            <p v-if="nextActionHint" class="next-action-hint">下一步动作：{{ nextActionHint }}</p>
+            <a-timeline v-if="timelineEntries.length > 0">
+              <a-timeline-item
+                v-for="(entry, index) in timelineEntries"
+                :key="index"
+                :color="entry.exception ? 'var(--fsd-error)' : timelineColor(entry.eventType)"
+              >
+                <p>
+                  {{ timelineEventTypeLabel(entry.eventType) }}
+                  <a-tag v-if="entry.severity" class="severity-tag">{{ entry.severity }}</a-tag>
+                </p>
+                <p v-if="entry.beforeStatus || entry.afterStatus" class="mono text-secondary">
+                  {{ entry.beforeStatus || '-' }} → {{ entry.afterStatus || '-' }}
                 </p>
                 <p class="text-secondary">
-                  {{ log.operatorName || log.operatorType }}
-                  <span v-if="log.operateRemark"> · {{ log.operateRemark }}</span>
+                  {{ sourceLabel(entry.source)
+                  }}{{ entry.operatorName ? ' · ' + entry.operatorName : '' }}
+                  <span v-if="entry.message"> · {{ entry.message }}</span>
                 </p>
-                <span class="mono text-secondary">{{ formatTime(log.createdAt) }}</span>
+                <p v-if="entry.failReason" class="fail-reason">失败原因：{{ entry.failReason }}</p>
+                <span class="mono text-secondary">{{ formatTime(entry.time) }}</span>
               </a-timeline-item>
             </a-timeline>
-            <a-empty v-else description="暂无时间线数据" />
-          </template>
-        </a-card>
+            <template v-else>
+              <a-timeline v-if="operateLogs.length > 0">
+                <a-timeline-item
+                  v-for="log in operateLogs"
+                  :key="log.id"
+                  :color="logColor(log.operateType)"
+                >
+                  <p>{{ operateTypeLabel(log.operateType) }}</p>
+                  <p v-if="log.beforeStatus || log.afterStatus" class="mono text-secondary">
+                    {{ log.beforeStatus || '-' }} → {{ log.afterStatus || '-' }}
+                  </p>
+                  <p class="text-secondary">
+                    {{ log.operatorName || log.operatorType }}
+                    <span v-if="log.operateRemark"> · {{ log.operateRemark }}</span>
+                  </p>
+                  <span class="mono text-secondary">{{ formatTime(log.createdAt) }}</span>
+                </a-timeline-item>
+              </a-timeline>
+              <a-empty v-else description="暂无时间线数据" />
+            </template>
+          </section>
 
-        <a-card title="任务状态时间线" size="small">
-          <a-timeline>
-            <a-timeline-item color="green">
-              <p>任务创建</p>
-              <span class="mono text-secondary">{{ formatTime(store.detail.createdAt) }}</span>
-            </a-timeline-item>
-            <a-timeline-item v-if="store.detail.assignTime" color="blue">
-              <p>已派单</p>
-              <span class="mono text-secondary">{{ formatTime(store.detail.assignTime) }}</span>
-            </a-timeline-item>
-            <a-timeline-item v-if="store.detail.startTime" color="cyan">
-              <p>开始执行</p>
-              <span class="mono text-secondary">{{ formatTime(store.detail.startTime) }}</span>
-            </a-timeline-item>
-            <a-timeline-item v-if="store.detail.finishTime" :color="finishColor">
-              <p>{{ store.detail.status === 'SUCCESS' ? '执行完成' : '执行结束' }}</p>
-              <span class="mono text-secondary">{{ formatTime(store.detail.finishTime) }}</span>
-            </a-timeline-item>
-          </a-timeline>
-        </a-card>
+          <section class="detail-section" aria-labelledby="task-status-timeline-heading">
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="task-status-timeline-heading">任务状态节点</h2>
+                <p>关键时间点摘要</p>
+              </div>
+            </div>
+            <a-timeline>
+              <a-timeline-item color="var(--fsd-text-tertiary)">
+                <p>任务创建</p>
+                <span class="mono text-secondary">{{ formatTime(store.detail.createdAt) }}</span>
+              </a-timeline-item>
+              <a-timeline-item v-if="store.detail.assignTime" color="var(--fsd-text-tertiary)">
+                <p>已派单</p>
+                <span class="mono text-secondary">{{ formatTime(store.detail.assignTime) }}</span>
+              </a-timeline-item>
+              <a-timeline-item v-if="store.detail.startTime" color="var(--fsd-accent)">
+                <p>开始执行</p>
+                <span class="mono text-secondary">{{ formatTime(store.detail.startTime) }}</span>
+              </a-timeline-item>
+              <a-timeline-item v-if="store.detail.finishTime" :color="finishColor">
+                <p>{{ store.detail.status === 'SUCCESS' ? '执行完成' : '执行结束' }}</p>
+                <span class="mono text-secondary">{{ formatTime(store.detail.finishTime) }}</span>
+              </a-timeline-item>
+            </a-timeline>
+          </section>
+        </div>
       </template>
     </a-spin>
 
@@ -254,31 +333,45 @@ const nextActionHint = computed(() => {
 
 function timelineEventTypeLabel(type: string) {
   const map: Record<string, string> = {
-    CREATE_ORDER: '订单创建', CREATE_TASK: '创建任务', AUTO_ASSIGN: '自动派车',
-    MANUAL_ASSIGN: '手动派车', UNASSIGN_TASK: '人工接管退回', REASSIGN: '改派换车',
-    CANCEL_TASK: '取消任务', START_EXECUTE: '开始执行', FINISH_SUCCESS: '配送完成',
-    FINISH_FAILED: '配送失败', TASK_RETRY: '失败重试', RESET_FOR_AUTO_ASSIGN: '重置待派',
-    ENTER_MANUAL_PENDING: '转人工处理', ISSUE_COMMAND: '下发车辆指令',
-    COMMAND_FAILED: '车辆指令失败', EXCEPTION_RESOLVE: '异常处置',
-    EXCEPTION_RAISED: '异常上报', EXCEPTION_RESOLVED: '异常解除',
+    CREATE_ORDER: '订单创建',
+    CREATE_TASK: '创建任务',
+    AUTO_ASSIGN: '自动派车',
+    MANUAL_ASSIGN: '手动派车',
+    UNASSIGN_TASK: '人工接管退回',
+    REASSIGN: '改派换车',
+    CANCEL_TASK: '取消任务',
+    START_EXECUTE: '开始执行',
+    FINISH_SUCCESS: '配送完成',
+    FINISH_FAILED: '配送失败',
+    TASK_RETRY: '失败重试',
+    RESET_FOR_AUTO_ASSIGN: '重置待派',
+    ENTER_MANUAL_PENDING: '转人工处理',
+    ISSUE_COMMAND: '下发车辆指令',
+    COMMAND_FAILED: '车辆指令失败',
+    EXCEPTION_RESOLVE: '异常处置',
+    EXCEPTION_RAISED: '异常上报',
+    EXCEPTION_RESOLVED: '异常解除',
   }
   return map[type] || type
 }
 
 function sourceLabel(source?: string | null) {
   const map: Record<string, string> = {
-    SYSTEM: '系统', DISPATCHER: '调度员', VEHICLE: '车辆回报', MOBILE: '移动端',
+    SYSTEM: '系统',
+    DISPATCHER: '调度员',
+    VEHICLE: '车辆回报',
+    MOBILE: '移动端',
   }
   if (!source) return '系统'
   return map[source] || source
 }
 
 function timelineColor(type: string) {
-  if (type === 'FINISH_SUCCESS') return 'green'
-  if (type === 'START_EXECUTE' || type === 'ISSUE_COMMAND' || type === 'EXCEPTION_RESOLVED') return 'cyan'
-  if (type === 'AUTO_ASSIGN' || type === 'MANUAL_ASSIGN' || type === 'REASSIGN') return 'blue'
-  if (type === 'CREATE_ORDER' || type === 'CREATE_TASK') return 'gray'
-  return 'gray'
+  if (type === 'FINISH_SUCCESS') return 'var(--fsd-success)'
+  if (type === 'START_EXECUTE' || type === 'ISSUE_COMMAND' || type === 'EXCEPTION_RESOLVED') {
+    return 'var(--fsd-accent)'
+  }
+  return 'var(--fsd-text-tertiary)'
 }
 
 const canAutoAssign = computed(() => {
@@ -294,12 +387,16 @@ const canManualAssign = computed(() => {
 const canReassign = computed(() => store.detail?.status === TaskStatus.ASSIGNED)
 const canCancel = computed(() => {
   const s = store.detail?.status
-  return s === TaskStatus.PENDING || s === TaskStatus.MANUAL_PENDING
-      || s === TaskStatus.ASSIGNED || s === TaskStatus.EXECUTING
+  return (
+    s === TaskStatus.PENDING ||
+    s === TaskStatus.MANUAL_PENDING ||
+    s === TaskStatus.ASSIGNED ||
+    s === TaskStatus.EXECUTING
+  )
 })
 
 const finishColor = computed(() =>
-  store.detail?.status === TaskStatus.SUCCESS ? 'green' : 'red'
+  store.detail?.status === TaskStatus.SUCCESS ? 'var(--fsd-success)' : 'var(--fsd-error)',
 )
 
 function formatTime(t: string | null | undefined) {
@@ -308,16 +405,19 @@ function formatTime(t: string | null | undefined) {
 
 function operateTypeLabel(type: string) {
   const map: Record<string, string> = {
-    CREATE_TASK: '创建任务', AUTO_ASSIGN: '自动派车', MANUAL_ASSIGN: '手动派车',
-    REASSIGN: '改派', CANCEL_TASK: '取消任务', EXCEPTION_RESOLVE: '异常处置',
+    CREATE_TASK: '创建任务',
+    AUTO_ASSIGN: '自动派车',
+    MANUAL_ASSIGN: '手动派车',
+    REASSIGN: '改派',
+    CANCEL_TASK: '取消任务',
+    EXCEPTION_RESOLVE: '异常处置',
   }
   return map[type] || type
 }
 
 function logColor(type: string) {
-  if (type.includes('FAIL') || type === 'CANCEL_TASK') return 'red'
-  if (type.includes('ASSIGN') || type === 'REASSIGN') return 'blue'
-  return 'gray'
+  if (type.includes('FAIL') || type === 'CANCEL_TASK') return 'var(--fsd-error)'
+  return 'var(--fsd-text-tertiary)'
 }
 
 async function loadVehicle(vehicleId: number) {
@@ -441,86 +541,224 @@ watch(() => parkScope.selectedParkId, fetchData)
 </script>
 
 <style scoped lang="less">
-@mobile-break: 768px;
+@mobile-break: 767px;
+
+.detail-summary {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  gap: var(--fsd-space-6);
+  padding: var(--fsd-space-4) var(--fsd-space-5);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-status);
+}
+
+.detail-summary-primary {
+  display: flex;
+  min-width: 160px;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--fsd-space-1);
+}
+
+.detail-summary-label,
+.detail-summary-metric dt {
+  color: var(--fsd-text-tertiary);
+  font-size: var(--fsd-text-xs);
+  line-height: var(--fsd-leading-normal);
+}
+
+.detail-summary-code {
+  color: var(--fsd-text-heading);
+  font-size: var(--fsd-text-lg);
+  font-weight: var(--fsd-font-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-summary-metrics {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.detail-summary-metric {
+  min-width: 0;
+  padding: 0 var(--fsd-space-4);
+  border-left: 1px solid var(--fsd-border-split);
+}
+
+.detail-summary-metric dt,
+.detail-summary-metric dd {
+  margin: 0;
+}
+
+.detail-summary-metric dd {
+  min-height: 22px;
+  margin-top: var(--fsd-space-1);
+  overflow: hidden;
+  color: var(--fsd-text-primary);
+  font-size: var(--fsd-text-sm);
+  line-height: var(--fsd-leading-normal);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-sections {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.detail-section {
+  min-width: 0;
+  padding: var(--fsd-space-5) 0;
+  border-top: 1px solid var(--fsd-border);
+}
+
+.detail-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.detail-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--fsd-space-3);
+  margin-bottom: var(--fsd-space-3);
+}
+
+.detail-section-heading h2 {
+  margin: 0;
+  color: var(--fsd-text-primary);
+  font-size: var(--fsd-text-md);
+  font-weight: var(--fsd-font-semibold);
+  line-height: var(--fsd-leading-snug);
+}
+
+.detail-section-heading p {
+  margin: var(--fsd-space-1) 0 0;
+  color: var(--fsd-text-tertiary);
+  font-size: var(--fsd-text-xs);
+  line-height: var(--fsd-leading-normal);
+}
 
 .fail-reason {
-  margin: 2px 0;
-  color: #cf1322;
+  margin: var(--fsd-space-1) 0;
+  color: var(--fsd-error);
 }
 
 .next-action-hint {
-  margin: 0 0 12px;
-  padding: 6px 10px;
-  background: #e6f4ff;
-  border-radius: 4px;
-  color: #0958d9;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
-
-  > :last-child {
-    grid-column: 1 / -1;
-  }
-
-  @media (max-width: @mobile-break) {
-    grid-template-columns: 1fr;
-
-    > :last-child {
-      grid-column: 1;
-    }
-
-    :deep(.ant-descriptions) {
-      .ant-descriptions-item {
-        display: flex;
-        flex-direction: column;
-      }
-
-      .ant-descriptions-item-label {
-        width: 100% !important;
-        padding-bottom: 0;
-      }
-
-      .ant-descriptions-item-content {
-        width: 100% !important;
-      }
-    }
-  }
+  margin: 0 0 var(--fsd-space-3);
+  padding: var(--fsd-space-2) var(--fsd-space-3);
+  border: 1px solid var(--fsd-accent-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-accent-selected);
+  color: var(--fsd-accent-strong);
+  font-size: var(--fsd-text-sm);
 }
 
 .detail-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--fsd-space-2);
   flex-wrap: wrap;
+}
 
-  @media (max-width: @mobile-break) {
+.link {
+  color: var(--fsd-accent);
+  font-family: var(--fsd-font-mono);
+
+  &:hover {
+    color: var(--fsd-accent-strong);
+    text-decoration: underline;
+  }
+}
+
+.mono {
+  font-family: var(--fsd-font-mono);
+  font-size: var(--fsd-text-sm);
+}
+
+.text-secondary {
+  color: var(--fsd-text-secondary);
+  font-size: var(--fsd-text-xs);
+}
+
+.metadata-tag {
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-neutral-bg);
+  color: var(--fsd-text-secondary);
+}
+
+.severity-tag {
+  margin-left: var(--fsd-space-1);
+  border: 1px solid var(--fsd-warning);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-warning-bg);
+  color: var(--fsd-warning);
+}
+
+@media (max-width: 1023px) {
+  .detail-summary {
+    flex-direction: column;
+    gap: var(--fsd-space-4);
+  }
+
+  .detail-summary-primary {
+    min-width: 0;
+  }
+}
+
+@media (max-width: @mobile-break) {
+  .detail-summary {
+    padding: var(--fsd-space-4);
+  }
+
+  .detail-summary-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid var(--fsd-border-split);
+  }
+
+  .detail-summary-metric {
+    padding: var(--fsd-space-3) 0 0;
+    border-left: 0;
+  }
+
+  .detail-summary-metric:nth-child(even) {
+    padding-left: var(--fsd-space-3);
+    border-left: 1px solid var(--fsd-border-split);
+  }
+
+  .detail-section {
+    padding: var(--fsd-space-4) 0;
+  }
+
+  .detail-actions {
     flex-direction: column;
 
     > * {
       width: 100%;
     }
   }
-}
 
-.link {
-  color: var(--fsd-accent);
-  font-family: 'JetBrains Mono', monospace;
+  :deep(.ant-descriptions) {
+    .ant-descriptions-item {
+      display: flex;
+      flex-direction: column;
+    }
 
-  &:hover {
-    text-decoration: underline;
+    .ant-descriptions-item-label,
+    .ant-descriptions-item-content {
+      width: 100% !important;
+    }
+
+    .ant-descriptions-item-label {
+      padding-bottom: 0;
+    }
   }
-}
-
-.mono {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-}
-
-.text-secondary {
-  color: var(--fsd-text-secondary);
-  font-size: 12px;
 }
 </style>

@@ -44,20 +44,24 @@
             v-if="exceptionAnalysis"
             :points="exceptionAnalysis.exceptionTrend"
             metric="totalCount"
-            color="#FF5C7C"
+            color="var(--fsd-error)"
             clickable
             @bar-click="drillDownException"
           />
         </section>
 
         <section v-if="chainKpi" class="panel metrics-panel">
-          <h3>链路 KPI <a-button type="link" size="small" @click="drillDownTasks(chainKpi)">查看任务 →</a-button></h3>
-          <div class="metric-cards">
-            <MetricCard variant="compact" label="完成均时" :value="chainKpi.avgCompletionMinutes" unit="分" color-theme="cyan" clickable @click="drillDownTasks(chainKpi)" />
-            <MetricCard variant="compact" label="等待 P50" :value="chainKpi.waitP50Minutes" unit="分" color-theme="amber" clickable @click="drillDownTasks(chainKpi)" />
-            <MetricCard variant="compact" label="等待 P90" :value="chainKpi.waitP90Minutes" unit="分" color-theme="red" clickable @click="drillDownTasks(chainKpi)" />
-            <MetricCard variant="compact" label="单车日均任务" :value="chainKpi.tasksPerVehiclePerDay" color-theme="green" clickable @click="drillDownTasks(chainKpi)" />
-          </div>
+          <h3>
+            链路 KPI
+            <a-button type="link" size="small" @click="drillDownTasks(chainKpi)"
+              >查看任务 →</a-button
+            >
+          </h3>
+          <MetricStrip
+            :items="chainKpiItems"
+            aria-label="链路 KPI"
+            @activate="drillDownTasks(chainKpi)"
+          />
         </section>
 
         <section v-if="peakCompare" class="panel metrics-panel">
@@ -74,22 +78,28 @@
               <p>单车日均 {{ peakCompare.peakMode.tasksPerVehiclePerDay }}</p>
             </div>
           </div>
-          <a-button type="link" @click="router.push('/system/report-schedule')">定时邮件报表配置 →</a-button>
+          <a-button type="link" @click="router.push('/system/report-schedule')"
+            >定时邮件报表配置 →</a-button
+          >
         </section>
 
         <section class="panel metrics-panel">
           <h3>效率指标</h3>
-          <div class="metric-cards">
-            <MetricCard variant="compact" label="平均任务时长" :value="efficiency?.avgTaskDurationMinutes ?? '-'" unit="分" color-theme="cyan" clickable @click="drillDownEfficiency('duration')" />
-            <MetricCard variant="compact" label="车辆利用率" :value="efficiency?.vehicleUtilizationRate ?? '-'" unit="%" color-theme="green" clickable @click="drillDownEfficiency('utilization')" />
-            <MetricCard variant="compact" label="异常处理时长" :value="exceptionAnalysis?.avgResolutionMinutes ?? '-'" unit="分" color-theme="red" @click="router.push('/exceptions')" />
-          </div>
+          <MetricStrip
+            :items="efficiencyItems"
+            aria-label="效率指标"
+            @activate="handleEfficiencyMetricActivate"
+          />
         </section>
 
         <section class="panel">
           <h3>异常类型分布</h3>
           <div class="type-list">
-            <div v-for="item in exceptionAnalysis?.typeDistribution || []" :key="item.type" class="type-item">
+            <div
+              v-for="item in exceptionAnalysis?.typeDistribution || []"
+              :key="item.type"
+              class="type-item"
+            >
               <span>{{ item.type }}</span>
               <span>{{ item.count }} · {{ item.ratio }}%</span>
             </div>
@@ -99,13 +109,30 @@
         <section class="panel summary-panel">
           <h3>每日运营摘要 · {{ dailySummary?.date }}</h3>
           <div class="summary-grid">
-            <div><span>订单</span><strong>{{ dailySummary?.orderCompleted }}/{{ dailySummary?.orderTotal }}</strong></div>
-            <div><span>完成率</span><strong>{{ dailySummary?.orderCompletionRate }}%</strong></div>
-            <div><span>日环比</span><strong :class="rateClass(dailySummary?.dayOverDayOrderRate)">{{ formatRate(dailySummary?.dayOverDayOrderRate) }}</strong></div>
-            <div><span>周同比</span><strong :class="rateClass(dailySummary?.weekOverWeekOrderRate)">{{ formatRate(dailySummary?.weekOverWeekOrderRate) }}</strong></div>
+            <div>
+              <span>订单</span
+              ><strong>{{ dailySummary?.orderCompleted }}/{{ dailySummary?.orderTotal }}</strong>
+            </div>
+            <div>
+              <span>完成率</span><strong>{{ dailySummary?.orderCompletionRate }}%</strong>
+            </div>
+            <div>
+              <span>日环比</span
+              ><strong :class="rateClass(dailySummary?.dayOverDayOrderRate)">{{
+                formatRate(dailySummary?.dayOverDayOrderRate)
+              }}</strong>
+            </div>
+            <div>
+              <span>周同比</span
+              ><strong :class="rateClass(dailySummary?.weekOverWeekOrderRate)">{{
+                formatRate(dailySummary?.weekOverWeekOrderRate)
+              }}</strong>
+            </div>
           </div>
           <ul class="highlight-list">
-            <li v-for="(line, idx) in dailySummary?.highlightEvents || []" :key="idx">{{ line }}</li>
+            <li v-for="(line, idx) in dailySummary?.highlightEvents || []" :key="idx">
+              {{ line }}
+            </li>
           </ul>
         </section>
 
@@ -125,11 +152,7 @@
         <section class="panel">
           <h3>高峰时段（订单/任务）</h3>
           <div class="peak-list">
-            <div
-              v-for="point in topPeakHours"
-              :key="point.hour"
-              class="peak-item"
-            >
+            <div v-for="point in topPeakHours" :key="point.hour" class="peak-item">
               <span>{{ String(point.hour).padStart(2, '0') }}:00</span>
               <span>订单 {{ point.orderCount }} · 任务 {{ point.taskCount }}</span>
             </div>
@@ -145,7 +168,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageContainer from '@/components/common/PageContainer.vue'
 import TrendBarChart from '@/components/analytics/TrendBarChart.vue'
-import MetricCard from '@/components/common/MetricCard.vue'
+import MetricStrip from '@/components/common/MetricStrip.vue'
+import type { MetricStripItem } from '@/components/common/MetricStrip.vue'
 import {
   getAnalyticsDailySummary,
   getAnalyticsEfficiency,
@@ -185,6 +209,70 @@ const parkCompareColumns = [
   { title: '成功任务', dataIndex: 'taskSuccessCount', width: 100 },
   { title: 'OPEN 异常', dataIndex: 'openExceptionCount', width: 100 },
 ]
+
+const chainKpiItems = computed<MetricStripItem[]>(() => {
+  if (!chainKpi.value) return []
+  return [
+    {
+      key: 'completion',
+      label: '完成均时',
+      value: chainKpi.value.avgCompletionMinutes,
+      unit: '分',
+      tone: 'accent',
+      actionable: true,
+    },
+    {
+      key: 'wait-p50',
+      label: '等待 P50',
+      value: chainKpi.value.waitP50Minutes,
+      unit: '分',
+      tone: 'warning',
+      actionable: true,
+    },
+    {
+      key: 'wait-p90',
+      label: '等待 P90',
+      value: chainKpi.value.waitP90Minutes,
+      unit: '分',
+      tone: 'error',
+      actionable: true,
+    },
+    {
+      key: 'tasks-per-vehicle',
+      label: '单车日均任务',
+      value: chainKpi.value.tasksPerVehiclePerDay,
+      tone: 'success',
+      actionable: true,
+    },
+  ]
+})
+
+const efficiencyItems = computed<MetricStripItem[]>(() => [
+  {
+    key: 'duration',
+    label: '平均任务时长',
+    value: efficiency.value?.avgTaskDurationMinutes ?? '-',
+    unit: '分',
+    tone: 'accent',
+    actionable: true,
+  },
+  {
+    key: 'utilization',
+    label: '车辆利用率',
+    value: efficiency.value?.vehicleUtilizationRate ?? '-',
+    unit: '%',
+    tone: 'success',
+    actionable: true,
+  },
+  {
+    key: 'exceptions',
+    label: '异常处理时长',
+    value: exceptionAnalysis.value?.avgResolutionMinutes ?? '-',
+    unit: '分',
+    tone: 'error',
+    actionable: true,
+  },
+])
 
 const topPeakHours = computed(() => {
   const hours = efficiency.value?.peakHours || []
@@ -247,6 +335,18 @@ function drillDownOrders(point: AnalyticsTrendPoint) {
   void router.push({ path: '/orders', query: { status: 'COMPLETED', dateLabel: point.label } })
 }
 
+function handleEfficiencyMetricActivate(item: MetricStripItem) {
+  if (item.key === 'duration') {
+    drillDownEfficiency('duration')
+    return
+  }
+  if (item.key === 'utilization') {
+    drillDownEfficiency('utilization')
+    return
+  }
+  void router.push('/exceptions')
+}
+
 function drillDownEfficiency(type: 'duration' | 'utilization') {
   const query: Record<string, string> = {}
   if (type === 'utilization') {
@@ -262,7 +362,9 @@ function drillDownTasks(_kpi?: AnalyticsChainKpi) {
 }
 
 async function exportPdf() {
-  await downloadAnalyticsFile(getAnalyticsPdfUrl(dailySummary.value?.date, parkScope.selectedParkId))
+  await downloadAnalyticsFile(
+    getAnalyticsPdfUrl(dailySummary.value?.date, parkScope.selectedParkId),
+  )
 }
 
 async function handleExport({ key }: { key: string }) {
@@ -280,17 +382,17 @@ watch(
 <style scoped lang="less">
 .analytics-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  gap: 12px;
+  justify-content: space-between;
+  gap: var(--fsd-space-3);
+  margin-bottom: var(--fsd-space-4);
   flex-wrap: wrap;
 }
 
 .analytics-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: var(--fsd-space-4);
 
   @media (max-width: 1100px) {
     grid-template-columns: 1fr;
@@ -298,51 +400,54 @@ watch(
 }
 
 .panel {
-  background: var(--fsd-bg-base);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
-  padding: 20px;
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-raised);
+  padding: var(--fsd-space-4);
 
   h3 {
-    margin: 0 0 16px;
-    font-size: 15px;
+    margin: 0 0 var(--fsd-space-3);
     color: var(--fsd-text-primary);
+    font-size: var(--fsd-text-md);
+    font-weight: var(--fsd-font-semibold);
   }
 }
 
-.metric-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
+.metrics-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
 }
 
-.type-list, .peak-list, .highlight-list {
+.type-list,
+.peak-list,
+.highlight-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
-.type-item, .peak-item {
+.type-item,
+.peak-item {
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
+  gap: var(--fsd-space-3);
+  padding: var(--fsd-space-2) 0;
+  border-bottom: 1px solid var(--fsd-border-split);
   color: var(--fsd-text-secondary);
-  padding: 8px 10px;
-  border: 1px solid var(--fsd-border);
-  border-radius: 8px;
+  font-size: var(--fsd-text-sm);
 }
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: var(--fsd-space-4);
+  border-block: 1px solid var(--fsd-border-split);
 
   div {
-    padding: 10px;
-    border-radius: 8px;
-    background: rgba(18, 24, 33, 0.45);
-    border: 1px solid var(--fsd-border);
+    min-width: 0;
+    padding: var(--fsd-space-3);
+    border-right: 1px solid var(--fsd-border-split);
 
     span {
       display: block;
@@ -352,20 +457,64 @@ watch(
 
     strong {
       display: block;
-      margin-top: 6px;
-      font-size: 18px;
+      margin-top: var(--fsd-space-1);
+      font-family: var(--fsd-font-mono);
+      font-size: var(--fsd-text-lg);
       color: var(--fsd-text-primary);
 
-      &.positive { color: var(--fsd-success); }
-      &.negative { color: var(--fsd-error); }
+      &.positive {
+        color: var(--fsd-success);
+      }
+      &.negative {
+        color: var(--fsd-error);
+      }
     }
   }
 }
 
 .highlight-list {
+  gap: var(--fsd-space-2);
   margin: 0;
-  padding-left: 18px;
+  padding-left: var(--fsd-space-4);
   color: var(--fsd-text-secondary);
-  line-height: 1.7;
+  line-height: 1.6;
+}
+
+.peak-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-block: 1px solid var(--fsd-border-split);
+}
+
+.peak-compare-grid .clickable {
+  min-height: var(--fsd-touch-target-min);
+  padding: var(--fsd-space-3);
+  border-right: 1px solid var(--fsd-border-split);
+  cursor: pointer;
+}
+
+.peak-compare-grid .clickable:hover {
+  background: var(--fsd-bg-hover);
+}
+
+.peak-compare-grid h4,
+.peak-compare-grid p {
+  margin: 0;
+}
+
+.peak-compare-grid p {
+  margin-top: var(--fsd-space-1);
+  color: var(--fsd-text-secondary);
+  font-size: var(--fsd-text-sm);
+}
+
+@media (max-width: 560px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-grid div:nth-child(2n) {
+    border-right: 0;
+  }
 }
 </style>

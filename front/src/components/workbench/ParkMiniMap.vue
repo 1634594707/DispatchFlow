@@ -13,7 +13,9 @@
       </label>
     </div>
     <div class="map-overlay">
-      <span class="map-stat">{{ ZJF_ORDERABLE_STATION_COUNT }} 个运营站点 · {{ vehicles.length }} 车在线</span>
+      <span class="map-stat"
+        >{{ ZJF_ORDERABLE_STATION_COUNT }} 个运营站点 · {{ vehicles.length }} 车在线</span
+      >
       <router-link to="/vehicle-tracking" class="map-link">全屏监控 →</router-link>
     </div>
   </div>
@@ -48,7 +50,9 @@ const visibleStations = computed(() => {
 })
 
 const hasChargingStations = computed(() =>
-  (props.layout?.stations ?? []).some(station => (station.stationCode ?? '').startsWith('ZJF-CHG-')),
+  (props.layout?.stations ?? []).some((station) =>
+    (station.stationCode ?? '').startsWith('ZJF-CHG-'),
+  ),
 )
 
 function draw() {
@@ -188,10 +192,9 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
-  border-radius: 8px;
-  background: rgba(11, 16, 24, 0.82);
-  border: 1px solid rgba(48, 54, 61, 0.8);
-  backdrop-filter: blur(6px);
+  border-radius: var(--fsd-radius-md);
+  border: 1px solid var(--fsd-border);
+  background: var(--fsd-surface-overlay);
 }
 
 .legend-item {
@@ -213,7 +216,7 @@ onUnmounted(() => {
   user-select: none;
 
   input {
-    accent-color: #9d4edd;
+    accent-color: var(--fsd-accent);
   }
 }
 
@@ -223,9 +226,15 @@ onUnmounted(() => {
   height: 8px;
   border-radius: 50%;
 
-  &.pickup { background: var(--fsd-accent); }
-  &.dropoff { background: var(--fsd-warning); }
-  &.express { background: var(--fsd-success); }
+  &.pickup {
+    background: var(--fsd-accent);
+  }
+  &.dropoff {
+    background: var(--fsd-warning);
+  }
+  &.express {
+    background: var(--fsd-success);
+  }
   &.vehicle {
     width: 0;
     height: 0;
@@ -246,10 +255,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(11, 16, 24, 0.82);
-  border: 1px solid rgba(48, 54, 61, 0.8);
-  backdrop-filter: blur(6px);
+  border-radius: var(--fsd-radius-md);
+  border: 1px solid var(--fsd-border);
+  background: var(--fsd-surface-overlay);
 }
 
 .map-stat {

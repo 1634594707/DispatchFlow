@@ -2,11 +2,15 @@
   <component
     :is="clickable ? 'button' : 'div'"
     class="metric-card"
-    :class="[`metric-card--${variant}`, `metric-card--${resolvedColor}`, {
-      'metric-card--clickable': clickable,
-      'metric-card--alert': alert && variant === 'stat',
-      'metric-card--loading': loading,
-    }]"
+    :class="[
+      `metric-card--${variant}`,
+      `metric-card--${resolvedColor}`,
+      {
+        'metric-card--clickable': clickable,
+        'metric-card--alert': alert && variant === 'stat',
+        'metric-card--loading': loading,
+      },
+    ]"
     :type="clickable ? 'button' : undefined"
     :disabled="disabled"
     :tabindex="clickable ? 0 : undefined"
@@ -23,13 +27,17 @@
       </div>
     </template>
     <template v-else>
-      <div v-if="icon && variant === 'stat'" class="metric-icon" :style="{ background: iconBg, color: iconColor }">
+      <div
+        v-if="icon && variant === 'stat'"
+        class="metric-icon"
+        :style="{ background: computedIconBg, color: computedIconColor }"
+      >
         <component :is="icon" />
       </div>
       <div class="metric-body">
         <div class="metric-label">{{ label }}</div>
         <div class="metric-value-row">
-          <span class="metric-value" :style="{ color: valueColor }">
+          <span class="metric-value" :style="{ color: computedValueColor }">
             {{ formattedValue }}
             <small v-if="unit" class="metric-unit">{{ unit }}</small>
           </span>
@@ -86,24 +94,22 @@ const props = withDefaults(
 const emit = defineEmits<{ click: [] }>()
 
 const colorMap: Record<ColorTheme, { bg: string; color: string }> = {
-  cyan:    { bg: 'rgba(34, 199, 230, 0.10)', color: 'var(--fsd-accent)' },
-  green:   { bg: 'rgba(45, 224, 138, 0.10)', color: 'var(--fsd-success)' },
-  amber:   { bg: 'rgba(255, 192, 77, 0.10)',  color: 'var(--fsd-warning)' },
-  red:     { bg: 'rgba(255, 92, 124, 0.10)',  color: 'var(--fsd-error)' },
-  neutral: { bg: 'rgba(155, 168, 184, 0.08)', color: 'var(--fsd-text-secondary)' },
-  info:    { bg: 'rgba(34, 199, 230, 0.08)',  color: 'var(--fsd-accent)' },
+  cyan: { bg: 'var(--fsd-accent-selected)', color: 'var(--fsd-accent)' },
+  green: { bg: 'var(--fsd-success-bg)', color: 'var(--fsd-success)' },
+  amber: { bg: 'var(--fsd-warning-bg)', color: 'var(--fsd-warning)' },
+  red: { bg: 'var(--fsd-error-bg)', color: 'var(--fsd-error)' },
+  neutral: { bg: 'var(--fsd-neutral-bg)', color: 'var(--fsd-text-secondary)' },
+  info: { bg: 'var(--fsd-neutral-bg)', color: 'var(--fsd-text-secondary)' },
 }
 
 const resolvedColor = computed(() => {
   if (props.valueColor) return 'custom'
-  return (props.colorTheme || (props.variant === 'stat' ? 'cyan' : 'neutral'))
+  return props.colorTheme || 'neutral'
 })
 
-const computedIconBg = computed(() =>
-  props.iconBg || colorMap[props.colorTheme || 'cyan'].bg,
-)
-const computedIconColor = computed(() =>
-  props.iconColor || colorMap[props.colorTheme || 'cyan'].color,
+const computedIconBg = computed(() => props.iconBg || colorMap[props.colorTheme || 'neutral'].bg)
+const computedIconColor = computed(
+  () => props.iconColor || colorMap[props.colorTheme || 'neutral'].color,
 )
 
 const computedValueColor = computed(() => {
@@ -123,7 +129,12 @@ const formattedValue = computed(() => {
     case 'minutes':
       return Math.round(num).toString()
     case 'currency':
-      return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 0, maximumFractionDigits: 0 })
+      return num.toLocaleString('zh-CN', {
+        style: 'currency',
+        currency: 'CNY',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })
     case 'raw':
       return String(props.value)
     default:
@@ -161,7 +172,7 @@ function handleClick() {
 .metric-card {
   background: var(--fsd-bg-base);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
   padding: 20px;
   font-family: inherit;
   text-align: left;
@@ -169,28 +180,20 @@ function handleClick() {
   width: 100%;
   position: relative;
   overflow: hidden;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--fsd-gradient-card);
-    pointer-events: none;
-  }
+  transition:
+    border-color var(--fsd-transition-base),
+    background-color var(--fsd-transition-base);
 
   &--clickable {
     cursor: pointer;
 
     &:hover:not(:disabled) {
+      background: var(--fsd-bg-hover);
       border-color: var(--fsd-border-active);
-      transform: translateY(-2px);
-      box-shadow: var(--fsd-shadow-elevated);
     }
 
     &:active:not(:disabled) {
-      transform: translateY(0);
-      box-shadow: var(--fsd-shadow-elevated), inset 0 2px 4px rgba(0, 0, 0, 0.2);
+      background: var(--fsd-bg-active);
     }
 
     &:disabled {
@@ -199,14 +202,13 @@ function handleClick() {
     }
 
     &:focus-visible {
-      outline: 2px solid var(--fsd-accent);
+      outline: 2px solid var(--fsd-accent-strong);
       outline-offset: 2px;
     }
   }
 
   &--alert {
-    border-color: var(--fsd-error) !important;
-    animation: metric-pulse 2s infinite;
+    border-left: 3px solid var(--fsd-error);
   }
 
   &--loading {
@@ -224,7 +226,7 @@ function handleClick() {
 .metric-icon {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: var(--fsd-radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -249,7 +251,7 @@ function handleClick() {
   display: flex;
   align-items: center;
   gap: 4px;
-  transition: color 0.2s;
+  transition: color var(--fsd-transition-fast);
 
   .metric-card--clickable:hover & {
     color: var(--fsd-accent);
@@ -330,9 +332,15 @@ function handleClick() {
   font-weight: 600;
   font-family: 'JetBrains Mono', monospace;
 
-  &.trend-up   { color: var(--fsd-success); }
-  &.trend-down { color: var(--fsd-error); }
-  &.trend-flat { color: var(--fsd-text-tertiary); }
+  &.trend-up {
+    color: var(--fsd-success);
+  }
+  &.trend-down {
+    color: var(--fsd-error);
+  }
+  &.trend-flat {
+    color: var(--fsd-text-tertiary);
+  }
 }
 
 .trend-arrow {
@@ -349,9 +357,9 @@ function handleClick() {
 .skel-icon {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: var(--fsd-radius-sm);
   background: var(--fsd-bg-elevated);
-  animation: skel-shimmer 1.4s infinite;
+  animation: none;
 }
 
 .skel-label {
@@ -359,7 +367,7 @@ function handleClick() {
   width: 60%;
   border-radius: 4px;
   background: var(--fsd-bg-elevated);
-  animation: skel-shimmer 1.4s infinite;
+  animation: none;
 }
 
 .skel-value {
@@ -367,8 +375,7 @@ function handleClick() {
   width: 45%;
   border-radius: 6px;
   background: var(--fsd-bg-elevated);
-  animation: skel-shimmer 1.4s infinite;
-  animation-delay: 0.1s;
+  animation: none;
 }
 
 .skel-action {
@@ -377,18 +384,6 @@ function handleClick() {
   margin-top: 12px;
   border-radius: 4px;
   background: var(--fsd-bg-elevated);
-  animation: skel-shimmer 1.4s infinite;
-  animation-delay: 0.2s;
-}
-
-// ── Animations ────────────────────────────────────────
-@keyframes metric-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 92, 124, 0.4); }
-  50%      { box-shadow: 0 0 0 8px rgba(255, 92, 124, 0); }
-}
-
-@keyframes skel-shimmer {
-  0%, 100% { opacity: 0.4; }
-  50%      { opacity: 0.7; }
+  animation: none;
 }
 </style>

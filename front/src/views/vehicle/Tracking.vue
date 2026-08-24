@@ -9,481 +9,574 @@
 
     <SkeletonLoader v-if="showSkeleton" preset="tracking" />
     <template v-else>
-    <div
-      v-show="showSchematicMap"
-      ref="mapContainer"
-      class="map-container"
-    ></div>
-    <AmapGeoMap
-      v-if="showGeoMap"
-      class="map-container geo-map-layer"
-      :center="geoMapCenter"
-      :markers="geoMarkers"
-      :polygons="geoPolygons"
-      :polylines="geoPolylines"
-      :circles="geoCircles"
-      :zoom="geoMapZoom"
-      :fit-view-points="geoFitViewPoints"
-      :fit-view-on-change="Boolean(selectedId)"
-      @marker-click="selectGeoMarker"
-    />
-    <div v-else-if="trackingScene === 'delivery'" class="map-container geo-map-layer geo-map-unconfigured">
-      <div class="geo-map-unconfigured__body">
-        <p class="geo-map-unconfigured__title">短驳地理图未加载</p>
-        <p class="geo-map-unconfigured__hint">
-          生产环境需配置高德 JS Key 与安全密钥。构建时写入
-          <code>VITE_AMAP_KEY</code> / <code>VITE_AMAP_SECURITY_CODE</code>，或部署后编辑
-          <code>runtime-config.js</code>（无需重新打包）。
-        </p>
-        <p class="geo-map-unconfigured__hint">
-          若 Key 已配置仍空白，请在高德控制台将该 Key 的「Web端(JS API)」域名白名单加入当前站点域名。
-        </p>
-        <router-link class="geo-map-unconfigured__link" to="/system/config-check">打开试点配置自检 →</router-link>
-      </div>
-    </div>
-
-    <div v-if="apiError" class="api-alert">
-      <span class="api-alert-dot"></span>
-      <span>{{ apiError }}</span>
-      <button type="button" class="api-alert-retry" @click="bootstrapData">重试</button>
-    </div>
-
-    <div v-if="showGeoMap && roadRouteWarning" class="api-alert road-route-warning">
-      <span class="api-alert-dot warning"></span>
-      <span>{{ roadRouteWarning }}</span>
-    </div>
-
-    <aside class="side-panel" :class="{ collapsed: panelCollapsed }">
-      <button
-        class="panel-toggle"
-        type="button"
-        :title="panelCollapsed ? '展开面板' : '收起面板'"
-        :aria-label="panelCollapsed ? '展开面板' : '收起面板'"
-        @click="panelCollapsed = !panelCollapsed"
+      <div v-show="showSchematicMap" ref="mapContainer" class="map-container"></div>
+      <AmapGeoMap
+        v-if="showGeoMap"
+        class="map-container geo-map-layer"
+        :center="geoMapCenter"
+        :markers="geoMarkers"
+        :polygons="geoPolygons"
+        :polylines="geoPolylines"
+        :circles="geoCircles"
+        :zoom="geoMapZoom"
+        :fit-view-points="geoFitViewPoints"
+        :fit-view-on-change="Boolean(selectedId)"
+        @marker-click="selectGeoMarker"
+      />
+      <div
+        v-else-if="trackingScene === 'delivery'"
+        class="map-container geo-map-layer geo-map-unconfigured"
       >
-        <LeftOutlined v-if="!panelCollapsed" />
-        <RightOutlined v-else />
-      </button>
-
-      <div v-if="!panelCollapsed" class="panel-content">
-        <header class="panel-header">
-          <div class="header-row">
-            <div class="header-title-wrap">
-              <span class="live-badge" :class="{ live: backendOnline, stream: streamConnected }">
-                <span class="live-pulse"></span>
-                {{ streamConnected ? 'STREAM' : backendOnline ? 'LIVE' : 'OFFLINE' }}
-              </span>
-              <h1 class="header-title">找家纺短驳监控</h1>
-            </div>
-            <div class="header-actions">
-              <router-link class="mobile-entry" to="/mobile/order" title="移动下单">下单</router-link>
-              <button class="refresh-btn" :class="{ spinning: refreshing }" title="刷新" @click="manualRefresh">
-                <ReloadOutlined />
-              </button>
-            </div>
-          </div>
-          <p class="header-sub">
-            <span class="header-sub-line">{{ activeParkName }} · {{ currentTime }}</span>
-            <span v-if="streamConnected && lastStreamLatencyMs != null" class="stream-latency">
-              推送延迟 {{ formatStreamLatency(lastStreamLatencyMs) }}
-            </span>
+        <div class="geo-map-unconfigured__body">
+          <p class="geo-map-unconfigured__title">短驳地理图未加载</p>
+          <p class="geo-map-unconfigured__hint">
+            生产环境需配置高德 JS Key 与安全密钥。构建时写入
+            <code>VITE_AMAP_KEY</code> / <code>VITE_AMAP_SECURITY_CODE</code>，或部署后编辑
+            <code>runtime-config.js</code>（无需重新打包）。
           </p>
-          <div class="header-controls">
-            <p v-if="trackingScene === 'park'" class="map-scope-hint">
-              <a-tooltip title="内部路网示意，非真实道路；ZJF 短驳请切换「短驳地理」。">
-                <span>园区调度图：内部路网与 AGV 任务，供后台审查。</span>
-              </a-tooltip>
+          <p class="geo-map-unconfigured__hint">
+            若 Key 已配置仍空白，请在高德控制台将该 Key 的「Web端(JS
+            API)」域名白名单加入当前站点域名。
+          </p>
+          <router-link class="geo-map-unconfigured__link" to="/system/config-check"
+            >打开试点配置自检 →</router-link
+          >
+        </div>
+      </div>
+
+      <div v-if="apiError" class="api-alert">
+        <span class="api-alert-dot"></span>
+        <span>{{ apiError }}</span>
+        <button type="button" class="api-alert-retry" @click="bootstrapData">重试</button>
+      </div>
+
+      <div v-if="showGeoMap && roadRouteWarning" class="api-alert road-route-warning">
+        <span class="api-alert-dot warning"></span>
+        <span>{{ roadRouteWarning }}</span>
+      </div>
+
+      <aside class="side-panel" :class="{ collapsed: panelCollapsed }">
+        <button
+          class="panel-toggle"
+          type="button"
+          :title="panelCollapsed ? '展开面板' : '收起面板'"
+          :aria-label="panelCollapsed ? '展开面板' : '收起面板'"
+          @click="panelCollapsed = !panelCollapsed"
+        >
+          <LeftOutlined v-if="!panelCollapsed" />
+          <RightOutlined v-else />
+        </button>
+
+        <div v-if="!panelCollapsed" class="panel-content">
+          <header class="panel-header">
+            <div class="header-row">
+              <div class="header-title-wrap">
+                <span class="live-badge" :class="{ live: backendOnline, stream: streamConnected }">
+                  <span class="live-pulse"></span>
+                  {{ streamConnected ? 'STREAM' : backendOnline ? 'LIVE' : 'OFFLINE' }}
+                </span>
+                <h1 class="header-title">找家纺短驳监控</h1>
+              </div>
+              <div class="header-actions">
+                <router-link class="mobile-entry" to="/mobile/order" title="移动下单"
+                  >下单</router-link
+                >
+                <button
+                  class="refresh-btn"
+                  :class="{ spinning: refreshing }"
+                  title="刷新"
+                  @click="manualRefresh"
+                >
+                  <ReloadOutlined />
+                </button>
+              </div>
+            </div>
+            <p class="header-sub">
+              <span class="header-sub-line">{{ activeParkName }} · {{ currentTime }}</span>
+              <span v-if="streamConnected && lastStreamLatencyMs != null" class="stream-latency">
+                推送延迟 {{ formatStreamLatency(lastStreamLatencyMs) }}
+              </span>
             </p>
-            <p v-else class="map-scope-hint geo">
-              <span class="pilot-badge">当前：找家纺本地运营范围</span>
-              实际服务边界 · L1 自动派单分区 · 贴路轨迹
-            </p>
-            <span class="mode-toggle">
-              大屏：
+            <div class="header-controls">
+              <p v-if="trackingScene === 'park'" class="map-scope-hint">
+                <a-tooltip title="内部路网示意，非真实道路；ZJF 短驳请切换「短驳地理」。">
+                  <span>园区调度图：内部路网与 AGV 任务，供后台审查。</span>
+                </a-tooltip>
+              </p>
+              <p v-else class="map-scope-hint geo">
+                <span class="pilot-badge">当前：找家纺本地运营范围</span>
+                实际服务边界 · L1 自动派单分区 · 贴路轨迹
+              </p>
+              <span class="mode-toggle">
+                大屏：
+                <a-segmented v-model:value="screenMode" size="small" :options="screenModeOptions" />
+              </span>
+              <span class="mode-toggle">
+                模式：{{ peakModeLabel }}
+                <a-switch
+                  v-if="authStore.isAdmin"
+                  v-model:checked="peakEnabled"
+                  size="small"
+                  checked-children="高峰"
+                  un-checked-children="日常"
+                  @change="onPeakModeChange"
+                />
+                <a-switch
+                  v-model:checked="opsMode"
+                  size="small"
+                  checked-children="运维"
+                  un-checked-children="常规"
+                  @change="loadOpsSnapshot"
+                />
+              </span>
+            </div>
+            <DemoModePanel
+              class="demo-mode-header"
+              :demo-mode="demoMode"
+              :remaining-label="demoRemainingLabel"
+              @start="demo.startDemo()"
+              @stop="demo.stopDemo()"
+              @next="demo.nextDemoOrder()"
+            />
+          </header>
+
+          <div v-if="screenMode === 'situation'" class="panel-toolbar panel-toolbar-situation">
+            <!-- V5-N3: 预测性告警 SOC 区域 -->
+            <div class="toolbar-field">
+              <span class="toolbar-label">预警</span>
+              <a-badge :count="predictiveLowSocVehicles.length" :overflow-count="99" size="small">
+                <a-button
+                  size="small"
+                  :type="predictiveLowSocVehicles.length > 0 ? 'primary' : 'default'"
+                  :danger="predictiveLowSocVehicles.length > 0"
+                  @click="predictiveDrawerVisible = true"
+                >
+                  <template #icon><BellOutlined /></template>
+                  SOC 预测
+                </a-button>
+              </a-badge>
+            </div>
+            <div class="toolbar-field">
+              <span class="toolbar-label">场景</span>
               <a-segmented
-                v-model:value="screenMode"
+                v-model:value="trackingScene"
                 size="small"
-                :options="screenModeOptions"
+                class="scene-segment"
+                :options="trackingSceneOptions"
               />
-            </span>
-            <span class="mode-toggle">
-              模式：{{ peakModeLabel }}
-              <a-switch
-                v-if="authStore.isAdmin"
-                v-model:checked="peakEnabled"
-                size="small"
-                checked-children="高峰"
-                un-checked-children="日常"
-                @change="onPeakModeChange"
+            </div>
+            <div v-if="trackingScene === 'park'" class="toolbar-field">
+              <span class="toolbar-label">园区</span>
+              <a-select
+                v-model:value="trackingParkId"
+                class="park-select"
+                :options="trackingParkOptions"
+                :loading="parkScope.loading"
+                placeholder="选择园区"
+                @change="onTrackingParkChange"
               />
-              <a-switch
-                v-model:checked="opsMode"
-                size="small"
-                checked-children="运维"
-                un-checked-children="常规"
-                @change="loadOpsSnapshot"
-              />
-            </span>
+            </div>
           </div>
-          <DemoModePanel
-            class="demo-mode-header"
-            :demo-mode="demoMode"
-            :remaining-label="demoRemainingLabel"
-            @start="demo.startDemo()"
-            @stop="demo.stopDemo()"
-            @next="demo.nextDemoOrder()"
-          />
-        </header>
 
-        <div v-if="screenMode === 'situation'" class="panel-toolbar panel-toolbar-situation">
-          <!-- V5-N3: 预测性告警 SOC 区域 -->
-        <div class="toolbar-field">
-          <span class="toolbar-label">预警</span>
-          <a-badge :count="predictiveLowSocVehicles.length" :overflow-count="99" size="small">
-            <a-button size="small" :type="predictiveLowSocVehicles.length > 0 ? 'primary' : 'default'" :danger="predictiveLowSocVehicles.length > 0" @click="predictiveDrawerVisible = true">
-              <template #icon><BellOutlined /></template>
-              SOC 预测
-            </a-button>
-          </a-badge>
-        </div>
-        <div class="toolbar-field">
-            <span class="toolbar-label">场景</span>
-            <a-segmented
-              v-model:value="trackingScene"
-              size="small"
-              class="scene-segment"
-              :options="trackingSceneOptions"
-            />
+          <div v-if="screenMode === 'incident'" class="incident-toolbar">
+            <div class="incident-toolbar-head">
+              <span class="incident-title">事件处置</span>
+              <span class="incident-hint">优先处理异常车辆与关联订单</span>
+            </div>
+            <div class="incident-actions">
+              <a-badge :count="predictiveLowSocVehicles.length" :overflow-count="99" size="small">
+                <a-button
+                  size="small"
+                  type="primary"
+                  danger
+                  @click="predictiveDrawerVisible = true"
+                >
+                  <template #icon><BellOutlined /></template>
+                  低电预警
+                </a-button>
+              </a-badge>
+              <a-button size="small" @click="filterByStatus('LOW_BATTERY')">筛选低电</a-button>
+              <router-link to="/field-ops/work-orders">
+                <a-button size="small">现场工单</a-button>
+              </router-link>
+              <a-button size="small" @click="filterByStatus('OFFLINE')">离线车辆</a-button>
+            </div>
           </div>
-          <div v-if="trackingScene === 'park'" class="toolbar-field">
-            <span class="toolbar-label">园区</span>
-            <a-select
-              v-model:value="trackingParkId"
-              class="park-select"
-              :options="trackingParkOptions"
-              :loading="parkScope.loading"
-              placeholder="选择园区"
-              @change="onTrackingParkChange"
-            />
-          </div>
-        </div>
 
-        <div v-if="screenMode === 'incident'" class="incident-toolbar">
-          <div class="incident-toolbar-head">
-            <span class="incident-title">事件处置</span>
-            <span class="incident-hint">优先处理异常车辆与关联订单</span>
+          <div class="stat-strip">
+            <button
+              class="stat-item total"
+              :class="{ active: activeFilter === 'all' }"
+              @click="filterByStatus('all')"
+            >
+              <span class="stat-value">{{ sceneVehicles.length }}</span>
+              <span class="stat-label">全部</span>
+            </button>
+            <button
+              class="stat-item online"
+              :class="{ active: activeFilter === 'ONLINE' }"
+              @click="filterByStatus('ONLINE')"
+            >
+              <span class="stat-value">{{ onlineCount }}</span>
+              <span class="stat-label">在线</span>
+            </button>
+            <button
+              class="stat-item busy"
+              :class="{ active: activeFilter === 'BUSY' }"
+              @click="filterByStatus('BUSY')"
+            >
+              <span class="stat-value">{{ busyCount }}</span>
+              <span class="stat-label">执行中</span>
+            </button>
+            <button
+              class="stat-item charging"
+              :class="{ active: activeFilter === 'CHARGING' }"
+              @click="filterByStatus('CHARGING')"
+            >
+              <span class="stat-value">{{ chargingCount }}</span>
+              <span class="stat-label">充电</span>
+            </button>
+            <button
+              class="stat-item low-battery"
+              :class="{ active: activeFilter === 'LOW_BATTERY' }"
+              @click="filterByStatus('LOW_BATTERY')"
+            >
+              <span class="stat-value">{{ lowBatteryCount }}</span>
+              <span class="stat-label">低电量</span>
+            </button>
           </div>
-          <div class="incident-actions">
-            <a-badge :count="predictiveLowSocVehicles.length" :overflow-count="99" size="small">
-              <a-button size="small" type="primary" danger @click="predictiveDrawerVisible = true">
-                <template #icon><BellOutlined /></template>
-                低电预警
-              </a-button>
-            </a-badge>
-            <a-button size="small" @click="filterByStatus('LOW_BATTERY')">筛选低电</a-button>
-            <router-link to="/field-ops/work-orders">
-              <a-button size="small">现场工单</a-button>
-            </router-link>
-            <a-button size="small" @click="filterByStatus('OFFLINE')">离线车辆</a-button>
-          </div>
-        </div>
 
-        <div class="stat-strip">
-          <button class="stat-item total" :class="{ active: activeFilter === 'all' }" @click="filterByStatus('all')">
-            <span class="stat-value">{{ sceneVehicles.length }}</span>
-            <span class="stat-label">全部</span>
-          </button>
-          <button class="stat-item online" :class="{ active: activeFilter === 'ONLINE' }" @click="filterByStatus('ONLINE')">
-            <span class="stat-value">{{ onlineCount }}</span>
-            <span class="stat-label">在线</span>
-          </button>
-          <button class="stat-item busy" :class="{ active: activeFilter === 'BUSY' }" @click="filterByStatus('BUSY')">
-            <span class="stat-value">{{ busyCount }}</span>
-            <span class="stat-label">执行中</span>
-          </button>
-          <button class="stat-item charging" :class="{ active: activeFilter === 'CHARGING' }" @click="filterByStatus('CHARGING')">
-            <span class="stat-value">{{ chargingCount }}</span>
-            <span class="stat-label">充电</span>
-          </button>
-          <button
-            class="stat-item low-battery"
-            :class="{ active: activeFilter === 'LOW_BATTERY' }"
-            @click="filterByStatus('LOW_BATTERY')"
+          <div v-if="screenMode === 'situation'" class="filter-bar">
+            <button
+              v-for="item in extraFilterOptions"
+              :key="item.value"
+              class="filter-chip"
+              :class="{ active: activeFilter === item.value }"
+              @click="filterByStatus(item.value)"
+            >
+              {{ item.label }}
+            </button>
+            <button
+              class="filter-chip filter-chip-layer"
+              :class="{ active: showChargeLayer }"
+              @click="toggleChargeLayer"
+            >
+              充电图层
+            </button>
+            <button
+              class="filter-chip filter-chip-layer"
+              :class="{ active: showL0Circles }"
+              @click="toggleL0Circles"
+            >
+              L0 双圈
+            </button>
+          </div>
+
+          <div
+            v-if="screenMode === 'incident' && opsMode && opsSnapshot"
+            class="ops-panel ops-panel-incident"
           >
-            <span class="stat-value">{{ lowBatteryCount }}</span>
-            <span class="stat-label">低电量</span>
-          </button>
-        </div>
+            <section class="panel-section">
+              <div class="section-head"><span class="section-title">低电簇</span></div>
+              <div v-for="c in opsSnapshot.lowBatteryClusters" :key="c.gridKey" class="ops-line">
+                {{ c.gridKey }} · {{ c.vehicleCount }} 台 · 最低 {{ c.minSoc }}%
+              </div>
+            </section>
+            <section class="panel-section">
+              <div class="section-head"><span class="section-title">离线 &gt;5min</span></div>
+              <div v-for="v in opsSnapshot.offlineVehicles" :key="v.vehicleId" class="ops-line">
+                {{ v.vehicleCode }} · {{ v.offlineMinutes }} 分
+              </div>
+            </section>
+            <section class="panel-section">
+              <div class="section-head"><span class="section-title">枢纽排队</span></div>
+              <div v-for="t in opsSnapshot.hubQueuedTasks" :key="t.taskId" class="ops-line">
+                {{ t.hubStationName }} · {{ t.taskNo }}
+              </div>
+            </section>
+          </div>
 
-        <div v-if="screenMode === 'situation'" class="filter-bar">
-          <button
-            v-for="item in extraFilterOptions"
-            :key="item.value"
-            class="filter-chip"
-            :class="{ active: activeFilter === item.value }"
-            @click="filterByStatus(item.value)"
-          >
-            {{ item.label }}
-          </button>
-          <button class="filter-chip filter-chip-layer" :class="{ active: showChargeLayer }" @click="toggleChargeLayer">
-            充电图层
-          </button>
-          <button class="filter-chip filter-chip-layer" :class="{ active: showL0Circles }" @click="toggleL0Circles">
-            L0 双圈
-          </button>
-        </div>
+          <div class="panel-body">
+            <section class="panel-section">
+              <div class="section-head">
+                <span class="section-title">车辆</span>
+                <span class="section-count">{{ filteredVehicles.length }}</span>
+              </div>
+              <div class="card-list">
+                <button
+                  v-for="vehicle in filteredVehicles"
+                  :key="vehicle.vehicleId"
+                  class="info-card vehicle-card"
+                  :class="{
+                    selected: selectedId === vehicle.vehicleId,
+                    offline: vehicle.onlineStatus === 'OFFLINE',
+                  }"
+                  @click="focusVehicle(vehicle)"
+                >
+                  <div class="vehicle-card-head">
+                    <div class="vehicle-id-block">
+                      <strong>{{ vehicle.vehicleCode }}</strong>
+                      <span class="vehicle-name">{{ vehicle.vehicleName }}</span>
+                      <span class="link-mode-pill" :class="linkModeClass(vehicle.linkMode)">
+                        {{ linkModeLabel(vehicle.linkMode, vehicle.vehicleCode) }}
+                      </span>
+                    </div>
+                    <span
+                      class="status-dot"
+                      :class="vehicle.onlineStatus === 'ONLINE' ? 'dot-online' : 'dot-offline'"
+                    ></span>
+                  </div>
+                  <div class="vehicle-card-meta">
+                    <span class="meta-dispatch">{{ dispatchLabel(vehicle.dispatchStatus) }}</span>
+                    <span class="stage-pill" :class="stageClass(vehicle.runtimeStage)">
+                      {{ stageLabel(vehicle.runtimeStage) }}
+                    </span>
+                    <span class="meta-battery" :class="{ low: vehicle.lowBattery }"
+                      >{{ vehicle.batteryLevel }}%</span
+                    >
+                  </div>
+                  <div
+                    v-if="vehicle.targetCode || vehicle.charging || vehicle.lowBattery"
+                    class="card-tags"
+                  >
+                    <span v-if="vehicle.targetCode" class="mini-tag target-tag">
+                      {{ targetLabel(vehicle.targetType) }} {{ vehicle.targetCode }}
+                    </span>
+                    <span v-if="vehicle.charging" class="mini-tag charging-tag">充电中</span>
+                    <span v-if="vehicle.lowBattery" class="mini-tag risk-tag">低电量</span>
+                  </div>
+                </button>
+                <div v-if="filteredVehicles.length === 0" class="empty-state">
+                  <InboxOutlined />
+                  <span>暂无车辆</span>
+                </div>
+              </div>
+            </section>
 
-        <div v-if="screenMode === 'incident' && opsMode && opsSnapshot" class="ops-panel ops-panel-incident">
-          <section class="panel-section">
-            <div class="section-head"><span class="section-title">低电簇</span></div>
-            <div v-for="c in opsSnapshot.lowBatteryClusters" :key="c.gridKey" class="ops-line">
-              {{ c.gridKey }} · {{ c.vehicleCount }} 台 · 最低 {{ c.minSoc }}%
-            </div>
-          </section>
-          <section class="panel-section">
-            <div class="section-head"><span class="section-title">离线 &gt;5min</span></div>
-            <div v-for="v in opsSnapshot.offlineVehicles" :key="v.vehicleId" class="ops-line">
-              {{ v.vehicleCode }} · {{ v.offlineMinutes }} 分
-            </div>
-          </section>
-          <section class="panel-section">
-            <div class="section-head"><span class="section-title">枢纽排队</span></div>
-            <div v-for="t in opsSnapshot.hubQueuedTasks" :key="t.taskId" class="ops-line">
-              {{ t.hubStationName }} · {{ t.taskNo }}
-            </div>
-          </section>
-        </div>
-
-        <div class="panel-body">
-          <section class="panel-section">
-            <div class="section-head">
-              <span class="section-title">车辆</span>
-              <span class="section-count">{{ filteredVehicles.length }}</span>
-            </div>
-            <div class="card-list">
-              <button
-                v-for="vehicle in filteredVehicles"
-                :key="vehicle.vehicleId"
-                class="info-card vehicle-card"
-                :class="{ selected: selectedId === vehicle.vehicleId, offline: vehicle.onlineStatus === 'OFFLINE' }"
-                @click="focusVehicle(vehicle)"
-              >
-                <div class="vehicle-card-head">
-                  <div class="vehicle-id-block">
-                    <strong>{{ vehicle.vehicleCode }}</strong>
-                    <span class="vehicle-name">{{ vehicle.vehicleName }}</span>
-                    <span class="link-mode-pill" :class="linkModeClass(vehicle.linkMode)">
-                      {{ linkModeLabel(vehicle.linkMode, vehicle.vehicleCode) }}
+            <section class="panel-section panel-section-orders">
+              <div class="section-head">
+                <span class="section-title">订单链路</span>
+                <span class="section-count">{{ parkOrders.length }}</span>
+              </div>
+              <div class="card-list order-list">
+                <div
+                  v-for="order in parkOrders.slice(0, 8)"
+                  :key="order.orderId"
+                  class="info-card order-card"
+                >
+                  <div class="order-card-head">
+                    <router-link :to="`/orders/${order.orderId}`" class="order-link">
+                      {{ order.orderNo || `ORDER-${order.orderId}` }}
+                    </router-link>
+                    <span class="stage-pill" :class="stageClass(order.runtimeStage)">
+                      {{ stageLabel(order.runtimeStage) }}
                     </span>
                   </div>
-                  <span class="status-dot" :class="vehicle.onlineStatus === 'ONLINE' ? 'dot-online' : 'dot-offline'"></span>
+                  <div class="route-line">
+                    <span>{{ order.pickupStation.stationCode }}</span>
+                    <span class="route-arrow">→</span>
+                    <span>{{ order.dropoffStation.stationCode }}</span>
+                  </div>
+                  <div class="order-card-foot">
+                    <span>{{ order.vehicleCode || '待分配' }}</span>
+                    <span>{{ formatOrderTime(order.updatedAt) }}</span>
+                  </div>
                 </div>
-                <div class="vehicle-card-meta">
-                  <span class="meta-dispatch">{{ dispatchLabel(vehicle.dispatchStatus) }}</span>
-                  <span class="stage-pill" :class="stageClass(vehicle.runtimeStage)">
-                    {{ stageLabel(vehicle.runtimeStage) }}
-                  </span>
-                  <span class="meta-battery" :class="{ low: vehicle.lowBattery }">{{ vehicle.batteryLevel }}%</span>
+                <div v-if="parkOrders.length === 0" class="empty-state">
+                  <InboxOutlined />
+                  <span>暂无订单</span>
                 </div>
-                <div v-if="vehicle.targetCode || vehicle.charging || vehicle.lowBattery" class="card-tags">
-                  <span v-if="vehicle.targetCode" class="mini-tag target-tag">
-                    {{ targetLabel(vehicle.targetType) }} {{ vehicle.targetCode }}
-                  </span>
-                  <span v-if="vehicle.charging" class="mini-tag charging-tag">充电中</span>
-                  <span v-if="vehicle.lowBattery" class="mini-tag risk-tag">低电量</span>
-                </div>
-              </button>
-              <div v-if="filteredVehicles.length === 0" class="empty-state">
-                <InboxOutlined />
-                <span>暂无车辆</span>
               </div>
-            </div>
-          </section>
+            </section>
+          </div>
 
-          <section class="panel-section panel-section-orders">
-            <div class="section-head">
-              <span class="section-title">订单链路</span>
-              <span class="section-count">{{ parkOrders.length }}</span>
-            </div>
-            <div class="card-list order-list">
-              <div v-for="order in parkOrders.slice(0, 8)" :key="order.orderId" class="info-card order-card">
-                <div class="order-card-head">
-                  <router-link :to="`/orders/${order.orderId}`" class="order-link">
-                    {{ order.orderNo || `ORDER-${order.orderId}` }}
-                  </router-link>
-                  <span class="stage-pill" :class="stageClass(order.runtimeStage)">
-                    {{ stageLabel(order.runtimeStage) }}
-                  </span>
-                </div>
-                <div class="route-line">
-                  <span>{{ order.pickupStation.stationCode }}</span>
-                  <span class="route-arrow">→</span>
-                  <span>{{ order.dropoffStation.stationCode }}</span>
-                </div>
-                <div class="order-card-foot">
-                  <span>{{ order.vehicleCode || '待分配' }}</span>
-                  <span>{{ formatOrderTime(order.updatedAt) }}</span>
-                </div>
-              </div>
-              <div v-if="parkOrders.length === 0" class="empty-state">
-                <InboxOutlined />
-                <span>暂无订单</span>
-              </div>
-            </div>
-          </section>
+          <footer class="panel-footer">
+            <span>低电量 {{ lowBatteryCount }} 台</span>
+            <span class="footer-time">{{ currentTime }}</span>
+          </footer>
         </div>
+      </aside>
 
-        <footer class="panel-footer">
-          <span>低电量 {{ lowBatteryCount }} 台</span>
-          <span class="footer-time">{{ currentTime }}</span>
-        </footer>
+      <div v-if="!selectedVehicle" class="legend">
+        <div class="legend-item"><span class="legend-dot station-a"></span><span>取货站</span></div>
+        <div class="legend-item"><span class="legend-dot station-b"></span><span>送货站</span></div>
+        <div class="legend-item">
+          <span class="legend-dot parking"></span><span>停车/充电位</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot legend-dot-charging"></span><span>充电状态</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot legend-dot-busy"></span><span>订单链路</span>
+        </div>
       </div>
-    </aside>
 
-    <div class="legend">
-      <div class="legend-item"><span class="legend-dot station-a"></span><span>取货站</span></div>
-      <div class="legend-item"><span class="legend-dot station-b"></span><span>送货站</span></div>
-      <div class="legend-item"><span class="legend-dot parking"></span><span>停车/充电位</span></div>
-      <div class="legend-item"><span class="legend-dot legend-dot-charging"></span><span>充电状态</span></div>
-      <div class="legend-item"><span class="legend-dot legend-dot-busy"></span><span>订单链路</span></div>
-    </div>
-
-    <div v-if="selectedVehicle" class="detail-mask" @click.self="selectedId = null">
-      <div class="detail-card">
-        <div class="detail-header">
-          <div>
-            <div class="detail-code">{{ selectedVehicle.vehicleCode }}</div>
-            <div class="detail-name">{{ selectedVehicle.vehicleName }}</div>
+      <div v-if="selectedVehicle" class="detail-mask" @click.self="selectedId = null">
+        <div class="detail-card">
+          <div class="detail-header">
+            <div>
+              <div class="detail-code">{{ selectedVehicle.vehicleCode }}</div>
+              <div class="detail-name">{{ selectedVehicle.vehicleName }}</div>
+            </div>
+            <button class="detail-close" @click="selectedId = null">
+              <CloseOutlined />
+            </button>
           </div>
-          <button class="detail-close" @click="selectedId = null">
-            <CloseOutlined />
-          </button>
-        </div>
-        <div class="detail-body">
-          <div class="detail-row">
-            <span>在线状态</span>
-            <StatusBadge :status="selectedVehicle.onlineStatus" type="online" />
-          </div>
-          <div class="detail-row">
-            <span>数据年龄</span>
-            <span
-              class="detail-flag"
-              :class="{ danger: selectedVehicle.telemetryStale }"
-              :title="'超过服务端阈值后车辆不可派车'"
+          <div class="detail-body">
+            <div class="detail-row">
+              <span>在线状态</span>
+              <StatusBadge :status="selectedVehicle.onlineStatus" type="online" />
+            </div>
+            <div class="detail-row">
+              <span>数据年龄</span>
+              <span
+                class="detail-flag"
+                :class="{ danger: selectedVehicle.telemetryStale }"
+                :title="'超过服务端阈值后车辆不可派车'"
+              >
+                {{ telemetryAgeLabel(selectedVehicle) }}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span>调度状态</span>
+              <StatusBadge :status="selectedVehicle.dispatchStatus" type="dispatch" />
+            </div>
+            <div class="detail-row">
+              <span>运行阶段</span>
+              <span class="stage-pill" :class="stageClass(selectedVehicle.runtimeStage)">
+                {{ stageLabel(selectedVehicle.runtimeStage) }}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span>电量</span>
+              <span>{{ selectedVehicle.batteryLevel }}%</span>
+            </div>
+            <div class="detail-row">
+              <span>目标点</span>
+              <span>{{ formatVehicleTarget(selectedVehicle) }}</span>
+            </div>
+            <div class="detail-row">
+              <span>充电状态</span>
+              <span class="detail-flag" :class="{ active: selectedVehicle.charging }">
+                {{ selectedVehicle.charging ? '充电中' : '未充电' }}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span>电量风险</span>
+              <span class="detail-flag" :class="{ danger: selectedVehicle.lowBattery }">
+                {{ selectedVehicle.lowBattery ? '低电量' : '正常' }}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span>坐标</span>
+              <span>{{ selectedVehicle.x.toFixed(0) }}, {{ selectedVehicle.y.toFixed(0) }}</span>
+            </div>
+            <div
+              v-if="selectedVehicle.longitude != null && selectedVehicle.latitude != null"
+              class="detail-row"
             >
-              {{ telemetryAgeLabel(selectedVehicle) }}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span>调度状态</span>
-            <StatusBadge :status="selectedVehicle.dispatchStatus" type="dispatch" />
-          </div>
-          <div class="detail-row">
-            <span>运行阶段</span>
-            <span class="stage-pill" :class="stageClass(selectedVehicle.runtimeStage)">
-              {{ stageLabel(selectedVehicle.runtimeStage) }}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span>电量</span>
-            <span>{{ selectedVehicle.batteryLevel }}%</span>
-          </div>
-          <div class="detail-row">
-            <span>目标点</span>
-            <span>{{ formatVehicleTarget(selectedVehicle) }}</span>
-          </div>
-          <div class="detail-row">
-            <span>充电状态</span>
-            <span class="detail-flag" :class="{ active: selectedVehicle.charging }">
-              {{ selectedVehicle.charging ? '充电中' : '未充电' }}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span>电量风险</span>
-            <span class="detail-flag" :class="{ danger: selectedVehicle.lowBattery }">
-              {{ selectedVehicle.lowBattery ? '低电量' : '正常' }}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span>坐标</span>
-            <span>{{ selectedVehicle.x.toFixed(0) }}, {{ selectedVehicle.y.toFixed(0) }}</span>
-          </div>
-          <div
-            v-if="selectedVehicle.longitude != null && selectedVehicle.latitude != null"
-            class="detail-row"
-          >
-            <span>经纬度</span>
-            <span>{{ Number(selectedVehicle.longitude).toFixed(6) }}, {{ Number(selectedVehicle.latitude).toFixed(6) }}</span>
-          </div>
-          <div v-if="selectedVehicle.currentTaskId" class="detail-row">
-            <span>当前任务</span>
-            <router-link :to="`/tasks/${selectedVehicle.currentTaskId}`" class="detail-link">
-              #{{ selectedVehicle.currentTaskId }}
-            </router-link>
-          </div>
-          <div v-if="selectedVehicle.currentOrderId" class="detail-row">
-            <span>当前订单</span>
-            <router-link :to="`/orders/${selectedVehicle.currentOrderId}`" class="detail-link">
-              #{{ selectedVehicle.currentOrderId }}
-            </router-link>
+              <span>经纬度</span>
+              <span
+                >{{ Number(selectedVehicle.longitude).toFixed(6) }},
+                {{ Number(selectedVehicle.latitude).toFixed(6) }}</span
+              >
+            </div>
+            <div v-if="selectedVehicle.currentTaskId" class="detail-row">
+              <span>当前任务</span>
+              <router-link :to="`/tasks/${selectedVehicle.currentTaskId}`" class="detail-link">
+                #{{ selectedVehicle.currentTaskId }}
+              </router-link>
+            </div>
+            <div v-if="selectedVehicle.currentOrderId" class="detail-row">
+              <span>当前订单</span>
+              <router-link :to="`/orders/${selectedVehicle.currentOrderId}`" class="detail-link">
+                #{{ selectedVehicle.currentOrderId }}
+              </router-link>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </template>
+    </template>
 
-  <!-- V5-N3: SOC 预测告警抽屉 -->
-  <a-drawer
-    v-model:open="predictiveDrawerVisible"
-    title="SOC 趋势预测"
-    placement="right"
-    width="360"
-  >
-    <template v-if="predictiveLowSocVehicles.length === 0">
-      <div class="empty-state">
-        <InboxOutlined />
-        <span>暂无预测告警</span>
-      </div>
-    </template>
-    <template v-else>
-      <div class="predictive-list">
-        <div
-          v-for="alert in predictiveLowSocVehicles"
-          :key="alert.vehicleId"
-          class="predictive-card"
-          :class="`trend-${alert.trend}`"
-          @click="selectedPredictiveVehicleId = alert.vehicleId"
-        >
-          <div class="predictive-head">
-            <strong>{{ alert.vehicleCode }}</strong>
-            <span class="predictive-soc">{{ alert.currentSoc }}%</span>
-          </div>
-          <div class="predictive-meta">
-            <span class="predictive-minutes">预计 {{ alert.predictedMinutes }} 分钟后低于 30%</span>
-            <span class="trend-indicator">
-              <ArrowUpOutlined v-if="alert.trend === 'stable'" style="color: var(--fsd-success)" />
-              <ArrowRightOutlined v-else-if="alert.trend === 'slight_decline'" style="color: var(--fsd-warning)" />
-              <ArrowDownOutlined v-else style="color: var(--fsd-error)" />
-              {{ alert.trend === 'stable' ? '稳定' : alert.trend === 'slight_decline' ? '缓慢下降' : '快速下降' }}
-            </span>
+    <!-- V5-N3: SOC 预测告警抽屉 -->
+    <a-drawer
+      v-model:open="predictiveDrawerVisible"
+      title="SOC 趋势预测"
+      placement="right"
+      width="360"
+    >
+      <template v-if="predictiveLowSocVehicles.length === 0">
+        <div class="empty-state">
+          <InboxOutlined />
+          <span>暂无预测告警</span>
+        </div>
+      </template>
+      <template v-else>
+        <div class="predictive-list">
+          <div
+            v-for="alert in predictiveLowSocVehicles"
+            :key="alert.vehicleId"
+            class="predictive-card"
+            :class="`trend-${alert.trend}`"
+            @click="selectedPredictiveVehicleId = alert.vehicleId"
+          >
+            <div class="predictive-head">
+              <strong>{{ alert.vehicleCode }}</strong>
+              <span class="predictive-soc">{{ alert.currentSoc }}%</span>
+            </div>
+            <div class="predictive-meta">
+              <span class="predictive-minutes"
+                >预计 {{ alert.predictedMinutes }} 分钟后低于 30%</span
+              >
+              <span class="trend-indicator">
+                <ArrowUpOutlined
+                  v-if="alert.trend === 'stable'"
+                  style="color: var(--fsd-success)"
+                />
+                <ArrowRightOutlined
+                  v-else-if="alert.trend === 'slight_decline'"
+                  style="color: var(--fsd-warning)"
+                />
+                <ArrowDownOutlined v-else style="color: var(--fsd-error)" />
+                {{
+                  alert.trend === 'stable'
+                    ? '稳定'
+                    : alert.trend === 'slight_decline'
+                      ? '缓慢下降'
+                      : '快速下降'
+                }}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-    </template>
-    <template v-if="selectedPredictiveVehicleId != null">
-      <a-divider>趋势详情</a-divider>
-      <div class="trend-detail">
-        <p>车辆 {{ selectedPredictiveVehicleId }}</p>
-        <p>趋势方向：
-          <ArrowUpOutlined v-if="getVehicleTrend(selectedPredictiveVehicleId) === 'stable'" style="color: var(--fsd-success)" />
-          <ArrowRightOutlined v-else-if="getVehicleTrend(selectedPredictiveVehicleId) === 'slight_decline'" style="color: var(--fsd-warning)" />
-          <ArrowDownOutlined v-else style="color: var(--fsd-error)" />
-          {{ getVehicleTrend(selectedPredictiveVehicleId) === 'stable' ? '稳定 ↑' : getVehicleTrend(selectedPredictiveVehicleId) === 'slight_decline' ? '缓慢下降 →' : '快速下降 ↓' }}
-        </p>
-      </div>
-    </template>
-  </a-drawer>
-</div>
+      </template>
+      <template v-if="selectedPredictiveVehicleId != null">
+        <a-divider>趋势详情</a-divider>
+        <div class="trend-detail">
+          <p>车辆 {{ selectedPredictiveVehicleId }}</p>
+          <p>
+            趋势方向：
+            <ArrowUpOutlined
+              v-if="getVehicleTrend(selectedPredictiveVehicleId) === 'stable'"
+              style="color: var(--fsd-success)"
+            />
+            <ArrowRightOutlined
+              v-else-if="getVehicleTrend(selectedPredictiveVehicleId) === 'slight_decline'"
+              style="color: var(--fsd-warning)"
+            />
+            <ArrowDownOutlined v-else style="color: var(--fsd-error)" />
+            {{
+              getVehicleTrend(selectedPredictiveVehicleId) === 'stable'
+                ? '稳定 ↑'
+                : getVehicleTrend(selectedPredictiveVehicleId) === 'slight_decline'
+                  ? '缓慢下降 →'
+                  : '快速下降 ↓'
+            }}
+          </p>
+        </div>
+      </template>
+    </a-drawer>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -491,7 +584,17 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { CloseOutlined, InboxOutlined, LeftOutlined, ReloadOutlined, RightOutlined, BellOutlined, ArrowUpOutlined, ArrowRightOutlined, ArrowDownOutlined } from '@ant-design/icons-vue'
+import {
+  CloseOutlined,
+  InboxOutlined,
+  LeftOutlined,
+  ReloadOutlined,
+  RightOutlined,
+  BellOutlined,
+  ArrowUpOutlined,
+  ArrowRightOutlined,
+  ArrowDownOutlined,
+} from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
@@ -499,7 +602,13 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
 import DemoModePanel from '@/components/demo/DemoModePanel.vue'
-import { getParkGeofences, getParkLayout, getParkOrders, getParkVehicles, getRoadRouteHealth } from '@/api/park'
+import {
+  getParkGeofences,
+  getParkLayout,
+  getParkOrders,
+  getParkVehicles,
+  getRoadRouteHealth,
+} from '@/api/park'
 import type { RoadRouteHealth } from '@/api/park'
 import {
   collectRouteFitPoints,
@@ -594,7 +703,9 @@ const trackingSceneOptions = [
   { label: '短驳地理', value: 'delivery' as const },
 ]
 
-const mapViewMode = ref<'schematic' | 'geo'>(trackingScene.value === 'delivery' && isAmapConfigured() ? 'geo' : 'schematic')
+const mapViewMode = ref<'schematic' | 'geo'>(
+  trackingScene.value === 'delivery' && isAmapConfigured() ? 'geo' : 'schematic',
+)
 const geoMapAvailable = isAmapConfigured()
 const geoMapZoom = 15
 
@@ -603,7 +714,7 @@ const showGeoMap = computed(() => trackingScene.value === 'delivery' && geoMapAv
 
 const trackingParkId = ref<number | undefined>()
 const trackingParkOptions = computed(() =>
-  parkScope.parks.map(park => ({
+  parkScope.parks.map((park) => ({
     value: park.parkId,
     label: park.parkName,
   })),
@@ -631,7 +742,9 @@ const selectedGeoMarkerId = ref<string | null>(null)
 const refreshing = ref(false)
 const showChargeLayer = ref(false)
 const showL0Circles = ref(
-  route.query.l0 === '1' || route.query.l0circles === '1' || localStorage.getItem('fsd_tracking_l0_circles') === 'true',
+  route.query.l0 === '1' ||
+    route.query.l0circles === '1' ||
+    localStorage.getItem('fsd_tracking_l0_circles') === 'true',
 )
 const currentTime = ref(dayjs().format('HH:mm:ss'))
 const vehicles = ref<ParkVehicleSnapshot[]>([])
@@ -788,30 +901,40 @@ const sceneVehicles = computed(() =>
     : filterSchematicParkVehicles(vehicles.value),
 )
 
-const onlineCount = computed(() => sceneVehicles.value.filter(vehicle => vehicle.onlineStatus === 'ONLINE').length)
-const busyCount = computed(() => sceneVehicles.value.filter(vehicle => vehicle.dispatchStatus === 'BUSY').length)
-const chargingCount = computed(() => sceneVehicles.value.filter(vehicle => vehicle.charging).length)
-const lowBatteryCount = computed(() => sceneVehicles.value.filter(vehicle => vehicle.lowBattery).length)
+const onlineCount = computed(
+  () => sceneVehicles.value.filter((vehicle) => vehicle.onlineStatus === 'ONLINE').length,
+)
+const busyCount = computed(
+  () => sceneVehicles.value.filter((vehicle) => vehicle.dispatchStatus === 'BUSY').length,
+)
+const chargingCount = computed(
+  () => sceneVehicles.value.filter((vehicle) => vehicle.charging).length,
+)
+const lowBatteryCount = computed(
+  () => sceneVehicles.value.filter((vehicle) => vehicle.lowBattery).length,
+)
 
 const filteredVehicles = computed(() => {
   const scopedVehicles = sceneVehicles.value
   switch (activeFilter.value) {
     case 'ONLINE':
-      return scopedVehicles.filter(vehicle => vehicle.onlineStatus === 'ONLINE')
+      return scopedVehicles.filter((vehicle) => vehicle.onlineStatus === 'ONLINE')
     case 'OFFLINE':
-      return scopedVehicles.filter(vehicle => vehicle.onlineStatus === 'OFFLINE')
+      return scopedVehicles.filter((vehicle) => vehicle.onlineStatus === 'OFFLINE')
     case 'BUSY':
-      return scopedVehicles.filter(vehicle => vehicle.dispatchStatus === 'BUSY')
+      return scopedVehicles.filter((vehicle) => vehicle.dispatchStatus === 'BUSY')
     case 'CHARGING':
-      return scopedVehicles.filter(vehicle => vehicle.charging)
+      return scopedVehicles.filter((vehicle) => vehicle.charging)
     case 'LOW_BATTERY':
-      return scopedVehicles.filter(vehicle => vehicle.lowBattery)
+      return scopedVehicles.filter((vehicle) => vehicle.lowBattery)
     case 'SIM':
-      return scopedVehicles.filter(vehicle => isSchematicParkVehicle(vehicle) || isGeoDeliverySimVehicle(vehicle))
+      return scopedVehicles.filter(
+        (vehicle) => isSchematicParkVehicle(vehicle) || isGeoDeliverySimVehicle(vehicle),
+      )
     case 'REAL':
-      return scopedVehicles.filter(vehicle => vehicle.linkMode === 'REAL')
+      return scopedVehicles.filter((vehicle) => vehicle.linkMode === 'REAL')
     case 'VDA5050':
-      return scopedVehicles.filter(vehicle => vehicle.linkMode === 'VDA5050')
+      return scopedVehicles.filter((vehicle) => vehicle.linkMode === 'VDA5050')
     default:
       return scopedVehicles
   }
@@ -862,7 +985,8 @@ const geoMarkers = computed((): GeoMapMarker[] => {
         heading: vehicle.heading ?? null,
         label: `${shortVehicleCode(vehicle.vehicleCode)} · ${vehicle.batteryLevel}%`,
       })
-      const selected = selectedId.value === vehicle.vehicleId || selectedGeoMarkerId.value === marker.id
+      const selected =
+        selectedId.value === vehicle.vehicleId || selectedGeoMarkerId.value === marker.id
       return { ...marker, selected, showLabel: selected }
     }),
   ]
@@ -877,13 +1001,11 @@ const geoPolylines = computed((): GeoMapPolyline[] =>
   }),
 )
 
-const geoCircles = computed((): GeoMapCircle[] =>
-  showL0Circles.value ? L0_COVERAGE_CIRCLES : [],
-)
+const geoCircles = computed((): GeoMapCircle[] => (showL0Circles.value ? L0_COVERAGE_CIRCLES : []))
 
 const selectedVehicle = computed(() => {
   if (!selectedId.value) return null
-  return sceneVehicles.value.find(vehicle => vehicle.vehicleId === selectedId.value) || null
+  return sceneVehicles.value.find((vehicle) => vehicle.vehicleId === selectedId.value) || null
 })
 
 const roadRouteHealth = ref<RoadRouteHealth | null>(null)
@@ -895,11 +1017,14 @@ const geoFitViewPoints = computed((): [number, number][] => {
   })
   if (routePoints.length >= 2) return routePoints
   const serviceEnvelope = parkGeofences.value.find(
-    (fence) => fence.scopeCode === 'L1_CANDIDATE_ENVELOPE' && fence.fenceCode === 'DEFAULT-BOUNDARY',
+    (fence) =>
+      fence.scopeCode === 'L1_CANDIDATE_ENVELOPE' && fence.fenceCode === 'DEFAULT-BOUNDARY',
   )
-  return serviceEnvelope?.polygon?.map(
-    (point) => [Number(point[0]), Number(point[1])] as [number, number],
-  ) ?? []
+  return (
+    serviceEnvelope?.polygon?.map(
+      (point) => [Number(point[0]), Number(point[1])] as [number, number],
+    ) ?? []
+  )
 })
 
 function selectGeoMarker(marker: GeoMapMarker) {
@@ -919,12 +1044,12 @@ const roadRouteWarning = computed(() => {
   if (health && !health.amapDriving && !health.localGraph) {
     return '道路路径不可用：请配置 FSD_AMAP_WEB_SERVICE_KEY 或检查本地路网。'
   }
-  const busyVehicles = geoVehiclesOnMap.value.filter(v => v.dispatchStatus === 'BUSY')
+  const busyVehicles = geoVehiclesOnMap.value.filter((v) => v.dispatchStatus === 'BUSY')
   const hasStraightLine = busyVehicles.some(
-    v => v.plannedRouteGeo && v.plannedRouteGeo.length === 2 && v.routeSource === 'STRAIGHT_LINE',
+    (v) => v.plannedRouteGeo && v.plannedRouteGeo.length === 2 && v.routeSource === 'STRAIGHT_LINE',
   )
   const hasLowVertices = busyVehicles.some(
-    v => v.plannedRouteGeo && v.plannedRouteGeo.length > 0 && v.plannedRouteGeo.length < 4,
+    (v) => v.plannedRouteGeo && v.plannedRouteGeo.length > 0 && v.plannedRouteGeo.length < 4,
   )
   if (hasStraightLine) return '当前为直线模式，请配置高德 Web 服务 Key 或本地路网。'
   if (hasLowVertices) return '计划路径顶点不足（< 4），路线可能不贴路。'
@@ -940,11 +1065,17 @@ function stageLabel(stage: string) {
 
 function stageClass(stage: string) {
   if (stage === 'IDLE_PATROL' || stage === 'STANDBY' || stage === 'COMPLETED') return 'stage-idle'
-  if (stage === 'TO_PICKUP' || stage === 'HEADING_TO_PICKUP' || stage === 'TO_DROPOFF' || stage === 'HEADING_TO_DROPOFF') {
+  if (
+    stage === 'TO_PICKUP' ||
+    stage === 'HEADING_TO_PICKUP' ||
+    stage === 'TO_DROPOFF' ||
+    stage === 'HEADING_TO_DROPOFF'
+  ) {
     return 'stage-moving'
   }
   if (stage === 'LOADING' || stage === 'UNLOADING') return 'stage-loading'
-  if (stage === 'TO_CHARGING' || stage === 'CHARGING' || stage === 'RETURNING_TO_STANDBY') return 'stage-charging'
+  if (stage === 'TO_CHARGING' || stage === 'CHARGING' || stage === 'RETURNING_TO_STANDBY')
+    return 'stage-charging'
   if (stage === 'FAILED' || stage === 'MANUAL_PENDING' || stage === 'OFFLINE') return 'stage-risk'
   return 'stage-default'
 }
@@ -1160,7 +1291,10 @@ function applyMarkerScale() {
   if (nextScale === currentMarkerScale) return
   currentMarkerScale = nextScale
   mapContainer.value.style.setProperty('--map-marker-scale', String(nextScale))
-  mapContainer.value.style.setProperty('--map-line-weight-scale', String(Math.max(0.72, Math.min(1.15, nextScale))))
+  mapContainer.value.style.setProperty(
+    '--map-line-weight-scale',
+    String(Math.max(0.72, Math.min(1.15, nextScale))),
+  )
 }
 
 function toLatLng(x: number, y: number): L.LatLngExpression {
@@ -1190,7 +1324,10 @@ function initMap() {
 
 function loadParkImage() {
   if (!map || !parkLayout.value) return
-  const bounds: L.LatLngBoundsExpression = [[0, 0], [parkLayout.value.height, parkLayout.value.width]]
+  const bounds: L.LatLngBoundsExpression = [
+    [0, 0],
+    [parkLayout.value.height, parkLayout.value.width],
+  ]
   L.imageOverlay('/park-map.svg', bounds, { interactive: false, opacity: 0.94 }).addTo(map)
   const latLngBounds = L.latLngBounds(bounds)
   map.setMaxBounds(latLngBounds.pad(0.08))
@@ -1204,8 +1341,13 @@ function drawStations() {
   if (!stationLayer || !parkLayout.value) return
   stationLayer.clearLayers()
 
-  filterSchematicStations(parkLayout.value.stations).forEach(station => {
-    stationLayer!.addLayer(L.marker(toLatLng(station.x, station.y), { icon: createStationIcon(station), interactive: false }))
+  filterSchematicStations(parkLayout.value.stations).forEach((station) => {
+    stationLayer!.addLayer(
+      L.marker(toLatLng(station.x, station.y), {
+        icon: createStationIcon(station),
+        interactive: false,
+      }),
+    )
   })
 }
 
@@ -1215,16 +1357,16 @@ function drawChargeLayer() {
   if (!showChargeLayer.value) return
 
   const occupiedTargets = new Map<string, ParkVehicleSnapshot[]>()
-  vehicles.value.forEach(vehicle => {
+  vehicles.value.forEach((vehicle) => {
     if (!vehicle.targetCode) return
     const list = occupiedTargets.get(vehicle.targetCode) || []
     list.push(vehicle)
     occupiedTargets.set(vehicle.targetCode, list)
   })
 
-  parkLayout.value.parkingSpots.forEach(spot => {
+  parkLayout.value.parkingSpots.forEach((spot) => {
     const assignedVehicles = occupiedTargets.get(spot.code) || []
-    const chargingVehicle = assignedVehicles.find(vehicle => vehicle.charging)
+    const chargingVehicle = assignedVehicles.find((vehicle) => vehicle.charging)
     const parkedVehicle = assignedVehicles[0]
     const mode = chargingVehicle ? 'charging' : parkedVehicle ? 'idle' : 'normal'
 
@@ -1253,13 +1395,15 @@ function updateVehicleMarkers() {
   trajectoryLayer.clearLayers()
   const lineWeightScale = Math.max(0.72, Math.min(1.15, currentMarkerScale))
 
-  const vehiclesOnMap = showSchematicMap.value ? schematicVehiclesOnMap.value : filteredVehicles.value
+  const vehiclesOnMap = showSchematicMap.value
+    ? schematicVehiclesOnMap.value
+    : filteredVehicles.value
 
-  vehiclesOnMap.forEach(vehicle => {
+  vehiclesOnMap.forEach((vehicle) => {
     if (vehicle.trajectory.length > 1) {
       trajectoryLayer!.addLayer(
         L.polyline(
-          vehicle.trajectory.map(point => toLatLng(point.x, point.y)),
+          vehicle.trajectory.map((point) => toLatLng(point.x, point.y)),
           {
             color: markerColor(vehicle),
             weight: 2 * lineWeightScale,
@@ -1286,7 +1430,7 @@ function updateVehicleMarkers() {
 
 function getVehicle(vehicleId: number | null) {
   if (!vehicleId) return null
-  return sceneVehicles.value.find(vehicle => vehicle.vehicleId === vehicleId) || null
+  return sceneVehicles.value.find((vehicle) => vehicle.vehicleId === vehicleId) || null
 }
 
 function drawOrderChains() {
@@ -1294,7 +1438,7 @@ function drawOrderChains() {
   orderLayer.clearLayers()
   const lineWeightScale = Math.max(0.72, Math.min(1.15, currentMarkerScale))
 
-  schematicOrdersOnMap.value.forEach(order => {
+  schematicOrdersOnMap.value.forEach((order) => {
     const color = orderColor(order.runtimeStage)
     orderLayer!.addLayer(
       L.polyline(
@@ -1324,17 +1468,11 @@ function drawOrderChains() {
     if (!isSchematicParkStation(target)) return
 
     orderLayer!.addLayer(
-      L.polyline(
-        [
-          toLatLng(vehicle.x, vehicle.y),
-          toLatLng(target.x, target.y),
-        ],
-        {
-          color,
-          weight: 2 * lineWeightScale,
-          opacity: 0.82,
-        },
-      ),
+      L.polyline([toLatLng(vehicle.x, vehicle.y), toLatLng(target.x, target.y)], {
+        color,
+        weight: 2 * lineWeightScale,
+        opacity: 0.82,
+      }),
     )
   })
 }
@@ -1355,12 +1493,12 @@ function applyRouteFocus() {
   let vehicleId = vehicleIdRaw != null ? Number(vehicleIdRaw) : null
   if ((vehicleId == null || Number.isNaN(vehicleId)) && orderIdRaw != null) {
     const orderId = Number(orderIdRaw)
-    const order = parkOrders.value.find(item => item.orderId === orderId)
+    const order = parkOrders.value.find((item) => item.orderId === orderId)
     vehicleId = order?.vehicleId ?? null
   }
   if (vehicleId == null || Number.isNaN(vehicleId)) return
 
-  const vehicle = vehicles.value.find(item => item.vehicleId === vehicleId)
+  const vehicle = vehicles.value.find((item) => item.vehicleId === vehicleId)
   if (vehicle) {
     focusVehicle(vehicle)
   } else {
@@ -1390,7 +1528,11 @@ function formatStreamLatency(ms: number) {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-function applyStreamPayload(data: { ts?: string; vehicles?: ParkVehicleSnapshot[]; parkId?: number }) {
+function applyStreamPayload(data: {
+  ts?: string
+  vehicles?: ParkVehicleSnapshot[]
+  parkId?: number
+}) {
   const layoutParkId = effectiveParkId.value
   if (data.parkId != null && layoutParkId != null && data.parkId !== layoutParkId) {
     return
@@ -1451,7 +1593,13 @@ function startFallbackPoll() {
   // 页面隐藏时暂停轮询（与统一 realtime store 的可见性策略一致，路线图 4.3）
   if (document.hidden) return
   fallbackPollTimer = setInterval(() => {
-    fetchVehicles().then(() => { backendOnline.value = true }).catch(() => { backendOnline.value = false })
+    fetchVehicles()
+      .then(() => {
+        backendOnline.value = true
+      })
+      .catch(() => {
+        backendOnline.value = false
+      })
     fetchOrders().catch(() => undefined)
   }, 3000)
 }
@@ -1515,7 +1663,13 @@ async function bootstrapData() {
       parkScope.setParkId(trackingParkId.value)
     }
     await fetchLayout()
-    await Promise.all([fetchVehicles(), fetchOrders(), fetchGeofences(), loadPeakModeState(), fetchRoadRouteHealth()])
+    await Promise.all([
+      fetchVehicles(),
+      fetchOrders(),
+      fetchGeofences(),
+      loadPeakModeState(),
+      fetchRoadRouteHealth(),
+    ])
     backendOnline.value = true
   } catch {
     backendOnline.value = false
@@ -1634,10 +1788,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse 80% 50% at 15% 0%, rgba(34, 199, 230, 0.06), transparent 50%),
-    radial-gradient(ellipse 60% 40% at 85% 10%, rgba(45, 224, 138, 0.04), transparent 45%),
-    linear-gradient(180deg, var(--fsd-bg-deep) 0%, var(--fsd-bg-deep) 100%);
+  background: var(--fsd-surface-page);
   --map-marker-scale: 1;
   --map-line-weight-scale: 1;
 }
@@ -1699,39 +1850,21 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   z-index: 1;
-
-  :deep(.amap-marker-label) {
-    padding: 5px 9px;
-    border: 1px solid rgba(34, 199, 230, 0.38);
-    border-radius: 999px;
-    background: rgba(11, 16, 24, 0.88);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-    color: var(--fsd-text-primary);
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0.03em;
-    transform: translateY(-4px);
-    white-space: nowrap;
-    backdrop-filter: blur(10px);
-  }
 }
 
 .geo-map-unconfigured {
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(ellipse 70% 45% at 50% 40%, rgba(34, 199, 230, 0.08), transparent 55%),
-    linear-gradient(180deg, var(--fsd-bg-deep) 0%, var(--fsd-bg-deep) 100%);
+  background: var(--fsd-surface-page);
 }
 
 .geo-map-unconfigured__body {
   max-width: 420px;
-  padding: 28px 32px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 92, 124, 0.28);
-  background: rgba(11, 16, 24, 0.92);
+  padding: var(--fsd-space-5);
+  border-left: 3px solid var(--fsd-error);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-raised);
   text-align: center;
 }
 
@@ -1768,11 +1901,11 @@ onUnmounted(() => {
 .map-mode-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 2px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-status);
   flex-shrink: 0;
 }
 
@@ -1785,11 +1918,13 @@ onUnmounted(() => {
   color: var(--fsd-text-secondary);
   background: transparent;
   cursor: pointer;
-  transition: color 120ms ease, background 120ms ease;
+  transition:
+    color var(--fsd-transition-fast),
+    background var(--fsd-transition-fast);
 
   &.active {
-    color: var(--fsd-text-primary);
-    background: rgba(34, 199, 230, 0.18);
+    color: var(--fsd-accent-strong);
+    background: var(--fsd-accent-selected);
   }
 
   &.disabled,
@@ -1824,7 +1959,7 @@ onUnmounted(() => {
   height: 96px;
   transform: scale(var(--map-marker-scale));
   transform-origin: center center;
-  transition: transform 120ms ease-out;
+  transition: transform var(--fsd-transition-fast);
 }
 
 :deep(.vehicle-marker--compact) {
@@ -1840,7 +1975,8 @@ onUnmounted(() => {
   width: 14px;
   height: 14px;
   border-width: 2px;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--marker-color) 22%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--marker-color) 22%, transparent);
+  outline-offset: 0;
 }
 
 :deep(.vehicle-marker--expanded) {
@@ -1857,7 +1993,8 @@ onUnmounted(() => {
   border-radius: 999px;
   background: var(--marker-color);
   border: 3px solid rgba(5, 9, 19, 0.92);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--marker-color) 22%, transparent);
+  outline: 4px solid color-mix(in srgb, var(--marker-color) 22%, transparent);
+  outline-offset: 0;
   z-index: 3;
 }
 
@@ -1913,7 +2050,7 @@ onUnmounted(() => {
   gap: 1px;
   transform: scale(var(--map-marker-scale));
   transform-origin: center bottom;
-  transition: transform 120ms ease-out;
+  transition: transform var(--fsd-transition-fast);
 }
 
 :deep(.station-label) {
@@ -1941,7 +2078,7 @@ onUnmounted(() => {
   gap: 1px;
   transform: scale(var(--map-marker-scale));
   transform-origin: center bottom;
-  transition: transform 120ms ease-out;
+  transition: transform var(--fsd-transition-fast);
 }
 
 :deep(.parking-label) {
@@ -2005,48 +2142,46 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 1px solid var(--fsd-border);
-  border-left: none;
-  border-radius: 0 8px 8px 0;
-  background: rgba(11, 16, 24, 0.95);
+  border-left: 0;
+  border-radius: 0 var(--fsd-radius-sm) var(--fsd-radius-sm) 0;
+  background: var(--fsd-surface-raised);
   color: var(--fsd-text-secondary);
   cursor: pointer;
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition:
+    color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base),
+    background-color var(--fsd-transition-base);
 
   &:hover {
-    color: var(--fsd-accent);
+    color: var(--fsd-accent-strong);
     border-color: var(--fsd-accent-border);
-    background: rgba(11, 16, 24, 0.98);
+    background: var(--fsd-bg-hover);
   }
 }
 
 .side-panel.collapsed .panel-toggle {
   right: auto;
   left: 16px;
+  border-right: 0;
   border-left: 1px solid var(--fsd-border);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.25);
+  border-radius: var(--fsd-radius-sm) 0 0 var(--fsd-radius-sm);
 }
 
 .panel-content {
-  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 16px;
-  border: 1px solid var(--fsd-border);
-  border-radius: 16px;
-  background: var(--fsd-bg-base);
-  backdrop-filter: blur(16px);
-  box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   min-height: 0;
+  height: 100%;
+  padding: var(--fsd-space-4);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-raised);
+  box-shadow: var(--fsd-shadow-popover);
 }
 
 .panel-header {
@@ -2094,46 +2229,45 @@ onUnmounted(() => {
   position: absolute;
   top: 18px;
   left: 50%;
-  transform: translateX(-50%);
   z-index: 1100;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 92, 124, 0.35);
-  background: rgba(42, 14, 8, 0.92);
-  color: var(--fsd-warning);
-  font-size: 13px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(12px);
+  gap: var(--fsd-space-2);
+  max-width: calc(100% - 32px);
+  padding: var(--fsd-space-2) var(--fsd-space-3);
+  border-left: 3px solid var(--fsd-error);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-overlay);
+  color: var(--fsd-text-primary);
+  font-size: var(--fsd-text-sm);
+  box-shadow: var(--fsd-shadow-popover);
+  transform: translateX(-50%);
 }
 
 .api-alert-dot {
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  flex: 0 0 auto;
+  border-radius: var(--fsd-radius-full);
   background: var(--fsd-error);
-  box-shadow: 0 0 12px var(--fsd-error);
 }
 
 .api-alert-dot.warning {
   background: var(--fsd-warning);
-  box-shadow: 0 0 12px var(--fsd-warning);
 }
 
 .road-route-warning {
-  top: 60px;
-  border-color: rgba(255, 192, 77, 0.35);
-  background: rgba(40, 30, 10, 0.92);
+  top: 64px;
+  border-left-color: var(--fsd-warning);
   color: var(--fsd-warning);
 }
 
 .api-alert-retry {
-  padding: 4px 12px;
-  border: 1px solid rgba(255, 192, 77, 0.4);
-  border-radius: 999px;
-  background: rgba(255, 192, 77, 0.12);
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--fsd-warning);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-warning-bg);
   color: var(--fsd-warning);
   cursor: pointer;
 }
@@ -2249,10 +2383,6 @@ onUnmounted(() => {
   background: currentColor;
 }
 
-.live-badge.live .live-pulse {
-  animation: pulse 1.6s ease-in-out infinite;
-}
-
 .panel-toolbar {
   margin-top: 12px;
   padding-bottom: 12px;
@@ -2319,7 +2449,9 @@ onUnmounted(() => {
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition:
+    background-color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base);
 
   &:hover {
     background: rgba(34, 199, 230, 0.16);
@@ -2336,7 +2468,9 @@ onUnmounted(() => {
   background: rgba(11, 16, 24, 0.6);
   color: var(--fsd-text-secondary);
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition:
+    color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base);
 
   &:hover {
     color: var(--fsd-accent);
@@ -2345,7 +2479,8 @@ onUnmounted(() => {
 }
 
 .refresh-btn.spinning {
-  animation: spin 0.6s linear;
+  border-color: var(--fsd-accent);
+  color: var(--fsd-accent);
 }
 
 .stat-strip {
@@ -2366,7 +2501,9 @@ onUnmounted(() => {
   background: rgba(11, 16, 24, 0.45);
   color: var(--fsd-text-primary);
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition:
+    border-color var(--fsd-transition-base),
+    background var(--fsd-transition-base);
   text-align: center;
 }
 
@@ -2433,11 +2570,6 @@ onUnmounted(() => {
   letter-spacing: 0.02em;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.85); }
-}
-
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -2447,15 +2579,19 @@ onUnmounted(() => {
 }
 
 .filter-chip {
+  min-height: 32px;
   padding: 5px 10px;
   border: 1px solid var(--fsd-border);
-  border-radius: 999px;
-  background: rgba(11, 16, 24, 0.5);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-status);
   color: var(--fsd-text-secondary);
   cursor: pointer;
   font-size: 11px;
   line-height: 1.2;
-  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  transition:
+    border-color var(--fsd-transition-base),
+    color var(--fsd-transition-base),
+    background-color var(--fsd-transition-base);
 
   &:hover {
     color: var(--fsd-text-primary);
@@ -2541,7 +2677,9 @@ onUnmounted(() => {
   background: rgba(11, 16, 24, 0.45);
   text-align: left;
   color: var(--fsd-text-primary);
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition:
+    border-color var(--fsd-transition-base),
+    background var(--fsd-transition-base);
 }
 
 .vehicle-card {
@@ -2554,9 +2692,9 @@ onUnmounted(() => {
 }
 
 .vehicle-card.selected {
-  border-color: var(--fsd-accent-border);
-  background: var(--fsd-accent-bg);
-  box-shadow: inset 2px 0 0 var(--fsd-accent);
+  border-color: var(--fsd-accent);
+  border-left: 3px solid var(--fsd-accent);
+  background: var(--fsd-accent-selected);
 }
 
 .vehicle-card.offline {
@@ -2666,8 +2804,12 @@ onUnmounted(() => {
   border-radius: 999px;
 }
 
-.dot-online { background: var(--fsd-success); }
-.dot-offline { background: var(--fsd-error); }
+.dot-online {
+  background: var(--fsd-success);
+}
+.dot-offline {
+  background: var(--fsd-error);
+}
 
 .link-mode-pill {
   margin-left: 6px;
@@ -2778,17 +2920,17 @@ onUnmounted(() => {
 
 .legend {
   position: absolute;
-  right: 18px;
-  bottom: 18px;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  border: 1px solid var(--fsd-border);
-  border-radius: 12px;
-  background: rgba(11, 16, 24, 0.88);
-  backdrop-filter: blur(12px);
+  right: var(--fsd-space-3);
+  bottom: var(--fsd-space-3);
   z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fsd-space-2);
+  padding: var(--fsd-space-2) var(--fsd-space-3);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-surface-overlay);
+  box-shadow: var(--fsd-shadow-popover);
 }
 
 .legend-item {
@@ -2837,18 +2979,17 @@ onUnmounted(() => {
 }
 
 .detail-card {
-  width: 320px;
+  width: min(320px, 100%);
   pointer-events: auto;
-  border: 1px solid rgba(34, 199, 230, 0.16);
-  border-radius: 18px;
-  background: rgba(7, 13, 24, 0.92);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-lg);
+  background: var(--fsd-surface-overlay);
+  box-shadow: var(--fsd-shadow-popover);
 }
 
 .detail-header {
-  padding: 18px 18px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: var(--fsd-space-4);
+  border-bottom: 1px solid var(--fsd-border-split);
 }
 
 .detail-code {
@@ -2874,11 +3015,6 @@ onUnmounted(() => {
 
 .detail-row span:first-child {
   color: var(--fsd-text-secondary);
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 1200px) {
@@ -2910,21 +3046,23 @@ onUnmounted(() => {
 .sse-status-bar {
   position: absolute;
   top: 0;
-  left: 0;
   right: 0;
+  left: 0;
   z-index: 100;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 16px;
-  font-size: 12px;
-  transition: background 0.3s, color 0.3s;
+  gap: var(--fsd-space-2);
+  padding: 4px var(--fsd-space-4);
+  font-size: var(--fsd-text-xs);
+  transition:
+    background-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
 }
 
 .sse-status-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--fsd-radius-full);
   flex-shrink: 0;
 }
 
@@ -2941,38 +3079,30 @@ onUnmounted(() => {
 }
 
 .sse-connected {
-  background: rgba(45, 224, 138, 0.08);
-  color: var(--fsd-success);
+  background: var(--fsd-accent-selected);
+  color: var(--fsd-accent-strong);
 }
 
 .sse-connected .sse-status-dot {
-  background: var(--fsd-success);
-  box-shadow: 0 0 8px rgba(45, 224, 138, 0.6);
+  background: var(--fsd-accent);
 }
 
 .sse-reconnecting {
-  background: rgba(255, 192, 77, 0.08);
+  background: var(--fsd-warning-bg);
   color: var(--fsd-warning);
 }
 
 .sse-reconnecting .sse-status-dot {
   background: var(--fsd-warning);
-  box-shadow: 0 0 8px rgba(255, 192, 77, 0.4);
-  animation: sse-pulse 1.2s ease-in-out infinite;
 }
 
 .sse-disconnected {
-  background: rgba(255, 92, 124, 0.08);
+  background: var(--fsd-error-bg);
   color: var(--fsd-error);
 }
 
 .sse-disconnected .sse-status-dot {
   background: var(--fsd-error);
-}
-
-@keyframes sse-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.85); }
 }
 
 /* V5-N3: 预测性告警 */
@@ -2983,15 +3113,14 @@ onUnmounted(() => {
 }
 
 .predictive-card {
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid var(--fsd-border);
-  background: rgba(11, 16, 24, 0.45);
+  padding: var(--fsd-space-3);
+  border-bottom: 1px solid var(--fsd-border-split);
+  background: transparent;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: background-color var(--fsd-transition-base);
 
   &:hover {
-    border-color: var(--fsd-accent-border);
+    background: var(--fsd-bg-hover);
   }
 
   &.trend-rapid_decline {

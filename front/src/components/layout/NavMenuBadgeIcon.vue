@@ -36,9 +36,8 @@ const count = computed(() => {
     min-width: 14px;
     height: 14px;
     padding: 0 4px;
-    border: 0;
-    border-radius: 999px;
-    box-shadow: 0 0 0 1px rgba(13, 17, 23, 0.95);
+    border: 1px solid var(--fsd-surface-page);
+    border-radius: var(--fsd-radius-sm);
     font-size: 10px;
     line-height: 14px;
   }
@@ -52,4 +51,3 @@ const count = computed(() => {
   line-height: 0;
 }
 </style>
-

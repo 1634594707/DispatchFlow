@@ -14,6 +14,8 @@
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.{ts,vue,less,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,vue,less,json}\"",
+    "check:visual-baseline": "node scripts/check-visual-baseline.mjs",
+    "test:visual-smoke": "node scripts/visual-redesign-smoke.mjs",
     "perf:lighthouse": "node scripts/perf/lighthouse-routes.mjs",
     "perf:nav": "playwright test scripts/perf",
     "test:e2e": "playwright test scripts/e2e",

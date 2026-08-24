@@ -34,7 +34,9 @@
           <div class="station-info-item">
             <span class="station-info-icon">🟢</span>
             <span class="station-info-label">空闲桩</span>
-            <strong class="station-info-value free">{{ totalPileCount - (overview?.occupiedPileCount ?? 0) }}</strong>
+            <strong class="station-info-value free">{{
+              totalPileCount - (overview?.occupiedPileCount ?? 0)
+            }}</strong>
             <span class="station-info-unit">/ {{ totalPileCount }} 空闲</span>
           </div>
         </div>
@@ -47,7 +49,9 @@
         </div>
         <div class="card">
           <span>桩位占用</span>
-          <strong>{{ overview?.occupiedPileCount ?? 0 }}/{{ overview?.totalPileCount ?? 0 }}</strong>
+          <strong
+            >{{ overview?.occupiedPileCount ?? 0 }}/{{ overview?.totalPileCount ?? 0 }}</strong
+          >
         </div>
         <div class="card">
           <span>换电中</span>
@@ -160,7 +164,12 @@ async function loadData() {
 }
 
 onMounted(loadData)
-watch(() => parkScope.scopeVersion, () => { void loadData() })
+watch(
+  () => parkScope.scopeVersion,
+  () => {
+    void loadData()
+  },
+)
 </script>
 
 <style scoped lang="less">
@@ -186,9 +195,9 @@ watch(() => parkScope.scopeVersion, () => { void loadData() })
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
   border: 1px solid var(--fsd-border);
-  background: linear-gradient(135deg, rgba(34, 199, 230, 0.08) 0%, rgba(11, 16, 24, 0.6) 100%);
+  background: var(--fsd-surface-raised);
 }
 
 .station-info-item {

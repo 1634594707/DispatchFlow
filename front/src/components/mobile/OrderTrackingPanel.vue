@@ -66,7 +66,9 @@
 
       <div class="map-meta">
         <span v-if="remainingLabel" class="eta-pill">{{ remainingLabel }}</span>
-        <router-link v-if="order.vehicleId" class="screen-link" :to="screenLink">大屏跟车 →</router-link>
+        <router-link v-if="order.vehicleId" class="screen-link" :to="screenLink"
+          >大屏跟车 →</router-link
+        >
       </div>
     </div>
 
@@ -99,7 +101,12 @@
     </div>
 
     <div class="timeline">
-      <div v-for="step in timelineSteps" :key="step.key" class="timeline-step" :class="{ active: step.active }">
+      <div
+        v-for="step in timelineSteps"
+        :key="step.key"
+        class="timeline-step"
+        :class="{ active: step.active }"
+      >
         <span class="dot" />
         <span>{{ step.label }}</span>
       </div>
@@ -226,28 +233,9 @@ function formatTime(time: string): string {
 
 <style scoped lang="less">
 .tracking-panel {
-  padding: 18px;
-  border-radius: var(--fsd-radius-xl);
-  border: 1px solid var(--fsd-border);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(251, 191, 36, 0.04), transparent 50%),
-    var(--fsd-bg-base);
-  box-shadow: var(--fsd-shadow-card);
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: -30px;
-    right: -30px;
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(251, 191, 36, 0.10), transparent 60%);
-    filter: blur(36px);
-    pointer-events: none;
-  }
+  padding: var(--fsd-space-4);
+  border-block: 1px solid var(--fsd-border);
+  background: var(--fsd-bg-base);
 }
 
 .panel-head {
@@ -279,8 +267,8 @@ function formatTime(time: string): string {
 
 .stage-badge {
   flex-shrink: 0;
-  padding: 4px 10px;
-  border-radius: var(--fsd-radius-full);
+  padding: 4px 8px;
+  border-radius: var(--fsd-radius-sm);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -295,20 +283,20 @@ function formatTime(time: string): string {
 
 .stage-badge.hold {
   color: var(--fsd-warning);
-  background: rgba(251, 191, 36, 0.10);
-  border: 1px solid rgba(251, 191, 36, 0.22);
+  background: var(--fsd-warning-bg);
+  border: 1px solid rgba(194, 148, 64, 0.3);
 }
 
 .stage-badge.done {
   color: var(--fsd-success);
-  background: rgba(52, 211, 153, 0.10);
-  border: 1px solid rgba(52, 211, 153, 0.22);
+  background: var(--fsd-success-bg);
+  border: 1px solid rgba(74, 154, 117, 0.3);
 }
 
 .stage-badge.risk {
   color: var(--fsd-error);
-  background: rgba(248, 113, 113, 0.10);
-  border: 1px solid rgba(248, 113, 113, 0.22);
+  background: var(--fsd-error-bg);
+  border: 1px solid rgba(196, 88, 104, 0.3);
 }
 
 .tracking-freshness {
@@ -319,14 +307,13 @@ function formatTime(time: string): string {
 
 .connection-alert {
   display: grid;
-  gap: 3px;
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border-radius: var(--fsd-radius-md);
-  border: 1px solid rgba(251, 191, 36, 0.26);
-  background: rgba(251, 191, 36, 0.08);
+  gap: var(--fsd-space-1);
+  margin-bottom: var(--fsd-space-3);
+  padding: var(--fsd-space-2) var(--fsd-space-3);
+  border-left: 3px solid var(--fsd-warning);
+  background: var(--fsd-warning-bg);
   color: var(--fsd-warning);
-  font-size: 12px;
+  font-size: var(--fsd-text-xs);
 }
 
 .connection-alert strong {
@@ -348,16 +335,19 @@ function formatTime(time: string): string {
 
 .order-chip {
   flex: 0 0 auto;
-  height: 30px;
+  min-height: var(--fsd-touch-target-min);
   padding: 0 12px;
-  border-radius: var(--fsd-radius-full);
   border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
   background: var(--fsd-bg-elevated);
   color: var(--fsd-text-secondary);
+  font-family: var(--fsd-font-mono);
   font-size: 11px;
   font-weight: 600;
-  font-family: var(--fsd-font-mono);
-  transition: all var(--fsd-transition-fast);
+  transition:
+    background-color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
 
   &:hover {
     border-color: var(--fsd-border-active);
@@ -366,35 +356,34 @@ function formatTime(time: string): string {
 }
 
 .order-chip.active {
-  border-color: rgba(251, 191, 36, 0.35);
-  background: rgba(251, 191, 36, 0.10);
-  color: var(--fsd-warning);
+  border-color: var(--fsd-accent-border);
+  background: var(--fsd-accent-selected);
+  color: var(--fsd-accent-strong);
 }
 
 .map-shell {
   position: relative;
-  padding: 10px;
-  border-radius: var(--fsd-radius-lg);
-  background: var(--fsd-bg-deep);
+  padding: var(--fsd-space-2);
   border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-bg-deep);
 }
 
 .route-anomaly {
   position: absolute;
-  top: 16px;
+  top: var(--fsd-space-3);
   left: 50%;
-  transform: translateX(-50%);
   z-index: 5;
-  padding: 6px 12px;
+  max-width: calc(100% - 2 * var(--fsd-space-3));
+  padding: 6px var(--fsd-space-3);
+  border-left: 3px solid var(--fsd-error);
   border-radius: var(--fsd-radius-sm);
-  background: rgba(248, 113, 113, 0.94);
-  color: #fff;
+  background: var(--fsd-error-bg);
+  color: var(--fsd-error);
   font-size: 11px;
-  font-weight: 600;
-  max-width: calc(100% - 32px);
+  font-weight: var(--fsd-font-semibold);
   text-align: center;
-  box-shadow: 0 4px 14px rgba(248, 113, 113, 0.30);
-  backdrop-filter: blur(8px);
+  transform: translateX(-50%);
 }
 
 .map-wrap {
@@ -444,24 +433,29 @@ function formatTime(time: string): string {
 
 .pin {
   position: absolute;
-  transform: translate(-50%, -50%);
-  width: 28px;
-  height: 28px;
-  border-radius: var(--fsd-radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: #fff;
-  border: 2px solid rgba(8, 9, 12, 0.95);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.42);
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--fsd-bg-base);
+  border-radius: var(--fsd-radius-full);
+  color: var(--fsd-text-on-action);
   font-family: var(--fsd-font-sans);
+  font-size: 11px;
+  font-weight: var(--fsd-font-semibold);
+  transform: translate(-50%, -50%);
 }
 
-.pin.pickup { background: var(--fsd-success); }
-.pin.dropoff { background: var(--fsd-warning); }
-.pin.vehicle { background: var(--fsd-accent); }
+.pin.pickup {
+  background: var(--fsd-success);
+}
+.pin.dropoff {
+  background: var(--fsd-warning);
+}
+.pin.vehicle {
+  background: var(--fsd-accent);
+}
 
 .map-meta {
   display: flex;
@@ -472,10 +466,10 @@ function formatTime(time: string): string {
 }
 
 .eta-pill {
-  padding: 4px 10px;
-  border-radius: var(--fsd-radius-full);
-  background: rgba(52, 211, 153, 0.10);
-  border: 1px solid rgba(52, 211, 153, 0.22);
+  padding: 4px 8px;
+  border: 1px solid rgba(74, 154, 117, 0.3);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-success-bg);
   color: var(--fsd-success);
   font-size: 11px;
   font-weight: 600;
@@ -486,12 +480,10 @@ function formatTime(time: string): string {
 .eta-info {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 10px 14px;
-  border-radius: var(--fsd-radius-md);
-  background: rgba(251, 191, 36, 0.08);
-  border: 1px solid rgba(251, 191, 36, 0.22);
+  gap: var(--fsd-space-2);
+  margin-top: var(--fsd-space-2);
+  padding: var(--fsd-space-2) 0;
+  border-block: 1px solid var(--fsd-border-split);
 }
 
 .eta-label {
@@ -526,20 +518,16 @@ function formatTime(time: string): string {
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
+  margin-top: var(--fsd-space-3);
+  border-top: 1px solid var(--fsd-border-split);
+  border-left: 1px solid var(--fsd-border-split);
 }
 
 .summary-cell {
-  padding: 12px 14px;
-  border-radius: var(--fsd-radius-md);
-  background: var(--fsd-bg-elevated);
-  border: 1px solid var(--fsd-border);
-  transition: border-color var(--fsd-transition-fast);
-
-  &:hover {
-    border-color: var(--fsd-border-active);
-  }
+  min-width: 0;
+  padding: var(--fsd-space-3);
+  border-right: 1px solid var(--fsd-border-split);
+  border-bottom: 1px solid var(--fsd-border-split);
 }
 
 .summary-cell label {
@@ -607,31 +595,31 @@ function formatTime(time: string): string {
 }
 
 .timeline-step.active {
-  color: var(--fsd-warning);
-  font-weight: 600;
+  color: var(--fsd-accent-strong);
+  font-weight: var(--fsd-font-semibold);
 }
 
 .dot {
   width: 10px;
   height: 10px;
+  border: 2px solid var(--fsd-border-active);
   border-radius: var(--fsd-radius-full);
   background: var(--fsd-bg-elevated);
-  border: 2px solid var(--fsd-border-active);
-  transition: all var(--fsd-transition-fast);
+  transition:
+    background-color var(--fsd-transition-base),
+    border-color var(--fsd-transition-base);
 }
 
 .timeline-step.active .dot {
-  background: var(--fsd-warning);
-  border-color: var(--fsd-warning);
-  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.16);
+  border-color: var(--fsd-accent);
+  background: var(--fsd-accent);
 }
 
 .completed-cta {
-  margin-top: 14px;
-  padding: 16px;
-  border-radius: var(--fsd-radius-lg);
-  background: rgba(52, 211, 153, 0.06);
-  border: 1px solid rgba(52, 211, 153, 0.18);
+  margin-top: var(--fsd-space-3);
+  padding: var(--fsd-space-3);
+  border-left: 3px solid var(--fsd-success);
+  background: var(--fsd-success-bg);
 }
 
 .completed-cta p {
@@ -643,25 +631,23 @@ function formatTime(time: string): string {
 
 .cta-btn {
   width: 100%;
-  height: 48px;
-  border: none;
-  border-radius: var(--fsd-radius-md);
-  background: var(--fsd-gradient-success);
-  color: #04140E;
-  font-size: 14px;
-  font-weight: 700;
+  min-height: 48px;
+  border: 0;
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-action-primary);
+  color: var(--fsd-text-on-action);
+  font-size: var(--fsd-text-base);
+  font-weight: var(--fsd-font-semibold);
   letter-spacing: -0.005em;
   cursor: pointer;
-  transition: all var(--fsd-transition-fast);
-  box-shadow: 0 2px 10px rgba(52, 211, 153, 0.24);
+  transition: background-color var(--fsd-transition-base);
 
   &:hover {
-    filter: brightness(1.08);
-    box-shadow: 0 4px 16px rgba(52, 211, 153, 0.34);
+    background: var(--fsd-action-primary-hover);
   }
 
   &:active {
-    filter: brightness(0.96);
+    background: var(--fsd-action-primary-active);
   }
 }
 </style>

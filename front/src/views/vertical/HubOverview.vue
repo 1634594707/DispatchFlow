@@ -129,7 +129,7 @@ onMounted(loadData)
 .capacity-bar-fill {
   height: 100%;
   border-radius: 999px;
-  transition: width 0.3s ease;
+  transition: width var(--fsd-transition-slow);
 }
 
 .capacity-text {

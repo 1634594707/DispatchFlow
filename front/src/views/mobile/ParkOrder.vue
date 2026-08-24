@@ -33,6 +33,7 @@
         :remark="form.remark || ''"
         :loading-parks="loadingParks"
         :loading-stations="loadingStations"
+        :has-tracked-order="Boolean(trackedOrder)"
         :park-options="parkOptions"
         @update:park-id="handleParkIdUpdate"
         @update:pickup-station-id="form.pickupStationId = $event"
@@ -554,7 +555,11 @@ async function submitOrder() {
     } catch (err: unknown) {
       // 超时/断网时结果未知：复用同一幂等键重查一次，命中后返回原订单而不是再建一单。
       if (!isNetworkLevelError(err)) throw err
-      message.loading({ content: '网络超时，正在查询原提交结果…', key: 'idempotent-retry', duration: 0 })
+      message.loading({
+        content: '网络超时，正在查询原提交结果…',
+        key: 'idempotent-retry',
+        duration: 0,
+      })
       response = await createParkOrder(payload, mobileApiKey.value)
       message.success({ content: '已确认原提交结果', key: 'idempotent-retry', duration: 3 })
     }
@@ -609,14 +614,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="less">
-/* 浅色主题变量覆盖 —— 仅作用于本页面容器，子组件通过 var(--fsd-*) 自动继承浅色值。
-   参考：顺丰 / 京东物流移动端，#1989fa 主色 + #f5f6fa 底色 + 卡片化白底。 */
+/* Light mobile surface overrides. They retain the shared operational semantics. */
 .mobile-order-page {
-  --fsd-bg-deep: #f5f6fa;
+  --fsd-bg-deep: #f5f7f8;
   --fsd-bg-base: #ffffff;
   --fsd-bg-elevated: #ffffff;
-  --fsd-bg-hover: #f5f5f5;
-  --fsd-bg-active: #e6f4ff;
+  --fsd-bg-hover: #edf2f3;
+  --fsd-bg-active: rgba(86, 185, 200, 0.16);
   --fsd-bg-spotlight: #ffffff;
 
   --fsd-text-primary: #1a1a1a;
@@ -625,28 +629,32 @@ onUnmounted(() => {
   --fsd-text-heading: #1a1a1a;
   --fsd-text-muted: #cccccc;
 
-  --fsd-border: rgba(0, 0, 0, 0.06);
-  --fsd-border-active: rgba(0, 0, 0, 0.12);
-  --fsd-border-split: rgba(0, 0, 0, 0.04);
-  --fsd-border-strong: rgba(0, 0, 0, 0.18);
+  --fsd-border: #dbe1e5;
+  --fsd-border-active: #8baeb4;
+  --fsd-border-split: #e7ecef;
+  --fsd-border-strong: #b9c6cb;
 
-  --fsd-accent: #1989fa;
-  --fsd-accent-strong: #096dd9;
-  --fsd-accent-muted: #1989fa;
-  --fsd-accent-deep: #0050b3;
-  --fsd-accent-glow: rgba(25, 137, 250, 0.12);
-  --fsd-accent-bg: rgba(25, 137, 250, 0.08);
-  --fsd-accent-border: rgba(25, 137, 250, 0.4);
-  --fsd-accent-subtle: rgba(25, 137, 250, 0.04);
+  --fsd-accent: #438f9b;
+  --fsd-accent-strong: #326f78;
+  --fsd-accent-muted: #438f9b;
+  --fsd-accent-deep: #285c64;
+  --fsd-accent-selected: rgba(86, 185, 200, 0.16);
+  --fsd-accent-bg: var(--fsd-accent-selected);
+  --fsd-accent-border: rgba(67, 143, 155, 0.45);
+  --fsd-accent-subtle: rgba(86, 185, 200, 0.08);
+  --fsd-action-primary: #7fd1dd;
+  --fsd-action-primary-hover: #91d9e2;
+  --fsd-action-primary-active: #68c4d1;
+  --fsd-text-on-action: #071014;
 
-  --fsd-success: #52c41a;
-  --fsd-warning: #faad14;
-  --fsd-error: #ff4d4f;
-  --fsd-info: #1989fa;
+  --fsd-success: #4a9a75;
+  --fsd-warning: #c29440;
+  --fsd-error: #c45868;
+  --fsd-info: #5f6c76;
 
-  --fsd-shadow-card: 0 1px 4px rgba(0, 0, 0, 0.04);
-  --fsd-shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --fsd-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --fsd-shadow-card: none;
+  --fsd-shadow-elevated: none;
+  --fsd-shadow-soft: none;
 
   /* 关键修复：使用固定 height 而非 min-height，让 overflow-y:auto 生效。
      原因：global.less 中 html/body/#app 均为 height:100% + overflow:hidden，
@@ -659,8 +667,8 @@ onUnmounted(() => {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  background: #f5f6fa;
-  color: #1a1a1a;
+  background: var(--fsd-bg-deep);
+  color: var(--fsd-text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
 }
 
@@ -668,9 +676,10 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: var(--fsd-z-header);
-  padding: calc(12px + env(safe-area-inset-top, 0px)) 18px 14px;
-  border-bottom: 1px solid #f0f0f0;
-  background: #ffffff;
+  padding: calc(var(--fsd-space-3) + env(safe-area-inset-top, 0px)) var(--fsd-space-4)
+    var(--fsd-space-3);
+  border-bottom: 1px solid var(--fsd-border);
+  background: var(--fsd-bg-base);
 }
 
 .header-row {
@@ -685,12 +694,11 @@ onUnmounted(() => {
   width: 42px;
   height: 42px;
   flex: 0 0 auto;
-  border-radius: 8px;
-  background: #1989fa;
-  color: #fff;
+  border-radius: var(--fsd-radius-sm);
+  background: #e9eef0;
+  color: var(--fsd-text-primary);
   font-size: 20px;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(25, 137, 250, 0.22);
+  font-weight: var(--fsd-font-semibold);
 }
 
 .header-back {
@@ -706,28 +714,28 @@ onUnmounted(() => {
   transition: color var(--fsd-transition-fast);
 
   &:hover {
-    color: #1989fa;
+    color: var(--fsd-accent-strong);
   }
 }
 
 .header-brand h1 {
   margin: 3px 0 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
-  font-size: 22px;
-  line-height: 1.2;
-  letter-spacing: 0;
-  color: #1a1a1a;
-  font-weight: 600;
+  color: var(--fsd-text-primary);
+  font-family: var(--fsd-font-sans);
+  font-size: var(--fsd-text-xl);
+  font-weight: var(--fsd-font-semibold);
+  letter-spacing: var(--fsd-tracking-tight);
+  line-height: var(--fsd-leading-tight);
 }
 
 .header-eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: #6b7f92;
+  gap: var(--fsd-space-1);
+  color: var(--fsd-text-secondary);
   font-size: 10px;
   letter-spacing: 0;
-  font-weight: 600;
+  font-weight: var(--fsd-font-medium);
 
   &::before {
     display: none;
@@ -736,80 +744,73 @@ onUnmounted(() => {
 
 .header-stats {
   display: flex;
-  gap: 6px;
-  margin-top: 14px;
   flex-wrap: wrap;
+  gap: var(--fsd-space-2);
+  margin-top: var(--fsd-space-3);
 }
 
 .header-stats span {
-  padding: 5px 10px;
-  border-radius: var(--fsd-radius-full);
-  background: #f5f5f5;
-  border: 1px solid #f0f0f0;
+  padding: 4px 8px;
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-neutral-bg);
+  color: var(--fsd-text-secondary);
   font-size: 11px;
-  font-weight: 600;
-  color: #666;
+  font-weight: var(--fsd-font-medium);
   font-feature-settings: 'tnum';
   font-family: var(--fsd-font-mono);
 }
 
 .header-stats .service-open {
-  background: #effaf4;
-  border-color: #d8f3e3;
-  color: #168a50;
+  border-color: rgba(74, 154, 117, 0.3);
+  background: rgba(74, 154, 117, 0.1);
+  color: var(--fsd-success);
 }
 
 .mobile-main {
-  width: min(100%, var(--fsd-mobile-max-width));
-  margin: 0 auto;
-  padding: 12px 16px calc(80px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 28px;
+  width: min(100%, var(--fsd-mobile-max-width));
+  margin: 0 auto;
+  padding: var(--fsd-space-4) var(--fsd-space-4) calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (max-width: 420px) {
   .header-brand h1 {
     font-size: 20px;
   }
-  .mobile-main {
-    padding: 10px 12px calc(76px + env(safe-area-inset-bottom, 0px));
-  }
 }
 </style>
 
 <style lang="less">
-/* 浅色主题：Ant Design 下拉/输入框全局覆盖（仅影响本页 .mobile-order-page 内的下拉，
-   因为本页容器覆盖了 --fsd-* 变量，但 ant-select-dropdown 渲染在 body 下，
-   需要单独使用浅色样式） */
-.ant-select-dropdown {
+/* Popup classes are attached by QuickOrderPanel so this skin cannot leak site-wide. */
+.mobile-order-select-dropdown {
+  border: 1px solid #dbe1e5 !important;
+  border-radius: 10px !important;
   background: #ffffff !important;
-  border: 1px solid #e8e8e8 !important;
-  backdrop-filter: blur(16px);
-  border-radius: 12px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28) !important;
 }
 
-.ant-select-item {
-  color: #333 !important;
-  border-radius: 8px !important;
+.mobile-order-select-dropdown .ant-select-item {
+  border-radius: 6px !important;
+  color: #172027 !important;
 }
 
-.ant-select-item-option-active {
-  background: #f5f5f5 !important;
+.mobile-order-select-dropdown .ant-select-item-option-active {
+  background: #edf2f3 !important;
 }
 
-.ant-select-item-option-selected {
-  background: #e6f4ff !important;
-  color: #1989fa !important;
+.mobile-order-select-dropdown .ant-select-item-option-selected {
+  background: rgba(86, 185, 200, 0.16) !important;
+  color: #326f78 !important;
   font-weight: 600;
 }
 
-.ant-select-item-group {
-  color: #1989fa !important;
-  font-weight: 600;
+.mobile-order-select-dropdown .ant-select-item-group {
+  color: #5f6c76 !important;
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 </style>

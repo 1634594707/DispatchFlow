@@ -1,34 +1,29 @@
 <template>
   <PageContainer title="异常任务" subtitle="管理所有调度异常">
     <template #actions>
-      <a-button @click="handleRefresh">
-        <ReloadOutlined /> 刷新
-      </a-button>
-      <a-button @click="handleExport">
-        <DownloadOutlined /> 导出
-      </a-button>
+      <a-button @click="handleRefresh"> <ReloadOutlined /> 刷新 </a-button>
+      <a-button @click="handleExport"> <DownloadOutlined /> 导出 </a-button>
       <a-divider type="vertical" />
-      <a-button
-        v-if="selectedRowKeys.length > 0"
-        type="primary"
-        @click="handleBatchClose"
-      >
+      <a-button v-if="selectedRowKeys.length > 0" type="primary" @click="handleBatchClose">
         批量关闭 ({{ selectedRowKeys.length }})
       </a-button>
-      <a-button
-        v-if="selectedRowKeys.length > 0"
-        @click="handleBatchReassign"
-      >
+      <a-button v-if="selectedRowKeys.length > 0" @click="handleBatchReassign">
         批量重新派车 ({{ selectedRowKeys.length }})
       </a-button>
     </template>
 
-    <div class="search-bar">
+    <QueryToolbar
+      title="筛选条件"
+      :result-summary="`共 ${store.total} 条结果`"
+      :active-chips="activeFilterChips"
+      @remove="removeFilterChip"
+      @clear="handleReset"
+    >
       <a-select
         v-model:value="queryForm.exceptionType"
         placeholder="异常类型"
         allow-clear
-        style="width: 180px;"
+        style="width: 180px"
       >
         <a-select-option v-for="(cfg, key) in exceptionTypeMap" :key="key" :value="key">
           {{ cfg.label }}
@@ -38,7 +33,7 @@
         v-model:value="queryForm.exceptionStatus"
         placeholder="处理状态"
         allow-clear
-        style="width: 140px;"
+        style="width: 140px"
       >
         <a-select-option v-for="(cfg, key) in exceptionStatusMap" :key="key" :value="key">
           {{ cfg.label }}
@@ -47,20 +42,18 @@
       <a-input-number
         v-model:value="queryForm.orderId"
         placeholder="订单ID"
-        style="width: 140px;"
+        style="width: 140px"
         :min="1"
       />
       <a-input-number
         v-model:value="queryForm.vehicleId"
         placeholder="车辆ID"
-        style="width: 140px;"
+        style="width: 140px"
         :min="1"
       />
-      <a-button type="primary" @click="handleSearch">
-        <SearchOutlined /> 查询
-      </a-button>
+      <a-button type="primary" @click="handleSearch"> <SearchOutlined /> 查询 </a-button>
       <a-button @click="handleReset">重置</a-button>
-    </div>
+    </QueryToolbar>
 
     <!-- V9-UI3: Skeleton screen for initial load -->
     <SkeletonLoader v-if="store.loading && store.list.length === 0" variant="table" :rows="6" />
@@ -87,7 +80,7 @@
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'exceptionType'">
           <span class="exception-type-cell">
-            <ExclamationCircleOutlined style="color: var(--fsd-error);" />
+            <ExclamationCircleOutlined style="color: var(--fsd-error)" />
             {{ getExceptionLabel(record.exceptionType) }}
           </span>
         </template>
@@ -103,7 +96,9 @@
           </a-tooltip>
         </template>
         <template v-else-if="column.dataIndex === 'aggCount'">
-          <a-tag v-if="record.aggCount && record.aggCount > 1" color="orange">x{{ record.aggCount }}</a-tag>
+          <a-tag v-if="record.aggCount && record.aggCount > 1" class="aggregate-warning"
+            >x{{ record.aggCount }}</a-tag
+          >
           <span v-else>-</span>
         </template>
         <template v-else-if="column.dataIndex === 'occurTime'">
@@ -125,7 +120,12 @@
             >
               处理
             </a-button>
-            <a-button v-if="record.taskId" type="link" size="small" @click="router.push(`/tasks/${record.taskId}`)">
+            <a-button
+              v-if="record.taskId"
+              type="link"
+              size="small"
+              @click="router.push(`/tasks/${record.taskId}`)"
+            >
               查看任务
             </a-button>
             <span v-else size="small" class="text-secondary">无关联任务</span>
@@ -134,18 +134,13 @@
       </template>
     </a-table>
 
-    <a-drawer
-      v-model:open="drawerVisible"
-      title="处理异常"
-      :width="600"
-      placement="right"
-    >
+    <a-drawer v-model:open="drawerVisible" title="处理异常" :width="600" placement="right">
       <template v-if="currentException">
         <div class="drawer-section">
           <h4 class="section-title">异常信息</h4>
           <a-descriptions :column="1" size="small" bordered>
             <a-descriptions-item label="异常类型">
-              <ExclamationCircleOutlined style="color: var(--fsd-error); margin-right: 4px;" />
+              <ExclamationCircleOutlined style="color: var(--fsd-error); margin-right: 4px" />
               {{ getExceptionLabel(currentException.exceptionType) }}
             </a-descriptions-item>
             <a-descriptions-item label="关联任务">
@@ -179,7 +174,7 @@
                   <template #label>
                     <span>重新派单</span>
                     <a-tooltip v-if="!currentException?.taskId" title="无关联任务，无法重新派单">
-                      <InfoCircleOutlined style="margin-left: 4px; color: #999;" />
+                      <InfoCircleOutlined class="form-hint-icon" />
                     </a-tooltip>
                   </template>
                 </a-radio>
@@ -189,7 +184,7 @@
                   <template #label>
                     <span>标记失败</span>
                     <a-tooltip v-if="!currentException?.taskId" title="无关联任务">
-                      <InfoCircleOutlined style="margin-left: 4px; color: #999;" />
+                      <InfoCircleOutlined class="form-hint-icon" />
                     </a-tooltip>
                   </template>
                 </a-radio>
@@ -197,10 +192,7 @@
             </a-form-item>
 
             <a-form-item v-if="resolveForm.action === 'REASSIGN'" label="选择车辆">
-              <a-select
-                v-model:value="resolveForm.vehicleId"
-                placeholder="请选择在线空闲车辆"
-              >
+              <a-select v-model:value="resolveForm.vehicleId" placeholder="请选择在线空闲车辆">
                 <a-select-option :value="100">VH-001 (在线·空闲)</a-select-option>
                 <a-select-option :value="101">VH-002 (在线·空闲)</a-select-option>
               </a-select>
@@ -230,8 +222,16 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined, DownloadOutlined, InfoCircleOutlined } from '@ant-design/icons-vue'
+import {
+  ReloadOutlined,
+  SearchOutlined,
+  ExclamationCircleOutlined,
+  DownloadOutlined,
+  InfoCircleOutlined,
+} from '@ant-design/icons-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
+import QueryToolbar from '@/components/common/QueryToolbar.vue'
+import type { FilterChip } from '@/components/common/QueryToolbar.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useExceptionStore } from '@/stores/exception'
@@ -255,6 +255,25 @@ const queryForm = reactive({
   exceptionStatus: undefined as ExceptionStatus | undefined,
   orderId: undefined as number | undefined,
   vehicleId: undefined as number | undefined,
+})
+
+const activeFilterChips = computed((): FilterChip[] => {
+  const chips: FilterChip[] = []
+  if (queryForm.exceptionType) {
+    chips.push({
+      key: 'exceptionType',
+      label: `类型：${getExceptionLabel(queryForm.exceptionType)}`,
+    })
+  }
+  if (queryForm.exceptionStatus) {
+    chips.push({
+      key: 'exceptionStatus',
+      label: `状态：${exceptionStatusMap[queryForm.exceptionStatus]?.label || queryForm.exceptionStatus}`,
+    })
+  }
+  if (queryForm.orderId) chips.push({ key: 'orderId', label: `订单：${queryForm.orderId}` })
+  if (queryForm.vehicleId) chips.push({ key: 'vehicleId', label: `车辆：${queryForm.vehicleId}` })
+  return chips
 })
 
 const pageNo = ref(1)
@@ -291,13 +310,23 @@ function formatTime(t: string) {
 }
 
 function fetchData() {
-  store.fetchList({
-    ...queryForm,
-    exceptionType: queryForm.exceptionType as ExceptionType | undefined,
-    parkId: parkScope.selectedParkId,
-    pageNo: pageNo.value,
-    pageSize: pageSize.value,
-  }).then(() => openRouteException())
+  store
+    .fetchList({
+      ...queryForm,
+      exceptionType: queryForm.exceptionType as ExceptionType | undefined,
+      parkId: parkScope.selectedParkId,
+      pageNo: pageNo.value,
+      pageSize: pageSize.value,
+    })
+    .then(() => openRouteException())
+}
+
+function removeFilterChip(key: string) {
+  if (key === 'exceptionType') queryForm.exceptionType = undefined
+  if (key === 'exceptionStatus') queryForm.exceptionStatus = undefined
+  if (key === 'orderId') queryForm.orderId = undefined
+  if (key === 'vehicleId') queryForm.vehicleId = undefined
+  handleSearch()
 }
 
 function handleSearch() {
@@ -354,7 +383,9 @@ function onSelectionChange(keys: number[]) {
 
 async function handleBatchClose() {
   if (selectedRowKeys.value.length === 0) return
-  const confirmed = await window.confirm(`确定要批量关闭 ${selectedRowKeys.value.length} 个异常吗？`)
+  const confirmed = await window.confirm(
+    `确定要批量关闭 ${selectedRowKeys.value.length} 个异常吗？`,
+  )
   if (!confirmed) return
   batchResolveLoading.value = true
   try {
@@ -377,7 +408,9 @@ async function handleBatchClose() {
 
 async function handleBatchReassign() {
   if (selectedRowKeys.value.length === 0) return
-  const confirmed = await window.confirm(`确定要对 ${selectedRowKeys.value.length} 个异常执行批量重新派车吗？`)
+  const confirmed = await window.confirm(
+    `确定要对 ${selectedRowKeys.value.length} 个异常执行批量重新派车吗？`,
+  )
   if (!confirmed) return
   batchResolveLoading.value = true
   try {
@@ -461,11 +494,15 @@ watch(
 </script>
 
 <style scoped lang="less">
-.search-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.form-hint-icon {
+  margin-left: var(--fsd-space-1);
+  color: var(--fsd-text-tertiary);
+}
+
+.aggregate-warning {
+  color: var(--fsd-warning);
+  border-color: var(--fsd-warning);
+  background: var(--fsd-warning-bg);
 }
 
 .exception-type-cell {

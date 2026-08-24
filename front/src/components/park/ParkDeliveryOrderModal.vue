@@ -118,8 +118,8 @@ const priorityOptions = [
 const orderableStations = computed(() => filterMobileOrderStations(stations.value))
 
 const pickupOptions = computed(() =>
-  buildGroupedMobileStationOptions(orderableStations.value).flatMap(group =>
-    group.options.map(option => ({
+  buildGroupedMobileStationOptions(orderableStations.value).flatMap((group) =>
+    group.options.map((option) => ({
       value: option.value,
       label: `${group.label} · ${option.label}`,
     })),
@@ -129,8 +129,8 @@ const pickupOptions = computed(() =>
 const dropoffOptions = computed(() =>
   buildGroupedMobileStationOptions(orderableStations.value, {
     excludeStationId: form.pickupStationId ?? null,
-  }).flatMap(group =>
-    group.options.map(option => ({
+  }).flatMap((group) =>
+    group.options.map((option) => ({
       value: option.value,
       label: `${group.label} · ${option.label}`,
     })),
@@ -203,7 +203,7 @@ async function handleSubmit() {
 
 watch(
   () => props.open,
-  open => {
+  (open) => {
     if (open) {
       form.pickupStationId = undefined as unknown as number
       form.dropoffStationId = undefined as unknown as number
@@ -225,10 +225,10 @@ watch(
     transform-origin: bottom center;
   }
   .park-delivery-modal :deep(.ant-modal-content) {
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--fsd-radius-lg) var(--fsd-radius-lg) 0 0;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+    box-shadow: var(--fsd-shadow-popover);
   }
   .park-delivery-modal :deep(.ant-modal-header) {
     cursor: grab;
@@ -242,8 +242,8 @@ watch(
     display: block;
     width: 36px;
     height: 4px;
-    border-radius: 2px;
-    background: #d9d9d9;
+    border-radius: var(--fsd-radius-sm);
+    background: var(--fsd-border);
     margin: 0 auto 10px;
   }
   .park-delivery-modal :deep(.ant-modal-body) {

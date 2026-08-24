@@ -3,9 +3,7 @@
     <template #actions>
       <a-space>
         <a-tag v-if="autoRefresh" color="processing">自动刷新中 (30s)</a-tag>
-        <a-button :loading="loading" @click="load">
-          <ReloadOutlined /> 刷新
-        </a-button>
+        <a-button :loading="loading" @click="load"> <ReloadOutlined /> 刷新 </a-button>
       </a-space>
     </template>
 
@@ -76,9 +74,18 @@
             </div>
             <div class="metric-value">{{ metrics.dbConnectionPool.usagePercent.toFixed(1) }}%</div>
             <div class="metric-detail">
-              <div class="metric-row"><span class="metric-row-label">活跃</span><strong>{{ metrics.dbConnectionPool.active }}</strong></div>
-              <div class="metric-row"><span class="metric-row-label">空闲</span><strong>{{ metrics.dbConnectionPool.idle }}</strong></div>
-              <div class="metric-row"><span class="metric-row-label">最大</span><strong>{{ metrics.dbConnectionPool.max }}</strong></div>
+              <div class="metric-row">
+                <span class="metric-row-label">活跃</span
+                ><strong>{{ metrics.dbConnectionPool.active }}</strong>
+              </div>
+              <div class="metric-row">
+                <span class="metric-row-label">空闲</span
+                ><strong>{{ metrics.dbConnectionPool.idle }}</strong>
+              </div>
+              <div class="metric-row">
+                <span class="metric-row-label">最大</span
+                ><strong>{{ metrics.dbConnectionPool.max }}</strong>
+              </div>
             </div>
           </div>
 
@@ -90,8 +97,14 @@
             </div>
             <div class="metric-value">{{ metrics.redisMemory.usagePercent.toFixed(1) }}%</div>
             <div class="metric-detail">
-              <div class="metric-row"><span class="metric-row-label">已用</span><strong>{{ formatBytes(metrics.redisMemory.usedBytes) }}</strong></div>
-              <div class="metric-row"><span class="metric-row-label">最大</span><strong>{{ formatBytes(metrics.redisMemory.maxBytes) }}</strong></div>
+              <div class="metric-row">
+                <span class="metric-row-label">已用</span
+                ><strong>{{ formatBytes(metrics.redisMemory.usedBytes) }}</strong>
+              </div>
+              <div class="metric-row">
+                <span class="metric-row-label">最大</span
+                ><strong>{{ formatBytes(metrics.redisMemory.maxBytes) }}</strong>
+              </div>
             </div>
           </div>
 
@@ -108,16 +121,28 @@
           </div>
 
           <!-- API P99 响应时间 -->
-          <div class="metric-card metric-card-wide" :class="metricCardClass(metrics.apiP99Latency.status)">
+          <div
+            class="metric-card metric-card-wide"
+            :class="metricCardClass(metrics.apiP99Latency.status)"
+          >
             <div class="metric-header">
               <span class="metric-icon">⏱️</span>
               <span class="metric-label">API P99 响应时间</span>
             </div>
             <div class="metric-value">{{ metrics.apiP99Latency.currentMs }} ms</div>
             <div class="metric-detail">
-              <div class="metric-row"><span class="metric-row-label">P50</span><strong>{{ metrics.apiP99Latency.p50Ms }} ms</strong></div>
-              <div class="metric-row"><span class="metric-row-label">P95</span><strong>{{ metrics.apiP99Latency.p95Ms }} ms</strong></div>
-              <div class="metric-row"><span class="metric-row-label">P99</span><strong>{{ metrics.apiP99Latency.p99Ms }} ms</strong></div>
+              <div class="metric-row">
+                <span class="metric-row-label">P50</span
+                ><strong>{{ metrics.apiP99Latency.p50Ms }} ms</strong>
+              </div>
+              <div class="metric-row">
+                <span class="metric-row-label">P95</span
+                ><strong>{{ metrics.apiP99Latency.p95Ms }} ms</strong>
+              </div>
+              <div class="metric-row">
+                <span class="metric-row-label">P99</span
+                ><strong>{{ metrics.apiP99Latency.p99Ms }} ms</strong>
+              </div>
             </div>
             <!-- 趋势图 -->
             <div v-if="latencyHistory.length" class="trend-chart">
@@ -179,7 +204,11 @@ import { ReloadOutlined } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { getSystemHealth, getDetailedMetrics, getHealthTimeline } from '@/api/systemHealth'
-import type { SystemHealthResponse, DetailedMetricsResponse, HealthTimelineItem } from '@/types/phase10'
+import type {
+  SystemHealthResponse,
+  DetailedMetricsResponse,
+  HealthTimelineItem,
+} from '@/types/phase10'
 
 const loading = ref(false)
 const health = ref<SystemHealthResponse | null>(null)
@@ -388,25 +417,27 @@ onUnmounted(() => {
 }
 
 .component-card {
-  background: var(--fsd-bg-elevated);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-raised);
   padding: 16px;
-  box-shadow: var(--fsd-shadow-card);
 }
 
 .component-card.status-down {
-  border-color: rgba(255, 61, 113, 0.45);
-  background: linear-gradient(135deg, rgba(255, 61, 113, 0.06) 0%, var(--fsd-bg-elevated) 100%);
+  border-color: var(--fsd-error);
+  border-left-width: 3px;
+  background: var(--fsd-error-bg);
 }
 
 .component-card.status-degraded {
-  border-color: rgba(255, 176, 32, 0.45);
-  background: linear-gradient(135deg, rgba(255, 176, 32, 0.06) 0%, var(--fsd-bg-elevated) 100%);
+  border-color: var(--fsd-warning);
+  border-left-width: 3px;
+  background: var(--fsd-warning-bg);
 }
 
 .component-card.status-up {
-  background: var(--fsd-gradient-card), var(--fsd-bg-elevated);
+  border-left: 3px solid var(--fsd-success);
+  background: var(--fsd-success-bg);
 }
 
 .card-head {
@@ -473,12 +504,11 @@ onUnmounted(() => {
 }
 
 .metric-card {
-  background: var(--fsd-bg-elevated);
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-lg);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-raised);
   padding: 16px;
-  box-shadow: var(--fsd-shadow-card);
-  transition: border-color 0.3s;
+  transition: border-color var(--fsd-transition-base);
 }
 
 .metric-card-wide {
@@ -577,7 +607,7 @@ onUnmounted(() => {
   width: 100%;
   min-height: 2px;
   border-radius: 2px 2px 0 0;
-  transition: height 0.3s;
+  transition: height var(--fsd-transition-slow);
 }
 
 .trend-bar.bar-ok {

@@ -9,8 +9,48 @@
 
     <a-spin :spinning="store.detailLoading">
       <template v-if="store.detail">
-        <div class="vehicle-detail-grid">
-          <a-card title="基本信息" size="small">
+        <section class="detail-summary" aria-label="车辆概要">
+          <div class="detail-summary-primary">
+            <span class="detail-summary-label">车辆编号</span>
+            <span class="detail-summary-code mono">{{ store.detail.vehicleCode }}</span>
+          </div>
+          <dl class="detail-summary-metrics">
+            <div class="detail-summary-metric">
+              <dt>在线状态</dt>
+              <dd><StatusBadge :status="store.detail.onlineStatus" type="online" /></dd>
+            </div>
+            <div class="detail-summary-metric">
+              <dt>调度状态</dt>
+              <dd><StatusBadge :status="store.detail.dispatchStatus" type="dispatch" /></dd>
+            </div>
+            <div class="detail-summary-metric">
+              <dt>当前电量</dt>
+              <dd>{{ store.detail.batteryLevel }}%</dd>
+            </div>
+            <div class="detail-summary-metric">
+              <dt>当前任务</dt>
+              <dd>
+                <router-link
+                  v-if="store.detail.currentTaskId"
+                  :to="`/tasks/${store.detail.currentTaskId}`"
+                  class="link"
+                >
+                  任务#{{ store.detail.currentTaskId }}
+                </router-link>
+                <span v-else class="text-muted">-</span>
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <div class="detail-sections">
+          <section class="detail-section" aria-labelledby="vehicle-information-heading">
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="vehicle-information-heading">基本信息</h2>
+                <p>车辆标识、类型和接入配置</p>
+              </div>
+            </div>
             <a-descriptions :column="2" size="small" bordered>
               <a-descriptions-item label="车辆编号">
                 <span class="mono">{{ store.detail.vehicleCode }}</span>
@@ -22,7 +62,7 @@
                 <a-tag>{{ store.detail.vehicleType }}</a-tag>
               </a-descriptions-item>
               <a-descriptions-item label="连接模式">
-                <a-tag :color="linkModeColor(store.detail.linkMode)">{{ store.detail.linkMode || 'SIM' }}</a-tag>
+                <a-tag class="metadata-tag">{{ store.detail.linkMode || 'SIM' }}</a-tag>
               </a-descriptions-item>
               <template v-if="store.detail.linkMode === 'VDA5050'">
                 <a-descriptions-item label="Manufacturer">
@@ -39,9 +79,15 @@
                 {{ store.detail.remark || '-' }}
               </a-descriptions-item>
             </a-descriptions>
-          </a-card>
+          </section>
 
-          <a-card title="实时状态" size="small">
+          <section class="detail-section" aria-labelledby="vehicle-runtime-heading">
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="vehicle-runtime-heading">实时状态</h2>
+                <p>连接、路线和任务执行上下文</p>
+              </div>
+            </div>
             <a-descriptions :column="2" size="small" bordered>
               <a-descriptions-item label="在线状态">
                 <StatusBadge :status="store.detail.onlineStatus" type="online" />
@@ -52,7 +98,9 @@
               <a-descriptions-item label="电量">
                 <a-progress
                   :percent="store.detail.batteryLevel"
-                  :stroke-color="store.detail.batteryLevel < 20 ? '#FF5C7C' : '#2DE08A'"
+                  :stroke-color="
+                    store.detail.batteryLevel < 20 ? 'var(--fsd-error)' : 'var(--fsd-success)'
+                  "
                   size="small"
                 />
               </a-descriptions-item>
@@ -64,25 +112,31 @@
                   {{ store.detail.currentLatitude }}, {{ store.detail.currentLongitude }}
                 </span>
               </a-descriptions-item>
-              <!-- 路线执行上下文（路线图 5.2） -->
               <a-descriptions-item label="最近道路节点">
-                <span v-if="store.detail.currentRoadNodeCode" class="mono">{{ store.detail.currentRoadNodeCode }}</span>
+                <span v-if="store.detail.currentRoadNodeCode" class="mono">{{
+                  store.detail.currentRoadNodeCode
+                }}</span>
                 <span v-else class="text-secondary">未匹配（偏离道路）</span>
               </a-descriptions-item>
               <a-descriptions-item label="路线 ID">
-                <span v-if="store.detail.routeAuditRouteId" class="mono">{{ store.detail.routeAuditRouteId }}</span>
+                <span v-if="store.detail.routeAuditRouteId" class="mono">{{
+                  store.detail.routeAuditRouteId
+                }}</span>
                 <span v-else class="text-secondary">-</span>
               </a-descriptions-item>
               <a-descriptions-item label="地图版本">
-                <span v-if="store.detail.routeMapVersion" class="mono">{{ store.detail.routeMapVersion }}</span>
+                <span v-if="store.detail.routeMapVersion" class="mono">{{
+                  store.detail.routeMapVersion
+                }}</span>
                 <span v-else class="text-secondary">-</span>
               </a-descriptions-item>
               <a-descriptions-item label="偏航距离">
                 <span
                   v-if="store.detail.routeDeviationMeters != null"
                   class="mono"
-                  :style="store.detail.routeDeviationMeters > 50 ? 'color:#cf1322' : ''"
-                >{{ store.detail.routeDeviationMeters }} m</span>
+                  :class="{ 'text-error': store.detail.routeDeviationMeters > 50 }"
+                  >{{ store.detail.routeDeviationMeters }} m</span
+                >
                 <span v-else class="text-secondary">-</span>
               </a-descriptions-item>
               <a-descriptions-item label="当前任务">
@@ -96,119 +150,157 @@
                 <span v-else class="text-muted">-</span>
               </a-descriptions-item>
             </a-descriptions>
-          </a-card>
-        </div>
+          </section>
 
-        <!-- P2-5: 车辆尺寸与通行约束 -->
-        <a-card title="车辆尺寸与通行约束" size="small" style="margin-top: 16px;">
-          <a-descriptions :column="2" size="small" bordered>
-            <a-descriptions-item label="车辆宽度">
-              <span v-if="store.detail.widthCm != null" class="mono">{{ store.detail.widthCm }} cm</span>
-              <span v-else class="text-muted">-</span>
-            </a-descriptions-item>
-            <a-descriptions-item label="车辆长度">
-              <span v-if="store.detail.lengthCm != null" class="mono">{{ store.detail.lengthCm }} cm</span>
-              <span v-else class="text-muted">-</span>
-            </a-descriptions-item>
-            <a-descriptions-item label="最小转弯半径">
-              <span v-if="store.detail.turningRadiusM != null" class="mono">{{ store.detail.turningRadiusM }} m</span>
-              <span v-else class="text-muted">-</span>
-            </a-descriptions-item>
-            <a-descriptions-item label="允许道路等级">
-              <template v-if="store.detail.allowedRoadClasses">
-                <a-tag
-                  v-for="(cls, idx) in store.detail.allowedRoadClasses.split(',')"
-                  :key="idx"
-                  color="blue"
-                  style="margin-bottom: 2px"
-                >{{ cls.trim() }}</a-tag>
-              </template>
-              <span v-else class="text-muted">全部</span>
-            </a-descriptions-item>
-          </a-descriptions>
-        </a-card>
-
-        <a-tabs v-model:activeKey="activeTab" style="margin-top: 16px;">
-          <a-tab-pane key="logs" tab="关联操作日志">
-            <a-timeline v-if="operateLogs.length > 0">
-              <a-timeline-item v-for="log in operateLogs" :key="log.id">
-                <router-link :to="`/tasks/${log.taskId}`" class="link">{{ log.taskNo || log.taskId }}</router-link>
-                · {{ log.operateType }} · {{ formatTime(log.createdAt) }}
-              </a-timeline-item>
-            </a-timeline>
-            <a-empty v-else description="暂无操作日志" />
-          </a-tab-pane>
-
-          <a-tab-pane v-if="authStore.isAdmin" key="credentials" tab="车端凭证">
-            <div class="tab-toolbar">
-              <a-button size="small" type="primary" @click="handleCreateCredential">生成凭证</a-button>
-            </div>
-            <a-table
-              size="small"
-              row-key="id"
-              :pagination="false"
-              :data-source="credentials"
-              :columns="credentialColumns"
-            >
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'apiKey'">
-                  <span class="mono">{{ record.apiKey }}</span>
-                </template>
-                <template v-else-if="column.key === 'actions'">
-                  <a-popconfirm
-                    v-if="record.status === 'ACTIVE'"
-                    title="确定禁用该凭证？"
-                    @confirm="handleDisableCredential(record.id)"
-                  >
-                    <a-button type="link" size="small" danger>禁用</a-button>
-                  </a-popconfirm>
-                </template>
-              </template>
-            </a-table>
-          </a-tab-pane>
-
-          <a-tab-pane v-if="authStore.isOperator" key="health" tab="健康度">
-            <div v-if="health" class="health-panel">
-              <a-progress
-                type="circle"
-                :percent="health.healthScore"
-                :stroke-color="healthColor(health.healthLevel)"
-              />
-              <div class="health-meta">
-                <a-tag :color="healthColor(health.healthLevel)">{{ health.healthLevel }}</a-tag>
-                <p>OPEN 异常 {{ health.openExceptionCount }} · 失败任务 {{ health.failedTaskCount }} · 维护 {{ health.maintenanceCount }}</p>
-                <ul v-if="health.suggestions?.length">
-                  <li v-for="(s, i) in health.suggestions" :key="i">{{ s }}</li>
-                </ul>
+          <section class="detail-section" aria-labelledby="vehicle-constraints-heading">
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="vehicle-constraints-heading">车辆尺寸与通行约束</h2>
+                <p>尺寸、转弯和允许道路等级</p>
               </div>
             </div>
-            <a-empty v-else description="暂无健康数据" />
-          </a-tab-pane>
+            <a-descriptions :column="2" size="small" bordered>
+              <a-descriptions-item label="车辆宽度">
+                <span v-if="store.detail.widthCm != null" class="mono"
+                  >{{ store.detail.widthCm }} cm</span
+                >
+                <span v-else class="text-muted">-</span>
+              </a-descriptions-item>
+              <a-descriptions-item label="车辆长度">
+                <span v-if="store.detail.lengthCm != null" class="mono"
+                  >{{ store.detail.lengthCm }} cm</span
+                >
+                <span v-else class="text-muted">-</span>
+              </a-descriptions-item>
+              <a-descriptions-item label="最小转弯半径">
+                <span v-if="store.detail.turningRadiusM != null" class="mono"
+                  >{{ store.detail.turningRadiusM }} m</span
+                >
+                <span v-else class="text-muted">-</span>
+              </a-descriptions-item>
+              <a-descriptions-item label="允许道路等级">
+                <template v-if="store.detail.allowedRoadClasses">
+                  <a-tag
+                    v-for="(cls, idx) in store.detail.allowedRoadClasses.split(',')"
+                    :key="idx"
+                    class="metadata-tag road-class-tag"
+                    >{{ cls.trim() }}</a-tag
+                  >
+                </template>
+                <span v-else class="text-muted">全部</span>
+              </a-descriptions-item>
+            </a-descriptions>
+          </section>
 
-          <a-tab-pane v-if="authStore.isOperator" key="trajectory" tab="轨迹回放">
-            <TrajectoryReplayPanel :vehicle-id="Number(route.params.vehicleId)" />
-            <div v-if="authStore.isAdmin" class="tab-toolbar" style="margin-top: 8px;">
-              <a-button size="small" @click="exportTrajectory">导出 CSV（ADMIN）</a-button>
+          <section
+            class="detail-section detail-section--tabs"
+            aria-labelledby="vehicle-records-heading"
+          >
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="vehicle-records-heading">关联记录与管理</h2>
+                <p>操作日志、凭证、健康度、轨迹和维护记录</p>
+              </div>
             </div>
-          </a-tab-pane>
+            <a-tabs v-model:active-key="activeTab" class="detail-tabs">
+              <a-tab-pane key="logs" tab="关联操作日志">
+                <a-timeline v-if="operateLogs.length > 0">
+                  <a-timeline-item v-for="log in operateLogs" :key="log.id">
+                    <router-link :to="`/tasks/${log.taskId}`" class="link">{{
+                      log.taskNo || log.taskId
+                    }}</router-link>
+                    · {{ log.operateType }} · {{ formatTime(log.createdAt) }}
+                  </a-timeline-item>
+                </a-timeline>
+                <a-empty v-else description="暂无操作日志" />
+              </a-tab-pane>
 
-          <a-tab-pane v-if="authStore.isAdmin" key="maintenance" tab="维护记录">
-            <div class="tab-toolbar">
-              <a-button size="small" type="primary" @click="maintenanceModalOpen = true">新增维护</a-button>
-            </div>
-            <a-table
-              size="small"
-              row-key="id"
-              :pagination="false"
-              :data-source="maintenanceRecords"
-              :columns="maintenanceColumns"
-            />
-          </a-tab-pane>
-        </a-tabs>
+              <a-tab-pane v-if="authStore.isAdmin" key="credentials" tab="车端凭证">
+                <div class="tab-toolbar">
+                  <a-button size="small" type="primary" @click="handleCreateCredential"
+                    >生成凭证</a-button
+                  >
+                </div>
+                <a-table
+                  size="small"
+                  row-key="id"
+                  :pagination="false"
+                  :data-source="credentials"
+                  :columns="credentialColumns"
+                >
+                  <template #bodyCell="{ column, record }">
+                    <template v-if="column.key === 'apiKey'">
+                      <span class="mono">{{ record.apiKey }}</span>
+                    </template>
+                    <template v-else-if="column.key === 'actions'">
+                      <a-popconfirm
+                        v-if="record.status === 'ACTIVE'"
+                        title="确定禁用该凭证？"
+                        @confirm="handleDisableCredential(record.id)"
+                      >
+                        <a-button type="link" size="small" danger>禁用</a-button>
+                      </a-popconfirm>
+                    </template>
+                  </template>
+                </a-table>
+              </a-tab-pane>
+
+              <a-tab-pane v-if="authStore.isOperator" key="health" tab="健康度">
+                <div v-if="health" class="health-panel">
+                  <a-progress
+                    type="circle"
+                    :percent="health.healthScore"
+                    :stroke-color="healthColor(health.healthLevel)"
+                  />
+                  <div class="health-meta">
+                    <a-tag :class="healthTagClass(health.healthLevel)">{{
+                      health.healthLevel
+                    }}</a-tag>
+                    <p>
+                      OPEN 异常 {{ health.openExceptionCount }} · 失败任务
+                      {{ health.failedTaskCount }} · 维护 {{ health.maintenanceCount }}
+                    </p>
+                    <ul v-if="health.suggestions?.length">
+                      <li v-for="(s, i) in health.suggestions" :key="i">{{ s }}</li>
+                    </ul>
+                  </div>
+                </div>
+                <a-empty v-else description="暂无健康数据" />
+              </a-tab-pane>
+
+              <a-tab-pane v-if="authStore.isOperator" key="trajectory" tab="轨迹回放">
+                <TrajectoryReplayPanel :vehicle-id="Number(route.params.vehicleId)" />
+                <div v-if="authStore.isAdmin" class="tab-toolbar tab-toolbar--spaced">
+                  <a-button size="small" @click="exportTrajectory">导出 CSV（ADMIN）</a-button>
+                </div>
+              </a-tab-pane>
+
+              <a-tab-pane v-if="authStore.isAdmin" key="maintenance" tab="维护记录">
+                <div class="tab-toolbar">
+                  <a-button size="small" type="primary" @click="maintenanceModalOpen = true"
+                    >新增维护</a-button
+                  >
+                </div>
+                <a-table
+                  size="small"
+                  row-key="id"
+                  :pagination="false"
+                  :data-source="maintenanceRecords"
+                  :columns="maintenanceColumns"
+                />
+              </a-tab-pane>
+            </a-tabs>
+          </section>
+        </div>
       </template>
     </a-spin>
 
-    <a-modal v-model:open="editModalOpen" title="编辑车辆" :confirm-loading="saving" @ok="handleSave">
+    <a-modal
+      v-model:open="editModalOpen"
+      title="编辑车辆"
+      :confirm-loading="saving"
+      @ok="handleSave"
+    >
       <a-form layout="vertical">
         <a-form-item label="所属园区" required>
           <a-select
@@ -217,8 +309,12 @@
             placeholder="请选择园区"
           />
         </a-form-item>
-        <a-form-item label="车辆编码" required><a-input v-model:value="form.vehicleCode" /></a-form-item>
-        <a-form-item label="车辆名称" required><a-input v-model:value="form.vehicleName" /></a-form-item>
+        <a-form-item label="车辆编码" required
+          ><a-input v-model:value="form.vehicleCode"
+        /></a-form-item>
+        <a-form-item label="车辆名称" required
+          ><a-input v-model:value="form.vehicleName"
+        /></a-form-item>
         <a-form-item label="车辆类型"><a-input v-model:value="form.vehicleType" /></a-form-item>
         <a-form-item label="连接模式">
           <a-select v-model:value="form.linkMode" :options="linkModeOptions" />
@@ -238,12 +334,19 @@
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="maintenanceModalOpen" title="新增维护记录" :confirm-loading="saving" @ok="handleCreateMaintenance">
+    <a-modal
+      v-model:open="maintenanceModalOpen"
+      title="新增维护记录"
+      :confirm-loading="saving"
+      @ok="handleCreateMaintenance"
+    >
       <a-form layout="vertical">
         <a-form-item label="维护类型" required>
           <a-select v-model:value="maintForm.maintenanceType" :options="maintenanceTypeOptions" />
         </a-form-item>
-        <a-form-item label="描述" required><a-textarea v-model:value="maintForm.description" :rows="3" /></a-form-item>
+        <a-form-item label="描述" required
+          ><a-textarea v-model:value="maintForm.description" :rows="3"
+        /></a-form-item>
         <a-form-item label="维护时间" required>
           <a-date-picker v-model:value="maintForm.maintenanceAt" show-time style="width: 100%" />
         </a-form-item>
@@ -341,13 +444,11 @@ const maintenanceTypeOptions = [
   { label: '巡检', value: 'INSPECTION' },
 ]
 
-function linkModeColor(mode?: string) {
-  if (mode === 'REAL') return 'blue'
-  if (mode === 'VDA5050') return 'purple'
-  return 'default'
-}
-
-function vdaTopicPrefix(detail: { vdaInterfaceName?: string | null; vdaManufacturer?: string | null; vdaSerialNumber?: string | null }) {
+function vdaTopicPrefix(detail: {
+  vdaInterfaceName?: string | null
+  vdaManufacturer?: string | null
+  vdaSerialNumber?: string | null
+}) {
   const iface = detail.vdaInterfaceName || 'uagv/v2'
   const mfg = detail.vdaManufacturer || '?'
   const serial = detail.vdaSerialNumber || '?'
@@ -359,8 +460,20 @@ function formatTime(t: string) {
 }
 
 function healthColor(level: string) {
-  const map: Record<string, string> = { GOOD: '#2DE08A', FAIR: '#FFC04D', POOR: '#FFC04D', CRITICAL: '#FF5C7C' }
-  return map[level] || '#22C7E6'
+  const map: Record<string, string> = {
+    GOOD: 'var(--fsd-success)',
+    FAIR: 'var(--fsd-warning)',
+    POOR: 'var(--fsd-warning)',
+    CRITICAL: 'var(--fsd-error)',
+  }
+  return map[level] || 'var(--fsd-text-tertiary)'
+}
+
+function healthTagClass(level: string) {
+  if (level === 'GOOD') return 'health-tag health-tag--success'
+  if (level === 'FAIR' || level === 'POOR') return 'health-tag health-tag--warning'
+  if (level === 'CRITICAL') return 'health-tag health-tag--error'
+  return 'health-tag health-tag--neutral'
 }
 
 async function loadTrajectory() {
@@ -390,7 +503,7 @@ function drawTrajectory() {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.fillStyle = '#0B1018'
+  ctx.fillStyle = '#0E1116'
   ctx.fillRect(0, 0, width, height)
   const xs = points.map((p) => p.x)
   const ys = points.map((p) => p.y)
@@ -399,10 +512,13 @@ function drawTrajectory() {
   const minY = Math.min(...ys)
   const maxY = Math.max(...ys)
   const pad = 24
-  const scale = Math.min((width - pad * 2) / (maxX - minX || 1), (height - pad * 2) / (maxY - minY || 1))
+  const scale = Math.min(
+    (width - pad * 2) / (maxX - minX || 1),
+    (height - pad * 2) / (maxY - minY || 1),
+  )
   const tx = (x: number) => pad + (x - minX) * scale
   const ty = (y: number) => pad + (y - minY) * scale
-  ctx.strokeStyle = '#22C7E6'
+  ctx.strokeStyle = '#56B9C8'
   ctx.lineWidth = 2
   ctx.beginPath()
   points.forEach((p, i) => {
@@ -410,7 +526,7 @@ function drawTrajectory() {
     else ctx.lineTo(tx(p.x), ty(p.y))
   })
   ctx.stroke()
-  ctx.fillStyle = '#2DE08A'
+  ctx.fillStyle = '#67C587'
   const last = points[points.length - 1]
   ctx.beginPath()
   ctx.arc(tx(last.x), ty(last.y), 5, 0, Math.PI * 2)
@@ -419,11 +535,13 @@ function drawTrajectory() {
 
 async function exportTrajectory() {
   const vehicleId = Number(route.params.vehicleId)
-  const points = (await fetchVehicleTrajectory(vehicleId, {
-    source: 'history',
-    from: dayjs().subtract(24, 'hour').toISOString(),
-    to: dayjs().toISOString(),
-  })).data
+  const points = (
+    await fetchVehicleTrajectory(vehicleId, {
+      source: 'history',
+      from: dayjs().subtract(24, 'hour').toISOString(),
+      to: dayjs().toISOString(),
+    })
+  ).data
   const rows = ['x,y,soc,ts', ...points.map((p) => `${p.x},${p.y},${p.soc ?? ''},${p.ts ?? ''}`)]
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
@@ -547,47 +665,257 @@ watch(activeTab, (tab) => {
 </script>
 
 <style scoped lang="less">
-.vehicle-detail-grid {
+.detail-summary {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  gap: var(--fsd-space-6);
+  padding: var(--fsd-space-4) var(--fsd-space-5);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-md);
+  background: var(--fsd-surface-status);
+}
+
+.detail-summary-primary {
+  display: flex;
+  min-width: 160px;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--fsd-space-1);
+}
+
+.detail-summary-label,
+.detail-summary-metric dt {
+  color: var(--fsd-text-tertiary);
+  font-size: var(--fsd-text-xs);
+  line-height: var(--fsd-leading-normal);
+}
+
+.detail-summary-code {
+  color: var(--fsd-text-heading);
+  font-size: var(--fsd-text-lg);
+  font-weight: var(--fsd-font-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-summary-metrics {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.detail-summary-metric {
+  min-width: 0;
+  padding: 0 var(--fsd-space-4);
+  border-left: 1px solid var(--fsd-border-split);
+}
+
+.detail-summary-metric dt,
+.detail-summary-metric dd {
+  margin: 0;
+}
+
+.detail-summary-metric dd {
+  min-height: 22px;
+  margin-top: var(--fsd-space-1);
+  overflow: hidden;
+  color: var(--fsd-text-primary);
+  font-size: var(--fsd-text-sm);
+  line-height: var(--fsd-leading-normal);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-sections {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.detail-section {
+  min-width: 0;
+  padding: var(--fsd-space-5) 0;
+  border-top: 1px solid var(--fsd-border);
+}
+
+.detail-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.detail-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--fsd-space-3);
+  margin-bottom: var(--fsd-space-3);
+}
+
+.detail-section-heading h2 {
+  margin: 0;
+  color: var(--fsd-text-primary);
+  font-size: var(--fsd-text-md);
+  font-weight: var(--fsd-font-semibold);
+  line-height: var(--fsd-leading-snug);
+}
+
+.detail-section-heading p {
+  margin: var(--fsd-space-1) 0 0;
+  color: var(--fsd-text-tertiary);
+  font-size: var(--fsd-text-xs);
+  line-height: var(--fsd-leading-normal);
+}
+
+.detail-section--tabs {
+  padding-bottom: 0;
+}
+
+.detail-tabs {
+  min-width: 0;
 }
 
 .tab-toolbar {
-  margin-bottom: 12px;
   display: flex;
   justify-content: flex-end;
+  margin-bottom: var(--fsd-space-3);
+}
+
+.tab-toolbar--spaced {
+  margin-top: var(--fsd-space-2);
 }
 
 .link {
   color: var(--fsd-accent);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--fsd-font-mono);
+
+  &:hover {
+    color: var(--fsd-accent-strong);
+    text-decoration: underline;
+  }
 }
 
 .mono {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-family: var(--fsd-font-mono);
+  font-size: var(--fsd-text-sm);
 }
 
-.text-muted {
+.text-muted,
+.text-secondary {
   color: var(--fsd-text-tertiary);
+}
+
+.text-secondary {
+  font-size: var(--fsd-text-xs);
+}
+
+.text-error {
+  color: var(--fsd-error);
+}
+
+.metadata-tag,
+.health-tag {
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-neutral-bg);
+  color: var(--fsd-text-secondary);
+}
+
+.health-tag--success {
+  border-color: var(--fsd-success);
+  background: var(--fsd-success-bg);
+  color: var(--fsd-success);
+}
+
+.health-tag--warning {
+  border-color: var(--fsd-warning);
+  background: var(--fsd-warning-bg);
+  color: var(--fsd-warning);
+}
+
+.health-tag--error {
+  border-color: var(--fsd-error);
+  background: var(--fsd-error-bg);
+  color: var(--fsd-error);
+}
+
+.road-class-tag {
+  margin-bottom: var(--fsd-space-1);
 }
 
 .health-panel {
   display: flex;
-  gap: 24px;
   align-items: flex-start;
+  gap: var(--fsd-space-6);
 }
 
 .health-meta ul {
-  margin: 8px 0 0;
+  margin: var(--fsd-space-2) 0 0;
   padding-left: 18px;
   color: var(--fsd-text-secondary);
 }
 
 .trajectory-canvas {
   width: 100%;
-  border-radius: 8px;
   border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-md);
+}
+
+@media (max-width: 1023px) {
+  .detail-summary {
+    flex-direction: column;
+    gap: var(--fsd-space-4);
+  }
+
+  .detail-summary-primary {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .detail-summary {
+    padding: var(--fsd-space-4);
+  }
+
+  .detail-summary-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid var(--fsd-border-split);
+  }
+
+  .detail-summary-metric {
+    padding: var(--fsd-space-3) 0 0;
+    border-left: 0;
+  }
+
+  .detail-summary-metric:nth-child(even) {
+    padding-left: var(--fsd-space-3);
+    border-left: 1px solid var(--fsd-border-split);
+  }
+
+  .detail-section {
+    padding: var(--fsd-space-4) 0;
+  }
+
+  .health-panel {
+    flex-direction: column;
+    gap: var(--fsd-space-4);
+  }
+
+  :deep(.ant-descriptions) {
+    .ant-descriptions-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ant-descriptions-item-label,
+    .ant-descriptions-item-content {
+      width: 100% !important;
+    }
+
+    .ant-descriptions-item-label {
+      padding-bottom: 0;
+    }
+  }
 }
 </style>

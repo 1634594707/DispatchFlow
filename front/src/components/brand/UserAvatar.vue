@@ -1,9 +1,5 @@
 <template>
-  <span
-    class="user-avatar-wrap"
-    :class="{ 'user-avatar-wrap--sm': size <= 28 }"
-    :style="wrapStyle"
-  >
+  <span class="user-avatar-wrap" :class="{ 'user-avatar-wrap--sm': size <= 28 }" :style="wrapStyle">
     <span class="user-avatar" :style="avatarStyle" role="img" :aria-label="ariaLabel">
       <span class="user-avatar__label" :style="labelStyle">{{ initials }}</span>
     </span>
@@ -79,10 +75,7 @@ const labelStyle = computed(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--fsd-border);
   color: #ffffff;
   overflow: hidden;
   user-select: none;
@@ -104,9 +97,8 @@ const labelStyle = computed(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #42a5f5;
-  border: 1.5px solid #161b22;
-  box-shadow: 0 0 0 1px rgba(30, 136, 229, 0.4);
+  border: 1.5px solid var(--fsd-surface-raised);
+  background: var(--fsd-text-tertiary);
   pointer-events: none;
 }
 

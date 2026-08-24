@@ -56,7 +56,10 @@
                 <NavMenuIcon :icon="item.icon" />
               </span>
               <span class="nav-group-header__label">{{ item.label }}</span>
-              <span class="nav-group-header__arrow" :class="{ 'is-open': expandedGroups.has(item.key) }">
+              <span
+                class="nav-group-header__arrow"
+                :class="{ 'is-open': expandedGroups.has(item.key) }"
+              >
                 <CaretDownOutlined />
               </span>
             </button>
@@ -114,7 +117,12 @@
                     :key="child.key"
                     class="nav-popup__item"
                     :class="{ 'nav-popup__item--active': selectedKeys[0] === child.key }"
-                    @click="handleNavClick(child.key, child.path); closePopup()"
+                    @click="
+                      () => {
+                        handleNavClick(child.key, child.path)
+                        closePopup()
+                      }
+                    "
                   >
                     <span class="nav-popup__label">{{ child.label }}</span>
                     <NavMenuBadgeIcon
@@ -186,7 +194,10 @@ const activePopup = ref<string | null>(null)
 let popupTimer: ReturnType<typeof setTimeout> | null = null
 
 const workbenchBadgeCount = computed(
-  () => workbenchStore.pendingCount + workbenchStore.manualPendingCount + workbenchStore.openExceptionCount,
+  () =>
+    workbenchStore.pendingCount +
+    workbenchStore.manualPendingCount +
+    workbenchStore.openExceptionCount,
 )
 const exceptionBadgeCount = computed(() => workbenchStore.openExceptionCount)
 const realtimeConnected = computed(() => realtimeStore.connected)
@@ -272,17 +283,6 @@ watch(
   height: 100%;
   position: relative;
   overflow: visible; /* allow popup overflow */
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background:
-      radial-gradient(ellipse 70% 40% at 0% 20%, rgba(34, 199, 230, 0.03) 0%, transparent 60%),
-      radial-gradient(ellipse 50% 30% at 100% 85%, rgba(34, 199, 230, 0.02) 0%, transparent 60%);
-  }
 }
 
 /* ── Logo ────────────────────────────────────────────────── */
@@ -310,8 +310,8 @@ watch(
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border-radius: var(--fsd-radius);
-  box-shadow: 0 4px 14px rgba(34, 199, 230, 0.28);
+  border-radius: var(--fsd-radius-md);
+  box-shadow: none;
 
   :deep(svg) {
     width: 34px;
@@ -334,10 +334,7 @@ watch(
   font-weight: var(--fsd-font-bold);
   letter-spacing: -0.01em;
   line-height: 1.2;
-  background: linear-gradient(90deg, var(--fsd-text-primary) 0%, var(--fsd-accent) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--fsd-text-primary);
 }
 
 .sidebar-logo__sub {
@@ -359,12 +356,18 @@ watch(
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.06) transparent;
 
-  &::-webkit-scrollbar { width: 4px; }
-  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
   &::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.06);
     border-radius: 2px;
-    &:hover { background: rgba(255, 255, 255, 0.12); }
+    &:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
   }
 }
 
@@ -396,7 +399,7 @@ watch(
   }
 
   &:focus-visible {
-    outline: 2px solid var(--fsd-accent);
+    outline: 2px solid var(--fsd-accent-strong);
     outline-offset: -2px;
   }
 }
@@ -460,9 +463,8 @@ watch(
   text-align: left;
   overflow: hidden;
   transition:
-    background var(--fsd-duration-normal) var(--fsd-ease),
-    color var(--fsd-duration-normal) var(--fsd-ease),
-    transform 200ms var(--fsd-ease);
+    background-color var(--fsd-transition-base),
+    color var(--fsd-transition-base);
 
   &--leaf {
     padding: 10px 10px;
@@ -472,21 +474,19 @@ watch(
   &:hover {
     background: var(--fsd-bg-hover);
     color: var(--fsd-text-primary);
-    transform: translateX(2px);
   }
 
   &--active {
-    background: var(--fsd-accent-glow);
+    background: var(--fsd-accent-selected);
     color: var(--fsd-accent);
   }
 
   &:active {
-    transform: scale(0.97);
-    transition: transform 80ms var(--fsd-ease);
+    background: var(--fsd-bg-active);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--fsd-accent);
+    outline: 2px solid var(--fsd-accent-strong);
     outline-offset: -2px;
   }
 }
@@ -534,12 +534,7 @@ watch(
   height: 16px;
   border-radius: 0 3px 3px 0;
   background: var(--fsd-accent);
-  animation: accentIn 250ms var(--fsd-ease) both;
-}
-
-@keyframes accentIn {
-  from { height: 0; opacity: 0; }
-  to   { height: 16px; opacity: 1; }
+  animation: none;
 }
 
 /* ── Collapsed Tooltip (leaf items) ──────────────────────── */
@@ -553,15 +548,13 @@ watch(
   color: var(--fsd-text-primary);
   font-size: 12px;
   font-weight: var(--fsd-font-medium);
-  border-radius: 6px;
+  border-radius: var(--fsd-radius-sm);
   white-space: nowrap;
   pointer-events: none;
   z-index: 60;
   opacity: 0;
-  transition: opacity 150ms ease;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.4),
-    0 0 0 1px var(--fsd-border);
+  transition: opacity var(--fsd-transition-base);
+  box-shadow: var(--fsd-shadow-popover);
 
   .nav-item:hover & {
     opacity: 1;
@@ -580,12 +573,10 @@ watch(
   top: 0;
   min-width: 180px;
   background: var(--fsd-bg-elevated);
-  border-radius: var(--fsd-radius-lg, 10px);
+  border-radius: var(--fsd-radius-lg);
   padding: 8px;
   z-index: 70;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    0 0 0 1px var(--fsd-border);
+  box-shadow: var(--fsd-shadow-popover);
 }
 
 .nav-popup__title {
@@ -593,8 +584,7 @@ watch(
   font-size: 11px;
   font-weight: var(--fsd-font-semibold);
   color: var(--fsd-text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
 }
 
 .nav-popup__items {
@@ -610,7 +600,7 @@ watch(
   width: 100%;
   padding: 7px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--fsd-radius-sm);
   background: transparent;
   color: var(--fsd-text-secondary);
   font-family: var(--fsd-font-sans);
@@ -629,7 +619,7 @@ watch(
 
   &--active {
     color: var(--fsd-accent);
-    background: var(--fsd-accent-glow);
+    background: var(--fsd-accent-selected);
   }
 }
 
@@ -658,13 +648,12 @@ watch(
   flex-shrink: 0;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--fsd-radius-full);
   background: var(--fsd-text-tertiary);
   transition: background var(--fsd-duration-normal) var(--fsd-ease);
 
   &.online {
     background: var(--fsd-success);
-    box-shadow: 0 0 8px rgba(45, 224, 138, 0.5);
   }
 }
 
@@ -705,23 +694,13 @@ watch(
   max-height: 800px;
 }
 
-.popup-enter-active {
-  transition:
-    opacity 120ms ease,
-    transform 150ms var(--fsd-ease);
-}
+.popup-enter-active,
 .popup-leave-active {
-  transition:
-    opacity 100ms ease,
-    transform 120ms var(--fsd-ease);
+  transition: opacity var(--fsd-transition-base);
 }
-.popup-enter-from {
-  opacity: 0;
-  transform: translateX(-6px) scale(0.96);
-}
+.popup-enter-from,
 .popup-leave-to {
   opacity: 0;
-  transform: translateX(-4px) scale(0.97);
 }
 
 /* ── Collapsed State Overrides ───────────────────────────── */

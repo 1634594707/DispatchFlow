@@ -1,9 +1,7 @@
 <template>
   <PageContainer title="用户管理" subtitle="管理系统后台账号与角色权限">
     <template #actions>
-      <a-button type="primary" @click="openCreate">
-        <PlusOutlined /> 新建用户
-      </a-button>
+      <a-button type="primary" @click="openCreate"> <PlusOutlined /> 新建用户 </a-button>
     </template>
 
     <a-table
@@ -28,7 +26,13 @@
         <template v-else-if="column.key === 'actions'">
           <a-space>
             <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-            <a-button v-if="roleTemplatesReady && !editingUser" type="link" size="small" @click="openRoleCopy(record)">复制角色</a-button>
+            <a-button
+              v-if="roleTemplatesReady && !editingUser"
+              type="link"
+              size="small"
+              @click="openRoleCopy(record)"
+              >复制角色</a-button
+            >
             <a-popconfirm
               v-if="record.status === 'ACTIVE' && record.username !== 'admin'"
               title="确定禁用该用户？"
@@ -107,7 +111,9 @@
     >
       <a-form layout="vertical">
         <a-form-item label="目标用户">
-          <strong>{{ roleCopyTargetUser?.displayName }} ({{ roleCopyTargetUser?.username }})</strong>
+          <strong
+            >{{ roleCopyTargetUser?.displayName }} ({{ roleCopyTargetUser?.username }})</strong
+          >
         </a-form-item>
         <a-form-item label="从以下用户复制" required>
           <a-select
@@ -121,11 +127,7 @@
         </a-form-item>
         <a-form-item label="角色模板参考">
           <div class="role-template-grid">
-            <div
-              v-for="tmpl in roleSummary"
-              :key="tmpl.role"
-              class="role-template-card"
-            >
+            <div v-for="tmpl in roleSummary" :key="tmpl.role" class="role-template-card">
               <div class="role-template-header">
                 <a-tag :color="roleColor(tmpl.role)">{{ tmpl.label }}</a-tag>
                 <small>{{ tmpl.permissionCount }} 项权限</small>
@@ -371,12 +373,12 @@ onMounted(() => {
   border: 1px solid var(--fsd-border);
   border-radius: var(--fsd-radius-md);
   background: var(--fsd-bg-elevated);
-  transition: border-color 0.2s;
+  transition: border-color var(--fsd-transition-base);
 }
 
 .role-template-card.active {
   border-color: var(--fsd-accent);
-  box-shadow: 0 0 0 1px var(--fsd-accent);
+  background: var(--fsd-accent-selected);
 }
 
 .role-template-header {
