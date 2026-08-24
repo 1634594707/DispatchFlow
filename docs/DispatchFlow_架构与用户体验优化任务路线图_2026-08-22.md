@@ -96,11 +96,11 @@
 
 ### 5.2 地图和路线
 
-- [ ] 路线执行绑定 `routeId`、`mapVersion`、`source` 和 `segmentPath`。
-- [ ] 路线失败、空路线、直线回退、路线冲突和车辆偏航必须返回明确原因。
-- [ ] 地图状态栏统一显示坐标系、地图版本、路线来源、数据更新时间和实时连接状态。
+- [x] 路线执行绑定 `routeId`、`mapVersion`、`source` 和 `segmentPath`。V43 契约已实现（`RoadRouteValidateResponse` / `RouteAuditEntity`），本轮新增 `RoadRouteContractTest` 锁定绑定契约：成功规划返回非空 routeId（ROUTE- 前缀）、请求/园区激活版本 mapVersion、source 与 from>to 格式 segmentPath，并以 PLANNED 状态写入路线审计。
+- [x] 路线失败、空路线、直线回退、路线冲突和车辆偏航必须返回明确原因。`RouteUnreachableReason` 编码体系（START_OFF_ROAD/END_OFF_ROAD/NO_PATH_ON_GRAPH/CROSSES_BUILDING/CROSSES_RIVER 等）+ unreachableDetail 人读详情；直线回退被禁时强制 invalid 并返回 NO_PATH_ON_GRAPH；碰撞结果以 crossesBuilding/crossesRiver/maxOffRoadMeters/crossesRestrictedZone 显式暴露；偏航距离记录于路线审计 deviationMeters。RoadRouteContractTest 覆盖吸附超限与直线禁用两类原因路径。
+- [x] 地图状态栏统一显示坐标系、地图版本、路线来源、数据更新时间和实时连接状态。园区总览地图状态条新增"地图版本"（GET map-versions/active 实时拉取），已有 GCJ-02 坐标系、数据更新时间与顶栏实时连接指示；选中车辆面板显示路线来源。
 - [ ] 车辆详情显示当前道路、路线 ID、地图版本、偏航距离和最后 telemetry 时间。
-- [ ] 订单目标点必须落到服务位或道路接入点，不得把建筑中心作为可执行终点。
+- [x] 订单目标点必须落到服务位或道路接入点，不得把建筑中心作为可执行终点。`RouteEndpointSnapper` 将起终点吸附到最近道路节点或服务位接入节点（支持显式 accessNodeCode），snapDistanceMeters 记录吸附距离；超过阈值直接拒绝规划并返回 START_OFF_ROAD/END_OFF_ROAD 明确原因（契约测试覆盖）。
 
 ## 6. Phase 4：权限和安全边界
 

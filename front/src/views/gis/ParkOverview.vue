@@ -21,6 +21,7 @@
 
     <div v-if="geoMapAvailable" class="map-status-bar">
       <span>GCJ-02</span>
+      <span>地图版本 {{ mapVersionCode }}</span>
       <span>L1 核心分区 {{ coreGeofences.length }}</span>
       <span>站点 {{ operationalStations.length }}</span>
       <span>{{ mapUpdatedLabel }}</span>
@@ -111,6 +112,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
 import {
+  getActiveMapVersion,
   getParkGeofences,
   getParkOverview,
   getParkOrders,
@@ -151,6 +153,7 @@ const parkGeofences = ref<ParkGeofence[]>([])
 const stations = ref<ParkStation[]>([])
 const selectedMarkerId = ref<string | null>(null)
 const mapUpdatedAt = ref<Date | null>(null)
+const mapVersionCode = ref<string>('--')
 const geoMapAvailable = isAmapConfigured()
 const mapLevel = ref<MapLevel>('L1')
 const { metadata: parkMetadata, anchor: parkAnchor } = useParkMetadata()
@@ -311,6 +314,14 @@ async function refreshAll() {
 
 onMounted(async () => {
   loading.value = true
+  // 地图状态栏：拉取当前激活地图数据版本（路线图 5.2）
+  const parkId = parkMetadata.value?.parkId ?? 1
+  try {
+    const versionRes = await getActiveMapVersion(parkId)
+    mapVersionCode.value = versionRes.data?.versionCode || '--'
+  } catch {
+    mapVersionCode.value = '--'
+  }
   try {
     await refreshAll()
   } finally {

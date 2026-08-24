@@ -92,6 +92,19 @@ export function getRoadRouteHealth() {
   return request.get<any, ApiResponse<RoadRouteHealth>>('/admin/park/road-route/health')
 }
 
+/** 当前激活的地图数据版本（路线图 5.2 地图状态栏） */
+export interface ActiveMapVersion {
+  parkId: number
+  versionCode: string
+  versionLabel?: string | null
+}
+
+export function getActiveMapVersion(parkId: number) {
+  return request.get<any, ApiResponse<ActiveMapVersion>>('/admin/station-service-positions/map-versions/active', {
+    params: { parkId },
+  })
+}
+
 export function validateRoadRoute(data: {
   originLng: number
   originLat: number
