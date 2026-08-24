@@ -84,3 +84,18 @@ Prometheus 端点：`/internal/actuator/prometheus`（默认已暴露）。本�
 
 - 本路线图新增迁移 V48（车辆园区作用域）、V49（Outbox 租约）、V50（订单幂等表）：回滚代码版本时**不要删除**已执行的 Flyway 历史；旧代码遇到新表无影响。
 - 流队列改名后首次启动会自动声明新的匿名队列并绑定交换机；旧 `fsd.dispatch.stream.queue` 可在确认无消费后手动清理。
+
+### 核心接口性能分析（2026-08-24，试点规模评估）
+
+| 接口 | SQL/数据访问 | 响应体特征 | 结论 |
+| --- | --- | --- | --- |
+| 工作台快照 `GET /admin/dispatch/workbench?parkId=` | 聚合查询：干预计数 + 车辆列表 + 任务池分页（Page），命中 idx_status_created_at / park_id；车辆运行态读 Redis fleet:runtime | 车辆数受园区车队规模限制（试点 <10），JSON 精简 | 试点规模无压力；扩容前需压测复核 |
+| 任务池 `POST /admin/dispatch/task-pool/query` | MyBatis-Plus 分页（默认 pageSize=20）+ parkId 条件 | 分页 records | 分页已启用 |
+| 订单/异常列表 | 同上分页模式 | 同上 | 同上 |
+| 车辆列表 `GET /admin/vehicles?parkId=` | 全量但按园区过滤，车队规模小 | 行数 = 园区车辆数 | 无压力 |
+| 地图快照 `GET /admin/park/orders|vehicles` | 按 parkId 过滤园区内数据 | GCJ 坐标转换有缓存 | 无压力 |
+| CSV 导出 | StringBuilder 拼接，行数上限 fsd.admin.export.max-rows（50000） | text/csv 流式返回 | 超限引导报表计划 |
+
+序列化：统一 Jackson；SSE payload 为精简 envelope。Redis 用途：运行态缓存（7 天 TTL）、幂等键、ticket、分布式锁、限流窗口——均已带过期策略，不会无限增长。
+
+健康检查：`scripts/prod-healthcheck.sh`（BASE_URL/ADMIN_TOKEN 参数化）覆盖后端健康、前端首页、登录可达、SSE ticket、工作台快照、遥测流端点六项，可接入发布后自动执行。
