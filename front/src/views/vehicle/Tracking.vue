@@ -134,6 +134,7 @@
               class="demo-mode-header"
               :demo-mode="demoMode"
               :remaining-label="demoRemainingLabel"
+              :error-message="demoErrorMessage"
               @start="demo.startDemo()"
               @stop="demo.stopDemo()"
               @next="demo.nextDemoOrder()"
@@ -670,10 +671,6 @@ const screenModeOptions = [
   { label: '事件', value: 'incident' as ScreenMode },
 ]
 
-const demo = useDemoMode()
-const demoMode = computed(() => demo.demoMode.value)
-const demoRemainingLabel = computed(() => demo.remainingLabel.value)
-
 // V5-N3: 预测性告警
 const predictiveAlertStore = usePredictiveAlert()
 const predictiveLowSocVehicles = computed(() => predictiveAlertStore.predictLowSocVehicles.value)
@@ -719,6 +716,11 @@ const trackingParkOptions = computed(() =>
     label: park.parkName,
   })),
 )
+
+const demo = useDemoMode(() => trackingParkId.value ?? parkScope.resolveLayoutParkId())
+const demoMode = computed(() => demo.demoMode.value)
+const demoRemainingLabel = computed(() => demo.remainingLabel.value)
+const demoErrorMessage = computed(() => demo.lastError.value)
 
 const schematicOrdersOnMap = computed(() => filterSchematicOrders(parkOrders.value))
 

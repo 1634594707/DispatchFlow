@@ -214,11 +214,16 @@ test('order list cancel triggers real user-path API', async ({ page }) => {
   expect(calls).toEqual([{ remark: '订单列表取消' }])
 })
 
-test('exception reassignment submits selected vehicle from drawer', async ({ page }) => {
+test('exception reassignment submits a live available vehicle from drawer', async ({ page }) => {
   const calls: unknown[] = []
   await page.route(api('/admin/exceptions/query'), route => route.fulfill({ json: ok(pageData([
     { id: 401, taskId: 101, orderId: 201, vehicleId: 99, exceptionType: 'VEHICLE_FAULT', exceptionMsg: '车辆故障', exceptionStatus: 'OPEN', resolverId: null, occurTime: '2026-06-09T08:00:00Z', aggCount: 1 },
   ])) }))
+  await page.route(api('/admin/vehicles'), route => route.fulfill({ json: ok([
+    { vehicleId: 6, vehicleCode: 'ZJF-AV-01', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE' },
+    { vehicleId: 7, vehicleCode: 'ZJF-AV-02', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE' },
+    { vehicleId: 8, vehicleCode: 'ZJF-AV-03', onlineStatus: 'ONLINE', dispatchStatus: 'BUSY' },
+  ]) }))
   await page.route(api('/admin/exceptions/401/resolve'), async route => {
     calls.push(route.request().postDataJSON())
     await route.fulfill({ json: ok(null) })
@@ -226,14 +231,100 @@ test('exception reassignment submits selected vehicle from drawer', async ({ pag
 
   await page.goto('/exceptions')
   await page.getByRole('row', { name: /车辆故障/ }).getByRole('button', { name: '处理' }).click()
+  await page.locator('.ant-radio-wrapper', { hasText: '重新派单' }).click()
   await page.locator('.ant-drawer-body .ant-select-selector').click()
-  await page.locator('.ant-select-item-option', { hasText: 'VH-002' }).click()
+  await page.locator('.ant-select-item-option', { hasText: 'ZJF-AV-02' }).click()
   await page.getByPlaceholder('请描述处理方案（至少10个字符）').fill('重新派单到空闲车辆处理')
   await Promise.all([
     page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/exceptions/401/resolve'),
     page.getByRole('button', { name: '提交处理' }).click(),
   ])
 
-  expect(calls).toEqual([expect.objectContaining({ action: 'REASSIGN', vehicleId: 101 })])
+  expect(calls).toEqual([expect.objectContaining({ action: 'REASSIGN', vehicleId: 7 })])
+})
+
+test('exception close submits the backend CLOSE action', async ({ page }) => {
+  const calls: unknown[] = []
+  await page.route(api('/admin/exceptions/query'), route => route.fulfill({ json: ok(pageData([
+    { id: 402, taskId: 102, orderId: 202, vehicleId: 6, exceptionType: 'VEHICLE_FAULT', exceptionMsg: '站点连接异常', exceptionStatus: 'OPEN', resolverId: null, occurTime: '2026-06-09T08:00:00Z', aggCount: 1 },
+  ])) }))
+  await page.route(api('/admin/vehicles'), route => route.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/exceptions/402/resolve'), async route => {
+    calls.push(route.request().postDataJSON())
+    await route.fulfill({ json: ok(null) })
+  })
+
+  await page.goto('/exceptions')
+  await page.getByRole('row', { name: /站点连接异常/ }).getByRole('button', { name: '处理' }).click()
+  await expect(page.getByText('忽略异常')).toHaveCount(0)
+  await expect(page.getByText('联系现场')).toHaveCount(0)
+  await page.getByPlaceholder('请描述处理方案（至少10个字符）').fill('现场确认后关闭该异常记录')
+  await Promise.all([
+    page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/exceptions/402/resolve'),
+    page.getByRole('button', { name: '提交处理' }).click(),
+  ])
+
+  expect(calls).toEqual([expect.objectContaining({ action: 'CLOSE' })])
+})
+
+test('tracking demo submits current station IDs from the active park', async ({ page }) => {
+  const calls: unknown[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/admin/park/orders' && request.method() === 'POST') {
+      calls.push(request.postDataJSON())
+    }
+  })
+  await page.route(api('/admin/parks'), route => route.fulfill({ json: ok([
+    { parkId: 1, parkCode: 'ZJF', parkName: '叠石桥 L1', defaultPark: true },
+  ]) }))
+  await page.route(api('/admin/park/layout**'), route => route.fulfill({ json: ok({
+    parkId: 1,
+    width: 1000,
+    height: 600,
+    minZoom: 0.5,
+    maxZoom: 3,
+    vehicleSpeedPxPerSecond: 30,
+    centerLng: 121.08,
+    centerLat: 31.96,
+    stations: [],
+    parkingSpots: [],
+    roadNodes: [],
+    roadSegments: [],
+  }) }))
+  await page.route(api('/admin/park/vehicles**'), route => route.fulfill({ json: ok([
+    { vehicleId: 6, vehicleCode: 'ZJF-AV-01', vehicleName: '演示车', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 82 },
+  ]) }))
+  await page.route(api('/admin/park/geofences**'), route => route.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/park/stations**'), route => route.fulfill({ json: ok([
+    { parkId: 1, stationId: 504, stationCode: 'ZJF-PICK-01', stationName: '门市一', area: 'ZJF', x: 10, y: 10 },
+    { parkId: 1, stationId: 506, stationCode: 'ZJF-DROP-01', stationName: '代发仓', area: 'ZJF', x: 90, y: 90 },
+  ]) }))
+  await page.route(api('/admin/park/orders'), async route => {
+    if (route.request().method() !== 'POST') {
+      await route.fulfill({ json: ok([]) })
+      return
+    }
+    await route.fulfill({ json: ok({ orderId: 9001, orderNo: 'DEMO-9001' }) })
+  })
+  await page.route(api('/admin/sse-ticket'), route => route.fulfill({ json: ok({ ticket: 'test-ticket' }) }))
+
+  await page.goto('/vehicle-tracking?mode=geo')
+  const orderRequest = page.waitForRequest(request =>
+    new URL(request.url()).pathname === '/api/admin/park/orders' && request.method() === 'POST',
+  )
+  await page.getByRole('button', { name: '开始演示' }).click()
+  await orderRequest
+  await expect.poll(() => calls.length).toBe(1)
+
+  expect(calls).toEqual([
+    expect.objectContaining({
+      parkId: 1,
+      pickupStationId: 504,
+      dropoffStationId: 506,
+      priority: 'P1',
+      orderPriority: 'NORMAL',
+      deliveryZone: 'GEO_DELIVERY',
+    }),
+  ])
 })
 

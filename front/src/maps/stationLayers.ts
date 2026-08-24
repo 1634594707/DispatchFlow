@@ -281,11 +281,3 @@ export function syncDefaultOrderStations(
     repaired,
   }
 }
-
-/** @deprecated use syncDefaultOrderStations */
-export function syncDefaultMobileOrderStations(
-  stations: ParkStation[],
-  current: { pickupStationId?: number | null; dropoffStationId?: number | null },
-): { pickupStationId?: number; dropoffStationId?: number; repaired: boolean } {
-  return syncDefaultOrderStations(stations, 'geo', current)
-}

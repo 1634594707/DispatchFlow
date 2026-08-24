@@ -65,7 +65,7 @@ import {
   buildGroupedMobileStationOptions,
   filterMobileOrderStations,
   findMobileOrderStation,
-  syncDefaultMobileOrderStations,
+  syncDefaultOrderStations,
 } from '@/maps/stationLayers'
 import { parkDeliveryDemoRoutes } from '@/constants/parkDelivery'
 import { createIdempotencyKey } from '@/composables/useMobileOrderForm'
@@ -138,7 +138,7 @@ const dropoffOptions = computed(() =>
 )
 
 function applyDefaultStations() {
-  const synced = syncDefaultMobileOrderStations(stations.value, {
+  const synced = syncDefaultOrderStations(stations.value, 'geo', {
     pickupStationId: form.pickupStationId,
     dropoffStationId: form.dropoffStationId,
   })
@@ -179,8 +179,7 @@ async function handleSubmit() {
   const pickup = findMobileOrderStation(stations.value, { stationId: form.pickupStationId })
   const dropoff = findMobileOrderStation(stations.value, { stationId: form.dropoffStationId })
   if (!pickup || !dropoff) {
-    applyDefaultStations()
-    message.warning('站点已失效，已重置为默认可下单站点，请确认后重试')
+    message.warning('站点已失效，请刷新站点列表后重新选择')
     return
   }
   submitting.value = true

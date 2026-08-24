@@ -34,10 +34,16 @@ export interface ExceptionAdminListItem {
   updatedAt: string
 }
 
+export type ResolveExceptionAction =
+  | 'REASSIGN'
+  | 'MARK_FAILED'
+  | 'CLOSE'
+  | 'VEHICLE_OFFLINE'
+
 export interface ResolveExceptionRequest {
   resolverId: string
   resolverName: string
-  action: string
+  action: ResolveExceptionAction
   remark: string
   vehicleId?: number
 }

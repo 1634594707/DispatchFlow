@@ -7,9 +7,6 @@
       <a-button v-if="selectedRowKeys.length > 0" type="primary" @click="handleBatchClose">
         批量关闭 ({{ selectedRowKeys.length }})
       </a-button>
-      <a-button v-if="selectedRowKeys.length > 0" @click="handleBatchReassign">
-        批量重新派车 ({{ selectedRowKeys.length }})
-      </a-button>
     </template>
 
     <QueryToolbar
@@ -171,31 +168,28 @@
             <a-form-item label="处理结果" required>
               <a-radio-group v-model:value="resolveForm.action">
                 <a-radio :disabled="!currentException?.taskId" value="REASSIGN">
-                  <template #label>
-                    <span>重新派单</span>
-                    <a-tooltip v-if="!currentException?.taskId" title="无关联任务，无法重新派单">
-                      <InfoCircleOutlined class="form-hint-icon" />
-                    </a-tooltip>
-                  </template>
+                  <span>重新派单</span>
+                  <a-tooltip v-if="!currentException?.taskId" title="无关联任务，无法重新派单">
+                    <InfoCircleOutlined class="form-hint-icon" />
+                  </a-tooltip>
                 </a-radio>
-                <a-radio value="IGNORE">忽略异常</a-radio>
-                <a-radio value="CONTACT">联系现场</a-radio>
+                <a-radio value="CLOSE">关闭异常</a-radio>
                 <a-radio :disabled="!currentException?.taskId" value="MARK_FAILED">
-                  <template #label>
-                    <span>标记失败</span>
-                    <a-tooltip v-if="!currentException?.taskId" title="无关联任务">
-                      <InfoCircleOutlined class="form-hint-icon" />
-                    </a-tooltip>
-                  </template>
+                  <span>标记失败</span>
+                  <a-tooltip v-if="!currentException?.taskId" title="无关联任务">
+                    <InfoCircleOutlined class="form-hint-icon" />
+                  </a-tooltip>
                 </a-radio>
               </a-radio-group>
             </a-form-item>
 
             <a-form-item v-if="resolveForm.action === 'REASSIGN'" label="选择车辆">
-              <a-select v-model:value="resolveForm.vehicleId" placeholder="请选择在线空闲车辆">
-                <a-select-option :value="100">VH-001 (在线·空闲)</a-select-option>
-                <a-select-option :value="101">VH-002 (在线·空闲)</a-select-option>
-              </a-select>
+              <a-select
+                v-model:value="resolveForm.vehicleId"
+                :loading="loadingVehicles"
+                :options="reassignVehicleOptions"
+                placeholder="请选择在线空闲车辆"
+              />
             </a-form-item>
 
             <a-form-item label="处理说明" required>
@@ -235,14 +229,17 @@ import type { FilterChip } from '@/components/common/QueryToolbar.vue'
 import SkeletonLoader from '@/components/common/SkeletonLoader.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useExceptionStore } from '@/stores/exception'
+import { getVehicleList } from '@/api/vehicle'
 import { downloadAnalyticsFile, getAnalyticsExportUrl } from '@/api/analytics'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useAuthStore } from '@/stores/auth'
 import { exceptionTypeMap, exceptionStatusMap } from '@/constants/statusMap'
+import { DispatchStatus, OnlineStatus } from '@/constants/enums'
 import type { ExceptionStatus, ExceptionType } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
 import dayjs from 'dayjs'
-import type { ExceptionAdminListItem } from '@/types/exception'
+import type { ExceptionAdminListItem, ResolveExceptionAction } from '@/types/exception'
+import type { VehicleAdminListItem } from '@/types/vehicle'
 
 const router = useRouter()
 const route = useRoute()
@@ -368,10 +365,22 @@ function handleTableChange(pag: any) {
 const drawerVisible = ref(false)
 const resolveLoading = ref(false)
 const currentException = ref<ExceptionAdminListItem | null>(null)
-const resolveForm = reactive({
-  action: 'REASSIGN',
+const availableVehicles = ref<VehicleAdminListItem[]>([])
+const loadingVehicles = ref(false)
+const reassignVehicleOptions = computed(() =>
+  availableVehicles.value.map((vehicle) => ({
+    value: vehicle.vehicleId,
+    label: vehicle.vehicleCode + '（在线·空闲）',
+  })),
+)
+const resolveForm = reactive<{
+  action: ResolveExceptionAction
+  remark: string
+  vehicleId: number | undefined
+}>({
+  action: 'CLOSE',
   remark: '',
-  vehicleId: undefined as number | undefined,
+  vehicleId: undefined,
 })
 
 const selectedRowKeys = ref<number[]>([])
@@ -379,6 +388,22 @@ const batchResolveLoading = ref(false)
 
 function onSelectionChange(keys: number[]) {
   selectedRowKeys.value = keys
+}
+
+async function loadAvailableVehicles() {
+  loadingVehicles.value = true
+  availableVehicles.value = []
+  try {
+    const response = await getVehicleList(parkScope.selectedParkId ?? undefined)
+    availableVehicles.value = (response.data || []).filter(
+      (vehicle) =>
+        vehicle.onlineStatus === OnlineStatus.ONLINE && vehicle.dispatchStatus === DispatchStatus.IDLE,
+    )
+  } catch {
+    // The request interceptor surfaces the API error; no stale vehicle options remain selectable.
+  } finally {
+    loadingVehicles.value = false
+  }
 }
 
 async function handleBatchClose() {
@@ -392,7 +417,7 @@ async function handleBatchClose() {
     await store.handleBatchResolve(selectedRowKeys.value, {
       resolverId: 'u1001',
       resolverName: '管理员',
-      action: 'IGNORE',
+      action: 'CLOSE',
       remark: '批量关闭异常',
     })
     message.success(`已批量关闭 ${selectedRowKeys.value.length} 个异常`)
@@ -406,37 +431,13 @@ async function handleBatchClose() {
   }
 }
 
-async function handleBatchReassign() {
-  if (selectedRowKeys.value.length === 0) return
-  const confirmed = await window.confirm(
-    `确定要对 ${selectedRowKeys.value.length} 个异常执行批量重新派车吗？`,
-  )
-  if (!confirmed) return
-  batchResolveLoading.value = true
-  try {
-    await store.handleBatchResolve(selectedRowKeys.value, {
-      resolverId: 'u1001',
-      resolverName: '管理员',
-      action: 'REASSIGN',
-      remark: '批量重新派车',
-    })
-    message.success(`已批量处理 ${selectedRowKeys.value.length} 个异常`)
-    selectedRowKeys.value = []
-    fetchData()
-    store.fetchOpenCount()
-  } catch {
-    // handled by interceptor
-  } finally {
-    batchResolveLoading.value = false
-  }
-}
-
 function openResolveDrawer(record: ExceptionAdminListItem) {
   currentException.value = record
-  resolveForm.action = 'REASSIGN'
+  resolveForm.action = 'CLOSE'
   resolveForm.remark = ''
   resolveForm.vehicleId = undefined
   drawerVisible.value = true
+  if (record.taskId) void loadAvailableVehicles()
 }
 
 function openRouteException() {
@@ -448,8 +449,11 @@ function openRouteException() {
 
 async function handleResolve() {
   if (!currentException.value) return
-  if (resolveForm.action === 'REASSIGN' && !resolveForm.vehicleId) {
-    message.warning('请选择车辆')
+  if (
+    resolveForm.action === 'REASSIGN' &&
+    !availableVehicles.value.some((vehicle) => vehicle.vehicleId === resolveForm.vehicleId)
+  ) {
+    message.warning('请选择当前在线空闲车辆')
     return
   }
   if (resolveForm.remark.length < 10) {

@@ -162,7 +162,7 @@ const form = reactive<ParkOrderCreateRequest>({
   remark: '',
 })
 
-/** 幂等键：每个“下单意图”一个；网络重试复用，仅在下单成功后换新键（路线图 3.3）。 */
+/** 幂等键：每个下单意图一个，仅在下单成功后换新键。 */
 function createIdempotencyKey(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -399,7 +399,6 @@ function ensureValidOrderStationIds(): boolean {
   )
   if (pickup && dropoff) return true
 
-  applyDefaultStations()
   message.warning('站点列表已更新，请重新选择取送货点后再下单')
   return false
 }
@@ -536,11 +535,6 @@ function buildOrderPayload(): ParkOrderCreateRequest {
   }
 }
 
-/** 网络层失败（超时/断网，服务端未给出响应）才允许用同一幂等键安全重试。 */
-function isNetworkLevelError(err: unknown): boolean {
-  return !!err && typeof err === 'object' && !('response' in (err as Record<string, unknown>))
-}
-
 async function submitOrder() {
   // 防重复提交（路线图 3.2/8.2）：处理中直接忽略后续触发
   if (submitting.value) return
@@ -549,20 +543,7 @@ async function submitOrder() {
   submitting.value = true
   const payload = buildOrderPayload()
   try {
-    let response
-    try {
-      response = await createParkOrder(payload, mobileApiKey.value)
-    } catch (err: unknown) {
-      // 超时/断网时结果未知：复用同一幂等键重查一次，命中后返回原订单而不是再建一单。
-      if (!isNetworkLevelError(err)) throw err
-      message.loading({
-        content: '网络超时，正在查询原提交结果…',
-        key: 'idempotent-retry',
-        duration: 0,
-      })
-      response = await createParkOrder(payload, mobileApiKey.value)
-      message.success({ content: '已确认原提交结果', key: 'idempotent-retry', duration: 3 })
-    }
+    const response = await createParkOrder(payload, mobileApiKey.value)
     trackedOrderId.value = response.data.orderId
     if (response.data.replayed) {
       message.success('检测到重复提交：已为您返回原订单，不会重复占用车辆')

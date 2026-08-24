@@ -55,7 +55,6 @@ export {
   filterVehiclesByDeliveryZone,
   findMobileOrderStation,
   orderableStationsForMode,
-  syncDefaultMobileOrderStations,
   syncDefaultOrderStations,
   filterSchematicParkVehicles,
   filterGeoDeliverySimVehicles,

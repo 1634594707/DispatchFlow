@@ -14,6 +14,8 @@
       </div>
     </div>
 
+    <div v-if="errorMessage" class="demo-error" role="status">{{ errorMessage }}</div>
+
     <div class="demo-actions">
       <a-button
         size="small"
@@ -31,6 +33,7 @@
 defineProps<{
   demoMode: boolean
   remainingLabel: string
+  errorMessage: string
 }>()
 
 const emit = defineEmits<{
@@ -57,6 +60,7 @@ function manualNext() {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
   padding: 8px 14px;
   border-radius: var(--fsd-radius-md);
   border: 1px solid var(--fsd-border);
@@ -126,6 +130,13 @@ function manualNext() {
   font-weight: 600;
   color: var(--fsd-text-primary);
   font-variant-numeric: tabular-nums;
+}
+
+.demo-error {
+  flex-basis: 100%;
+  color: var(--fsd-error);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .demo-actions {

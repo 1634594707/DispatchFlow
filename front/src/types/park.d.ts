@@ -166,7 +166,7 @@ export interface ParkOrderSnapshot {
 }
 
 export interface ParkOrderCreateRequest {
-  /** 幂等键：每次下单意图生成一次，网络重试复用；重复提交后端返回原订单 */
+  /** 幂等键：每次下单意图生成一次；重复提交后端返回原订单 */
   idempotencyKey: string
   parkId?: number
   routeId?: number
