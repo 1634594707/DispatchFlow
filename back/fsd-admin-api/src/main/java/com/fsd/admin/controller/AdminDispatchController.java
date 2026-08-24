@@ -61,6 +61,7 @@ import com.fsd.order.service.OrderAdminQueryService;
 import com.fsd.order.service.OrderStateService;
 import com.fsd.admin.service.OrderAdminDetailService;
 import com.fsd.admin.service.TaskAdminDetailService;
+import com.fsd.admin.service.VehicleDetailEnrichmentService;
 import com.fsd.order.service.OrderQueryService;
 import com.fsd.order.vo.OrderAdminListItemResponse;
 import com.fsd.order.vo.OrderDetailResponse;
@@ -111,6 +112,7 @@ public class AdminDispatchController {
     private final CoordinateTransformService coordinateTransformService;
     private final ParkMapper parkMapper;
     private final AdminPermissionService adminPermissionService;
+    private final VehicleDetailEnrichmentService vehicleDetailEnrichmentService;
 
     public AdminDispatchController(OrderAdminQueryService orderAdminQueryService,
                                    OrderQueryService orderQueryService,
@@ -133,7 +135,8 @@ public class AdminDispatchController {
                                    AdminAuthService adminAuthService,
                                    CoordinateTransformService coordinateTransformService,
                                    ParkMapper parkMapper,
-                                   AdminPermissionService adminPermissionService) {
+                                   AdminPermissionService adminPermissionService,
+                                   VehicleDetailEnrichmentService vehicleDetailEnrichmentService) {
         this.orderAdminQueryService = orderAdminQueryService;
         this.orderStateService = orderStateService;
         this.orderAdminDetailService = orderAdminDetailService;
@@ -155,6 +158,7 @@ public class AdminDispatchController {
         this.coordinateTransformService = coordinateTransformService;
         this.parkMapper = parkMapper;
         this.adminPermissionService = adminPermissionService;
+        this.vehicleDetailEnrichmentService = vehicleDetailEnrichmentService;
     }
 
     @GetMapping("/orders")
@@ -562,6 +566,10 @@ public class AdminDispatchController {
                                                                     HttpServletRequest request) {
         adminPermissionService.check(request, AdminResource.VEHICLE, AdminAction.READ);
         VehicleAdminDetailResponse detail = vehicleAdminQueryService.getVehicleDetail(vehicleId);
+        // 路线执行上下文：最近审计路线 ID/地图版本/偏航距离 + 最近道路节点（路线图 5.2）
+        if (detail != null && detail.getVehicleId() != null) {
+            vehicleDetailEnrichmentService.enrich(detail.getVehicleId(), detail);
+        }
         if (parkId != null && !parkId.equals(detail.getParkId())) {
             throw new BusinessException("PARK_SCOPE_DENIED", "记录不属于当前园区");
         }

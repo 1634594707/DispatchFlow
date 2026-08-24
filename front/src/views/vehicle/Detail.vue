@@ -64,6 +64,27 @@
                   {{ store.detail.currentLatitude }}, {{ store.detail.currentLongitude }}
                 </span>
               </a-descriptions-item>
+              <!-- 路线执行上下文（路线图 5.2） -->
+              <a-descriptions-item label="最近道路节点">
+                <span v-if="store.detail.currentRoadNodeCode" class="mono">{{ store.detail.currentRoadNodeCode }}</span>
+                <span v-else class="text-secondary">未匹配（偏离道路）</span>
+              </a-descriptions-item>
+              <a-descriptions-item label="路线 ID">
+                <span v-if="store.detail.routeAuditRouteId" class="mono">{{ store.detail.routeAuditRouteId }}</span>
+                <span v-else class="text-secondary">-</span>
+              </a-descriptions-item>
+              <a-descriptions-item label="地图版本">
+                <span v-if="store.detail.routeMapVersion" class="mono">{{ store.detail.routeMapVersion }}</span>
+                <span v-else class="text-secondary">-</span>
+              </a-descriptions-item>
+              <a-descriptions-item label="偏航距离">
+                <span
+                  v-if="store.detail.routeDeviationMeters != null"
+                  class="mono"
+                  :style="store.detail.routeDeviationMeters > 50 ? 'color:#cf1322' : ''"
+                >{{ store.detail.routeDeviationMeters }} m</span>
+                <span v-else class="text-secondary">-</span>
+              </a-descriptions-item>
               <a-descriptions-item label="当前任务">
                 <router-link
                   v-if="store.detail.currentTaskId"

@@ -69,4 +69,10 @@ export interface VehicleDetailResponse {
   allowedRoadClasses?: string | null
   lastReportTime: string
   remark: string | null
+  /** 最近一次路线执行的路线 ID（路线图 5.2） */
+  routeAuditRouteId?: string | null
+  routeMapVersion?: string | null
+  routeDeviationMeters?: number | null
+  routeExecutedAt?: string | null
+  currentRoadNodeCode?: string | null
 }

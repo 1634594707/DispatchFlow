@@ -43,5 +43,22 @@ public class VehicleAdminDetailResponse {
 
     private LocalDateTime lastReportTime;
 
+    // ===== 路线执行上下文（路线图 5.2，由管理端 enrichment 填充） =====
+
+    /** 最近一次路线执行的路线 ID（无审计记录为 null）。 */
+    private String routeAuditRouteId;
+
+    /** 最近一次路线执行使用的地图版本编码。 */
+    private String routeMapVersion;
+
+    /** 最近一次路线执行的偏航距离（米）。 */
+    private BigDecimal routeDeviationMeters;
+
+    /** 最近一次路线执行的完成/执行时间。 */
+    private LocalDateTime routeExecutedAt;
+
+    /** 当前最近道路节点编码（50m 内匹配；未匹配为 null）。 */
+    private String currentRoadNodeCode;
+
     private String remark;
 }
