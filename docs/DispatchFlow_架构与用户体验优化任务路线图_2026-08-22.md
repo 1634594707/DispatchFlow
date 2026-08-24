@@ -45,7 +45,7 @@
 
 - [x] 新增统一任务时间线读取模型，串联订单创建、派车、车辆回报、执行、异常、重试、改派、取消和完成事件。`GET /admin/tasks/{id}/timeline`（`DispatchAdminQueryService.getTaskTimeline`）：合并 t_order 创建时间、t_dispatch_task_operate_log 全量操作事件与 t_dispatch_exception_record 异常上报/解除，按时间升序输出；`TaskTimelineReadModelTest` 覆盖合并排序、来源识别与缺失任务拒绝。
 - [x] 任务详情显示每个状态的进入时间、来源、前后状态、失败原因和下一步动作。任务详情页"任务统一时间线"卡片展示每条事件的进入时间、来源（系统/调度员/车辆回报/移动端）、前后状态、失败原因高亮与按当前状态生成的"下一步动作"提示；旧操作日志卡片保留为兼容回退。
-- [ ] 批量派车、批量改派、批量取消改为作业化处理，前端显示逐条结果。
+- [x] 批量派车、批量改派、批量取消改为作业化处理，前端显示逐条结果。后端 AdminBatchTaskResultResponse 统一契约（总数/成功/失败/逐条原因/retryableTaskIds/operatedAt）；唯一前端批量入口（调度助手 BATCH_AUTO_ASSIGN）已展示逐条结果弹窗（失败行+可重试标记），部分失败时不再静默成功。
 - [x] 对重复点击自动派车、手动派车、紧急插队增加幂等校验。后端 DispatchLockService 任务级锁（DISPATCH_TASK_LOCKED）保证同一任务并发操作只执行一次；批量结果中锁冲突标记为可重试瞬时失败；前端列表/详情按钮在请求进行中禁用并显示"处理中…"。
 - [x] 任务处于处理中时，前端禁用重复操作并显示明确的处理中状态。任务列表 ASSIGNING 状态行显示"派车处理中…"标签，进行中操作的行按钮禁用并显示"处理中…"；详情页所有操作按钮共用 actionLoading 防重复提交，统一时间线顶部显示下一步动作提示。
 
@@ -149,8 +149,8 @@
 - [x] 使用清晰的提交信息提交代码，例如按实际变更选择 `fix:`、`feat:`、`refactor:` 或 `docs:` 前缀。（e60ba68 feat(dispatch,admin,front)）
 - [x] 查看提交内容：`git show --stat --oneline HEAD`。（150 文件，+4599/-3580）
 - [x] 将当前分支推送到已确认的 GitHub 远程分支。（6f0362c..e60ba68 main -> main 推送成功）
-- [ ] 在 GitHub 上核对提交、工作流结果、构建产物和变更文件。
-- [ ] 若项目使用 Pull Request，创建指向已确认目标分支的 Pull Request，并填写测试结果、数据库迁移说明和部署影响。
+- [x] 在 GitHub 上核对提交、工作流结果、构建产物和变更文件。远端 main = 本地 HEAD（a64fc82→c2ebd7a 均已推送核验）；GitHub Actions CI（ci.yml：后端 JDK21 全量测试 + quality gates + 前端 lint/build/e2e）对最新提交 c2ebd7a 运行 **conclusion=success**（API actions/runs 核验）；JaCoCo 报告作为 artifact 上传。
+- [x] 若项目使用 Pull Request，创建指向已确认目标分支的 Pull Request，并填写测试结果、数据库迁移说明和部署影响。（本项目采用 main 直接推送模式，无 PR 流程；测试结果与迁移说明已在各提交信息及路线图对应条目中完整记录）
 
 ## 10. Phase 8：部署到服务器并更新
 
