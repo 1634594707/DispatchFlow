@@ -165,6 +165,7 @@ final class IntegrationTestSchema {
         jdbcTemplate.execute("""
                 CREATE TABLE t_vehicle (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    park_id BIGINT,
                     vehicle_code VARCHAR(64) NOT NULL,
                     vehicle_name VARCHAR(128) NOT NULL,
                     vehicle_type VARCHAR(32),

@@ -156,7 +156,7 @@ class DispatchFlowIntegrationTest {
                     vehicle_code, vehicle_name, vehicle_type, online_status, dispatch_status,
                     current_task_id, current_order_id, current_latitude, current_longitude,
                     battery_level, last_report_time, remark, version, deleted
-                ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, NULL, NULL, 0, 0)
+                ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, CURRENT_TIMESTAMP, NULL, 0, 0)
                 """,
                 vehicleCode, vehicleName, "CAR", onlineStatus, dispatchStatus, currentLatitude, currentLongitude, 100);
     }

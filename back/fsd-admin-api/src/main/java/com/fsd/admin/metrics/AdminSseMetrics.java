@@ -35,6 +35,8 @@ public class AdminSseMetrics {
 
     private static final long RECONNECT_WINDOW_MS = 60_000L;
 
+    /** 主构造器：Spring 注入入口（存在测试用便利构造器，须显式标注主选）。 */
+    @org.springframework.beans.factory.annotation.Autowired
     public AdminSseMetrics(MeterRegistry registry, AdminSseProperties properties) {
         this.registry = registry;
         Gauge.builder("dispatchflow.sse.connections.active", activeConnections, AtomicInteger::get)

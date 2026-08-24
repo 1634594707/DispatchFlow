@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +50,8 @@ public class DispatchExceptionServiceImpl implements DispatchExceptionService {
         this(exceptionRecordMapper, eventPublisher, operateLogService, null, null);
     }
 
+    /** 主构造器：Spring 注入入口（路线图 8.1 全量上下文启动依赖唯一确定构造器）。 */
+    @Autowired
     public DispatchExceptionServiceImpl(DispatchExceptionRecordMapper exceptionRecordMapper,
                                         DispatchEventPublisher eventPublisher,
                                         DispatchTaskOperateLogService operateLogService,

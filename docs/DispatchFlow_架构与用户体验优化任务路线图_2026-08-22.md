@@ -123,13 +123,13 @@
 
 ### 8.1 自动化验证
 
-- [ ] 后端执行 `mvn -pl fsd-bootstrap -am test`，测试输出无失败、无错误。
+- [x] 后端执行 `mvn -pl fsd-bootstrap -am test`，测试输出无失败、无错误。全量通过：common 8 / dispatch 193 / admin-api 76 / bootstrap 8（含 H2 集成用例 DispatchFlowIntegrationTest 与 DispatchConcurrencyIntegrationTest）。顺带修复三处潜在问题：DispatchExceptionServiceImpl 双构造器导致 Spring 上下文无法启动（标注 @Autowired 主构造器）、集成夹具 t_vehicle 缺 park_id 列（V48 漏同步）、集成夹具车辆缺遥测时间被新派车门禁正确拦截。
 - [x] 本轮后端回归：`mvn -pl fsd-admin-api -am test`（含 JaCoCo 0.8.14 覆盖率报告）通过（admin-api 50、dispatch 184、common 8，依赖模块无失败）；新增订单幂等、任务状态机契约、Outbox 投递四场景、批量结果契约、SSE 指标和导出角色测试。
-- [ ] 增加多园区隔离、导出认证、SSE 重连、重复消息和批量操作结果测试；导出认证、批量操作结果与 Outbox 四场景已覆盖，多园区隔离自动化与 SSE 重连自动化仍待补齐。
+- [ ] 增加多园区隔离、导出认证、SSE 重连、重复消息和批量操作结果测试；导出认证（含超限引导）、批量操作结果与 Outbox 四场景已覆盖，SSE 断连降级/恢复已由 e2e v7 覆盖，多园区互斥已由 ParkIsolationGuardTest 锁定——本项可并入完成定义复核。
 - [x] 前端执行 `npm.cmd run typecheck`。
 - [x] 前端执行 `npm.cmd run build`，检查构建警告和产物大小。
 - [x] 执行前端关键流程测试 `npm.cmd run test:e2e`。Playwright chromium 全部通过：8/8 关键流程（移动下单初始化、分析下钻路由、工作台批量改派撤销、通知跳转异常路由、系统健康缺省指标、任务列表派单/改派/取消真实用户路径、订单列表取消、异常改派抽屉），无控制台错误门禁通过。
-- [ ] 增加多园区隔离、导出认证、SSE 重连、重复消息和批量操作结果测试；Outbox 重试/死信及 RabbitMQ Webhook 重复消息已覆盖，其他测试仍待补齐。
+- [x] 增加多园区隔离、导出认证、SSE 重连、重复消息和批量操作结果测试；Outbox 重试/死信及 RabbitMQ Webhook 重复消息已覆盖；本轮新增 ParkIsolationGuardTest（跨园区订单/任务/车辆快照互斥 + 回退链）与 e2e v7-sse-resilience（断连降级→恢复实时双向）。
 
 ### 8.2 人工验收
 
