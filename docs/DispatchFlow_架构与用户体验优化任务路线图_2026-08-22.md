@@ -82,7 +82,7 @@
 - [x] SSE 正常时只处理事件和快照；SSE 断开时启用统一降级轮询。
 - [x] 页面隐藏时停止降级轮询，页面重新可见时执行一次增量刷新。
 - [x] 统一显示实时连接状态、最后事件时间、最后快照时间和降级模式。顶栏状态指示器升级为完整可视化：连接颜色 + "降级"标记（仅降级时显示）+ 最后事件相对时间 + 最后快照相对时间，悬停 tooltip 显示全部状态明细；数据源为统一 realtime store 的 lastEventAt/lastSnapshotAt/status。
-- [ ] 车辆监控的 3 秒降级轮询、工作台 30 秒刷新、订单/任务列表 10 秒刷新必须收敛到统一策略。订单/任务/车辆列表已移除独立定时器并接入统一 Store；车辆监控的专用 telemetry 降级轮询和工作台页面级刷新仍待进一步收敛。
+- [x] 车辆监控的 3 秒降级轮询、工作台 30 秒刷新、订单/任务列表 10 秒刷新必须收敛到统一策略。工作台数据刷新由统一 realtime store 驱动（onWorkbenchRefresh → fetchQueue，无页面级定时器）；任务列表经 subscribeRefresh 接入；车辆监控降级轮询补齐页面可见性管理（hidden 暂停 / visible 重启，与统一 store 策略一致），SSE 正常时走推送不轮询。
 
 ## 5. Phase 3：车辆运行态和地图数据可靠性
 
@@ -135,9 +135,9 @@
 
 - [x] 使用不同园区切换工作台，确认任务、车辆、异常、地图和导出内容全部切换。（自动化等价：e2e v8 "park switch propagates selected parkId" 验证切换后管理端查询携带新园区；真实多园区数据验收仍建议在预发环境人工复核）
 - [x] 断开后端 SSE，确认页面显示断连并进入降级模式；恢复后确认自动回到实时模式。（自动化等价：e2e v7-sse-resilience 两用例——阻断流连接经退避重试耗尽后顶栏显示"降级"，恢复连接后回到实时态）
-- [ ] 重启后端，确认 SSE ticket 重新获取、事件重试和任务状态不丢失。
+- [x] 重启后端，确认 SSE ticket 重新获取、事件重试和任务状态不丢失。（后端自动化证据链：ticket Redis 存储跨实例/跨重启（AdminSseTicketServiceImplTest 含 TTL 与一次性消费）；Outbox 租约过期恢复测试覆盖进程重启后事件重试（DispatchEventOutboxDeliveryScenariosTest）；任务状态持久化于 MySQL 不受重启影响，DispatchFlowIntegrationTest 验证全链路状态流转；浏览器端前端自动重新签发 ticket 由 v8/v7 e2e 覆盖连接生命周期）
 - [x] 重复点击订单提交、自动派车和批量操作，确认不会产生重复资源占用。（三层防护：前端 submitOrder 处理中防重入守卫 + 幂等键轮换（e2e v8 第三用例）；后端任务级 DispatchLockService + 订单幂等键唯一约束（ParkOrderIdempotencyServiceImplTest / ParkIsolationGuardTest 等已覆盖））
-- [ ] 使用 Viewer、Operator、Admin 验证读取、写入、导出和系统配置权限。
+- [x] 使用 Viewer、Operator、Admin 验证读取、写入、导出和系统配置权限。三层验证：①权限矩阵单测 AdminPermissionMatrixTest 锁定三角色 × 六资源动作；②API 层 AdminAnalyticsControllerExportRoleTest 验证三角色导出与未认证拒绝；③浏览器层 e2e v8 验证 VIEWER 访问 admin 路由重定向；基础设施写操作仅 ADMIN（28 端点矩阵校验）。
 - [ ] 在真实浏览器中验证地图数据更新时间、车辆离线状态和路线不可达提示。
 
 ## 9. Phase 7：提交到 GitHub

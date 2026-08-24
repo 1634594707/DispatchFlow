@@ -1448,11 +1448,23 @@ function initSSEStream() {
 
 function startFallbackPoll() {
   if (fallbackPollTimer) return
+  // 页面隐藏时暂停轮询（与统一 realtime store 的可见性策略一致，路线图 4.3）
+  if (document.hidden) return
   fallbackPollTimer = setInterval(() => {
     fetchVehicles().then(() => { backendOnline.value = true }).catch(() => { backendOnline.value = false })
     fetchOrders().catch(() => undefined)
   }, 3000)
 }
+
+function handleVisibilityForPoll() {
+  if (document.hidden) {
+    stopFallbackPoll()
+  } else {
+    startFallbackPoll()
+  }
+}
+
+document.addEventListener('visibilitychange', handleVisibilityForPoll)
 
 function stopFallbackPoll() {
   if (fallbackPollTimer) {
@@ -1608,6 +1620,7 @@ onUnmounted(() => {
     sseClient = null
   }
   stopFallbackPoll()
+  document.removeEventListener('visibilitychange', handleVisibilityForPoll)
   if (pollTimer) clearInterval(pollTimer)
   if (clockTimer) clearInterval(clockTimer)
   map?.off('zoom zoomend viewreset resize', applyMarkerScale)
