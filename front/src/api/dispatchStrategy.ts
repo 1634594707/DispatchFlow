@@ -6,8 +6,10 @@ import type {
   StrategyChangeLog,
 } from '@/types/dispatchStrategy'
 
-export function fetchStrategyProfiles() {
-  return request.get<any, ApiResponse<DispatchStrategyProfile[]>>('/admin/dispatch/strategy/profiles')
+export function fetchStrategyProfiles(parkId?: number) {
+  return request.get<any, ApiResponse<DispatchStrategyProfile[]>>('/admin/dispatch/strategy/profiles', {
+    params: parkId != null ? { parkId } : undefined,
+  })
 }
 
 export function fetchStrategyChangeLogs() {

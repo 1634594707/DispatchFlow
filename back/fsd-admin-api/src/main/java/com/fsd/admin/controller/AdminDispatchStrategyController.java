@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -33,10 +34,12 @@ public class AdminDispatchStrategyController {
     }
 
     @GetMapping("/profiles")
-    @Operation(summary = "List strategy profiles")
-    public ApiResponse<List<AdminDispatchStrategyResponse>> listProfiles(HttpServletRequest request) {
+    @Operation(summary = "List strategy profiles", description = "支持按园区过滤：命中园区专属或全局模板（路线图 2.1）")
+    public ApiResponse<List<AdminDispatchStrategyResponse>> listProfiles(
+            @RequestParam(required = false) Long parkId,
+            HttpServletRequest request) {
         AdminAuthSupport.requireAdmin(request);
-        return ApiResponse.success(strategyAdminService.listProfiles());
+        return ApiResponse.success(strategyAdminService.listProfiles(parkId));
     }
 
     @GetMapping("/change-logs")

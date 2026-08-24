@@ -43,6 +43,25 @@ public class DispatchStrategyAdminServiceImpl implements DispatchStrategyAdminSe
                 .toList();
     }
 
+    /** 路线图 2.1：按园区过滤，同时保留全局模板（park_id IS NULL）。 */
+    @Override
+    public List<AdminDispatchStrategyResponse> listProfiles(Long parkId) {
+        if (parkId == null) {
+            return listProfiles();
+        }
+        return profileMapper.selectList(new LambdaQueryWrapper<DispatchStrategyProfileEntity>()
+                        .eq(DispatchStrategyProfileEntity::getDeleted, 0)
+                        .and(wrapper -> wrapper
+                                .eq(DispatchStrategyProfileEntity::getParkId, parkId)
+                                .or()
+                                .isNull(DispatchStrategyProfileEntity::getParkId))
+                        .orderByDesc(DispatchStrategyProfileEntity::getActiveFlag)
+                        .orderByAsc(DispatchStrategyProfileEntity::getId))
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     @Override
     public List<AdminStrategyChangeLogResponse> listChangeLogs() {
         Page<DispatchStrategyChangeLogEntity> page = changeLogMapper.selectPage(new Page<>(1, 100, false), new LambdaQueryWrapper<DispatchStrategyChangeLogEntity>()

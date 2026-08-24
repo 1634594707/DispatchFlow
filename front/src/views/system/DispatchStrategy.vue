@@ -131,6 +131,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { useParkOptions } from '@/composables/useParkOptions'
+import { useParkScopeStore } from '@/stores/parkScope'
 import * as strategyApi from '@/api/dispatchStrategy'
 import type {
   DispatchStrategyProfile,
@@ -181,11 +182,13 @@ const columns = [
   { title: '操作', key: 'actions', width: 140 },
 ]
 
+const parkScope = useParkScopeStore()
+
 async function loadAll() {
   loading.value = true
   try {
     const [pRes, lRes] = await Promise.all([
-      strategyApi.fetchStrategyProfiles(),
+      strategyApi.fetchStrategyProfiles(parkScope.selectedParkId),
       strategyApi.fetchStrategyChangeLogs(),
     ])
     profiles.value = pRes.data

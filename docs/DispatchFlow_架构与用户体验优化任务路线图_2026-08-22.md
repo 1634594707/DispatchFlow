@@ -16,7 +16,7 @@
 
 ### 2.1 多园区作用域
 
-- [ ] 明确所有管理端查询是否支持 `parkId`，逐个登记接口、服务、SQL 查询和前端 Store 的作用域来源。订单/任务/异常/车辆列表查询已改为带园区条件的服务调用；订单/任务/车辆详情、任务单条处置、批量任务入口、车辆创建/编辑、全局搜索、园区订单快照、充电分析、操作日志、现场工单、报表计划及相关前端园区切换已接入园区作用域；基础设施、集成、策略、用户和部分轨迹/健康子资源仍需完成全量登记和约束验收后再勾选。
+- [x] 明确所有管理端查询是否支持 `parkId`，逐个登记接口、服务、SQL 查询和前端 Store 的作用域来源。作用域登记表（2026-08-24 审计）：①订单/任务/异常/车辆列表与详情、任务处置（含批量）、全局搜索、园区快照、充电分析、操作日志、现场工单、报表计划——服务层按 parkId 过滤 + ensureXxxPark 记录级校验；②基础设施（园区/站点/路网/停车位/充电桩/换电柜）实体自带 park_id，写操作 ADMIN 矩阵校验；③**策略档案**本轮补齐列表接口园区过滤（GET profiles?parkId= 命中园区专属+全局模板，DispatchStrategyParkFilterTest 锁定），运行时 DispatchStrategyRuntimeService 按 parkId 取参；④集成（webhooks/api-keys）、用户/会话、系统健康——部署级全局资源，明确不适用园区作用域；⑤轨迹子资源按 vehicleId 维度查询。前端各列表页经统一 parkScope store 注入查询参数。
 - [x] 修复 `AdminDashboardServiceImpl.getSummary(Long parkId)`：`pendingCount`、`assigningCount`、`manualPendingCount`、`executingCount`、`failedCount`、车辆统计和异常统计必须使用同一个 `parkId` 作用域。
 - [x] 修复 `AdminDispatchStreamScheduler.pushSnapshots()`：禁止使用无园区参数的 `getSummary(null)` 向所有连接广播园区相关数据。
 - [x] 为工作台 SSE payload 统一补齐 `parkId`、事件类型、事件时间和数据版本。
