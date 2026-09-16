@@ -92,8 +92,19 @@ def synthesize_features(days: int = 60, station_count: int = 4) -> pd.DataFrame:
 
 
 def load_features(path: str) -> pd.DataFrame:
-    frame = pd.read_csv(path)
+    """读取特征 CSV。
+
+    兼容两种导出形态：
+      - 逗号分隔的 CSV（手工整理 / 其他导出工具）
+      - 制表符分隔文本（README 记录的标准流程：`mysql --batch --raw ... > energy_features.csv`）
+
+    mysql 的 batch 模式固定用 Tab 作列分隔符，因此这里先按逗号尝试，
+    缺列时再用分隔符探测重读，避免"按文档导出却读不进"的隐性断裂。
+    """
     required = {"park_id", "station_id", "slot_start", TARGET}
+    frame = pd.read_csv(path)
+    if not required <= set(frame.columns):
+        frame = pd.read_csv(path, sep=None, engine="python")
     missing = required - set(frame.columns)
     if missing:
         raise SystemExit(f"特征 CSV 缺少必需列: {sorted(missing)}")

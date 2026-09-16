@@ -28,6 +28,9 @@ python -m venv .venv-ml
 mysql -h127.0.0.1 -P3306 -uroot -p fsd_core --batch --raw --default-character-set=utf8mb4 \
   -e "source scripts/ml/export_energy_features.sql" > reports/energy_features.csv
 
+# 注意：mysql 的 --batch 模式固定以 Tab 作列分隔符，导出的文件虽名为 .csv 实为 TSV。
+#       load_features() 对两种分隔符都做兼容（先试逗号，缺列则自动探测重读）。
+
 # 2) 训练 + 评估 + 产出导入 SQL
 .venv-ml/Scripts/python scripts/ml/energy_demand_forecast.py --input reports/energy_features.csv
 
@@ -64,4 +67,5 @@ mysql -h127.0.0.1 -P3306 -uroot -p fsd_core < reports/energy_forecast_result.sql
 | 训练脚本（XGBoost 分位数回归） | 已落地 | `scripts/ml/energy_demand_forecast.py`（xgboost 3.4.1，`objective=reg:quantileerror`） |
 | Java 侧读取与回退 | 已落地 | `EnergyForecastService` / `EnergyForecastServiceImpl` + 9 个单测 |
 | 返充错峰接入 | 已落地 | `ParkPilotSimulationServiceImpl.shouldReturnToCharge`（安全优先：SOC 余量不足时不推迟） |
-| 真实历史数据训练 | **待办** | 需在有 `t_charging_session` 历史的环境重跑并替换报告数字 |
+| 真实历史数据训练 | **已跑通** | 生产库 `t_charging_session` 79,189 条（21 天）→ 527 特征行 → 训练 287 / 测试 72；落表 `t_energy_forecast` 0→24 行，服务已实际读取 |
+| 真实数据集的边界 | **须随指标一并说明** | 该数据集为压测/夹具数据：充电柱共用坐标、仅 3/6 在用、SOC 恒为 89（`end_soc == start_soc`）⇒ `energy_kwh` 退化、归属塌缩为单站点；P90 覆盖率 77.8% < 0.8 警戒线 |
