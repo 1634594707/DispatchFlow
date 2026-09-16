@@ -71,6 +71,9 @@
         </div>
       </div>
 
+      <!-- ALG-FC：补能需求预测剖面（只读，stale 如实标注） -->
+      <EnergyForecastPanel :forecast="forecast" />
+
       <section class="panel">
         <h3>充电中车辆</h3>
         <a-table
@@ -100,9 +103,10 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageContainer from '@/components/common/PageContainer.vue'
-import { getAnalyticsChargingOverview } from '@/api/analytics'
+import EnergyForecastPanel from '@/components/analytics/EnergyForecastPanel.vue'
+import { getAnalyticsChargingOverview, getAnalyticsEnergyForecast } from '@/api/analytics'
 import { fetchChargingPiles } from '@/api/infrastructure'
-import type { AnalyticsChargingOverview } from '@/types/analytics'
+import type { AnalyticsChargingOverview, AnalyticsEnergyForecast } from '@/types/analytics'
 import { useParkScopeStore } from '@/stores/parkScope'
 
 interface StationInfo {
@@ -116,6 +120,7 @@ const FAST_POWER_THRESHOLD_KW = 60
 const router = useRouter()
 const loading = ref(false)
 const overview = ref<AnalyticsChargingOverview | null>(null)
+const forecast = ref<AnalyticsEnergyForecast | null>(null)
 const parkScope = useParkScopeStore()
 const stationInfo = ref<StationInfo | null>(null)
 
@@ -142,12 +147,18 @@ const historyColumns = [
 
 async function loadData() {
   loading.value = true
+  // 预测接口可用性独立于充电报表主体：未部署/无权限时降级为 null，不阻断页面
+  const forecastRequest = getAnalyticsEnergyForecast(undefined, parkScope.selectedParkId)
+    .then((res) => res.data as AnalyticsEnergyForecast | null)
+    .catch(() => null as AnalyticsEnergyForecast | null)
   try {
-    const [overviewRes, pilesRes] = await Promise.all([
+    const [overviewRes, pilesRes, forecastData] = await Promise.all([
       getAnalyticsChargingOverview(parkScope.selectedParkId),
       fetchChargingPiles(parkScope.selectedParkId),
+      forecastRequest,
     ])
     overview.value = overviewRes.data
+    forecast.value = forecastData
 
     const piles = pilesRes.data ?? []
     const parkIds = new Set(piles.map((p) => p.parkId))

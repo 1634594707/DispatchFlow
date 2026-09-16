@@ -9,9 +9,12 @@ import com.fsd.dispatch.service.EnergyForecastService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -91,6 +94,74 @@ public class EnergyForecastServiceImpl implements EnergyForecastService {
                     parkId, batteryLevel, pressure, properties.getPressureThreshold());
         }
         return true;
+    }
+
+    @Override
+    public List<StationHourlyProfile> parkHourlyProfiles(LocalDate date, Long parkId) {
+        if (!isEnabled() || date == null || parkId == null) {
+            return List.of();
+        }
+        List<EnergyForecastEntity> rows = energyForecastMapper.selectList(
+                new QueryWrapper<EnergyForecastEntity>()
+                        .eq("park_id", parkId)
+                        .eq("forecast_date", date)
+                        .eq("deleted", 0));
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        // 站点 -> 小时 -> 该小时最新的一行（同一小时可能因换 model_version 而存在多行）
+        Map<Long, Map<Integer, EnergyForecastEntity>> byStation = new TreeMap<>();
+        for (EnergyForecastEntity row : rows) {
+            if (row.getStationId() == null || row.getHourOfDay() == null) {
+                continue;
+            }
+            byStation.computeIfAbsent(row.getStationId(), key -> new TreeMap<>())
+                    .merge(row.getHourOfDay(), row, EnergyForecastServiceImpl::newer);
+        }
+
+        LocalDateTime oldestAccepted = LocalDateTime.now()
+                .minusHours(Math.max(0, properties.getMaxDataAgeHours()));
+        List<StationHourlyProfile> profiles = new ArrayList<>(byStation.size());
+        byStation.forEach((stationId, hours) -> {
+            EnergyForecastEntity newest = hours.values().stream()
+                    .max(Comparator.comparing(EnergyForecastEntity::getGeneratedAt,
+                            Comparator.nullsFirst(Comparator.naturalOrder())))
+                    .orElseThrow();
+            LocalDateTime generatedAt = newest.getGeneratedAt();
+            boolean stale = generatedAt == null || generatedAt.isBefore(oldestAccepted);
+            List<HourlyDemandPoint> points = hours.values().stream()
+                    .map(row -> new HourlyDemandPoint(row.getHourOfDay(),
+                            nullSafe(row.getDemandP50()),
+                            nullSafe(row.getDemandP90()),
+                            nullSafe(row.getPressureP95())))
+                    .toList();
+            profiles.add(new StationHourlyProfile(
+                    newest.getParkId() == null ? parkId : newest.getParkId(),
+                    stationId,
+                    newest.getStationCode(),
+                    newest.getForecastDate() == null ? date : newest.getForecastDate(),
+                    newest.getSampleCount() == null ? 0 : newest.getSampleCount(),
+                    newest.getModelVersion(),
+                    generatedAt,
+                    stale,
+                    points));
+        });
+        return profiles;
+    }
+
+    private static EnergyForecastEntity newer(EnergyForecastEntity left, EnergyForecastEntity right) {
+        if (left.getGeneratedAt() == null) {
+            return right;
+        }
+        if (right.getGeneratedAt() == null) {
+            return left;
+        }
+        return left.getGeneratedAt().isAfter(right.getGeneratedAt()) ? left : right;
+    }
+
+    private static BigDecimal nullSafe(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private List<EnergyForecastEntity> queryRows(LocalDate date, Long parkId) {

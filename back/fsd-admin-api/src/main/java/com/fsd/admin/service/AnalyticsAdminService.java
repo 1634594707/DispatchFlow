@@ -4,6 +4,7 @@ import com.fsd.admin.vo.AdminAnalyticsChainKpiResponse;
 import com.fsd.admin.vo.AdminAnalyticsChargingOverviewResponse;
 import com.fsd.admin.vo.AdminAnalyticsDailySummaryResponse;
 import com.fsd.admin.vo.AdminAnalyticsEfficiencyResponse;
+import com.fsd.admin.vo.AdminAnalyticsEnergyForecastResponse;
 import com.fsd.admin.vo.AdminAnalyticsExceptionResponse;
 import com.fsd.admin.vo.AdminAnalyticsParkCompareItem;
 import com.fsd.admin.vo.AdminPeakCompareResponse;
@@ -31,6 +32,14 @@ public interface AnalyticsAdminService {
     AdminAnalyticsChainKpiResponse getChainKpi(String period, Long parkId);
 
     AdminPeakCompareResponse getPeakCompare(String period, Long parkId);
+
+    /**
+     * 补能需求预测 24 小时剖面（ALG-FC，只读）。
+     *
+     * @param date   预测日期，为空取当天
+     * @param parkId 园区，为空取默认园区
+     */
+    AdminAnalyticsEnergyForecastResponse getEnergyForecast(LocalDate date, Long parkId);
 
     byte[] exportPdf(LocalDate date, Long parkId);
 }

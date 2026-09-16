@@ -4,6 +4,7 @@ import type {
   AnalyticsChargingOverview,
   AnalyticsDailySummary,
   AnalyticsEfficiency,
+  AnalyticsEnergyForecast,
   AnalyticsExceptionAnalysis,
   AnalyticsParkCompareItem,
 } from '@/types/analytics'
@@ -39,6 +40,16 @@ export function getAnalyticsChargingOverview(parkId?: number | null) {
 export function getAnalyticsParkComparison(period: 'day' | 'week' | 'month' = 'week') {
   return request.get<any, ApiResponse<AnalyticsParkCompareItem[]>>('/admin/analytics/park-comparison', {
     params: { period },
+  })
+}
+
+/**
+ * ALG-FC 补能需求预测剖面（只读）。
+ * 返回各站 24 小时 P50/P90/pressureP95，并带 stale 标记——超期时派单侧不使用该预测。
+ */
+export function getAnalyticsEnergyForecast(date?: string, parkId?: number | null) {
+  return request.get<any, ApiResponse<AnalyticsEnergyForecast>>('/admin/analytics/energy-forecast', {
+    params: date ? { date, ...parkParams(parkId) } : parkParams(parkId),
   })
 }
 

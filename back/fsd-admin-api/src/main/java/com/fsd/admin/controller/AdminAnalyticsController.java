@@ -10,6 +10,7 @@ import com.fsd.admin.vo.AdminAnalyticsChainKpiResponse;
 import com.fsd.admin.vo.AdminAnalyticsChargingOverviewResponse;
 import com.fsd.admin.vo.AdminAnalyticsDailySummaryResponse;
 import com.fsd.admin.vo.AdminAnalyticsEfficiencyResponse;
+import com.fsd.admin.vo.AdminAnalyticsEnergyForecastResponse;
 import com.fsd.admin.vo.AdminAnalyticsExceptionResponse;
 import com.fsd.admin.vo.AdminAnalyticsParkCompareItem;
 import java.util.List;
@@ -145,6 +146,21 @@ public class AdminAnalyticsController {
             HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(analyticsAdminService.getPeakCompare(period, parkId));
+    }
+
+    @GetMapping("/energy-forecast")
+    @Operation(summary = "Energy demand forecast",
+            description = "Read-only 24h charging demand profile per station (ALG-FC), with staleness flags")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Forecast profiles returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
+    public ApiResponse<AdminAnalyticsEnergyForecastResponse> energyForecast(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Long parkId,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(analyticsAdminService.getEnergyForecast(date, parkId));
     }
 
     @GetMapping("/export/pdf")

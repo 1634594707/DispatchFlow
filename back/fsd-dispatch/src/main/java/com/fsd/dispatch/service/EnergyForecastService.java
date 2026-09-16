@@ -2,6 +2,8 @@ package com.fsd.dispatch.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -28,6 +30,41 @@ public interface EnergyForecastService {
      * 无预测数据时返回 false（等价于既有纯阈值策略）。
      */
     boolean shouldDeferReturnToCharge(LocalDate date, Long parkId, Integer batteryLevel);
+
+    /**
+     * 园区内各站点的 24 小时需求剖面（供管理端可视化）。
+     *
+     * <p>与 {@link #currentHourForecast} 的差异：**不做"当前小时"过滤**，返回当天全部小时。
+     * 同一小时存在多个 {@code model_version} 时取 {@code generatedAt} 最新的那条，
+     * 与派单侧的解析口径一致。
+     *
+     * <p>数据是否超期由 {@link StationHourlyProfile#stale()} 标出而**不隐藏**：
+     * 前端需要如实区分"有预测且在有效期"与"有行但已失效（服务已回退纯阈值策略）"。
+     */
+    List<StationHourlyProfile> parkHourlyProfiles(LocalDate date, Long parkId);
+
+    /** 单站单小时的需求点。 */
+    record HourlyDemandPoint(int hourOfDay,
+                             BigDecimal demandP50,
+                             BigDecimal demandP90,
+                             BigDecimal pressureP95) {
+    }
+
+    /**
+     * 单站 24 小时剖面。
+     *
+     * @param stale 该站最新一行的 {@code generatedAt} 是否已超出 {@code max-data-age-hours}
+     */
+    record StationHourlyProfile(Long parkId,
+                                Long stationId,
+                                String stationCode,
+                                LocalDate forecastDate,
+                                int sampleCount,
+                                String modelVersion,
+                                LocalDateTime generatedAt,
+                                boolean stale,
+                                List<HourlyDemandPoint> hours) {
+    }
 
     /**
      * 单站补能需求预测。

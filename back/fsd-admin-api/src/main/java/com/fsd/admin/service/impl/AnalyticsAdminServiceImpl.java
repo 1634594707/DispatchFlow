@@ -11,13 +11,18 @@ import com.fsd.admin.vo.AdminAnalyticsChargingOverviewResponse;
 import com.fsd.admin.vo.AdminAnalyticsChargingSessionItem;
 import com.fsd.admin.vo.AdminAnalyticsDailySummaryResponse;
 import com.fsd.admin.vo.AdminAnalyticsEfficiencyResponse;
+import com.fsd.admin.vo.AdminAnalyticsEnergyForecastHourPoint;
+import com.fsd.admin.vo.AdminAnalyticsEnergyForecastResponse;
+import com.fsd.admin.vo.AdminAnalyticsEnergyForecastStationItem;
 import com.fsd.admin.vo.AdminAnalyticsExceptionResponse;
 import com.fsd.admin.vo.AdminAnalyticsHourlyPoint;
 import com.fsd.admin.vo.AdminAnalyticsTrendPoint;
 import com.fsd.admin.vo.AdminAnalyticsParkCompareItem;
 import com.fsd.admin.vo.AdminAnalyticsTypeCount;
+import com.fsd.dispatch.config.EnergyForecastProperties;
 import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.mapper.ParkMapper;
+import com.fsd.dispatch.service.EnergyForecastService;
 import com.fsd.common.enums.ChargingSessionStatus;
 import com.fsd.admin.vo.AdminPeakCompareResponse;
 import com.fsd.dispatch.entity.BatterySwapSessionEntity;
@@ -36,6 +41,7 @@ import com.fsd.order.mapper.OrderMapper;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
 import com.fsd.vehicle.vo.VehicleAdminListItemResponse;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -81,6 +87,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     private final ParkMapper parkMapper;
     private final AdminParkScopeService adminParkScopeService;
     private final MeterRegistry meterRegistry;
+    private final EnergyForecastService energyForecastService;
+    private final EnergyForecastProperties energyForecastProperties;
 
     public AnalyticsAdminServiceImpl(OrderMapper orderMapper,
                                      DispatchTaskMapper dispatchTaskMapper,
@@ -92,7 +100,9 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                                      FleetRuntimeService fleetRuntimeService,
                                      ParkMapper parkMapper,
                                      AdminParkScopeService adminParkScopeService,
-                                     MeterRegistry meterRegistry) {
+                                     MeterRegistry meterRegistry,
+                                     EnergyForecastService energyForecastService,
+                                     EnergyForecastProperties energyForecastProperties) {
         this.orderMapper = orderMapper;
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.exceptionRecordMapper = exceptionRecordMapper;
@@ -104,6 +114,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         this.parkMapper = parkMapper;
         this.adminParkScopeService = adminParkScopeService;
         this.meterRegistry = meterRegistry;
+        this.energyForecastService = energyForecastService;
+        this.energyForecastProperties = energyForecastProperties;
     }
 
     @Override
@@ -771,6 +783,81 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 .waitP50Minutes(round1(percentile(waitMinutes, 50)))
                 .waitP90Minutes(round1(percentile(waitMinutes, 90)))
                 .tasksPerVehiclePerDay(round1(tasksPerVehiclePerDay))
+                .build();
+    }
+
+    @Override
+    public AdminAnalyticsEnergyForecastResponse getEnergyForecast(LocalDate date, Long parkId) {
+        LocalDate forecastDate = date == null ? LocalDate.now() : date;
+        // 与既有 analytics 口径一致：parkId 为空时取默认园区（单园区部署下即唯一园区）
+        Long resolvedParkId = parkId != null ? parkId : adminParkScopeService.resolveDefaultParkId();
+        List<EnergyForecastService.StationHourlyProfile> profiles = resolvedParkId == null
+                ? List.of()
+                : energyForecastService.parkHourlyProfiles(forecastDate, resolvedParkId);
+
+        double threshold = energyForecastProperties.getPressureThreshold();
+        List<AdminAnalyticsEnergyForecastStationItem> stations = profiles.stream()
+                .map(profile -> toEnergyForecastStation(profile, threshold))
+                .sorted(Comparator.comparing(AdminAnalyticsEnergyForecastStationItem::getStationId,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+
+        return AdminAnalyticsEnergyForecastResponse.builder()
+                .enabled(energyForecastService.isEnabled())
+                .pressureThreshold(threshold)
+                .maxDataAgeHours(energyForecastProperties.getMaxDataAgeHours())
+                .forecastDate(forecastDate)
+                .parkId(resolvedParkId)
+                .serverTime(LocalDateTime.now())
+                .stationCount(stations.size())
+                .anyData(!stations.isEmpty())
+                .anyStale(stations.stream().anyMatch(AdminAnalyticsEnergyForecastStationItem::isStale))
+                .stations(stations)
+                .build();
+    }
+
+    private static AdminAnalyticsEnergyForecastStationItem toEnergyForecastStation(
+            EnergyForecastService.StationHourlyProfile profile, double pressureThreshold) {
+        List<AdminAnalyticsEnergyForecastHourPoint> hours = profile.hours().stream()
+                .map(point -> AdminAnalyticsEnergyForecastHourPoint.builder()
+                        .hourOfDay(point.hourOfDay())
+                        .demandP50(point.demandP50())
+                        .demandP90(point.demandP90())
+                        .pressureP95(point.pressureP95())
+                        .build())
+                .toList();
+
+        BigDecimal peakPressure = hours.stream()
+                .map(AdminAnalyticsEnergyForecastHourPoint::getPressureP95)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(BigDecimal.ZERO);
+        int peakHour = hours.stream()
+                .filter(point -> point.getPressureP95() != null
+                        && peakPressure.compareTo(point.getPressureP95()) == 0)
+                .mapToInt(AdminAnalyticsEnergyForecastHourPoint::getHourOfDay)
+                .findFirst()
+                .orElse(0);
+        BigDecimal peakP90 = hours.stream()
+                .map(AdminAnalyticsEnergyForecastHourPoint::getDemandP90)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(BigDecimal.ZERO);
+
+        return AdminAnalyticsEnergyForecastStationItem.builder()
+                .parkId(profile.parkId())
+                .stationId(profile.stationId())
+                .stationCode(profile.stationCode())
+                .modelVersion(profile.modelVersion())
+                .generatedAt(profile.generatedAt())
+                .stale(profile.stale())
+                .sampleCount(profile.sampleCount())
+                .hourCount(hours.size())
+                .peakPressureP95(peakPressure)
+                .peakHourOfDay(peakHour)
+                .peakDemandP90(peakP90)
+                .pressureThresholdExceeded(peakPressure.doubleValue() >= pressureThreshold)
+                .hours(hours)
                 .build();
     }
 

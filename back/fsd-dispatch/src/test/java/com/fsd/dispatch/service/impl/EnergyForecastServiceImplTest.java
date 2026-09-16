@@ -147,6 +147,80 @@ class EnergyForecastServiceImplTest {
                 "错峰开关关闭时保持纯阈值行为");
     }
 
+    // ------------------------------------------------------------------ //
+    // 24 小时剖面（管理端可视化，T-03）
+    // ------------------------------------------------------------------ //
+
+    @Test
+    void parkHourlyProfilesShouldReturnFullDaySortedByHour() {
+        when(energyForecastMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                rowAt(101L, 5, 2.0, 3.0, 1.5, LocalDateTime.now(), "m1"),
+                rowAt(101L, 1, 1.0, 2.0, 0.5, LocalDateTime.now(), "m1"),
+                rowAt(202L, 3, 9.0, 11.0, 8.0, LocalDateTime.now(), "m1")));
+
+        List<EnergyForecastService.StationHourlyProfile> profiles =
+                service.parkHourlyProfiles(LocalDate.now(), 1L);
+
+        assertEquals(2, profiles.size(), "按站点聚合");
+        EnergyForecastService.StationHourlyProfile first = profiles.get(0);
+        assertEquals(101L, first.stationId());
+        assertEquals(List.of(1, 5), first.hours().stream()
+                        .map(EnergyForecastService.HourlyDemandPoint::hourOfDay).toList(),
+                "小时应按升序返回");
+        assertFalse(first.stale(), "刚生成的预测不应标记为失效");
+        assertEquals("m1", first.modelVersion());
+        assertEquals(120, first.sampleCount());
+    }
+
+    @Test
+    void parkHourlyProfilesShouldKeepNewestRowPerHour() {
+        when(energyForecastMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                rowAt(101L, 8, 1.0, 1.5, 1.0, LocalDateTime.now().minusHours(3), "old"),
+                rowAt(101L, 8, 7.0, 9.0, 6.0, LocalDateTime.now(), "new")));
+
+        List<EnergyForecastService.StationHourlyProfile> profiles =
+                service.parkHourlyProfiles(LocalDate.now(), 1L);
+
+        assertEquals(1, profiles.size());
+        EnergyForecastService.StationHourlyProfile profile = profiles.get(0);
+        assertEquals(1, profile.hours().size(), "同一小时只保留一条");
+        assertEquals("new", profile.modelVersion(), "应取 generatedAt 最新的一行（与派单侧口径一致）");
+        assertEquals(7.0, profile.hours().get(0).demandP50().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void parkHourlyProfilesShouldFlagStaleButStillReturnRows() {
+        properties.setMaxDataAgeHours(4);
+        when(energyForecastMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                rowAt(101L, 2, 1.0, 2.0, 1.0, LocalDateTime.now().minusHours(30), "old")));
+
+        List<EnergyForecastService.StationHourlyProfile> profiles =
+                service.parkHourlyProfiles(LocalDate.now(), 1L);
+
+        assertEquals(1, profiles.size(), "超期数据仍返回，交由前端如实展示而不得隐藏");
+        assertTrue(profiles.get(0).stale(), "超出 max-data-age-hours 应标记失效");
+    }
+
+    @Test
+    void parkHourlyProfilesShouldReturnEmptyWhenDisabledOrMissing() {
+        properties.setEnabled(false);
+        assertTrue(service.parkHourlyProfiles(LocalDate.now(), 1L).isEmpty(), "开关关闭返回空");
+
+        properties.setEnabled(true);
+        when(energyForecastMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+        assertTrue(service.parkHourlyProfiles(LocalDate.now(), 1L).isEmpty(), "无数据返回空");
+    }
+
+    private static EnergyForecastEntity rowAt(Long stationId, int hour, double p50, double p90,
+                                              double pressure, LocalDateTime generatedAt,
+                                              String modelVersion) {
+        EnergyForecastEntity entity = row(stationId, p50, p90, pressure, generatedAt);
+        entity.setHourOfDay(hour);
+        entity.setForecastDate(LocalDate.now());
+        entity.setModelVersion(modelVersion);
+        return entity;
+    }
+
     private static EnergyForecastEntity row(Long stationId, double p50, double p90, double pressure,
                                             LocalDateTime generatedAt) {
         EnergyForecastEntity entity = new EnergyForecastEntity();

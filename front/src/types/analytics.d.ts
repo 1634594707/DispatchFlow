@@ -91,3 +91,43 @@ export interface AnalyticsChargingOverview {
   totalSwapDurationMinutes?: number
   recentHistory: AnalyticsChargingHistory[]
 }
+
+/** ALG-FC 补能需求预测：某站某小时的需求点（来源 t_energy_forecast）。 */
+export interface AnalyticsEnergyForecastHourPoint {
+  hourOfDay: number
+  demandP50: number
+  demandP90: number
+  pressureP95: number
+}
+
+/** 单站 24 小时剖面。stale=true 表示最新一行已超期，派单侧已回退纯阈值策略。 */
+export interface AnalyticsEnergyForecastStation {
+  parkId: number | null
+  stationId: number
+  stationCode: string | null
+  modelVersion: string | null
+  generatedAt: string | null
+  stale: boolean
+  sampleCount: number
+  /** 实际小时数，正常 24；缺小时不补齐。 */
+  hourCount: number
+  peakPressureP95: number
+  peakHourOfDay: number
+  peakDemandP90: number
+  pressureThresholdExceeded: boolean
+  hours: AnalyticsEnergyForecastHourPoint[]
+}
+
+export interface AnalyticsEnergyForecast {
+  enabled: boolean
+  pressureThreshold: number
+  maxDataAgeHours: number
+  forecastDate: string
+  parkId: number | null
+  /** 接口响应时刻，用于在图上定位"当前小时"。 */
+  serverTime: string
+  stationCount: number
+  anyData: boolean
+  anyStale: boolean
+  stations: AnalyticsEnergyForecastStation[]
+}
