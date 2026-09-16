@@ -10,6 +10,9 @@
   1. 纯离线：只读特征 CSV，不连接生产库；结果以文件形式交付导入
   2. 可复现：固定随机种子，时间序切分（不用随机切分，避免未来数据泄漏）
   3. 诚实标注：--synthesize 生成的数据集在报告与 model_version 中显式标记 synthetic
+  4. 日期契约：落库日期必须是"将被消费的那一天"——服务按 `forecast_date = CURDATE()` 读取，
+     只盖生成当天会让预测在午夜**立即失效**（实测 23:50 生成、00:01 即不可见），
+     故提供 --forecast-date / --forecast-days 以覆盖消费日并容忍作业跨午夜执行
 
 用法：
   # 1) 用真实导出数据训练
@@ -20,6 +23,10 @@
 
   # 3) 指定后端（默认 auto：优先 xgboost，不可用时退 sklearn 的 quantile GBM）
   python scripts/ml/energy_demand_forecast.py --synthesize --backend sklearn
+
+  # 4) 生产日作业：把 24 小时剖面同时盖在今天与明天（容忍作业跨过午夜执行）
+  python scripts/ml/energy_demand_forecast.py --input reports/energy_features.csv \
+      --forecast-days 2 --out-dir reports
 """
 
 from __future__ import annotations
@@ -261,7 +268,15 @@ def run_forecast(frame: pd.DataFrame, backend: str, model_version: str) -> Forec
 # --------------------------------------------------------------------------- #
 
 def write_outputs(result: ForecastResult, out_dir: str, dataset_label: str,
-                  forecast_date: dt.date) -> dict:
+                  forecast_dates: list) -> dict:
+    """产出预测 CSV / 导入 SQL / 评估报告。
+
+    落库口径（关键）：模型的产出是**逐小时需求剖面**（每站点 24 条），而
+    `EnergyForecastServiceImpl` 按 `forecast_date = CURDATE()` + `hour_of_day = HOUR(NOW())`
+    读取。因此剖面必须盖在**它将被消费的那一天**上——只盖生成当天会让预测在午夜立即失效
+    （实测 23:50 生成，00:01 即 service_visible=0）。`forecast_dates` 允许一次盖多天，
+    使日作业无论跑在午夜前还是午夜后都不会留下空档。
+    """
     os.makedirs(out_dir, exist_ok=True)
     predictions_path = os.path.join(out_dir, "energy_forecast_predictions.csv")
     sql_path = os.path.join(out_dir, "energy_forecast_result.sql")
@@ -273,29 +288,38 @@ def write_outputs(result: ForecastResult, out_dir: str, dataset_label: str,
     rows["pressure_p95"] = rows["pressure_p95"].round(4)
     rows.to_csv(predictions_path, index=False, encoding="utf-8")
 
+    # 回测窗口内同一小时会出现多行，按 slot_start 取最新一条，得到干净的 24 小时剖面
+    profile = rows.assign(hour_of_day=pd.to_datetime(rows["slot_start"]).dt.hour)
+    profile = (profile.sort_values("slot_start")
+                      .drop_duplicates(subset=["park_id", "station_id", "hour_of_day"], keep="last")
+                      .sort_values(["station_id", "hour_of_day"]))
+
     generated_at = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    stamped = ",".join(d.isoformat() for d in forecast_dates)
     with open(sql_path, "w", encoding="utf-8") as handle:
         handle.write("-- ALG-FC 预测导入（由 scripts/ml/energy_demand_forecast.py 生成）\n")
         handle.write(f"-- model_version={result.model_version} backend={result.backend}\n")
-        handle.write(f"-- dataset={dataset_label} rows={len(rows)}\n\n")
+        handle.write(f"-- dataset={dataset_label} 回测行={len(rows)} "
+                     f"剖面站点×小时={len(profile)} forecast_dates={stamped}\n\n")
         handle.write("USE `fsd_core`;\n\n")
-        for _, row in rows.iterrows():
-            hour = int(pd.Timestamp(row["slot_start"]).hour)
-            handle.write(
-                "INSERT INTO `t_energy_forecast` "
-                "(`park_id`,`station_id`,`station_code`,`forecast_date`,`hour_of_day`,"
-                "`demand_p50`,`demand_p90`,`pressure_p95`,`sample_count`,`model_version`,"
-                "`generated_at`,`remark`,`deleted`)\n"
-                f"VALUES ({int(row['park_id'])},{int(row['station_id'])},"
-                f"'{row['station_code']}','{forecast_date}',{hour},"
-                f"{row['demand_p50']:.4f},{row['demand_p90']:.4f},{row['pressure_p95']:.4f},"
-                f"{result.train_rows},'{result.model_version}','{generated_at}',"
-                f"'{dataset_label}','0')\n"
-                "ON DUPLICATE KEY UPDATE "
-                "`demand_p50`=VALUES(`demand_p50`),`demand_p90`=VALUES(`demand_p90`),"
-                "`pressure_p95`=VALUES(`pressure_p95`),`sample_count`=VALUES(`sample_count`),"
-                "`generated_at`=VALUES(`generated_at`),`remark`=VALUES(`remark`);\n"
-            )
+        for forecast_date in forecast_dates:
+            for _, row in profile.iterrows():
+                hour = int(row["hour_of_day"])
+                handle.write(
+                    "INSERT INTO `t_energy_forecast` "
+                    "(`park_id`,`station_id`,`station_code`,`forecast_date`,`hour_of_day`,"
+                    "`demand_p50`,`demand_p90`,`pressure_p95`,`sample_count`,`model_version`,"
+                    "`generated_at`,`remark`,`deleted`)\n"
+                    f"VALUES ({int(row['park_id'])},{int(row['station_id'])},"
+                    f"'{row['station_code']}','{forecast_date}',{hour},"
+                    f"{row['demand_p50']:.4f},{row['demand_p90']:.4f},{row['pressure_p95']:.4f},"
+                    f"{result.train_rows},'{result.model_version}','{generated_at}',"
+                    f"'{dataset_label}','0')\n"
+                    "ON DUPLICATE KEY UPDATE "
+                    "`demand_p50`=VALUES(`demand_p50`),`demand_p90`=VALUES(`demand_p90`),"
+                    "`pressure_p95`=VALUES(`pressure_p95`),`sample_count`=VALUES(`sample_count`),"
+                    "`generated_at`=VALUES(`generated_at`),`remark`=VALUES(`remark`);\n"
+                )
 
     with open(report_path, "w", encoding="utf-8") as handle:
         handle.write("# 站点补能需求预测评估报告（ALG-FC）\n\n")
@@ -305,7 +329,9 @@ def write_outputs(result: ForecastResult, out_dir: str, dataset_label: str,
         handle.write(f"- 模型版本：{result.model_version}\n")
         handle.write(f"- 训练 / 测试样本：{result.train_rows} / {result.test_rows}（时间序切分，后 {int(TEST_FRACTION * 100)}% 为测试）\n")
         handle.write(f"- 目标变量：站点小时到站补能次数（arrivals）\n")
-        handle.write(f"- 分位数：P50 / P90；压力指标：过去 {PRESSURE_WINDOW_HOURS}h 到站量的 P{int(PRESSURE_QUANTILE * 100)}\n\n")
+        handle.write(f"- 分位数：P50 / P90；压力指标：过去 {PRESSURE_WINDOW_HOURS}h 到站量的 P{int(PRESSURE_QUANTILE * 100)}\n")
+        handle.write(f"- 落库日期（forecast_date）：{stamped}（共 {len(forecast_dates)} 天 × "
+                     f"{len(profile)} 小时剖面）\n\n")
         handle.write("## 指标\n\n| 指标 | 数值 |\n| --- | --- |\n")
         label_map = {
             "pinball_p50": "Pinball loss (α=0.5)",
@@ -335,6 +361,9 @@ def write_outputs(result: ForecastResult, out_dir: str, dataset_label: str,
         "predictions": predictions_path,
         "sql": sql_path,
         "report": report_path,
+        "profile_hours": int(len(profile)),
+        "forecast_dates": [d.isoformat() for d in forecast_dates],
+        "insert_rows": int(len(profile) * len(forecast_dates)),
         "metrics": result.metrics,
     }
 
@@ -348,6 +377,11 @@ def main() -> int:
     parser.add_argument("--stations", type=int, default=4, help="仿真站点数（--synthesize）")
     parser.add_argument("--out-dir", default="reports")
     parser.add_argument("--model-version", default=None)
+    parser.add_argument("--forecast-date", default=None,
+                        help="落库起始日期（YYYY-MM-DD，默认=今天）")
+    parser.add_argument("--forecast-days", type=int, default=1,
+                        help="从起始日期起连续落库的天数（默认 1；生产建议 2，"
+                             "以容忍日作业跨过午夜执行）")
     args = parser.parse_args()
 
     if args.synthesize or not args.input:
@@ -362,11 +396,15 @@ def main() -> int:
     if frame.empty:
         raise SystemExit("特征构造后无有效样本：请检查数据量是否足够（至少需要 8 天连续小时数据）")
 
+    base_date = dt.date.fromisoformat(args.forecast_date) if args.forecast_date else dt.date.today()
+    forecast_dates = [base_date + dt.timedelta(days=offset)
+                      for offset in range(max(1, args.forecast_days))]
+
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M")
     model_version = args.model_version or f"energy-demand-{backend}-{dataset_label}-{stamp}"
 
     result = run_forecast(frame, backend, model_version)
-    outputs = write_outputs(result, args.out_dir, dataset_label, dt.date.today())
+    outputs = write_outputs(result, args.out_dir, dataset_label, forecast_dates)
 
     print(json.dumps({
         "backend": result.backend,
