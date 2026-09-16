@@ -58,10 +58,12 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationService {
 
@@ -99,6 +101,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     private final RoadRouteService roadRouteService;
     private final ParkGeoTransformService parkGeoTransformService;
     private final StationRoadSnapService stationRoadSnapService;
+    private final com.fsd.dispatch.service.EnergyForecastService energyForecastService;
     private boolean dispatchDemandActive;
 
     private List<ParkPointResponse> zjfChargingSpots;
@@ -125,7 +128,8 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                                           MapfRoutePlannerService mapfRoutePlannerService,
                                           RoadRouteService roadRouteService,
                                           ParkGeoTransformService parkGeoTransformService,
-                                          StationRoadSnapService stationRoadSnapService) {
+                                          StationRoadSnapService stationRoadSnapService,
+                                          com.fsd.dispatch.service.EnergyForecastService energyForecastService) {
         this.parkPilotProperties = parkPilotProperties;
         this.fleetEnergyProperties = fleetEnergyProperties;
         this.fleetChargePolicy = fleetChargePolicy;
@@ -149,6 +153,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         this.roadRouteService = roadRouteService;
         this.parkGeoTransformService = parkGeoTransformService;
         this.stationRoadSnapService = stationRoadSnapService;
+        this.energyForecastService = energyForecastService;
     }
 
     @Override
@@ -789,8 +794,26 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.targetY = state.chargingPoint.getY();
     }
 
+    /**
+     * 返充时机判定（ALG-FC 接入点）。
+     *
+     * <p>阈值判定仍由 {@link FleetChargePolicy} 负责（Redis 热更新、5s 生效）；
+     * 在此基础上叠加"补能高峰错峰"：站点/园区预测到站压力达到阈值、且 SOC 距临界值仍有安全余量时，
+     * 暂缓返充、等待压力回落后再充。预测缺失/超期时该方法返回 false，行为与接入前完全一致。
+     */
     private boolean shouldReturnToCharge(VehicleEntity vehicle) {
-        return fleetChargePolicy.shouldReturnToCharge(vehicle.getBatteryLevel());
+        if (!fleetChargePolicy.shouldReturnToCharge(vehicle.getBatteryLevel())) {
+            return false;
+        }
+        boolean defer = energyForecastService.shouldDeferReturnToCharge(
+                java.time.LocalDate.now(),
+                vehicle.getParkId() != null ? vehicle.getParkId() : defaultParkId(),
+                vehicle.getBatteryLevel());
+        if (defer && log.isDebugEnabled()) {
+            log.debug("return-to-charge deferred by energy forecast: vehicle={}, soc={}",
+                    vehicle.getVehicleCode(), vehicle.getBatteryLevel());
+        }
+        return !defer;
     }
 
     private boolean isChargeSessionComplete(VehicleEntity vehicle) {

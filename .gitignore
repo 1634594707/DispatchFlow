@@ -49,6 +49,10 @@ back/boot.err.log
 __pycache__/
 *.pyc
 
+# Python 训练环境与预测产物（ALG-FC，见 scripts/ml/README.md）
+.venv-ml/
+reports/
+
 # Logs
 *.log
 

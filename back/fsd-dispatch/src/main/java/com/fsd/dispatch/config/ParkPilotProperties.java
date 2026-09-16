@@ -42,6 +42,35 @@ public class ParkPilotProperties {
 
     private GeoConfig geo = new GeoConfig();
 
+    /** 路网寻路算法配置（A* / Dijkstra 切换，ALG-A*）。 */
+    private RoutePlanConfig routePlan = new RoutePlanConfig();
+
+    @Data
+    public static class RoutePlanConfig {
+
+        /**
+         * A* 开关，默认开启。关闭后回退 Dijkstra 全量扩展（回滚开关）。
+         *
+         * <p>当图内节点 GPS 覆盖不一致（部分节点带 coordLng/coordLat、部分仅有 schematic
+         * 像素坐标）时，边权会在"米"与"像素"之间混用，启发函数不再可采纳，此时无论该开关
+         * 取值如何都会自动回退 Dijkstra，以保证最优性。
+         */
+        private boolean aStarEnabled = true;
+
+        /**
+         * 加权 A* 的启发权重 w（T-05）：f(n) = g(n) + w · h(n)。
+         *
+         * <p>取值语义：
+         * <ul>
+         *   <li>{@code 1.0}（默认）= 标准 A*，h 可采纳且一致，保证最优解</li>
+         *   <li>{@code >1.0} = 加权 A*，牺牲最优性换取搜索规模：解代价上界为 {@code w × 最优代价}，
+         *       展开节点数随 w 增大而下降，适用于"路径质量可让步、规划时延敏感"的场景</li>
+         * </ul>
+         * 取值小于 1.0 会被夹取为 1.0（w&lt;1 只会削弱启发强度，不产生收益）。
+         */
+        private double aStarWeight = 1.0D;
+    }
+
     @Data
     public static class GeoConfig {
 

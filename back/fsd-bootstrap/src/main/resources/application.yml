@@ -103,6 +103,12 @@ fsd:
     min-zoom: ${FSD_PARK_MIN_ZOOM:-1}
     max-zoom: ${FSD_PARK_MAX_ZOOM:3}
     vehicle-speed-px-per-second: ${FSD_PARK_VEHICLE_SPEED_PX_PER_SECOND:8}
+    # ALG-A* / T-05：路网寻路算法开关与启发权重
+    route-plan:
+      # A* 开关；关闭后回退 Dijkstra。图内节点 GPS 覆盖不一致时也会自动回退（h 不可采纳）
+      a-star-enabled: ${FSD_PARK_ROUTE_PLAN_ASTAR_ENABLED:true}
+      # 启发权重 w：1.0 = 标准 A*（保证最优）；>1 = 加权 A*（代价上界 w×最优，换取更小搜索规模）
+      a-star-weight: ${FSD_PARK_ROUTE_PLAN_ASTAR_WEIGHT:1.0}
     geo:
       enabled: ${FSD_PARK_GEO_ENABLED:true}
       osm-geo-path: ${FSD_PILOT_OSM_GEO_PATH:../../data/pilot_osm_geo.json}

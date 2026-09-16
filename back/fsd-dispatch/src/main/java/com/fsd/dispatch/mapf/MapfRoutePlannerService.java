@@ -12,7 +12,10 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /**
- * MAPF 冲突感知路径规划：A* + Redis 时空预约 + 冲突重规划（M5.1–M5.2）。
+ * MAPF 冲突感知路径规划：A* 最短路 + Redis 时空预约 + 冲突边惩罚迭代重规划（M5.1–M5.2）。
+ *
+ * <p>寻路委托 {@link ParkRoutePlannerService}：图内节点度量一致时走 A*（h = 到终点直线距离），
+ * 否则回退 Dijkstra；冲突惩罚只增大边权，不破坏 A* 的可采纳性。
  */
 @Service
 public class MapfRoutePlannerService {

@@ -14,6 +14,7 @@ final class IntegrationTestSchema {
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_admin_session");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_admin_user");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_charging_session");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_energy_forecast");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_charging_pile");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_park_geofence");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_parking_slot");
@@ -349,6 +350,28 @@ final class IntegrationTestSchema {
                     end_soc INT,
                     start_time TIMESTAMP,
                     end_time TIMESTAMP,
+                    remark VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    version INT DEFAULT 0,
+                    deleted TINYINT DEFAULT 0
+                )
+                """);
+
+        jdbcTemplate.execute("""
+                CREATE TABLE t_energy_forecast (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    park_id BIGINT NOT NULL,
+                    station_id BIGINT NOT NULL,
+                    station_code VARCHAR(64),
+                    forecast_date DATE NOT NULL,
+                    hour_of_day INT NOT NULL,
+                    demand_p50 DECIMAL(10,4) NOT NULL DEFAULT 0,
+                    demand_p90 DECIMAL(10,4) NOT NULL DEFAULT 0,
+                    pressure_p95 DECIMAL(10,4) NOT NULL DEFAULT 0,
+                    sample_count INT NOT NULL DEFAULT 0,
+                    model_version VARCHAR(64) NOT NULL,
+                    generated_at TIMESTAMP NOT NULL,
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

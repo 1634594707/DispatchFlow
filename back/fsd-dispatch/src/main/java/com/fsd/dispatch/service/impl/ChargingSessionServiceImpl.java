@@ -206,7 +206,7 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
             if (slot == null || slot.getCoordLng() == null || slot.getCoordLat() == null) {
                 continue;
             }
-            // Phase 4：改用路网 A* 距离替代直线 haversine
+            // Phase 4：改用路网最短路距离替代直线 haversine（寻路算法见 ParkRoutePlannerService）
             double distance = roadNetworkDistanceMeters(slot.getParkId(),
                     vehicleX, vehicleY, slot.getCoordX(), slot.getCoordY(),
                     vehicleGeoOpt.orElse(null), new GeoPoint(slot.getCoordLng(), slot.getCoordLat()));
@@ -321,7 +321,7 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
             GeoPoint pileGeo = new GeoPoint(slot.getCoordLng(), slot.getCoordLat());
             BigDecimal fromX = fromXY.map(ParkGeoTransformService.ParkPoint::x).orElse(null);
             BigDecimal fromY = fromXY.map(ParkGeoTransformService.ParkPoint::y).orElse(null);
-            // Phase 4：改用路网 A* 距离（米），回退到直线 haversine
+            // Phase 4：改用路网最短路距离（米），回退到直线 haversine
             double distance = roadNetworkDistanceMeters(parkId,
                     fromX, fromY, slot.getCoordX(), slot.getCoordY(), fromGeo, pileGeo);
             if (distance < nearest) {
@@ -382,7 +382,8 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
     }
 
     /**
-     * Phase 4：使用路网 A* 距离（米）替代直线 haversine。
+     * Phase 4：使用路网最短路距离（米）替代直线 haversine。
+     * 寻路算法由 {@link com.fsd.dispatch.service.ParkRoutePlannerService} 决定（A*，图内度量不一致时回退 Dijkstra）。
      * 当路网不可用（空图/不可达/缺 schematic 坐标）时回退到直线 haversine。
      */
     private double roadNetworkDistanceMeters(Long parkId,
