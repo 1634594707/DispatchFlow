@@ -805,11 +805,20 @@ docker exec fsd-mysql sh -c \
 > 并列裁决、MQTT 重订阅、MAPF 单位）；两个仪表缺陷（陈旧 jar 启动脚本、t 分位数表 df 错位）已修并加守卫；
 > 关键实测数字：图缓存使派单 P50 从 103.96 → 77.61 ms；MAPF 冲突率 24.4% 首次可读；
 > L 档完成率在 40 台前即饱和；两个未标定参数合成约 22pp 的完成率不确定带。
+
 ### 13.27 本文件全部工作中**没有**做的事
 
-- **未执行任何服务器动作**：§12.3 只读核查、§12.4 部署动作、SSH `dispatch` 全部未碰，按"止于部署前"的要求交回本人。
-- 未提交、未打 tag：`提交/丢弃其余未提交改动` 这条含逐文件裁决（`.gh-check.js` 是 CI 探针草稿、`front/Dockerfile` 的 `chmod +x` 是构建绕过、未跟踪的 `geo-py/` + `GeoQueryService` 三件套属 §9 的"要么接进围栏补 N≥5,000 压测、要么 README 写明规模预案未接线"），等本人定口径。
-- **本轮收尾自查（2026-09-22，命令级）**：文档 §13.x 全部交叉引用都指向存在的小节（脚本比对：26 个小节、引用 0 处悬空），五份报告产物与 `scripts/analysis/forecast-flatness.js` 均在位；`git status` 共 124 项工作区变更，**未提交、未打 tag**（按 §13.27 第一条交回本人）。
+- **服务器动作已在授权后执行完第一轮**（此前该条为"全部未碰"）：2026-09-22 按你指令做了服务器清理
+  （`codefolio` 容器与两个数据卷删除、`code.aplicity.online` 置 410、构建缓存回收 4.15 GB）
+  与第一轮部署（V51 → V56，未跑 repair，实测校验和一致）；核查真实值与过程记录在《已完成工作记录》。
+  **仍然没做的服务器动作**：日志轮转、内存上限调整、`.env` 的 `FSD_ADMIN_TOKEN_HMAC_KEY` 补齐、真车 MQTT 压测。
+- 提交与基线 tag：部署前为"未提交、无 tag"，现已按主题提交并打 tag `pre-deploy-v52-56`（部署包即从该提交树 `git archive` 导出）。
+  **仍按你的搁置决定留在工作区未提交的只有两处**：`.gh-check.js`（CI 探针草稿）与未接线的 geo 三件套
+  （`GeoQueryService`/`GeoServiceClient`/`GeoServiceProperties` + 其测试）—— 后者若进 main 就是死代码 bean，
+  按 §9 应"接进围栏补 N≥5,000 压测"或明确 README 记载未接线，二者都还没做。
+- **文档拆分后的自查（2026-09-22）**：执行记录已迁至《已完成工作记录》(860 行，0 个待办项)，本文档 823 行保留目标/约束/闸门与未完成项；
+  拆分做了**行守恒校验**（原文逐行比对，唯一差异是被改名的旧 §12.5 标题）；`reports/*.md` 已解除 .gitignore 屏蔽进仓库，
+  因为本文几十处引用它们，此前它们在仓库外、克隆即断链。
 - **§7.2「乐观锁是装饰品」的当前状态证据（已复核，尚未修）**：全仓 main 里 `@Version` 与 `OptimisticLockerInnerInterceptor` **零命中**，而 `AdminUserServiceImpl.java:60`、`DispatchStrategyAdminServiceImpl.java:89`、`InfrastructureAdminServiceImpl.java:104/:173` 等仍在 `setVersion(0)` —— 即版本号只被写死成初值，既不递增也不参与 WHERE ⇒ `t_dispatch_task.version` 的注释「乐观锁版本号」是假的。修法二选一（接上插件并证明并发下确有一次更新失败重试，或删列 + 删注释），需要一轮独立工作：接插件会改变该实体所有 UPDATE 的语义，必须先用 `DispatchConcurrencyIntegrationTest` 钉住前后差异，不能盲接。本轮未动它。
 - 未动 `Tracking.vue`、`digital-twin/Index.vue`、`ParkPilotSimulationServiceImpl` 本体（冻结清单）；`ParkPilotSimulationServiceImpl` 与 `RealFleetSwapCoordinator` 只改了 §7.2 点名的调用行（方法签名换 `strategyForAssign`），未触算法。
 
