@@ -1,9 +1,12 @@
 # DispatchFlow 生产部署
 # 使用方式：
-#   1. 在服务器上 git pull 代码
-#   2. 复制 .env.production 为 .env，填写实际值
+#   1. 把改动文件同步到 /opt/dispatchflow（sftp，本目录不是 git 仓库）
+#   2. 在服务器 .env 填实际值（.env 由 .env.production 派生，但只做「键的并集」，绝不覆盖）
 #   3. 申请 SSL 证书到 /etc/letsencrypt/live/aplicity.online/
 #   4. docker compose -f docker-compose.prod.yml up -d
+#
+# 变量命名约定：新键用 RABBITMQ_USERNAME / RABBITMQ_PASSWORD，
+# 用 ${NEW:-${OLD}} 回退兼容存量服务器 .env 里的 RABBITMQ_USER / RABBITMQ_PASS。
 #
 # Cloudflare 配置：
 #   DNS A 记录 @ / admin / www 指向本机 IP，代理状态开启
@@ -72,8 +75,9 @@ services:
     image: rabbitmq:3.13-management
     container_name: fsd-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+      # 兼容两种命名：新键 RABBITMQ_USERNAME/PASSWORD 优先，回退存量 .env 的 RABBITMQ_USER/PASS
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-${RABBITMQ_USER}}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-${RABBITMQ_PASS}}
       TZ: Asia/Shanghai
     ports:
       - "127.0.0.1:15673:15672"
