@@ -8,8 +8,11 @@
 # 变量命名约定：新键用 RABBITMQ_USERNAME / RABBITMQ_PASSWORD，
 # 用 ${NEW:-${OLD}} 回退兼容存量服务器 .env 里的 RABBITMQ_USER / RABBITMQ_PASS。
 #
+# 域名（宿主机 Nginx 按域名分发，实际生效值）：
+#   www.aplicity.online / app.aplicity.online -> 127.0.0.1:8081 (fsd-frontend)
+#   code.aplicity.online                      -> 127.0.0.1:8082 (codefolio)
+#   （不存在 admin.aplicity.online；早期文档写 admin 的一律按 app 理解）
 # Cloudflare 配置：
-#   DNS A 记录 @ / admin / www 指向本机 IP，代理状态开启
 #   SSL/TLS 模式设为 Full (strict)
 
 services:
@@ -150,6 +153,12 @@ services:
       SPRINGDOC_API_DOCS_ENABLED: "false"
       SPRINGDOC_SWAGGER_UI_ENABLED: "false"
       FSD_ADMIN_AUTH_ENABLED: "true"
+      # ⚠️ 下面两键后端**完全不读取**：全仓搜索无 `fsd.admin.user` / `fsd.admin.password`
+      # 配置绑定，AdminAuthServiceImpl 只认 t_admin_user.password_hash（BCrypt）。
+      # 它们仅作为「运维侧备忘」保留，改口令不会因为改了这里而生效。
+      # 正确改口令方式：POST /api/admin/auth/change-password（需 X-Admin-Token），
+      # 或直接 UPDATE t_admin_user.password_hash 为 BCrypt 值。
+      # 2026-09-21 已把 admin 的口令对齐为这两个键里 FSD_ADMIN_PASSWORD 的值。
       FSD_ADMIN_USER: ${FSD_ADMIN_USER}
       FSD_ADMIN_PASSWORD: ${FSD_ADMIN_PASSWORD}
       FSD_AMAP_WEB_SERVICE_KEY: ${FSD_AMAP_WEB_SERVICE_KEY}
