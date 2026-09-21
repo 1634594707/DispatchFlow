@@ -285,8 +285,8 @@ M7 PostGIS   → 本次不做，或做但不开开关
 | # | 事项 | 为什么现在提 | 建议动作 |
 |---|---|---|---|
 | 1 | ~~**建设自动备份**（最高优先）~~ **✅ 已于同日完成，见 §13** | 全库备份原先**完全依赖人手**，最近一份曾停在 5 天前；本文件自己写着「从没演练过的备份等于没有备份」 | 已完成：脚本入服务器 + root crontab 每日 02:00 + **真实恢复演练通过** |
-| 2 | 管理员凭据对齐 | 服务器 `.env` 的 `FSD_ADMIN_USER`/`FSD_ADMIN_PASSWORD` 与 `t_admin_user` 里的哈希**不匹配**（实测登录返回 `ADMIN_LOGIN_FAILED`） | 统一成真实口令，否则任何接口级联调都卡在登录 |
-| 3 | 端到端闭环验收 | M4 里 SSE 大屏、Webhook HMAC 投递、阈值热更新这三项因为没有管理员 token 被 SKIP | 提供一次真实管理员口令，或手工在浏览器跑一单，把这三项补验 |
+| 2 | ~~管理员凭据对齐~~ **✅ 已于同日完成，见 §14** | 根因不是口令写错，而是 `.env` 的 `FSD_ADMIN_USER`/`FSD_ADMIN_PASSWORD` **后端从不读取**（死配置）；口令唯一权威在 `t_admin_user.password_hash` | 已完成：走 `change-password` 接口把 admin 口令对齐为 `.env` 里的值，容器内 + 公网双验收通过 |
+| 3 | 端到端闭环验收 | M4 里 SSE 大屏、Webhook HMAC 投递、阈值热更新这三项因为没有管理员 token 被 SKIP | **已解除阻塞**（§14 起口令可用）：把 `.env` 的 `FSD_ADMIN_PASSWORD` 作为 `ADMIN_TOKEN` 来源登录后补验这三项；注意 `t_webhook_subscription` 是空表，Webhook 投递仍需先建一条订阅才能验 |
 | 4 | `docs/` 的整文件删除与 434 行裁删 | §9 悬而未决项，与部署无关，不该混进部署提交 | 单独提交、单独 review |
 | 5 | 本地提交未推送 | 本地 `main` 领先 `origin/main` 若干提交（本次整改结束时为 36 个，含本次 3 个）；服务器不依赖 git，所以不影响部署 | 决定何时 push |
 | 6 | ~~M5（SIM 专属发现）~~ **✅ 已按「选 A」完成，见 §M5** | 已核实 `FleetAutomationScheduler:49-51` 的查询条件写死 `REAL/VDA5050`，全 SIM 下该 120s 任务每轮扫到 0 台车 | 已写入 `docs/运维手册-评分权重与能量阈值.md` §2.5；**未**改代码（不选 B，避免与仿真环补能逻辑冲突） |
@@ -343,4 +343,56 @@ M7 PostGIS   → 本次不做，或做但不开开关
 - `t_station` 28 个站点里有 **15 个 `coord_lng`/`coord_lat` 为 NULL**（id 101–104 的 `A* PICKUP`、201–204 的 `B* DROPOFF` 等）—— 与既有认知"站点双坐标无权威"一致，改造时需一并处理。
 - 库里有张遗留表 **`flyway_schema_history_pre_reconcile`**，加上历史行 baseline=50（而 `application.yml` 写的是 `baseline-version: 20`），可推定当年做过一次手工 baseline 对账。**别删这张表、也别"修正"配置**。
 - `t_park_geofence.fence_name` 里写的是「找家纺网送货区（**忠**石桥试点）」；真实地名是**叠**石桥。疑似数据录入错别字，建议与业务确认后再改。
+
+---
+
+## 14. ✅ 已解决：管理端口令对齐（2026-09-21 同日完成）
+
+对应 §12 第 2 条。**根因不是「口令写错了」，而是那两行配置从来就没被后端读过。**
+
+### 14.1 根因（附证据）
+
+| 事实 | 证据 |
+|---|---|
+| `.env` 的 `FSD_ADMIN_USER` / `FSD_ADMIN_PASSWORD` 被后端**完全忽略** | 全仓搜索 `FSD_ADMIN_USER` / `FSD_ADMIN_PASSWORD` 在 `back/**/*.java`、`*.yml` 中**零命中**；`application.yml` 的 `fsd.security.admin` 块只有 `enabled` / `token-hmac-key` / `tokens` 三个键 |
+| 口令唯一权威是数据库 | `AdminAuthServiceImpl#login`：`selectOne(username, deleted=0)` → `passwordEncoder.matches(明文, user.getPasswordHash())`，编码器为 `BCryptPasswordEncoder` |
+| 所以 `.env` 里的口令一直没生效 | 用 `.env` 凭据登录返回 `ADMIN_LOGIN_FAILED`；用 V11 种子口令 `admin123` 返回 `SUCCESS` |
+
+> 即：这两个键从加入 compose 起就是**死配置**。任何"改 `.env` 就会改口令"的假设都是错的（本文件原 §12 第 2 条也隐含了这个错误假设）。
+
+### 14.2 处置方式
+
+**没有手搓 BCrypt 哈希**，而是走应用自身的
+`POST /api/admin/auth/change-password`（`old=admin123` → `new=` `.env` 里的 `FSD_ADMIN_PASSWORD`），
+由 `BCryptPasswordEncoder` 自己算哈希 —— 避免手写哈希参数（cost / `$2a$` vs `$2b$`）与线上不一致。
+明文全程**不落日志、不回显**（脚本内用 `os.environ` 读取，只输出长度/首末字符）。
+
+改前先做了**校验通过的备份**，并把旧哈希写入 `/root/df_admin_reset_rollback_<TS>.txt`。
+
+### 14.3 验收（全部通过）
+
+| 检查 | 结果 |
+|---|---|
+| 容器内直连 `127.0.0.1:8080` 用 `.env` 凭据登录 | `code=SUCCESS` / `role=ADMIN` / token 97 字符 ✓ |
+| **公网 `https://app.aplicity.online/api/admin/auth/login`** 用 `.env` 凭据登录 | `code=SUCCESS` / `role=ADMIN` ✓ |
+| 旧种子口令 `admin123` | `code=ADMIN_LOGIN_FAILED`（已失效）✓ |
+| `password_hash` | 前缀 `$2a$10$` / 长度 60（`$2b$` → `$2a$`，说明确由 Spring Security 编码器重新生成）✓ |
+| 账号表 | 仍为 3 行（admin / operator / viewer），未增删 ✓ |
+| 会话 | `changePassword` 按设计清空了该用户既有会话；验收登录新建 2 条 |
+
+**回滚**：把 `admin` 的 `password_hash` 换回 V11 种子值
+`$2b$10$vojppRI7O0uN8xZxVnWB2OyQ1lJBU2te3G1XKNHewk7zuor1ffBVK`，口令即恢复为 `admin123`。
+
+### 14.4 顺手修掉的误导源
+
+`docker-compose.prod.yml` 里那两行**原样保留**（删掉有未知风险，且对运行无副作用），但补了醒目注释说明
+"后端不读、改这里不生效、正确改法是 `change-password` 或直接改 `t_admin_user.password_hash`"；
+同时把文件头的 Cloudflare 域名单按**实际 Nginx 生效值**改写（原文写 `admin` 记录，实际是 `app`）。
+→ 仅改注释，`docker compose config` 的解析结果**逐字节不变**，不触发任何容器重建。
+
+### 14.5 仍然存在的弱口令（未动，需你决定）
+
+`operator` / `viewer` 仍是 V11 种子口令（`operator123` / `viewer123`，对应 `OPERATOR` / `VIEWER` 角色）。
+本轮**没有**改动它们 —— 这属于权限面的认证变更，超出"对齐 admin"的授权范围。
+建议尽快改掉，或确认这两个账号是否需要保留启用。
 
