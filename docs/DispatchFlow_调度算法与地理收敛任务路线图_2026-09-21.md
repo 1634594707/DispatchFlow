@@ -780,22 +780,37 @@ docker exec fsd-mysql sh -c \
 
 ### 12.4 部署动作（与 M0 一一对应，顺序不能换）
 
-- [ ] **M0 的 V33/V34 回退 + `flyway repair` 必须在部署前完成** —— 否则 `FLYWAY_ENABLED=true` 下启动即校验失败（`docs/DispatchFlow_部署整改任务路线图_2026-09-21.md` §1.1 已列为阻断项）
-- [ ] backend limit 2 G → 3 G、`Xmx` 1536 M → 2048 M（§11.2）
+- [x] ~~V33/V34 回退 + flyway repair~~ → **2026-09-22 实测判定不需要**：生产 history 只有 `V50 BASELINE` + `V51`，V33/V34 的 `channel_type`/`agg_count` 是 dump 带进来的（所以谈不上「改了就应用的迁移」），部署前用 `check-migration-checksums.js` 逐条比对**校验和全部一致** ⇒ 直接 validate 通过、未跑 repair。原条保留划线以免后人又当成待办 —— 否则 `FLYWAY_ENABLED=true` 下启动即校验失败（`docs/DispatchFlow_部署整改任务路线图_2026-09-21.md` §1.1 已列为阻断项）
+- [ ] backend limit 2 G → 3 G、`Xmx` 1536 M → 2048 M（§11.2）—— **本轮实测数据更新了这条的判断**：backend 1.03 GiB / 2 GiB（51%）尚有裕度，**真正紧的是 MySQL 775 MiB / 1 GiB（76%）**，且 `docker-compose.prod.yml` 里根本没有 `mem_limit`/`Xmx` 字面值（限额来自别处/默认），所以先定位限额来源再调，别按旧文照改
 - [ ] 五个服务统一加 `logging: json-file, max-size 20m, max-file 5`（§11.3）
 - [ ] 服务器 `.env` 补齐 `FSD_ADMIN_TOKEN_HMAC_KEY`（`docker-compose.prod.yml:137-139` 注释已写明：不设置会导致每次重启随机 key、全员掉线）
 - [ ] **若启用真车接入（`FSD_VDA5050_MQTT_ENABLED=true`）**：部署后压一次「断 broker 30 s 再恢复」，确认 `dispatchflow.vda5050.mqtt.connection{event=resubscribed}` +1 且车辆状态重新入库（§13.26：本机没有 MQTT broker，这条是唯一能证明重订阅真的生效的验证）
-- [ ] 部署后跑 §12.3 第 1、4 条复验，并回填 §12.5
+- [x] 部署后跑 §12.3 第 1、3、4 条复验并回填 §12.5 —— **已完成**（V56、日志未轮转、生产 DEFAULT-BOUNDARY 4 顶点、车辆坐标确认为像素）
+- [ ] **还差的最后一条复验**：生产快照管道真正写入 —— `t_dispatch_decision_snapshot` 现为 **0 行**（表与 34 列已建、指标已注册），需要一次真实派单才算证明。要不要我用一个 remark 标记为 `post-deploy-verify` 的演示单去打这一单（会往生产写一行订单 + 一行快照），还是你在手机上点一单？
 
 ### 12.5 待回填（执行 §12.3 后填这里）
 
-| 项 | 值 |
-| --- | --- |
-| 生产 Flyway 末条版本 | 待填 |
-| 生产 `DEFAULT-BOUNDARY` 是否同为 17.33 km² / 9 顶点 | 待填 |
-| 生产站点坐标叠置是否同为 14 个对象一点 | 待填 |
-| 生产 `t_vehicle.current_longitude` 是否同为像素值 | 待填 |
-| 生产容器日志实际占用 | 待填 |
+2026-09-22 第一轮部署（V51 → V56）执行后回填，全部为实测值：
+
+| 项 | 生产实测值 | 与本地的差异 / 结论 |
+| --- | --- | --- |
+| 生产 Flyway 末条版本 | **V56**（`road node component`，2026-09-22 04:21:47）；V52–V56 五条 `success=1`，`Successfully applied 5 migrations … now at version v56 (0.524s)` | 追平代码版本。部署前对照：仓库磁盘校验和与生产 history **逐条一致**（`check-migration-checksums.js` → OK），因此 **没有跑 repair，也不需要** |
+| 生产 `DEFAULT-BOUNDARY` | **ACTIVE，4 个顶点**；其余四个园区围栏 9–11 顶点（CORE-SOUTH 11 / CORE-NORTH 10 / HUB 10 / EAST 10 / EXPRESS 9） | **与本地不同**（本地 §1.6 记的是 9 顶点 / 17.33 km²）⇒ 这是 §1.5/§7.5「地理内容改走 seed」尚未把生产追平的直接证据，不是猜测 |
+| 生产站点坐标叠置 | 只有 **1 组** 重复坐标 | 本地是 14 个对象叠在同一点（§1.9）⇒ 本地的叠置是后续实验引入的，生产的坑小得多；两边都该由 seed 统一 |
+| 生产 `t_vehicle.current_longitude` | **确认是像素值**：ZJF-AV-01…06 = `668.437`、07…20 = `578.400`（20 台仿真车） | §7.2「坐标语义污染」**在生产同样成立**，且 `VehicleAdminDetailResponse` 原样透出 ⇒ 该条不是本地洁癖，是线上问题（仍是待办） |
+| 生产容器日志 | 五个容器全部 `json-file` 且 **max-size 为空**（未设轮转）；当前合计仅 7.0 MB | §11.3 第 1 条**未落地**；眼下不紧迫但无上限，按月增长会吃掉磁盘 ⇒ 留作第二轮 |
+
+**这一轮顺带查出的四件事（都是新事实，不是复述既有待办）**
+
+1. `scripts/deploy.sh` 的预检把「已解析但尚未应用」的迁移判成 validate 失败，并且给的排错方向（改过已应用迁移 → `repair`）在这种情况下是错的、`repair` 也修不了 pending ⇒ 每次正常部署都会被自己的前置检查挡住。已修（validate/info 都带 `-ignoreMigrationPatterns='*:pending'`，只拦真不一致，并把待应用数量打出来）。
+2. `deploy.sh` 第 7 步用 `curl http://127.0.0.1:8080` 探活，但 backend 的 8080 **没有发布到宿主机**（端口语义：只 `8080/tcp`）⇒ 每次都打印「后端健康检查未通过」的假警报，而 `docker inspect` 明明是 healthy。核验要放在容器内做（本轮实测容器内 `health=200`、`/actuator/metrics` 里 **24 个 `dispatchflow` 指标在位**，含本轮新加的 snapshot/mapf/peak 计数器）。
+3. **裸域 `aplicity.online` 此前默认落到 codefolio 的 8082**（nginx 只有 `code.*` 与 `www/app` 两个 server_name，无匹配时取 443 的第一个块 = code 块）。所以下线 codefolio 后裸域直接 410。已把 `aplicity.online` 加进 app 块的 `server_name`（现裸域 200，标题 `DispatchFlow 无人车调度平台`；`code.aplicity.online` 保持 410）。原文件备份在 `/root/dsh-apps-https.conf.pre-bare-domain-fix`。
+4. `back/sql/migrations/` 里有 **两个永远不会被 Flyway 应用的文件**：`V13b__road_segment_traffic_columns.sql`、`V20b__report_history.sql`（`V<n>b__` 不符合命名约定，Flyway 明确报「detected but not run」）。生产实测 `t_report_history` 已存在但**列名与 V20b 不同**（`dataset/date/file_size_bytes/generated_at/generated_by`），即它来自 dump 而非这条迁移。两个文件都是幂等写法所以暂无危害，但它们是迁移图里的死信，要么改成 V57/V58 的守卫式迁移、要么删掉并把 schema 归位到 seed —— 未动，留待决定。
+
+**回滚参照**：DB `/opt/backups/fsd_core-predeploy-V51toV56-20260922-035412.sql.gz`（gzip 校验通过、47 张表）；
+镜像 `fsd-backend sha256:0328d0d90db7…` / `fsd-frontend sha256:b02e24f19286…`；
+compose 与仓库 HEAD 逐字一致（同步前已 `cmp` 验证，故本轮没有覆盖任何服务器独有配置）。
+`.env` 未被触碰（md5 `59ec612e…` 前后一致）。代码基线 tag：`pre-deploy-v52-56`。
 
 ---
 
