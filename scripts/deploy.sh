@@ -24,7 +24,7 @@ echo "  域名:     $DOMAIN"
 echo "===================================================="
 
 # ---------- 1. 检查 .env ----------
-echo "[1/7] 检查环境变量配置..."
+echo "[1/8] 检查环境变量配置..."
 if [ ! -f "$ENV_FILE" ]; then
   if [ -f "${PROJECT_DIR}/.env.production" ]; then
     cp "${PROJECT_DIR}/.env.production" "$ENV_FILE"
@@ -44,14 +44,48 @@ fi
 echo "  .env OK"
 
 # ---------- 2. 创建 Docker 卷 ----------
-echo "[2/7] 创建 Docker 数据卷..."
+echo "[2/8] 创建 Docker 数据卷..."
 docker volume create back_mysql-data 2>/dev/null || true
 docker volume create back_redis-data 2>/dev/null || true
 docker volume create back_rabbitmq-data 2>/dev/null || true
 echo "  数据卷已就绪"
 
-# ---------- 3. 申请 SSL 证书 ----------
-echo "[3/7] 检查 SSL 证书..."
+# ---------- 3. Flyway 前置检查 ----------
+# 已应用迁移的校验和一旦与磁盘文件不一致，后端在 FLYWAY_ENABLED=true 下启动即失败。
+# 默认只 validate；repair 会删除失败的迁移记录并对齐校验和，因此必须显式开启。
+echo "[3/8] Flyway 前置检查..."
+FLYWAY_IMAGE="${FLYWAY_IMAGE:-flyway/flyway:10.10-alpine}"
+if docker inspect -f '{{.State.Running}}' fsd-mysql 2>/dev/null | grep -q true; then
+  FLYWAY_NET="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{break}}{{end}}' fsd-mysql)"
+  # 口令只走 --env-file，不进命令行参数、不落任何记录
+  FLYWAY_ENV="$(mktemp)"
+  chmod 600 "$FLYWAY_ENV"
+  printf 'FLYWAY_URL=jdbc:mysql://fsd-mysql:3306/%s?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai\nFLYWAY_USER=root\nFLYWAY_PASSWORD=%s\n' \
+    "${MYSQL_DATABASE:-fsd_core}" "$MYSQL_ROOT_PASSWORD" > "$FLYWAY_ENV"
+  flyway_cli() {
+    docker run --rm --network "$FLYWAY_NET" --env-file "$FLYWAY_ENV" \
+      -v "$PROJECT_DIR/back/sql/migrations:/flyway/sql:ro" "$FLYWAY_IMAGE" \
+      -locations=filesystem:/flyway/sql -baselineVersion=20 -baselineOnMigrate=true "$@"
+  }
+  if flyway_cli validate; then
+    echo "  迁移校验和一致，可以启动。"
+  elif [ "${DEPLOY_FLYWAY_REPAIR:-0}" = "1" ]; then
+    echo "  validate 失败，DEPLOY_FLYWAY_REPAIR=1 → 执行 repair 后重新 validate..."
+    flyway_cli repair && flyway_cli validate
+  else
+    rm -f "$FLYWAY_ENV"
+    echo "[ERROR] Flyway validate 失败：要么有人改了已应用的迁移（必须 git checkout 还原，改动另开新迁移），" >&2
+    echo "        要么 history 里残留失败的迁移行（确认后才可 repair）。" >&2
+    echo "        确认无误后重跑：DEPLOY_FLYWAY_REPAIR=1 bash scripts/deploy.sh" >&2
+    exit 1
+  fi
+  rm -f "$FLYWAY_ENV"
+else
+  echo "  [WARN] fsd-mysql 未运行，跳过 validate（首次部署由容器初始化时自行迁移）"
+fi
+
+# ---------- 4. 申请 SSL 证书 ----------
+echo "[4/8] 检查 SSL 证书..."
 CERT_DIR="/etc/letsencrypt/live/${DOMAIN}"
 if [ ! -d "$CERT_DIR" ]; then
   echo "  申请 SSL 证书（standalone 模式，需先停止占用 80 端口的服务）..."
@@ -71,12 +105,12 @@ else
   echo "  SSL 证书已存在: $CERT_DIR"
 fi
 
-# ---------- 4. 构建并启动 ----------
-echo "[4/7] 构建并启动容器（首次构建可能耗时较长）..."
+# ---------- 5. 构建并启动 ----------
+echo "[5/8] 构建并启动容器（首次构建可能耗时较长）..."
 docker compose -f "$COMPOSE_FILE" up -d --build
 
-# ---------- 5. 等待健康检查 ----------
-echo "[5/7] 等待后端健康检查通过..."
+# ---------- 6. 等待健康检查 ----------
+echo "[6/8] 等待后端健康检查通过..."
 for i in $(seq 1 30); do
   STATUS=$(docker inspect --format='{{.State.Health.Status}}' fsd-backend 2>/dev/null || echo "starting")
   if [ "$STATUS" = "healthy" ]; then
@@ -87,16 +121,16 @@ for i in $(seq 1 30); do
   sleep 10
 done
 
-# ---------- 6. 验证 ----------
-echo "[6/7] 验证服务状态..."
+# ---------- 7. 验证 ----------
+echo "[7/8] 验证服务状态..."
 docker compose -f "$COMPOSE_FILE" ps
 
 echo ""
 echo "  健康检查:"
 curl -fsS "http://127.0.0.1:8080/internal/actuator/health" 2>/dev/null && echo "" || echo "  [WARN] 后端健康检查未通过，请查看日志: docker logs fsd-backend"
 
-# ---------- 7. 完成 ----------
-echo "[7/7] 部署完成"
+# ---------- 8. 完成 ----------
+echo "[8/8] 部署完成"
 echo "===================================================="
 echo "  访问地址:"
 echo "    主域名（手机端）: https://${DOMAIN}"

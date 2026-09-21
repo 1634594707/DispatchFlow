@@ -1,0 +1,40 @@
+name: fsd-geo
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: fsd-geo-postgis
+    # 5433 而非 5432：本机已有一个 PostgreSQL 18 占用 5432，避免抢端口
+    ports:
+      - "${GEO_PG_PORT:-5433}:5432"
+    environment:
+      POSTGRES_DB: ${GEO_PG_DB:-fsd_geo}
+      POSTGRES_USER: ${GEO_PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${GEO_PG_PASSWORD:?必须显式提供，不给默认值}
+    volumes:
+      - fsd-geo-pgdata:/var/lib/postgresql/data
+      # 容器首次初始化时自动建 schema；重启用 seed 脚本重放
+      - ./sql/001_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${GEO_PG_USER:-postgres} -d ${GEO_PG_DB:-fsd_geo}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  geo-api:
+    build: .
+    container_name: fsd-geo-api
+    depends_on:
+      postgis:
+        condition: service_healthy
+    ports:
+      - "${GEO_API_PORT:-8090}:8090"
+    environment:
+      GEO_PG_HOST: postgis
+      GEO_PG_PORT: 5432
+      GEO_PG_DB: ${GEO_PG_DB:-fsd_geo}
+      GEO_PG_USER: ${GEO_PG_USER:-postgres}
+      GEO_PG_PASSWORD: ${GEO_PG_PASSWORD:?必须显式提供}
+
+volumes:
+  fsd-geo-pgdata:

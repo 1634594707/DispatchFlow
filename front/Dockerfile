@@ -6,7 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN chmod +x node_modules/.bin/* && npm run build
 
 FROM nginx:alpine
 

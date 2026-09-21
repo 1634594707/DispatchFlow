@@ -51,7 +51,9 @@ __pycache__/
 
 # Python 训练环境与预测产物（ALG-FC，见 scripts/ml/README.md）
 .venv-ml/
-reports/
+reports/**
+!reports/**/
+!reports/**/*.md
 
 # Logs
 *.log
@@ -61,3 +63,11 @@ reports/
 *.tmp
 *.temp
 
+
+# 部署与算法结论的证据文件必须可追溯（路线图 §13.x 直接引用这些路径）。
+geo-py/.venv/
+geo-py/.pytest_cache/
+geo-py/.ruff_cache/
+geo-py/**/*.egg-info/
+geo-py/**/__pycache__/
+tmp/
