@@ -27,6 +27,9 @@ public class WebhookSubscriptionEntity {
 
     private Integer failureCount;
 
+    /** 最近一次投递失败时间：熔断冷却窗口的起点（V53）。 */
+    private LocalDateTime lastFailureAt;
+
     private LocalDateTime lastDeliveryAt;
 
     private LocalDateTime createdAt;

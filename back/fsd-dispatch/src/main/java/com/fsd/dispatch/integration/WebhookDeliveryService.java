@@ -59,6 +59,10 @@ public class WebhookDeliveryService {
     @Value("${fsd.webhook.allowed-domains:}")
     private String allowedDomainsRaw;
 
+    /** 熔断打开后的冷却窗口（秒）；窗口过后放行一次探测，见 {@link #isCircuitOpen(WebhookSubscriptionEntity, java.time.LocalDateTime)}。 */
+    @Value("${fsd.webhook.circuit-cooldown-seconds:300}")
+    private long circuitCooldownSeconds = 300L;
+
     public WebhookDeliveryService(WebhookSubscriptionMapper subscriptionMapper,
                                   WebhookDeliveryLogMapper deliveryLogMapper,
                                   FieldEncryptionService fieldEncryptionService,
@@ -284,11 +288,31 @@ public class WebhookDeliveryService {
 
     private void markFailure(WebhookSubscriptionEntity sub) {
         sub.setFailureCount((sub.getFailureCount() == null ? 0 : sub.getFailureCount()) + 1);
+        sub.setLastFailureAt(LocalDateTime.now());
         subscriptionMapper.updateById(sub);
     }
 
     private boolean isCircuitOpen(WebhookSubscriptionEntity sub) {
-        return sub.getFailureCount() != null && sub.getFailureCount() >= CIRCUIT_BREAKER_FAILURES;
+        return isCircuitOpen(sub, LocalDateTime.now());
+    }
+
+    /**
+     * 熔断带冷却半开（§7.2）。修复前 OPEN 是终态：{@code failure_count} 只增不减，唯一的归零点
+     * 在投递成功分支，而该分支在熔断打开后永不可达 —— 连续失败 5 次后订阅永久静默，
+     * 只有管理端编辑订阅才会恢复。冷却窗口过后放行探测请求，成功即由成功分支自然归零。
+     *
+     * <p>没有失败时间戳的历史行仍按打开处理：它拿不到窗口起点，等下一次失败写入后即可计时。
+     */
+    boolean isCircuitOpen(WebhookSubscriptionEntity sub, LocalDateTime now) {
+        Integer failures = sub.getFailureCount();
+        if (failures == null || failures < CIRCUIT_BREAKER_FAILURES) {
+            return false;
+        }
+        LocalDateTime lastFailureAt = sub.getLastFailureAt();
+        if (lastFailureAt == null) {
+            return true;
+        }
+        return Duration.between(lastFailureAt, now).getSeconds() < circuitCooldownSeconds;
     }
 
     private long backoffMs(int retryIndex) {

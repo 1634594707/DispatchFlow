@@ -1,7 +1,9 @@
 package com.fsd.dispatch.geo;
 
+import com.fsd.dispatch.entity.RoadNodeEntity;
 import com.fsd.dispatch.entity.RoadSegmentEntity;
 import com.fsd.dispatch.entity.StationEntity;
+import com.fsd.dispatch.mapper.RoadNodeMapper;
 import com.fsd.dispatch.mapper.RoadSegmentMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import java.math.BigDecimal;
@@ -23,9 +25,11 @@ import org.springframework.stereotype.Component;
 public class RouteMetricsCalculator {
 
     private final RoadSegmentMapper roadSegmentMapper;
+    private final RoadNodeMapper roadNodeMapper;
 
-    public RouteMetricsCalculator(RoadSegmentMapper roadSegmentMapper) {
+    public RouteMetricsCalculator(RoadSegmentMapper roadSegmentMapper, RoadNodeMapper roadNodeMapper) {
         this.roadSegmentMapper = roadSegmentMapper;
+        this.roadNodeMapper = roadNodeMapper;
     }
 
     /**
@@ -55,9 +59,9 @@ public class RouteMetricsCalculator {
             totalMeters += GeoPolygonUtils.haversineMeters(polyline.get(i - 1), polyline.get(i));
         }
 
-        // Travel time: based on per-segment speed limits (fallback 15 km/h)
+        // Travel time: 逐路段按各自限速累加，未覆盖的部分按实测回退速度（见 FALLBACK_SPEED_KMH）
         Map<String, RoadSegmentEntity> segmentByNodePair = loadSegmentIndex(parkId);
-        long travelSeconds = estimateTravelSeconds(polyline, nodePath, segmentByNodePair);
+        long travelSeconds = estimateTravelSeconds(polyline, nodePath, segmentByNodePair, parkId);
 
         // Service times (waiting) at pickup/dropoff
         long waitingSeconds = 0L;
@@ -105,52 +109,88 @@ public class RouteMetricsCalculator {
         return index;
     }
 
+    /**
+     * 没有路段可参照时的回退速度：**13.19 km/h 是实测值**，不是拍的数。
+     *
+     * <p>现役 124 条边（全部有速度限值，只有 10/15/20 三档，分布 16/79/29）按节点坐标算出长度后
+     * 取**长度加权调和平均** = {@code Σlen / Σ(len/v) = 13.19}；而"按条数取算术平均"是 15.76，
+     * 原代码写死的 15 也差不多。差在哪：慢边（10 km/h）虽然条数少但每条更长，算术平均把它们稀释掉了，
+     * 于是 ETA 系统性偏快约 18%。本方法因此改成按长度加权（见下），回退值也改成同一个口径。
+     */
+    private static final double FALLBACK_SPEED_KMH = 13.19D;
+
     private long estimateTravelSeconds(List<ParkGeoTransformService.GeoPoint> polyline,
                                         List<String> nodePath,
-                                        Map<String, RoadSegmentEntity> segmentIndex) {
+                                        Map<String, RoadSegmentEntity> segmentIndex,
+                                        Long parkId) {
         if (polyline.size() < 2) {
             return 0L;
         }
-        // Average speed limit fallback (15 km/h) — typical for park internal roads
-        int defaultSpeedKmh = 15;
         double totalMeters = 0;
         for (int i = 1; i < polyline.size(); i++) {
             totalMeters += GeoPolygonUtils.haversineMeters(polyline.get(i - 1), polyline.get(i));
         }
-        // Try to find the dominant speed limit from the node path
-        int speedKmh = defaultSpeedKmh;
-        if (nodePath != null && nodePath.size() >= 2) {
-            int sum = 0;
-            int count = 0;
-            for (int i = 1; i < nodePath.size(); i++) {
-                RoadSegmentEntity seg = segmentIndex.get(directedKey(nodePath.get(i - 1), nodePath.get(i)));
-                if (seg != null && seg.getSpeedLimitKmh() != null) {
-                    sum += seg.getSpeedLimitKmh();
-                    count++;
-                }
-            }
-            if (count > 0) {
-                speedKmh = Math.max(5, sum / count);
-            }
-        }
-        // time = distance / speed
-        double speedMetersPerSec = speedKmh * 1000.0 / 3600.0;
-        if (speedMetersPerSec <= 0) {
+        if (totalMeters <= 0D) {
             return 0L;
         }
-        return (long) (totalMeters / speedMetersPerSec);
+        double fallbackMetersPerSec = FALLBACK_SPEED_KMH * 1000.0 / 3600.0;
+
+        // 逐段按自己的限速走：时间 = Σ(段长 / 段限速)。段长来自两端节点经纬度（路段表没有长度列，
+        // polyline_geojson 在现役 seed 里 124 条全为 NULL，见 §1.5 那条未闭合项）。
+        double measuredMeters = 0D;
+        double measuredSeconds = 0D;
+        if (parkId != null && nodePath != null && nodePath.size() >= 2) {
+            Map<String, ParkGeoTransformService.GeoPoint> nodeById = loadNodeCoordinates(parkId, nodePath);
+            for (int i = 1; i < nodePath.size(); i++) {
+                RoadSegmentEntity seg = segmentIndex.get(directedKey(nodePath.get(i - 1), nodePath.get(i)));
+                if (seg == null || seg.getSpeedLimitKmh() == null || seg.getSpeedLimitKmh() <= 0) {
+                    continue;
+                }
+                ParkGeoTransformService.GeoPoint from = nodeById.get(nodePath.get(i - 1));
+                ParkGeoTransformService.GeoPoint to = nodeById.get(nodePath.get(i));
+                if (from == null || to == null) {
+                    continue;
+                }
+                double len = GeoPolygonUtils.haversineMeters(from, to);
+                if (len <= 0D) {
+                    continue;
+                }
+                measuredMeters += len;
+                measuredSeconds += len / (seg.getSpeedLimitKmh() * 1000.0 / 3600.0);
+            }
+        }
+        // 路线里没有被路网覆盖的部分（起终点接入段、外部 polyline）按回退速度补，
+        // 而不是让一段路凭空消失 —— 之前就是这种"整条路按一个常数"的错法。
+        double remainder = Math.max(0D, totalMeters - measuredMeters);
+        return (long) Math.ceil(measuredSeconds + remainder / fallbackMetersPerSec);
+    }
+
+    private Map<String, ParkGeoTransformService.GeoPoint> loadNodeCoordinates(Long parkId, List<String> nodePath) {
+        List<RoadNodeEntity> nodes = roadNodeMapper.selectList(new QueryWrapper<RoadNodeEntity>()
+                .eq("park_id", parkId)
+                .in("node_code", nodePath)
+                .eq("deleted", 0));
+        Map<String, ParkGeoTransformService.GeoPoint> byCode = new HashMap<>();
+        for (RoadNodeEntity node : nodes) {
+            if (node.getNodeCode() == null || node.getCoordLng() == null || node.getCoordLat() == null) {
+                continue;
+            }
+            byCode.put(node.getNodeCode(),
+                    new ParkGeoTransformService.GeoPoint(node.getCoordLng(), node.getCoordLat()));
+        }
+        return byCode;
     }
 
     private List<String> collectRiskPoints(Long parkId, List<String> nodePath) {
         if (nodePath == null || nodePath.isEmpty() || parkId == null) {
             return List.of();
         }
+        // park_id 与 deleted 必须罩住两个分支：写成 .eq(park).in(from).or().in(to).eq(deleted)
+        // 会被 SQL 优先级切成 (park AND from) OR (to AND deleted)，第二支没有园区约束 —— 会捞到别的园区。
         List<RoadSegmentEntity> segments = roadSegmentMapper.selectList(new QueryWrapper<RoadSegmentEntity>()
                 .eq("park_id", parkId)
-                .in("from_node_code", nodePath)
-                .or()
-                .in("to_node_code", nodePath)
-                .eq("deleted", 0));
+                .eq("deleted", 0)
+                .and(w -> w.in("from_node_code", nodePath).or().in("to_node_code", nodePath)));
         List<String> risks = new ArrayList<>();
         for (RoadSegmentEntity seg : segments) {
             String accessState = seg.getAccessState();

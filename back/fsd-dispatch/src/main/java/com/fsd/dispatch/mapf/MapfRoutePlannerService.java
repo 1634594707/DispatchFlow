@@ -1,7 +1,6 @@
 package com.fsd.dispatch.mapf;
 
 import com.fsd.dispatch.config.MapfProperties;
-import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.road.ParkRoadGraph;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.vo.ParkPointResponse;
@@ -21,18 +20,18 @@ import org.springframework.stereotype.Service;
 public class MapfRoutePlannerService {
 
     private final MapfProperties mapfProperties;
-    private final ParkPilotProperties parkPilotProperties;
     private final ParkRoutePlannerService parkRoutePlannerService;
     private final MapfReservationService reservationService;
+    private final MapfReservationMetrics metrics;
 
     public MapfRoutePlannerService(MapfProperties mapfProperties,
-                                   ParkPilotProperties parkPilotProperties,
                                    ParkRoutePlannerService parkRoutePlannerService,
-                                   MapfReservationService reservationService) {
+                                   MapfReservationService reservationService,
+                                   MapfReservationMetrics metrics) {
         this.mapfProperties = mapfProperties;
-        this.parkPilotProperties = parkPilotProperties;
         this.parkRoutePlannerService = parkRoutePlannerService;
         this.reservationService = reservationService;
+        this.metrics = metrics;
     }
 
     public boolean isEnabled() {
@@ -44,6 +43,7 @@ public class MapfRoutePlannerService {
                                               BigDecimal endX, BigDecimal endY) {
         long started = System.nanoTime();
         if (!isEnabled() || vehicleId == null) {
+            metrics.disabled();
             List<ParkPointResponse> route = parkRoutePlannerService.buildRoute(parkId, startX, startY, endX, endY);
             return MapfRoutePlanResult.builder()
                     .route(route)
@@ -63,6 +63,7 @@ public class MapfRoutePlannerService {
                 break;
             }
             if (tryReserveNodePath(parkId, vehicleId, graph, nodePath)) {
+                metrics.reserved();
                 List<ParkPointResponse> route = parkRoutePlannerService.buildRouteFromNodePath(
                         graph, startX, startY, endX, endY, nodePath);
                 return MapfRoutePlanResult.builder()
@@ -74,6 +75,9 @@ public class MapfRoutePlannerService {
             }
             penalizePath(penalties, nodePath);
         }
+        // 重规划用尽：仍然返回一条**没有预约**的路线，派单照走 —— MAPF 从不拦单。
+        // 该不该拦是业务口径（§7.2，待本人定），但这一支必须先能被看见，所以下面这一行不是装饰。
+        metrics.conflict();
         List<ParkPointResponse> fallback = parkRoutePlannerService.buildRoute(parkId, startX, startY, endX, endY);
         return MapfRoutePlanResult.builder()
                 .route(fallback)
@@ -89,10 +93,12 @@ public class MapfRoutePlannerService {
             return true;
         }
         long bucket = reservationService.currentBucket();
-        double speed = Math.max(1D, mapfProperties.getVehicleSpeedPxPerSecond());
-        if (parkPilotProperties.getVehicleSpeedPxPerSecond() != null) {
-            speed = parkPilotProperties.getVehicleSpeedPxPerSecond().doubleValue();
-        }
+        // 单位统一（§7.2 那条 MAPF 项）：分子是米（distanceMetersTo 恒为米），分母就必须是米/秒。
+        // 以前这里除的是 fsd.park.vehicle-speed-px-per-second —— 那是示意坐标上的动画/仿真速度，
+        // 与真实路网速度不是一回事，8 px/s 相对实测 13.19 km/h 快了 2.19 倍，
+        // 于是每条边的预约窗口只覆盖真实占位时间的 37%–62%（随航向变），冲突几乎挡不住车。
+        double speedMetersPerSecond = Math.max(0.1D, mapfProperties.getVehicleSpeedMetersPerSecond());
+        double bucketSeconds = Math.max(0.001D, mapfProperties.getBucketMs() / 1000.0);
         long cursor = bucket;
         for (int i = 0; i < nodePath.size() - 1; i++) {
             String from = nodePath.get(i);
@@ -103,8 +109,8 @@ public class MapfRoutePlannerService {
             ParkRoadGraph.NodeView fromNode = graph.node(from);
             ParkRoadGraph.NodeView toNode = graph.node(to);
             if (fromNode != null && toNode != null) {
-                double edgePx = fromNode.distanceTo(toNode);
-                long buckets = Math.max(1L, Math.round(edgePx / speed / (mapfProperties.getBucketMs() / 1000.0)));
+                double edgeMeters = fromNode.distanceMetersTo(toNode);
+                long buckets = Math.max(1L, Math.round(edgeMeters / speedMetersPerSecond / bucketSeconds));
                 cursor += buckets;
             } else {
                 cursor += 1;

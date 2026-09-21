@@ -25,6 +25,7 @@ import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.BatterySwapSessionService;
 import com.fsd.dispatch.service.DispatchExceptionService;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
+import com.fsd.dispatch.service.EnergyForecastService;
 import com.fsd.dispatch.service.PeakModeService;
 import com.fsd.vehicle.entity.VehicleEntity;
 import java.util.List;
@@ -49,6 +50,8 @@ class DispatchAutomationRuleServiceImplTest {
     private DispatchExceptionService dispatchExceptionService;
     @Mock
     private DispatchTaskMapper dispatchTaskMapper;
+    @Mock
+    private EnergyForecastService energyForecastService;
 
     private DispatchStrategyRuntimeService strategyRuntimeService;
     private RealFleetSwapCoordinator realFleetSwapCoordinator;
@@ -60,7 +63,9 @@ class DispatchAutomationRuleServiceImplTest {
         strategyRuntimeService = mock(DispatchStrategyRuntimeService.class);
         FleetEnergyProperties chargeEnergy = new FleetEnergyProperties();
         chargeEnergy.setEnergyRecoveryMode("CHARGE");
-        when(strategyRuntimeService.energyForAssign(anyLong())).thenReturn(chargeEnergy);
+        when(strategyRuntimeService.strategyForAssign(any(), any()))
+                .thenReturn(new DispatchStrategyRuntimeService.AssignStrategy(
+                        chargeEnergy, new com.fsd.dispatch.config.DispatchScoringProperties(), null, null, null, 0, true));
         realFleetSwapCoordinator = new RealFleetSwapCoordinator(
                 mock(BatterySwapSessionService.class),
                 mock(BatterySwapCabinetMapper.class),
@@ -69,7 +74,8 @@ class DispatchAutomationRuleServiceImplTest {
         when(dispatchTaskMapper.selectCount(ArgumentMatchers.<LambdaQueryWrapper<DispatchTaskEntity>>any()))
                 .thenReturn(0L);
         service = new DispatchAutomationRuleServiceImpl(
-                ruleMapper, dispatchTaskMapper, peakModeService, dispatchExceptionService, realFleetSwapCoordinator);
+                ruleMapper, dispatchTaskMapper, peakModeService, dispatchExceptionService,
+                realFleetSwapCoordinator, energyForecastService);
     }
 
     @Test
@@ -82,6 +88,30 @@ class DispatchAutomationRuleServiceImplTest {
 
         verify(dispatchExceptionService).recordVehicleException(
                 eq(1L), eq("AUTO_CHARGE_REQUIRED"), anyString());
+    }
+
+    @Test
+    void evaluateFleetEnergyRulesShouldDeferChargeDuringPeak() {
+        when(ruleMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<DispatchAutomationRuleEntity>>any()))
+                .thenReturn(List.of(chargeRule("低电回充", "15")));
+        // 高峰：这辆车本轮不送去充电
+        when(energyForecastService.shouldDeferReturnToCharge(any(), anyLong(), any())).thenReturn(true);
+
+        VehicleEntity vehicle = vehicle(1L, 10);
+        assertFalse(service.evaluateFleetEnergyRules(1L, vehicle, "STANDBY"),
+                "预测压力高时仍创建了补能任务 —— 错峰返充没接上");
+        verify(dispatchExceptionService, never())
+                .recordVehicleException(eq(1L), eq("AUTO_CHARGE_REQUIRED"), anyString());
+    }
+
+    @Test
+    void evaluateFleetEnergyRulesShouldStillSwapWhenPeakDefersCharge() {
+        when(ruleMapper.selectList(ArgumentMatchers.<LambdaQueryWrapper<DispatchAutomationRuleEntity>>any()))
+                .thenReturn(List.of(swapRule("低电换电", "20")));
+        when(energyForecastService.shouldDeferReturnToCharge(any(), anyLong(), any())).thenReturn(true);
+
+        assertTrue(service.evaluateFleetEnergyRules(1L, vehicle(3L, 12), "STANDBY"),
+                "换电被高峰推迟误伤：换电站不排队，推迟没有收益，不该走这支");
     }
 
     @Test

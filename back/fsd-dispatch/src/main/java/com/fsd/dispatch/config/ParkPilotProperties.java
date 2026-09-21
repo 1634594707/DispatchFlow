@@ -69,6 +69,18 @@ public class ParkPilotProperties {
          * 取值小于 1.0 会被夹取为 1.0（w&lt;1 只会削弱启发强度，不产生收益）。
          */
         private double aStarWeight = 1.0D;
+
+        /**
+         * 路网图 JVM 内缓存存活时间（毫秒）；<=0 表示每次全量重查（修复前行为，仅用于回滚）。
+         *
+         * <p>选车路径原先每台候选车触发 6 次全量节点+路段查询，是 P95 277 ms 的主要成因；
+         * 放大到 M2E 的 400-600 节点规模后会退化成秒级。缓存放在进程内而不是 Redis：
+         * 邻接表是 MB 量级，走 Redis 反而把时延抬回网络往返。
+         *
+         * <p>代价是路段临时封路时间窗（access_state / blocked_from）最多滞后一个 TTL，
+         * 且围栏/路网变更需等到过期或调用 invalidateGraphCache 才生效。
+         */
+        private long graphCacheTtlMs = 60_000L;
     }
 
     @Data
@@ -141,10 +153,8 @@ public class ParkPilotProperties {
 
         private boolean enabled = true;
 
-        private int vehicleCount = 0;
-
-        /** 叠石桥真实地图仿真车数量（ZJF-AV-*，与 PARK-* 分池）。 */
-        private int geoVehicleCount = 3;
+        /** 叠石桥地理仿真车队数量（ZJF-AV-*）。示意池 PARK-* 已随 §7.6 删除，只剩这一条池。 */
+        private int geoVehicleCount = 20;
 
         private int maxTrailSize = 30;
 

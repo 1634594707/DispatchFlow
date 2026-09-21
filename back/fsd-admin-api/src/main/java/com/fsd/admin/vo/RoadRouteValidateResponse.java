@@ -12,7 +12,7 @@ import lombok.Data;
  *   <li>{@code routeId} — 路线唯一标识</li>
  *   <li>{@code mapVersion} — 规划时使用的地图版本</li>
  *   <li>{@code source} — 路线来源：AMAP/LOCAL_GRAPH/STRAIGHT_LINE</li>
- *   <li>{@code routeMode} — REAL_ROAD / SCHEMATIC / STRAIGHT_LINE</li>
+ *   <li>{@code routeMode} — REAL_ROAD / STRAIGHT_LINE</li>
  *   <li>{@code nodePath} — 节点编码路径</li>
  *   <li>{@code segmentPath} — 路段编码路径</li>
  *   <li>{@code polyline} — GCJ-02 坐标点列表</li>
@@ -79,7 +79,7 @@ public class RoadRouteValidateResponse {
     /** V43: 规划时使用的地图数据版本编码 */
     private String mapVersion;
 
-    /** V43: 路线模式：REAL_ROAD / SCHEMATIC / STRAIGHT_LINE */
+    /** V43: 路线模式：REAL_ROAD / STRAIGHT_LINE */
     private String routeMode;
 
     /** V43: 节点编码路径（从起点到终点经过的道路节点编码序列） */

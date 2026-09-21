@@ -12,14 +12,20 @@ import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.fleet.real.RealFleetSwapCoordinator;
 import com.fsd.dispatch.service.DispatchAutomationRuleService;
 import com.fsd.dispatch.service.DispatchExceptionService;
+import com.fsd.dispatch.service.EnergyForecastService;
 import com.fsd.dispatch.service.PeakModeService;
 import com.fsd.vehicle.entity.VehicleEntity;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRuleService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DispatchAutomationRuleServiceImpl.class);
 
     private static final List<String> DISPATCH_BACKLOG_STATUSES = List.of(
             DispatchTaskStatus.PENDING.name(),
@@ -31,18 +37,21 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
     private final PeakModeService peakModeService;
     private final DispatchExceptionService dispatchExceptionService;
     private final RealFleetSwapCoordinator realFleetSwapCoordinator;
+    private final EnergyForecastService energyForecastService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public DispatchAutomationRuleServiceImpl(DispatchAutomationRuleMapper ruleMapper,
                                                DispatchTaskMapper dispatchTaskMapper,
                                                PeakModeService peakModeService,
                                                DispatchExceptionService dispatchExceptionService,
-                                               RealFleetSwapCoordinator realFleetSwapCoordinator) {
+                                               RealFleetSwapCoordinator realFleetSwapCoordinator,
+                                               EnergyForecastService energyForecastService) {
         this.ruleMapper = ruleMapper;
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.peakModeService = peakModeService;
         this.dispatchExceptionService = dispatchExceptionService;
         this.realFleetSwapCoordinator = realFleetSwapCoordinator;
+        this.energyForecastService = energyForecastService;
     }
 
     @Override
@@ -106,6 +115,9 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
                     || "CREATE_SWAP_TASK".equalsIgnoreCase(rule.getActionType())) {
                 boolean swap = "CREATE_SWAP_TASK".equalsIgnoreCase(rule.getActionType())
                         || realFleetSwapCoordinator.prefersSwapRecovery(vehicle, parkId);
+                if (!swap && deferChargeReturn(parkId, vehicle, soc, rule)) {
+                    continue;
+                }
                 String code = swap ? "AUTO_SWAP_REQUIRED" : "AUTO_CHARGE_REQUIRED";
                 String action = swap ? "换电" : "回充";
                 dispatchExceptionService.recordVehicleException(
@@ -116,6 +128,23 @@ public class DispatchAutomationRuleServiceImpl implements DispatchAutomationRule
             }
         }
         return false;
+    }
+
+    /**
+     * 错峰返充（§13.14③ 的数字支持）：园区预测压力高于阈值时，先不把这辆低电车送去充电，
+     * 把运力留在派单上。安全兜底在 {@link EnergyForecastService#shouldDeferReturnToCharge} 内部 ——
+     * SOC 已接近临界时永不推迟；没有预测数据时该方法返回 false，等价于接线前的纯阈值行为。
+     *
+     * <p>换电不走这条路：换电站不等排队，推迟没有收益。
+     */
+    private boolean deferChargeReturn(Long parkId, VehicleEntity vehicle, int soc, DispatchAutomationRuleEntity rule) {
+        if (!energyForecastService.shouldDeferReturnToCharge(LocalDate.now(), parkId, soc)) {
+            return false;
+        }
+        LOGGER.info("错峰推迟返充：vehicleId={} soc={} 规则「{}」压力={} 未创建补能任务，本轮跳过",
+                vehicle.getId(), soc, rule.getRuleName(),
+                energyForecastService.parkPressure(LocalDate.now(), parkId));
+        return true;
     }
 
     @Override

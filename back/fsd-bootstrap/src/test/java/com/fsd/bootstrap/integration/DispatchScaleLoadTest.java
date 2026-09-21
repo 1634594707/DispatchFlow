@@ -295,8 +295,8 @@ class DispatchScaleLoadTest {
     /**
      * 车辆沿路网分散停放：位置写入 current_longitude/current_latitude（schematic x/y）。
      *
-     * <p>车号必须使用 {@link com.fsd.dispatch.fleet.PilotFleetSupport#SCHEMATIC_VEHICLE_PREFIX}
-     * （PARK-）前缀：PilotFleetSupport 按前缀分池，非前缀车号会被匹配逻辑整体过滤掉。
+     * <p>车号必须用 {@link com.fsd.dispatch.fleet.PilotFleetSupport#GEO_VEHICLE_PREFIX}（ZJF-AV-）前缀：
+     * 示意池已随 §7.6 删除，其他前缀会被 {@code matchesOrderFleet} 整体过滤掉。
      */
     private void seedVehicles() {
         List<Object[]> vehicles = new ArrayList<>();
@@ -304,7 +304,7 @@ class DispatchScaleLoadTest {
             int column = index % GRID_COLUMNS;
             int row = (index * 7) % GRID_ROWS;
             vehicles.add(new Object[]{
-                    "PARK-" + String.format("%03d", index + 1),
+                    "ZJF-AV-" + String.format("%03d", index + 1),
                     "Scale Vehicle " + (index + 1),
                     (double) (GRID_ORIGIN + column * GRID_SPACING),
                     (double) (GRID_ORIGIN + row * GRID_SPACING)});

@@ -48,7 +48,8 @@ class MapfSimulationAcceptanceTest {
         parkPilotProperties.setHeight(800);
         reservationService = new InMemoryReservationService(mapfProperties);
         mapfRoutePlannerService = new MapfRoutePlannerService(
-                mapfProperties, parkPilotProperties, parkRoutePlannerService, reservationService);
+                mapfProperties, parkRoutePlannerService, reservationService,
+                new MapfReservationMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
         graph = buildBidirectionalCorridorGraph();
         org.mockito.Mockito.when(parkRoutePlannerService.loadGraph(1L)).thenReturn(graph);
         org.mockito.Mockito.when(parkRoutePlannerService.shortestNodePathWithPenalties(

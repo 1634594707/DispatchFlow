@@ -11,7 +11,7 @@ import java.util.List;
  *   <li>{@code routeId} — 路线唯一标识，用于审计与重规划追溯</li>
  *   <li>{@code mapVersion} — 规划时使用的地图数据版本编码</li>
  *   <li>{@code segmentPath} — 路段编码序列（from&gt;to 节点对），用于绑定执行版本</li>
- *   <li>{@code routeMode} — REAL_ROAD / SCHEMATIC / STRAIGHT_LINE</li>
+ *   <li>{@code routeMode} — REAL_ROAD / STRAIGHT_LINE</li>
  *   <li>{@code vehicleFit} — 车辆 profile 是否通过宽度/等级/车型过滤</li>
  *   <li>{@code collisionChecked} — 是否经过两层碰撞校验</li>
  *   <li>{@code reservationStatus} — 服务位/充电桩预约状态</li>

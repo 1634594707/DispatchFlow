@@ -17,6 +17,18 @@ public interface ParkRoutePlannerService {
 
     ParkRoadGraph loadGraph(Long parkId);
 
+    /**
+     * 当前使用中的路网图版本指纹，供决策快照记录"这一单看到的是哪一版路网"。
+     * 无缓存实现返回 null。
+     */
+    default String graphVersion(Long parkId) {
+        return null;
+    }
+
+    /** 丢弃缓存，下一次规划重新从库里全量建图。围栏/路网变更后调用可立即生效。 */
+    default void invalidateGraphCache() {
+    }
+
     List<String> shortestNodePathWithPenalties(ParkRoadGraph graph,
                                                BigDecimal startX, BigDecimal startY,
                                                BigDecimal endX, BigDecimal endY,

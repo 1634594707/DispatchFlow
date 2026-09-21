@@ -163,24 +163,19 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             return;
         }
         ensurePilotFleet(
-                PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX,
-                parkPilotProperties.getSimulation().getVehicleCount(),
-                true);
-        ensurePilotFleet(
                 PilotFleetSupport.GEO_VEHICLE_PREFIX,
-                parkPilotProperties.getSimulation().getGeoVehicleCount(),
-                false);
+                parkPilotProperties.getSimulation().getGeoVehicleCount());
     }
 
-    private void ensurePilotFleet(String prefix, int targetCount, boolean schematic) {
+    private void ensurePilotFleet(String prefix, int targetCount) {
         List<VehicleEntity> existing = listPilotVehicles(prefix);
         Long defaultParkId = parkStationService.requireDefaultPark().getId();
         for (int i = existing.size(); i < targetCount; i++) {
-            ParkPointResponse spawn = schematic ? getStandbySpot(i) : getGeoStandbySpot(i);
+            ParkPointResponse spawn = getGeoStandbySpot(i);
             VehicleEntity vehicle = new VehicleEntity();
             vehicle.setParkId(defaultParkId);
             vehicle.setVehicleCode(prefix + String.format(Locale.ROOT, "%02d", i + 1));
-            vehicle.setVehicleName((schematic ? "园区仿真车 " : "短驳仿真车 ") + (i + 1));
+            vehicle.setVehicleName("短驳仿真车 " + (i + 1));
             vehicle.setVehicleType("L4_DELIVERY");
             vehicle.setLinkMode(VehicleLinkMode.SIM.name());
             vehicle.setOnlineStatus(VehicleOnlineStatus.ONLINE.name());
@@ -189,11 +184,11 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             vehicle.setCurrentLatitude(spawn.getY());
             vehicle.setBatteryLevel(ThreadLocalRandom.current().nextInt(80, 101));
             vehicle.setLastReportTime(LocalDateTime.now());
-            vehicle.setRemark(schematic ? "park-pilot-schematic" : "park-pilot-geo");
+            vehicle.setRemark("park-pilot-geo");
             vehicle.setVersion(0);
             vehicle.setDeleted(0);
             vehicleMapper.insert(vehicle);
-            simulationMotionStore.put(vehicle.getId(), createIdleState(vehicle, i, schematic));
+            simulationMotionStore.put(vehicle.getId(), createIdleState(vehicle, i));
             simulationFleetAdapter.publishTelemetry(vehicle, simulationMotionStore.get(vehicle.getId()));
         }
     }
@@ -224,21 +219,17 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         for (VehicleEntity vehicle : listPilotVehicles()) {
             tickVehicle(vehicle);
         }
-        if (dispatchDemandActive) {
-            if (hasFleetDispatchDemand(false) && !fleetHasAssignableVehicle(PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX)) {
-                recoverFleetUnderDispatchPressure(PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX);
-            }
-            if (hasFleetDispatchDemand(true) && !fleetHasAssignableVehicle(PilotFleetSupport.GEO_VEHICLE_PREFIX)) {
-                recoverFleetUnderDispatchPressure(PilotFleetSupport.GEO_VEHICLE_PREFIX);
-            }
+        if (dispatchDemandActive
+                && hasGeoDispatchDemand()
+                && !fleetHasAssignableVehicle(PilotFleetSupport.GEO_VEHICLE_PREFIX)) {
+            recoverFleetUnderDispatchPressure(PilotFleetSupport.GEO_VEHICLE_PREFIX);
         }
     }
 
     private void tickVehicle(VehicleEntity vehicle) {
         reconcileStaleVehicleAssignment(vehicle);
         SimulationMotionState state = simulationMotionStore.getOrCreate(vehicle.getId(),
-                () -> createIdleState(vehicle, extractVehicleIndex(vehicle),
-                        PilotFleetSupport.isSchematicPilotVehicle(vehicle)));
+                () -> createIdleState(vehicle, extractVehicleIndex(vehicle)));
         if (handleCriticalBattery(vehicle, state)) {
             publishTelemetry(vehicle, state);
             return;
@@ -416,26 +407,13 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                 .anyMatch(fleetChargePolicy::isAssignable);
     }
 
-    private boolean hasFleetDispatchDemand(boolean geoFleet) {
+    /** 示意池删除后只有一条池：任何待派需求都算地理池的需求，顺带省掉每 tick 逐单查站点。 */
+    private boolean hasGeoDispatchDemand() {
         return dispatchTaskMapper.selectList(new LambdaQueryWrapper<DispatchTaskEntity>()
                         .eq(DispatchTaskEntity::getDeleted, 0)
                         .in(DispatchTaskEntity::getStatus, DISPATCH_DEMAND_STATUSES))
                 .stream()
-                .anyMatch(task -> {
-                    if (task.getOrderId() == null) {
-                        return false;
-                    }
-                    try {
-                        OrderEntity order = orderStateService.getOrder(task.getOrderId());
-                        ParkStationResponse pickup = parkStationService.requireStation(order.getPickupPointId());
-                        ParkStationResponse dropoff = parkStationService.requireStation(order.getDropoffPointId());
-                        boolean geoOrder = PilotFleetSupport.isGeoDeliveryStation(pickup)
-                                || PilotFleetSupport.isGeoDeliveryStation(dropoff);
-                        return geoFleet == geoOrder;
-                    } catch (RuntimeException ex) {
-                        return false;
-                    }
-                });
+                .anyMatch(task -> task.getOrderId() != null);
     }
 
     /** 派单积压且无可派车时，仿真车快速恢复至可派单 SOC 并退出 WAIT_CHARGING。 */
@@ -697,7 +675,9 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private String resolveEnergyRecoveryMode() {
-        FleetEnergyProperties energy = strategyRuntimeService.energyForAssign(defaultParkId());
+        long parkId = defaultParkId();
+        FleetEnergyProperties energy = strategyRuntimeService
+                .strategyForAssign(parkId, "park:" + parkId).energy();
         return energy.getEnergyRecoveryMode() == null ? "CHARGE" : energy.getEnergyRecoveryMode();
     }
 
@@ -1101,19 +1081,17 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         return stationRoadSnapService.snapToNearestRoad(point).orElse(point);
     }
 
-    private SimulationMotionState createIdleState(VehicleEntity vehicle, int index, boolean schematic) {
+    private SimulationMotionState createIdleState(VehicleEntity vehicle, int index) {
         SimulationMotionState state = new SimulationMotionState();
-        state.standbyPoint = schematic ? getStandbySpot(index) : getGeoStandbySpot(index);
-        state.chargingPoint = getChargingSpot(vehicle, index, schematic);
+        state.standbyPoint = getGeoStandbySpot(index);
+        state.chargingPoint = getChargingSpot(vehicle, index);
         state.stage = "STANDBY";
         state.stageStartedAt = LocalDateTime.now();
         state.targetCode = state.standbyPoint.getCode();
         state.targetType = "STANDBY";
         state.targetX = state.standbyPoint.getX();
         state.targetY = state.standbyPoint.getY();
-        if (!schematic
-                && state.standbyPoint.getLongitude() != null
-                && state.standbyPoint.getLatitude() != null) {
+        if (state.standbyPoint.getLongitude() != null && state.standbyPoint.getLatitude() != null) {
             state.geoLongitude = state.standbyPoint.getLongitude();
             state.geoLatitude = state.standbyPoint.getLatitude();
         }
@@ -1141,13 +1119,11 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         return standbySpots.get(index % standbySpots.size());
     }
 
-    private ParkPointResponse getChargingSpot(VehicleEntity vehicle, int index, boolean schematic) {
-        if (!schematic) {
-            List<ParkPointResponse> chargingSpots = listZjfChargingSpots();
-            if (!chargingSpots.isEmpty()) {
-                return selectNearestChargingSpot(vehicle, chargingSpots)
-                        .orElseGet(() -> chargingSpots.get(index % chargingSpots.size()));
-            }
+    private ParkPointResponse getChargingSpot(VehicleEntity vehicle, int index) {
+        List<ParkPointResponse> chargingSpots = listZjfChargingSpots();
+        if (!chargingSpots.isEmpty()) {
+            return selectNearestChargingSpot(vehicle, chargingSpots)
+                    .orElseGet(() -> chargingSpots.get(index % chargingSpots.size()));
         }
         return getStandbySpot(index);
     }
@@ -1271,12 +1247,10 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     private void ensureStandbyLocation(VehicleEntity vehicle, SimulationMotionState state) {
         if (state.standbyPoint == null) {
-            state.standbyPoint = PilotFleetSupport.isSchematicPilotVehicle(vehicle)
-                    ? getStandbySpot(0)
-                    : getGeoStandbySpot(0);
+            state.standbyPoint = getGeoStandbySpot(0);
         }
         if (state.chargingPoint == null) {
-            state.chargingPoint = getChargingSpot(vehicle, 0, PilotFleetSupport.isSchematicPilotVehicle(vehicle));
+            state.chargingPoint = getChargingSpot(vehicle, 0);
         }
     }
 
@@ -1367,9 +1341,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             return 0;
         }
         String numeric = null;
-        if (code.startsWith(PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX)) {
-            numeric = code.substring(PilotFleetSupport.SCHEMATIC_VEHICLE_PREFIX.length());
-        } else if (code.startsWith(PilotFleetSupport.GEO_VEHICLE_PREFIX)) {
+        if (code.startsWith(PilotFleetSupport.GEO_VEHICLE_PREFIX)) {
             numeric = code.substring(PilotFleetSupport.GEO_VEHICLE_PREFIX.length());
         }
         if (numeric == null) {

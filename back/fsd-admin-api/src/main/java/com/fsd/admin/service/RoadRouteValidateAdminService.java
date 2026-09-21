@@ -166,9 +166,14 @@ public class RoadRouteValidateAdminService {
             source = "EXTERNAL";
         }
 
-        // V43: 计算路线指标
+        // V43: 计算路线指标。
+        // 这里以前传的是 (null, polyline, List.of(), ...)：parkId 为空 => 路段索引与风险点查询直接空转；
+        // nodePath 为空 => 逐段限速那条路一步都不走。结果 ETA 恒等于"总长 ÷ 写死的 15 km/h"、风险点恒为空，
+        // 而这两个入参本方法上面就在用（审计取 request.getParkId()、segmentPath 取 nodePath）—— 是漏传，不是设计。
+        // 注：nodePath 目前只含起终点吸附节点；中间节点要等 RoadRouteResult 把规划器的 nodePath 带出来
+        // （RoadRouteService 接口在 polyline 这一步把节点编码丢了），那才是 §13.17 记的剩余半条。
         RouteMetrics metrics = routeMetricsCalculator.compute(
-                null, polyline, List.of(), null, null, null);
+                request.getParkId(), polyline, nodePath, null, null, null);
 
         // V43: 解析地图版本
         String mapVersionCode = resolveMapVersionCode(request);

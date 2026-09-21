@@ -22,7 +22,7 @@ import org.springframework.util.StringUtils;
 public class DispatchAssistantAdminServiceImpl implements DispatchAssistantAdminService {
 
     private static final Pattern TASK_NO_PATTERN = Pattern.compile("(TSK-[A-Z0-9-]+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern VEHICLE_CODE_PATTERN = Pattern.compile("(PARK-[A-Z0-9-]+|REAL-[A-Z0-9-]+|VEH-[A-Z0-9-]+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern VEHICLE_CODE_PATTERN = Pattern.compile("(REAL-[A-Z0-9-]+|VEH-[A-Z0-9-]+)", Pattern.CASE_INSENSITIVE);
 
     private final DispatchAdminQueryService dispatchAdminQueryService;
     private final ParkPilotService parkPilotService;

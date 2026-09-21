@@ -15,6 +15,17 @@ import java.util.Objects;
  */
 public final class ParkRoadGraph {
 
+    /**
+     * 示意坐标 px → 米的换算系数，<b>两个轴不一样</b>。
+     *
+     * <p>由 V38 的线性映射反解：{@code x=(lng-121.072)*77000} 且本纬度 1° 经度 ≈ 94 430 m
+     * ⇒ 1.2263 m/px；{@code y=(31.9645-lat)*150000} 且 1° 纬度 ≈ 110 852 m ⇒ 0.7390 m/px。
+     * 对 seed 里 86 条 ACTIVE↔ACTIVE 边实测的 米/hypot(px) 比值：min 0.741、均值 0.999、max 1.226
+     * —— 正好落在这两个系数之间，说明映射一致、且"px 当米用"的误差纯由航向决定。
+     */
+    public static final double METRES_PER_PX_X = 1.2263D;
+    public static final double METRES_PER_PX_Y = 0.7390D;
+
     private final Map<String, NodeView> nodes;
     private final Map<String, List<String>> adjacency;
     private final Map<String, Double> edgeCostMultiplier;
@@ -53,9 +64,9 @@ public final class ParkRoadGraph {
         if (fromNode == null || toNode == null) {
             return Double.MAX_VALUE;
         }
-        // Phase 4：edgeCost 返回真实距离（米）。当节点携带 coordLng/coordLat 时用 haversine，
-        // 否则回退到 schematic 欧几里得距离（仅用于相对路径选择，单位为像素）。
-        double base = fromNode.distanceTo(toNode);
+        // Phase 4：edgeCost 返回真实距离（米）。有 GPS 用 haversine；没有则按 V38 的两轴系数把
+        // 示意 px 换算成米（见 METRES_PER_PX_X/Y），所以单位始终是米，不再是"有/没有 GPS 两种单位"。
+        double base = fromNode.distanceMetersTo(toNode);
         return base * edgeCostMultiplier.getOrDefault(directedKey(from, to), 1.0);
     }
 
@@ -231,13 +242,38 @@ public final class ParkRoadGraph {
 
         /**
          * Phase 4：节点间距离。当两端均携带 GPS 坐标时返回 haversine 米，否则回退到 schematic 欧几里得。
-         * {@link ParkRoadGraph#edgeCost} 使用此方法，故路径代价单位为米（GPS 可用时）。
+         *
+         * <p><b>返回值单位取决于数据</b>：有 GPS 是米，没有就是示意 px，两者在本 seed 上差
+         * 0.74–1.23 倍。需要米的地方（任何"按距离折算时间"）请改用 {@link #distanceMetersTo}；
+         * 只有"相对比较"（如找最近节点）才可以直接用本方法。
          */
         public double distanceTo(NodeView other) {
             if (coordLng != null && coordLat != null && other.coordLng != null && other.coordLat != null) {
                 return haversineMeters(coordLng, coordLat, other.coordLng, other.coordLat);
             }
             return distanceTo(other.x, other.y);
+        }
+
+        /**
+         * 与 {@link #distanceTo(NodeView)} 同源，但**返回值恒为米**。
+         *
+         * <p>为什么要单独一个方法：schematic 坐标不是等距方格。V38 的线性映射是
+         * {@code x=(lng-121.072)*77000}、{@code y=(31.9645-lat)*150000}，而本纬度上
+         * 1° 经度 ≈ 94 430 m、1° 纬度 ≈ 110 852 m ⇒ <b>1 px 横向 ≈ 1.226 m、纵向 ≈ 0.741 m</b>。
+         * 拿 px 当米用，误差按航向在 0.74×–1.23× 之间摆（对 seed 里 86 条 ACTIVE↔ACTIVE 边实测：
+         * 比值 min 0.741 / 均值 0.999 / max 1.226，标准差 0.231）。均值恰好接近 1，
+         * 所以这个错平时看不出来 —— 但逐条边能差 ±23%，任何"按距离折算时间"的地方都会错。
+         *
+         * <p>现役数据里所有 ACTIVE 节点都有 GPS（实测 55/55），所以本方法的 px 分支今天走不到；
+         * 它存在的意义是**以后走到时也不会算错**（例如新图节点还没回填经纬度）。
+         */
+        public double distanceMetersTo(NodeView other) {
+            if (coordLng != null && coordLat != null && other.coordLng != null && other.coordLat != null) {
+                return haversineMeters(coordLng, coordLat, other.coordLng, other.coordLat);
+            }
+            double dx = (x.doubleValue() - other.x.doubleValue()) * METRES_PER_PX_X;
+            double dy = (y.doubleValue() - other.y.doubleValue()) * METRES_PER_PX_Y;
+            return Math.hypot(dx, dy);
         }
 
         @Override

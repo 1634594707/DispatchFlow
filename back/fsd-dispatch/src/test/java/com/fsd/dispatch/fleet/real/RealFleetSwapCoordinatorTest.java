@@ -80,7 +80,9 @@ class RealFleetSwapCoordinatorTest {
     void prefersSwapRecoveryWhenStrategyModeIsSwap() {
         FleetEnergyProperties energy = new FleetEnergyProperties();
         energy.setEnergyRecoveryMode("SWAP");
-        when(strategyRuntimeService.energyForAssign(1L)).thenReturn(energy);
+        when(strategyRuntimeService.strategyForAssign(any(), any()))
+                .thenReturn(new com.fsd.dispatch.service.DispatchStrategyRuntimeService.AssignStrategy(
+                        energy, new com.fsd.dispatch.config.DispatchScoringProperties(), null, null, null, 0, true));
         Page<BatterySwapCabinetEntity> cabinetPage = new Page<>();
         cabinetPage.setRecords(java.util.List.of(cabinet(1L, "SWAP-01")));
         when(swapCabinetMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(cabinetPage);

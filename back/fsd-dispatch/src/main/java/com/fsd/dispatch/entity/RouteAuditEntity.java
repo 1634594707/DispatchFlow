@@ -31,7 +31,7 @@ public class RouteAuditEntity {
 
     private String mapVersionCode;
 
-    /** 路线模式：REAL_ROAD/SCHEMATIC/STRAIGHT_LINE */
+    /** 路线模式：REAL_ROAD/STRAIGHT_LINE */
     private String routeMode;
 
     /** 路线来源：AMAP/LOCAL_GRAPH/STRAIGHT_LINE */

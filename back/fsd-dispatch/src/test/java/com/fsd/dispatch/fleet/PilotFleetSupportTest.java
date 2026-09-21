@@ -7,28 +7,29 @@ import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.vehicle.entity.VehicleEntity;
 import org.junit.jupiter.api.Test;
 
+/** §7.6 之后只剩地理池：这条测试钉住"示意池不会再被捞回来"。 */
 class PilotFleetSupportTest {
 
     @Test
-    void matchesGeoOrderToGeoVehicleOnly() {
-        VehicleEntity geoVehicle = vehicle("ZJF-AV-01");
-        VehicleEntity parkVehicle = vehicle("PARK-01");
-        ParkStationResponse pickup = station("ZJF-PICK-01", "ZJF");
-        ParkStationResponse dropoff = station("ZJF-DROP-01", "ZJF");
-
-        assertTrue(PilotFleetSupport.matchesOrderFleet(geoVehicle, pickup, dropoff));
-        assertFalse(PilotFleetSupport.matchesOrderFleet(parkVehicle, pickup, dropoff));
+    void onlyGeoPilotVehiclesAreAssignable() {
+        assertTrue(PilotFleetSupport.matchesOrderFleet(vehicle("ZJF-AV-01")));
+        assertFalse(PilotFleetSupport.matchesOrderFleet(vehicle("PARK-01")));
+        assertFalse(PilotFleetSupport.matchesOrderFleet(vehicle("FMS-REAL-01")));
+        assertFalse(PilotFleetSupport.matchesOrderFleet(null));
     }
 
     @Test
-    void matchesSchematicOrderToParkVehicleOnly() {
-        VehicleEntity geoVehicle = vehicle("ZJF-AV-02");
-        VehicleEntity parkVehicle = vehicle("PARK-02");
-        ParkStationResponse pickup = station("A1", "A");
-        ParkStationResponse dropoff = station("B1", "B");
+    void schematicPoolHelpersAreGone() {
+        assertFalse(PilotFleetSupport.isPilotSimVehicleCode("PARK-01"));
+        assertTrue(PilotFleetSupport.isPilotSimVehicleCode("ZJF-AV-07"));
+    }
 
-        assertTrue(PilotFleetSupport.matchesOrderFleet(parkVehicle, pickup, dropoff));
-        assertFalse(PilotFleetSupport.matchesOrderFleet(geoVehicle, pickup, dropoff));
+    @Test
+    void zjfStationsAndFallbackAreasAreClassified() {
+        assertTrue(PilotFleetSupport.isGeoDeliveryStation(station("ZJF-PICK-01", null)));
+        assertTrue(PilotFleetSupport.isGeoDeliveryStation(station("ANYTHING", "ZJF")));
+        assertFalse(PilotFleetSupport.isGeoDeliveryStation(station("A1", "A")));
+        assertFalse(PilotFleetSupport.isGeoDeliveryStation(null));
     }
 
     private static VehicleEntity vehicle(String code) {

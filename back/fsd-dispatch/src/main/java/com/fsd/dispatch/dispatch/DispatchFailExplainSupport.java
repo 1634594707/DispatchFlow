@@ -26,6 +26,14 @@ public final class DispatchFailExplainSupport {
                     "LOW_BATTERY",
                     "空闲车辆电量低于可派车阈值",
                     List.of("引导低电量车辆前往充电桩", "查看充电报表与桩位占用", "待 SOC 恢复后重新自动派车"));
+            case "NO_MATCHING_VEHICLE" -> new ExplainResult(
+                    "NO_MATCHING_VEHICLE",
+                    rawMessage != null && !rawMessage.isBlank()
+                            ? rawMessage : "有空闲且电量足够的车，但车型/车队池/配送区/载重/维保等约束都不满足",
+                    List.of("看消息里的 binding 层：MAINTENANCE=维保占用、VEHICLE_TYPE=线路要求车型、"
+                                    + "FLEET_POOL=试点车队池、DELIVERY_ZONE=配送区、LOAD_CAPACITY=载重",
+                            "放宽该线路的 requiredVehicleType 或把车辆加入对应配送区/车队池",
+                            "确认不是维保状态没解除（车辆列表 → 调度状态）"));
             case "ROUTE_BLOCKED" -> new ExplainResult(
                     "ROUTE_BLOCKED",
                     rawMessage != null && !rawMessage.isBlank() ? rawMessage : "取货点路网不可达或途经路段被管制",
@@ -70,7 +78,7 @@ public final class DispatchFailExplainSupport {
     public static List<String> suggestionLinks(String reasonCode) {
         List<String> links = new ArrayList<>();
         switch (normalizeCode(reasonCode)) {
-            case "NO_IDLE_VEHICLE", "LOW_BATTERY" -> links.add("vehicles");
+            case "NO_IDLE_VEHICLE", "LOW_BATTERY", "NO_MATCHING_VEHICLE" -> links.add("vehicles");
             case "ROUTE_BLOCKED" -> {
                 links.add("road-network");
                 links.add("traffic");

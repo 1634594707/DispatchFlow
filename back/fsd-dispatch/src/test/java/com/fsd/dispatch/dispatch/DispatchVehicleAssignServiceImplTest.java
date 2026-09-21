@@ -66,6 +66,8 @@ class DispatchVehicleAssignServiceImplTest {
     private DispatchAutomationRuleService automationRuleService;
     @Mock
     private ChargingSessionService chargingSessionService;
+    @Mock
+    private com.fsd.dispatch.service.DispatchDecisionSnapshotService decisionSnapshotService;
 
     private final DispatchGeoDistanceService dispatchGeoDistanceService = new DispatchGeoDistanceService(
             null, null, null, null, null) {
@@ -96,8 +98,9 @@ class DispatchVehicleAssignServiceImplTest {
     void setUp() {
         FleetEnergyProperties energy = new FleetEnergyProperties();
         DispatchScoringProperties scoring = new DispatchScoringProperties();
-        lenient().when(strategyRuntimeService.energyForAssign(any())).thenReturn(energy);
-        lenient().when(strategyRuntimeService.scoringForAssign(any())).thenReturn(scoring);
+        lenient().when(strategyRuntimeService.strategyForAssign(any(), any()))
+                .thenReturn(new DispatchStrategyRuntimeService.AssignStrategy(
+                        energy, scoring, null, null, null, 0, true));
         lenient().when(trafficZoneControlService.isPointInPausedZone(any(), any(), any())).thenReturn(false);
         lenient().when(dispatchPauseControlService.isDispatchPaused(any())).thenReturn(false);
         lenient().when(hubCapacityService.isHubLikeStation(any())).thenReturn(false);
@@ -124,7 +127,9 @@ class DispatchVehicleAssignServiceImplTest {
                 dispatchGeoDistanceService,
                 mapfRoutePlannerService,
                 chargingSessionService,
-                new com.fsd.dispatch.fleet.policy.TelemetryFreshnessPolicy(30));
+                new com.fsd.dispatch.fleet.policy.TelemetryFreshnessPolicy(30),
+                decisionSnapshotService,
+                new com.fsd.dispatch.core.RulePolicy());
     }
 
     @Test
@@ -160,13 +165,60 @@ class DispatchVehicleAssignServiceImplTest {
         assertEquals(DispatchAssignFailReason.LOW_SOC, result.getFailReason());
     }
 
+    /**
+     * §7.2 的标签错位：维保/车型/车队池/配送区/载重以前和 SOC 挤在同一层，任何一条不满足都对外报
+     * LOW_SOC ⇒ "派单失败原因分布"里的低电量占比吞掉了别的成因。现在拆开各报各的，
+     * 并把最先把候选清零的那一层写进消息（筛选与诊断共用同一张过滤器表，不会与实际判定漂移）。
+     */
+    @Test
+    void constraintMismatchMustNotBeReportedAsLowSoc() {
+        OrderEntity order = new OrderEntity();
+        order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
+        order.setParkId(1L);
+        VehicleEntity maintained = vehicle(1L, "ZJF-AV-01", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(700));
+        maintained.setDispatchStatus("UNAVAILABLE");
+        when(vehicleService.listAssignableVehicles()).thenReturn(List.of(maintained));
+
+        DispatchAssignResult result = assignService.selectBestVehicle(order);
+
+        assertFalse(result.isSuccess());
+        assertEquals(DispatchAssignFailReason.NO_MATCHING_VEHICLE, result.getFailReason(),
+                "电量够、约束不满足却报 LOW_SOC，失败原因分布就不可信了");
+        assertTrue(result.getMessage().contains("binding: MAINTENANCE"), result.getMessage());
+        assertTrue(result.getMessage().contains("survivors per filter {MAINTENANCE=0}"),
+                "应报出逐层存活数，便于一眼看出卡在哪一层：" + result.getMessage());
+    }
+
+    /** 混合车队：一台低电 + 一台维保 —— 旧口径下两台都被算成"电量不足"，这里必须分开。 */
+    @Test
+    void lowSocStillReportsLowSocOnlyWhenTheSocFilterIsWhatEmptiesCandidates() {
+        OrderEntity order = new OrderEntity();
+        order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
+        order.setParkId(1L);
+        VehicleEntity low = vehicle(1L, "ZJF-AV-01", 5, BigDecimal.valueOf(100), BigDecimal.valueOf(700));
+        VehicleEntity maintained = vehicle(2L, "ZJF-AV-02", 100, BigDecimal.valueOf(120), BigDecimal.valueOf(710));
+        maintained.setDispatchStatus("UNAVAILABLE");
+        when(vehicleService.listAssignableVehicles()).thenReturn(List.of(low, maintained));
+
+        DispatchAssignResult constraint = assignService.selectBestVehicle(order);
+        assertEquals(DispatchAssignFailReason.NO_MATCHING_VEHICLE, constraint.getFailReason(),
+                "SOC 过关还剩一台活着 ⇒ 卡住它的是约束，不是电量");
+
+        VehicleEntity only = vehicle(3L, "ZJF-AV-03", 5, BigDecimal.valueOf(100), BigDecimal.valueOf(700));
+        when(vehicleService.listAssignableVehicles()).thenReturn(List.of(only));
+        DispatchAssignResult soc = assignService.selectBestVehicle(order);
+        assertEquals(DispatchAssignFailReason.LOW_SOC, soc.getFailReason(), "真·电量不足仍要报 LOW_SOC");
+    }
+
     @Test
     void shouldFailWhenPickupUnreachable() {
         OrderEntity order = new OrderEntity();
         order.setPickupPointId(101L);
         order.setDropoffPointId(201L);
         order.setParkId(1L);
-        VehicleEntity vehicle = vehicle(1L, "PARK-01", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(700));
+        VehicleEntity vehicle = vehicle(1L, "ZJF-AV-01", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(700));
         when(vehicleService.listAssignableVehicles()).thenReturn(List.of(vehicle));
         when(parkRoutePlannerService.isReachable(any(), any(), any(), any(), any())).thenReturn(false);
 
@@ -183,8 +235,8 @@ class DispatchVehicleAssignServiceImplTest {
         order.setDropoffPointId(201L);
         order.setParkId(1L);
 
-        VehicleEntity far = vehicle(1L, "PARK-01", 100, BigDecimal.valueOf(10), BigDecimal.valueOf(10));
-        VehicleEntity near = vehicle(2L, "PARK-02", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(100));
+        VehicleEntity far = vehicle(1L, "ZJF-AV-01", 100, BigDecimal.valueOf(10), BigDecimal.valueOf(10));
+        VehicleEntity near = vehicle(2L, "ZJF-AV-02", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(100));
 
         when(vehicleService.listAssignableVehicles()).thenReturn(List.of(far, near));
         when(parkRoutePlannerService.isReachable(any(), any(), any(), any(), any())).thenReturn(true);
@@ -199,7 +251,7 @@ class DispatchVehicleAssignServiceImplTest {
         DispatchAssignResult result = assignService.selectBestVehicle(order);
 
         assertTrue(result.isSuccess());
-        assertEquals("PARK-01", result.getVehicleCode());
+        assertEquals("ZJF-AV-01", result.getVehicleCode());
     }
 
     @Test
@@ -243,7 +295,7 @@ class DispatchVehicleAssignServiceImplTest {
         order.setDropoffPointId(201L);
         order.setParkId(1L);
 
-        VehicleEntity stale = vehicle(9L, "PARK-09", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(150));
+        VehicleEntity stale = vehicle(9L, "ZJF-AV-09", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(150));
         stale.setLastReportTime(java.time.LocalDateTime.now().minusSeconds(600));
         when(vehicleService.listAssignableVehicles()).thenReturn(List.of(stale));
 
@@ -260,7 +312,7 @@ class DispatchVehicleAssignServiceImplTest {
         order.setDropoffPointId(201L);
         order.setParkId(1L);
 
-        VehicleEntity neverReported = vehicle(8L, "PARK-08", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(150));
+        VehicleEntity neverReported = vehicle(8L, "ZJF-AV-08", 100, BigDecimal.valueOf(100), BigDecimal.valueOf(150));
         neverReported.setLastReportTime(null);
         when(vehicleService.listAssignableVehicles()).thenReturn(List.of(neverReported));
 

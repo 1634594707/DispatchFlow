@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +39,9 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
     private final RoadNodeMapper roadNodeMapper;
     private final RoadSegmentMapper roadSegmentMapper;
     private final ParkStationService parkStationService;
+
+    /** 园区 → 已建好的路网图。进程内缓存，见 {@link ParkPilotProperties.RoutePlanConfig#getGraphCacheTtlMs()}。 */
+    private final Map<Long, CachedGraph> graphCache = new ConcurrentHashMap<>();
 
     public ParkRoutePlannerServiceImpl(ParkPilotProperties parkPilotProperties,
                                        RoadNodeMapper roadNodeMapper,
@@ -130,7 +134,52 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
         return resolveGraph(parkId);
     }
 
+    @Override
+    public String graphVersion(Long parkId) {
+        return cachedGraph(parkId).version();
+    }
+
+    @Override
+    public void invalidateGraphCache() {
+        graphCache.clear();
+    }
+
+    private static final Long DEFAULT_PARK_SLOT = -1L;
+
+    /** null 与"默认园区"共用一个槽位，避免同一张图在缓存里存两份。 */
+    private static Long cacheKey(Long parkId) {
+        return parkId == null ? DEFAULT_PARK_SLOT : parkId;
+    }
+
+    private long cacheTtlMillis() {
+        ParkPilotProperties.RoutePlanConfig config = parkPilotProperties.getRoutePlan();
+        return config == null ? 0L : config.getGraphCacheTtlMs();
+    }
+
+    private CachedGraph cachedGraph(Long parkId) {
+        long ttlMillis = cacheTtlMillis();
+        long now = System.currentTimeMillis();
+        if (ttlMillis <= 0) {
+            return new CachedGraph(loadGraphFromSource(parkId), now);
+        }
+        // compute 而非 get+put：同一园区的并发选车只放行一次全量加载，
+        // 否则 20 台候选车同时过期会同时打库，缓存反而放大抖动。
+        return graphCache.compute(cacheKey(parkId), (key, existing) ->
+                existing != null && !existing.isExpired(ttlMillis, now)
+                        ? existing : new CachedGraph(loadGraphFromSource(parkId), now));
+    }
+
     ParkRoadGraph resolveGraph(Long parkId) {
+        return cachedGraph(parkId).graph();
+    }
+
+    private static String versionOf(ParkRoadGraph graph) {
+        int nodes = graph.nodes().size();
+        int edges = graph.adjacency().values().stream().mapToInt(List::size).sum();
+        return "nodes=" + nodes + ",edges=" + edges;
+    }
+
+    ParkRoadGraph loadGraphFromSource(Long parkId) {
         Long resolvedParkId = parkId != null ? parkId : parkStationService.requireDefaultPark().getId();
         // Phase 4：查询时过滤 status=ACTIVE，避免加载 DISABLED 节点/路段
         List<RoadNodeEntity> dbNodes = roadNodeMapper.selectList(new QueryWrapper<RoadNodeEntity>()
@@ -145,6 +194,21 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
             return ParkRoadGraph.fromDatabase(dbNodes, dbSegments);
         }
         return ParkRoadGraph.fromYaml(parkPilotProperties);
+    }
+
+    /**
+     * 缓存条目。{@link ParkRoadGraph} 建好后其节点表与邻接表不再变更（每车视图由调用方另建），
+     * 因此可跨线程共享；代价是路段封路时间窗在 TTL 内不会刷新。
+     */
+    private record CachedGraph(ParkRoadGraph graph, long loadedAtMillis, String version) {
+
+        CachedGraph(ParkRoadGraph graph, long loadedAtMillis) {
+            this(graph, loadedAtMillis, versionOf(graph));
+        }
+
+        boolean isExpired(long ttlMillis, long now) {
+            return now - loadedAtMillis >= ttlMillis;
+        }
     }
 
     /**

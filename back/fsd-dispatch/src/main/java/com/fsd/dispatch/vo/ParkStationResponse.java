@@ -40,6 +40,6 @@ public class ParkStationResponse {
     /** 站点承载上限 */
     private Integer capacityLimit;
 
-    /** 配送区域: GEO_DELIVERY / SCHEMATIC / GENERAL */
+    /** 配送区域: GEO_DELIVERY / GENERAL（SCHEMATIC 已随 §7.6 停用，列注释仍留在 V37） */
     private String deliveryZone;
 }

@@ -44,7 +44,8 @@ class MapfLoadTest {
         MapfSimulationAcceptanceTest.InMemoryReservationService reservationService =
                 new MapfSimulationAcceptanceTest.InMemoryReservationService(mapfProperties);
         mapfRoutePlannerService = new MapfRoutePlannerService(
-                mapfProperties, parkPilotProperties, parkRoutePlannerService, reservationService);
+                mapfProperties, parkRoutePlannerService, reservationService,
+                new MapfReservationMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
         graph = buildGridGraph();
         org.mockito.Mockito.when(parkRoutePlannerService.loadGraph(1L)).thenReturn(graph);
         org.mockito.Mockito.when(parkRoutePlannerService.shortestNodePathWithPenalties(

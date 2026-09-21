@@ -66,7 +66,8 @@ public class RealFleetSwapCoordinator {
     }
 
     public boolean prefersSwapRecovery(VehicleEntity vehicle, long parkId) {
-        FleetEnergyProperties energy = strategyRuntimeService.energyForAssign(parkId);
+        String bucketKey = vehicle == null || vehicle.getId() == null ? null : "vehicle:" + vehicle.getId();
+        FleetEnergyProperties energy = strategyRuntimeService.strategyForAssign(parkId, bucketKey).energy();
         String mode = energy.getEnergyRecoveryMode() == null ? "CHARGE" : energy.getEnergyRecoveryMode();
         if ("SWAP".equalsIgnoreCase(mode)) {
             return findSwapCabinet(parkId).isPresent();

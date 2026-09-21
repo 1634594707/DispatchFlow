@@ -368,13 +368,13 @@ class AdminDispatchControllerTest {
     @Test
     void shouldReturnParkVehicles() {
         when(parkPilotService.listVehicleSnapshots()).thenReturn(List.of(
-                ParkVehicleSnapshotResponse.builder().vehicleId(1L).vehicleCode("PARK-01").runtimeStage("IDLE_PATROL").build()
+                ParkVehicleSnapshotResponse.builder().vehicleId(1L).vehicleCode("ZJF-AV-01").runtimeStage("IDLE_PATROL").build()
         ));
 
         ApiResponse<List<ParkVehicleSnapshotResponse>> response = adminDispatchController.listParkVehicles(httpServletRequest);
 
         assertEquals(1, response.getData().size());
-        assertEquals("PARK-01", response.getData().getFirst().getVehicleCode());
+        assertEquals("ZJF-AV-01", response.getData().getFirst().getVehicleCode());
     }
 
     @Test

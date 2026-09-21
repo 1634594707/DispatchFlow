@@ -109,6 +109,8 @@ fsd:
       a-star-enabled: ${FSD_PARK_ROUTE_PLAN_ASTAR_ENABLED:true}
       # 启发权重 w：1.0 = 标准 A*（保证最优）；>1 = 加权 A*（代价上界 w×最优，换取更小搜索规模）
       a-star-weight: ${FSD_PARK_ROUTE_PLAN_ASTAR_WEIGHT:1.0}
+      # 路网图进程内缓存存活时间；<=0 回退到每次全量重查（修复前行为，仅作回滚开关）
+      graph-cache-ttl-ms: ${FSD_PARK_ROUTE_PLAN_GRAPH_CACHE_TTL_MS:60000}
     geo:
       enabled: ${FSD_PARK_GEO_ENABLED:true}
       osm-geo-path: ${FSD_PILOT_OSM_GEO_PATH:../../data/pilot_osm_geo.json}
@@ -361,8 +363,9 @@ fsd:
         area: B
     simulation:
       enabled: ${FSD_PARK_SIMULATION_ENABLED:true}
-      vehicle-count: ${FSD_PARK_SIMULATION_VEHICLE_COUNT:0}
-      geo-vehicle-count: ${FSD_PARK_SIMULATION_GEO_VEHICLE_COUNT:3}
+      # 示意池 PARK-* 已删除（§7.6），不再有 vehicle-count 这一档
+      # M 档车队规模（§1.3/§10.1 定为 20 台）：地图动感的直接旋钮，见 §1.7
+      geo-vehicle-count: ${FSD_PARK_SIMULATION_GEO_VEHICLE_COUNT:20}
       max-trail-size: ${FSD_PARK_SIMULATION_MAX_TRAIL_SIZE:30}
       offline-duration-seconds: ${FSD_PARK_SIMULATION_OFFLINE_DURATION_SECONDS:8}
       offline-probability: ${FSD_PARK_SIMULATION_OFFLINE_PROBABILITY:0.005}
@@ -388,6 +391,20 @@ fsd:
       idle-drain-probability: ${FSD_FLEET_ENERGY_IDLE_DRAIN_PROBABILITY:0.06}
       plugged-standby-no-drain: ${FSD_FLEET_ENERGY_PLUGGED_STANDBY_NO_DRAIN:true}
       idle-charge-when-no-demand: ${FSD_FLEET_ENERGY_IDLE_CHARGE_WHEN_NO_DEMAND:true}
+  # GEO-PG：PostGIS 地理服务接入。默认关闭 —— 关闭时所有空间判断走原有 GeoPolygonUtils
+  # Java 手算路径，生产行为与接入前完全一致；开启后走 PostGIS，失败自动降级回手算。
+  # 等价性证据见 geo-py/tests/test_java_parity.py（每张真实围栏 60x60 网格逐点比对）。
+  # 注意：本服务只承担读侧空间查询，写路径真相源仍是 MySQL；未接线到派单/围栏热路径，
+  # 详见 docs/实施记录-PostGIS地理服务-2026-09-20.md §6。
+  geo-service:
+    enabled: ${FSD_GEO_SERVICE_ENABLED:false}
+    base-url: ${FSD_GEO_SERVICE_BASE_URL:http://127.0.0.1:8090}
+    # 超时即降级，不拖慢派单热路径
+    timeout-ms: ${FSD_GEO_SERVICE_TIMEOUT_MS:200}
+    default-radius-m: ${FSD_GEO_SERVICE_DEFAULT_RADIUS_M:5000}
+    # 连续失败 N 次后临时熔断、直接走本地手算；0 表示不熔断
+    circuit-break-after: ${FSD_GEO_SERVICE_CIRCUIT_BREAK_AFTER:3}
+    circuit-cooldown-ms: ${FSD_GEO_SERVICE_CIRCUIT_COOLDOWN_MS:30000}
   admin:
     sse:
       timeout-ms: ${FSD_ADMIN_SSE_TIMEOUT_MS:300000}
@@ -457,6 +474,11 @@ fsd:
       timeout-ms: ${FSD_AMAP_DRIVING_TIMEOUT_MS:4000}
       base-url: ${FSD_AMAP_DRIVING_BASE_URL:https://restapi.amap.com/v3/direction/driving}
       cache-ttl-seconds: ${FSD_AMAP_DRIVING_CACHE_TTL:3600}
+  # 高峰档（§7.2）：t_peak_mode_state 的两条 cron 都是 NULL 时调度器永不翻档 —— 高峰分支等于没有。
+  # 而手工开过 PEAK 的园区若没有 schedule_end_cron 就没有出口，所以给一个兜底上限时长。
+  peak-mode:
+    cron-check-ms: ${FSD_PEAK_MODE_CRON_CHECK_MS:60000}
+    max-peak-duration-minutes: ${FSD_PEAK_MODE_MAX_MINUTES:120}
   mapf:
     enabled: ${FSD_MAPF_ENABLED:true}
     bucket-ms: ${FSD_MAPF_BUCKET_MS:500}

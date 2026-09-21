@@ -14,7 +14,7 @@ import lombok.Data;
  *   <li>{@code coordSystem} — 坐标系：GCJ02 / WGS84</li>
  *   <li>{@code originType} — 起点类型：VEHICLE_POSITION / SERVICE_POSITION / ROAD_NODE</li>
  *   <li>{@code destinationType} — 终点类型：PICKUP / DELIVERY / CHARGING / PARKING / SERVICE_POSITION</li>
- *   <li>{@code routeMode} — 路线模式：REAL_ROAD / SCHEMATIC / STRAIGHT_LINE</li>
+ *   <li>{@code routeMode} — 路线模式：REAL_ROAD / STRAIGHT_LINE</li>
  *   <li>{@code allowStraightLine} — 是否允许直线回退（false=禁止，P0-3.1）</li>
  *   <li>{@code avoidBuilding} — 是否避让建筑物</li>
  *   <li>{@code avoidRiver} — 是否避让河道</li>
@@ -56,7 +56,7 @@ public class RoadRouteValidateRequest {
     /** 终点类型：PICKUP / DELIVERY / CHARGING / PARKING / SERVICE_POSITION */
     private String destinationType;
 
-    /** 路线模式：REAL_ROAD / SCHEMATIC / STRAIGHT_LINE（默认 REAL_ROAD） */
+    /** 路线模式：REAL_ROAD / STRAIGHT_LINE（默认 REAL_ROAD） */
     private String routeMode;
 
     /** 是否允许直线回退（false=禁止 STRAIGHT_LINE 进入执行队列，P0-3.1） */

@@ -20,6 +20,7 @@ final class IntegrationTestSchema {
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_parking_slot");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_external_api_key");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_webhook_subscription");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_decision_snapshot");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_strategy_change_log");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_strategy_profile");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_road_segment");
@@ -376,6 +377,45 @@ final class IntegrationTestSchema {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     version INT DEFAULT 0,
+                    deleted TINYINT DEFAULT 0
+                )
+                """);
+
+        jdbcTemplate.execute("""
+                CREATE TABLE t_dispatch_decision_snapshot (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    park_id BIGINT NOT NULL,
+                    task_id BIGINT,
+                    order_id BIGINT,
+                    order_no VARCHAR(64),
+                    policy_id VARCHAR(64) NOT NULL,
+                    policy_version VARCHAR(64) NOT NULL,
+                    profile_id BIGINT,
+                    profile_type VARCHAR(16),
+                    gray_bucket INT,
+                    experiment_side TINYINT,
+                    candidate_total INT NOT NULL DEFAULT 0,
+                    fresh_telemetry_count INT,
+                    soc_eligible_count INT,
+                    soc_chain_eligible_count INT,
+                    reachable_count INT,
+                    candidate_evaluated INT NOT NULL DEFAULT 0,
+                    candidates_json CLOB,
+                    winner_vehicle_id BIGINT,
+                    winner_vehicle_code VARCHAR(64),
+                    winner_score DECIMAL(14,4),
+                    runner_up_score DECIMAL(14,4),
+                    score_gap DECIMAL(14,4),
+                    tie_count INT,
+                    match_algorithm VARCHAR(32),
+                    road_graph_version VARCHAR(64),
+                    fail_reason VARCHAR(32),
+                    duration_micros BIGINT,
+                    confidence DECIMAL(6,4),
+                    generated_at TIMESTAMP NOT NULL,
+                    remark VARCHAR(512),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     deleted TINYINT DEFAULT 0
                 )
                 """);

@@ -85,6 +85,9 @@ services:
       FSD_DISPATCH_OUTBOX_RETRY_DELAY_MS: 30000
       FSD_ADMIN_AUTH_ENABLED: "false"
       MOBILE_ORDER_REQUIRE_KEY: "false"
+      # 高德路径 API：prod 一直有透传，本地漏了导致 AmapRoadRouteService.isAvailable() 恒为 false，
+      # 本地永远测不到 amap 分支。值仍只在 .env 里，这里只透传。
+      FSD_AMAP_WEB_SERVICE_KEY: ${FSD_AMAP_WEB_SERVICE_KEY:-}
       SPRINGDOC_API_DOCS_ENABLED: "true"
       SPRINGDOC_SWAGGER_UI_ENABLED: "true"
     ports:

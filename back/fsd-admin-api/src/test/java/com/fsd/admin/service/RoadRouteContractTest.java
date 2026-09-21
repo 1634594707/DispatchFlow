@@ -90,10 +90,20 @@ class RoadRouteContractTest {
                 850D, com.fsd.dispatch.geo.RoadRouteSource.LOCAL_GRAPH);
         when(roadRouteService.planDrivingRoute(any(), any())).thenReturn(planned);
         when(collisionValidator.applyValidation(any(), any())).thenReturn(planned);
-        when(routeMetricsCalculator.compute(isNull(), anyList(), anyList(), isNull(), isNull(), isNull()))
+        when(routeMetricsCalculator.compute(eq(1L), anyList(), anyList(), isNull(), isNull(), isNull()))
                 .thenReturn(new com.fsd.dispatch.geo.RouteMetrics(850D, 120L, 0L, 0L, List.of(), null, null));
 
         RoadRouteValidateResponse response = service.validate(request);
+
+        // ETA 的输入契约：园区与吸附到的节点编码必须真的传到指标计算 —— 曾经传的是 (null, ..., List.of())，
+        // 于是"按路段限速算 ETA"那条路一步都没走过，ETA 恒等于"总长 ÷ 一个写死的常数"。
+        ArgumentCaptor<Long> metricsPark = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<List<String>> metricsNodes = ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(routeMetricsCalculator).compute(metricsPark.capture(), anyList(),
+                metricsNodes.capture(), isNull(), isNull(), isNull());
+        assertEquals(1L, metricsPark.getValue(), "parkId 必须传下去，否则路段索引直接空转");
+        assertEquals(List.of("N-001", "N-009"), metricsNodes.getValue(),
+                "起终点的节点编码要传给指标计算，否则逐段限速无从查起");
 
         // 路线执行绑定契约：routeId / mapVersion / source / segmentPath 全部非空且一致
         assertNotNull(response.getRouteId());
@@ -145,7 +155,7 @@ class RoadRouteContractTest {
                 900D, com.fsd.dispatch.geo.RoadRouteSource.STRAIGHT_LINE);
         when(roadRouteService.planDrivingRoute(any(), any())).thenReturn(straightLine);
         when(collisionValidator.applyValidation(any(), any())).thenReturn(straightLine);
-        when(routeMetricsCalculator.compute(isNull(), anyList(), anyList(), isNull(), isNull(), isNull()))
+        when(routeMetricsCalculator.compute(eq(1L), anyList(), anyList(), isNull(), isNull(), isNull()))
                 .thenReturn(new com.fsd.dispatch.geo.RouteMetrics(900D, 130L, 0L, 0L, List.of(), null, null));
 
         RoadRouteValidateResponse response = service.validate(request);

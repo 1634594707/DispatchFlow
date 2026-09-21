@@ -3,29 +3,25 @@ package com.fsd.dispatch.fleet;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.vehicle.entity.VehicleEntity;
 
-/** 园区示意仿真（PARK-*）与叠石桥地理仿真（ZJF-AV-*）分池，避免混派与状态冲突。 */
+/**
+ * 叠石桥地理仿真车队（{@code ZJF-AV-*}）判定。
+ *
+ * <p>园区示意池（{@code PARK-*}）已随 §7.6 一并删除：没有真车时地理池是地图上唯一的动力源，
+ * 双池并存只会让派单出现"GEO / 示意"两条路径，而示意那条早已没有数据。
+ */
 public final class PilotFleetSupport {
 
-    public static final String SCHEMATIC_VEHICLE_PREFIX = "PARK-";
     public static final String GEO_VEHICLE_PREFIX = "ZJF-AV-";
 
     private PilotFleetSupport() {
     }
 
     public static boolean isPilotSimVehicleCode(String vehicleCode) {
-        return isSchematicPilotVehicleCode(vehicleCode) || isGeoPilotVehicleCode(vehicleCode);
-    }
-
-    public static boolean isSchematicPilotVehicleCode(String vehicleCode) {
-        return vehicleCode != null && vehicleCode.startsWith(SCHEMATIC_VEHICLE_PREFIX);
+        return isGeoPilotVehicleCode(vehicleCode);
     }
 
     public static boolean isGeoPilotVehicleCode(String vehicleCode) {
         return vehicleCode != null && vehicleCode.startsWith(GEO_VEHICLE_PREFIX);
-    }
-
-    public static boolean isSchematicPilotVehicle(VehicleEntity vehicle) {
-        return vehicle != null && isSchematicPilotVehicleCode(vehicle.getVehicleCode());
     }
 
     public static boolean isGeoPilotVehicle(VehicleEntity vehicle) {
@@ -43,20 +39,8 @@ public final class PilotFleetSupport {
         return code != null && code.startsWith("ZJF-");
     }
 
-    public static boolean isSchematicDeliveryStation(ParkStationResponse station) {
-        return station != null && !isGeoDeliveryStation(station);
-    }
-
-    public static boolean matchesOrderFleet(VehicleEntity vehicle,
-                                            ParkStationResponse pickup,
-                                            ParkStationResponse dropoff) {
-        if (vehicle == null || vehicle.getVehicleCode() == null) {
-            return false;
-        }
-        boolean geoOrder = isGeoDeliveryStation(pickup) || isGeoDeliveryStation(dropoff);
-        if (geoOrder) {
-            return isGeoPilotVehicle(vehicle);
-        }
-        return isSchematicPilotVehicle(vehicle);
+    /** 只有地理池可派单：示意池已删，历史遗留的 {@code PARK-*} 车不再参与撮合。 */
+    public static boolean matchesOrderFleet(VehicleEntity vehicle) {
+        return isGeoPilotVehicle(vehicle);
     }
 }

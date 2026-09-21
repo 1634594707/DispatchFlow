@@ -1,11 +1,13 @@
 package com.fsd.bootstrap.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 import com.fsd.admin.service.AdminAuthService;
@@ -98,7 +100,7 @@ class DispatchFlowIntegrationTest {
     @Test
     void shouldCompleteMainFlowFromOrderToTaskSuccess() {
         // 车辆停放在 A1 取货站（GPS 与 schematic 双坐标对齐，确保 Phase 4 haversine 距离计算有效）
-        insertVehicle("PARK-001", "Vehicle 1", "ONLINE", "IDLE", 121.0744, 31.9604);
+        insertVehicle("ZJF-AV-01", "Vehicle 1", "ONLINE", "IDLE", 121.0744, 31.9604);
 
         OrderCreateRequest orderRequest = new OrderCreateRequest();
         orderRequest.setExternalOrderNo("EXT-001");
@@ -120,10 +122,30 @@ class DispatchFlowIntegrationTest {
         DispatchTaskAssignResponse assignResponse = dispatchTaskService.autoAssignTask(taskResponse.getTaskId());
         assertEquals("ASSIGNED", assignResponse.getStatus());
 
-        VehicleReportRequest startRequest = buildReport("PARK-001", assignResponse.getTaskId(), orderResponse.getOrderId(), "START_EXECUTE");
+        // §7.3 的端到端契约：任一历史任务要能被事后追问「为什么是这台车、与次优差多少分」。
+        // 这条断言以前写不了 —— 集成夹具的 H2 schema 早于 V54，快照写入一直失败并降级成一条 WARN，
+        // 于是"决策可证明性"在这套测试里其实是空缺的（§13.15 记的同一族问题：降级没有信号）。
+        Long snapshotRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM t_dispatch_decision_snapshot WHERE order_id = ?",
+                Long.class, orderResponse.getOrderId());
+        assertEquals(1L, snapshotRows.longValue(), "一次派单留一行快照");
+        String snapshotWinner = jdbcTemplate.queryForObject(
+                "SELECT winner_vehicle_code FROM t_dispatch_decision_snapshot WHERE order_id = ?",
+                String.class, orderResponse.getOrderId());
+        assertEquals("ZJF-AV-01", snapshotWinner);
+        BigDecimal snapshotGap = jdbcTemplate.queryForObject(
+                "SELECT score_gap FROM t_dispatch_decision_snapshot WHERE order_id = ?",
+                BigDecimal.class, orderResponse.getOrderId());
+        assertNotNull(snapshotGap, "分差必须落库，否则快照回答不了\"换成次优会差多少\"");
+        String snapshotPolicy = jdbcTemplate.queryForObject(
+                "SELECT policy_id FROM t_dispatch_decision_snapshot WHERE order_id = ?",
+                String.class, orderResponse.getOrderId());
+        assertNotNull(snapshotPolicy, "必须能回溯到当时命中的决策策略与版本");
+
+        VehicleReportRequest startRequest = buildReport("ZJF-AV-01", assignResponse.getTaskId(), orderResponse.getOrderId(), "START_EXECUTE");
         vehicleReportService.handleReport(startRequest);
 
-        VehicleReportRequest successRequest = buildReport("PARK-001", assignResponse.getTaskId(), orderResponse.getOrderId(), "TASK_SUCCESS");
+        VehicleReportRequest successRequest = buildReport("ZJF-AV-01", assignResponse.getTaskId(), orderResponse.getOrderId(), "TASK_SUCCESS");
         vehicleReportService.handleReport(successRequest);
 
         assertEquals("COMPLETED", orderMapper.selectById(orderResponse.getOrderId()).getStatus());
