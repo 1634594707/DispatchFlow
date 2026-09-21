@@ -158,7 +158,8 @@ services:
       # 它们仅作为「运维侧备忘」保留，改口令不会因为改了这里而生效。
       # 正确改口令方式：POST /api/admin/auth/change-password（需 X-Admin-Token），
       # 或直接 UPDATE t_admin_user.password_hash 为 BCrypt 值。
-      # 2026-09-21 已把 admin 的口令对齐为这两个键里 FSD_ADMIN_PASSWORD 的值。
+      # 注意：2026-09-21 曾试探性把 admin 口令对齐到 FSD_ADMIN_PASSWORD，因用户一直用的是
+      # 种子口令 admin123 而被回滚（教训：改凭据前必须先确认目标值，别自己选边）。
       FSD_ADMIN_USER: ${FSD_ADMIN_USER}
       FSD_ADMIN_PASSWORD: ${FSD_ADMIN_PASSWORD}
       FSD_AMAP_WEB_SERVICE_KEY: ${FSD_AMAP_WEB_SERVICE_KEY}
