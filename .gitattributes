@@ -1,0 +1,22 @@
+# 行尾策略：仓库里的 blob 一律 LF。
+# 之前没有这条规则，导致从 Windows 工作树直接 sftp 上传时 .sh 带 CRLF，
+# 服务器上手执行 deploy.sh 会报 "set: -: invalid option" / "$'\r': command not found"，
+# 而打进镜像的 back/sql/init/00-run-migrations.sh 会让容器启动即失败。
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.conf text eol=lf
+Dockerfile* text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制不做转换
+*.png binary
+*.jpg binary
+*.p12 binary
+*.gz binary
+*.osm text eol=lf
