@@ -67,16 +67,20 @@ if docker inspect -f '{{.State.Running}}' fsd-mysql 2>/dev/null | grep -q true; 
       -v "$PROJECT_DIR/back/sql/migrations:/flyway/sql:ro" "$FLYWAY_IMAGE" \
       -locations=filesystem:/flyway/sql -baselineVersion=20 -baselineOnMigrate=true "$@"
   }
-  if flyway_cli validate; then
-    echo "  迁移校验和一致，可以启动。"
+  # 注意：validate 默认会把「已解析但尚未应用」的迁移也算失败 —— 那是每一次正常部署的常态，
+  # 不是有人在改已应用的迁移。这里显式忽略 pending，只保留真正要拦的那一类：
+  # 已应用的迁移与磁盘文件校验和/描述不一致（= 有人改了历史迁移）。
+  PENDING="$(flyway_cli -ignoreMigrationPatterns='*:pending' info 2>/dev/null | grep -cP '^\|\s*Pending' || true)"
+  if flyway_cli -ignoreMigrationPatterns='*:pending' validate; then
+    echo "  已应用迁移的校验和一致；${PENDING:-0} 个待应用迁移将由后端启动时的 Flyway 应用。可以启动。"
   elif [ "${DEPLOY_FLYWAY_REPAIR:-0}" = "1" ]; then
     echo "  validate 失败，DEPLOY_FLYWAY_REPAIR=1 → 执行 repair 后重新 validate..."
-    flyway_cli repair && flyway_cli validate
+    flyway_cli repair && flyway_cli -ignoreMigrationPatterns='*:pending' validate
   else
     rm -f "$FLYWAY_ENV"
-    echo "[ERROR] Flyway validate 失败：要么有人改了已应用的迁移（必须 git checkout 还原，改动另开新迁移），" >&2
-    echo "        要么 history 里残留失败的迁移行（确认后才可 repair）。" >&2
-    echo "        确认无误后重跑：DEPLOY_FLYWAY_REPAIR=1 bash scripts/deploy.sh" >&2
+    echo "[ERROR] Flyway validate 失败（已忽略待应用迁移后仍失败）⇒ 有人改了**已应用**的迁移：" >&2
+    echo "        正确做法是 git 还原那个文件、改动另开新迁移号；" >&2
+    echo "        只有确认是 history 里残留失败行时，才用 DEPLOY_FLYWAY_REPAIR=1 重跑（repair 会改历史表）。" >&2
     exit 1
   fi
   rm -f "$FLYWAY_ENV"
