@@ -113,12 +113,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '多园区总览', breadcrumb: ['分析监控', '多园区总览'], fullscreen: true },
       },
       {
-        path: 'dev/map-poc',
-        name: 'MapPoc',
-        component: () => import('@/views/dev/MapPoc.vue'),
-        meta: { title: '高德地图 PoC', breadcrumb: ['开发验证', '高德地图 PoC'], requiresAdmin: true },
-      },
-      {
         path: 'vehicles/:vehicleId',
         name: 'VehicleDetail',
         component: () => import('@/views/vehicle/Detail.vue'),

@@ -9,6 +9,7 @@ export const DISPATCH_FAIL_REASON: Record<string, string> = {
   NO_IDLE_VEHICLE: '无在线空闲车辆',
   LOW_SOC: '电量不足',
   LOW_BATTERY: '电量不足',
+  NO_MATCHING_VEHICLE: '车辆约束不满足（非电量）',
   UNREACHABLE: '取货点不可达',
   ROUTE_BLOCKED: '路网不可达或路段管制',
   HUB_CAPACITY_FULL: '枢纽容量已满',
@@ -24,6 +25,10 @@ export const DISPATCH_FAIL_LINKS: Record<string, { label: string; path: string }
   LOW_BATTERY: [
     { label: '车辆列表', path: '/vehicles?onlineStatus=ONLINE' },
     { label: '充电报表', path: '/analytics/charging' },
+  ],
+  NO_MATCHING_VEHICLE: [
+    { label: '车辆列表', path: '/vehicles?onlineStatus=ONLINE' },
+    { label: '线路管理', path: '/vertical/routes' },
   ],
   ROUTE_BLOCKED: [
     { label: '路网管理', path: '/infrastructure/road-network' },

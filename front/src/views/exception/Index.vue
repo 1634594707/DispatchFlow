@@ -406,8 +406,23 @@ async function loadAvailableVehicles() {
   }
 }
 
+/**
+ * 处置人必须是真实登录身份。§7.2：这里以前两处写死 `u1001` / `管理员`，
+ * 于是异常台账里"谁处置的"整列是假数据 —— 后端只校验非空、不校验来源，所以只能由前端保证。
+ */
+function resolverIdentity(): { resolverId: string; resolverName: string } | null {
+  const resolverId = authStore.user?.username
+  if (!resolverId) return null
+  return { resolverId, resolverName: authStore.displayName }
+}
+
 async function handleBatchClose() {
   if (selectedRowKeys.value.length === 0) return
+  const resolver = resolverIdentity()
+  if (!resolver) {
+    message.error('未获取到登录身份，无法记录处置人，请重新登录后再试')
+    return
+  }
   const confirmed = await window.confirm(
     `确定要批量关闭 ${selectedRowKeys.value.length} 个异常吗？`,
   )
@@ -415,8 +430,7 @@ async function handleBatchClose() {
   batchResolveLoading.value = true
   try {
     await store.handleBatchResolve(selectedRowKeys.value, {
-      resolverId: 'u1001',
-      resolverName: '管理员',
+      ...resolver,
       action: 'CLOSE',
       remark: '批量关闭异常',
     })
@@ -460,11 +474,15 @@ async function handleResolve() {
     message.warning('处理说明至少10个字符')
     return
   }
+  const resolver = resolverIdentity()
+  if (!resolver) {
+    message.error('未获取到登录身份，无法记录处置人，请重新登录后再试')
+    return
+  }
   resolveLoading.value = true
   try {
     await store.handleResolve(currentException.value.id, {
-      resolverId: 'u1001',
-      resolverName: '管理员',
+      ...resolver,
       action: resolveForm.action,
       remark: resolveForm.remark,
       vehicleId: resolveForm.action === 'REASSIGN' ? resolveForm.vehicleId : undefined,
