@@ -128,8 +128,23 @@ services:
       REDIS_DATABASE: 0
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
-      RABBITMQ_USERNAME: ${RABBITMQ_USER}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASS}
+      # 与 rabbitmq 服务保持同一套回退，避免出现「broker 用 A 名、backend 用 B 名」的错位
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-${RABBITMQ_USER}}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-${RABBITMQ_PASS}}
+      # 未设置时 application.yml 会落到「每次重启随机 per-instance key」，导致全员掉线；
+      # 必须在服务器 .env 里给一个稳定随机值。
+      FSD_ADMIN_TOKEN_HMAC_KEY: ${FSD_ADMIN_TOKEN_HMAC_KEY:-}
+      # 默认值刻意等于「今天的线上行为」（useSSL=true / requireSSL=false / verify=false），
+      # 漏配只是回到现状，不会静默改变 TLS 姿态。
+      DB_USE_SSL: ${DB_USE_SSL:-true}
+      DB_REQUIRE_SSL: ${DB_REQUIRE_SSL:-false}
+      DB_VERIFY_SERVER_CERT: ${DB_VERIFY_SERVER_CERT:-false}
+      # Redis 目前无 requirepass（只绑 127.0.0.1）；这里只做「接线就绪」，
+      # 默认空值在 Spring 侧等价于 none()，行为与现状一致。
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # 生产库所有加密落点（t_admin_user.totp_secret / t_webhook_subscription.secret_token）
+      # 实测均为明文且无密钥，显式关闭以免将来只配 KEY 就静默变成混合态。
+      FSD_FIELD_ENCRYPTION_ENABLED: ${FSD_FIELD_ENCRYPTION_ENABLED:-false}
       FLYWAY_ENABLED: "true"
       # 生产关闭 Swagger 外部访问（仅通过 Nginx 内网白名单放行）
       SPRINGDOC_API_DOCS_ENABLED: "false"
