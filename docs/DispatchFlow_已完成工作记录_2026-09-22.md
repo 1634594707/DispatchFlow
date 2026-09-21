@@ -1,7 +1,7 @@
 # DispatchFlow 已完成工作记录（2026-09-21 至 09-22）
 
 从《调度算法与地理收敛任务路线图》迁出的**执行记录**：本文只放「做了什么、量到多少、证据是什么」，
-不含待办。未做完的事、里程碑清单、闸门与阻塞项仍在路线图文档里。
+以及一件事的另一半 —— **这轮没有做什么**（见文末）。未做完的事、里程碑清单、闸门与阻塞项仍在路线图文档里。
 
 - 路线图文档：`DispatchFlow_调度算法与地理收敛任务路线图_2026-09-21.md`
 - 代码基线：tag `pre-deploy-v52-56`；第一轮部署（生产 Flyway V51 → V56）已于 2026-09-22 04:21 完成
@@ -20,7 +20,7 @@
 - 附：取证方式（本文各结论是怎么来的）
 - §12.5 生产实测回填（部署核查的真实值）
 
-（§13.27「没有做的事」与全部未完成项仍留在路线图。）
+- 各节已完成项（从路线图迁入的勾选条目与「没有做的事」）
 
 
 ### 13.1 已落地，每条都有命令或测试证据
@@ -717,7 +717,7 @@ M4 最后一条 bench 项（能耗只做参数化 + 敏感性，§9 禁止称"�
 
 **改了什么**
 
-1. **没有 `schedule_end_cron` 的 PEAK 必须有上限时长**：超过 `fsd.peak-mode.max-peak-duration-minutes`（默认 120，
+1. **没有 `schedule_end_cron` 的 PEAK 必须有上限时长**：超过 `fsd.peak-mode.max-peak-duration-minutes`（环境变量 `FSD_PEAK_MODE_MAX_MINUTES`，默认 120，
    新增到 `application.yml`，与 `cron-check-ms` 同处）就回落 NORMAL，并计数 `dispatchflow.peak.auto_reset{park}` + WARN。
    有结束 cron 时兜底**不越权**（档口的出口归 cron 管）。
 2. **把「没有时间表」从静默变成可读**：`dispatchflow.peak.schedule{park,state}`，
@@ -839,6 +839,7 @@ park 2 由 `PEAK` 落到 `NORMAL`，`last_schedule_end_at` 与 `enabled_at` 都�
 | 生产 `DEFAULT-BOUNDARY` | **ACTIVE，4 个顶点**；其余四个园区围栏 9–11 顶点（CORE-SOUTH 11 / CORE-NORTH 10 / HUB 10 / EAST 10 / EXPRESS 9） | **与本地不同**（本地 §1.6 记的是 9 顶点 / 17.33 km²）⇒ 这是 §1.5/§7.5「地理内容改走 seed」尚未把生产追平的直接证据，不是猜测 |
 | 生产站点坐标叠置 | 只有 **1 组** 重复坐标 | 本地是 14 个对象叠在同一点（§1.9）⇒ 本地的叠置是后续实验引入的，生产的坑小得多；两边都该由 seed 统一 |
 | 生产 `t_vehicle.current_longitude` | **确认是像素值**：ZJF-AV-01…06 = `668.437`、07…20 = `578.400`（20 台仿真车） | §7.2「坐标语义污染」**在生产同样成立**，且 `VehicleAdminDetailResponse` 原样透出 ⇒ 该条不是本地洁癖，是线上问题（仍是待办） |
+| 生产容器内存 | backend **1.03 GiB / 2 GiB（51%）**、mysql **775 MiB / 1 GiB（76%）** | **真正紧的是 MySQL 不是 backend** ⇒ §11.2/§12.4 的"backend 加到 3 G"要先定位限额来源（compose 里没有 `mem_limit`/`Xmx` 字面值），别按旧文照改 |
 | 生产容器日志 | 五个容器全部 `json-file` 且 **max-size 为空**（未设轮转）；当前合计仅 7.0 MB | §11.3 第 1 条**未落地**；眼下不紧迫但无上限，按月增长会吃掉磁盘 ⇒ 留作第二轮 |
 
 **这一轮顺带查出的四件事（都是新事实，不是复述既有待办）**
@@ -855,3 +856,171 @@ compose 与仓库 HEAD 逐字一致（同步前已 `cmp` 验证，故本轮没�
 
 ---
 
+
+---
+
+
+## 各节已完成项（2026-09-22 从路线图迁入 —— 路线图只保留未完成项）
+
+
+按路线图原小节归位，条目文字与勾选状态原样保留（含被划线的「已推翻」条目）。
+
+
+### 2.1 `DecisionPolicy` 抽象
+
+- [x] 抽出接口：`decide(orderState, candidateVehicles[], networkSnapshot, forecast) → RankedDecision`，**纯函数**，不碰 DB、不碰 Redis —— 落为 `core.DecisionPolicy.decide(DecisionInput) → DecisionOutcome`
+
+- [x] 实现 A `RulePolicy`：现有 `:353-376` 等价迁移，行为逐位不变（先由 §7.1 的断言测试钉住）
+
+- [x] 决策结果统一携带：候选清单、分项分数、命中策略标识、策略版本、耗时、置信度 → 全部进 §7.3 的快照表
+
+
+### 5. 仿真实验台（没有真车时唯一能出可信数字的东西）
+
+- [x] 场景配置外置：车辆数（按 §1.3 档位）、需求到达过程、**时段分布**、围栏与路网版本、随机种子 —— 时段分布后来补上了（`Config.arrival` / `ArrivalProfile`，§13.14），默认 `FLAT` 保持既有归档数字不变；真实园区高峰曲线仍是假设
+
+- [x] 固定种子可复现：同配置两次运行逐指标一致
+
+- [x] 指标导出：完成时间、总行驶里程、空驶率、~~SOC 抛锚次数~~、充电排队、派单失败原因分布 —— **抛锚次数在本模型里构造性恒为 0**（全链路 SOC 前置检查不允许接跑不完的单），改导"补能被桩位挡住的车·分钟"，见 §13.10
+
+- [x] **N 次重复 + 置信区间**（当前只有单次压测点值，无法区分改进与噪声——§0.1 的 REAL/FAKE 差异小于运行间方差就是证据）
+
+- [x] **事后最优基线**：给定全局已知信息算每任务最优可选车，作为 regret 分母 —— 明确它只是**下界**（不看 SOC/占用），regret 因此偏乐观
+
+- [x] 假设声明页：绕行系数 1.3、均速 15.52 km/h、耗电 150 m/1% 全部标注为假设及其来源 —— 前两项已换成实测（1.481 / 17.84，§13.9.2），9 条假设随报告落盘
+
+- [x] 规模口径：任何输出都带档位标签（S/M/L），**禁止跨档混用数字**
+
+
+### 7.1 决策内核独立
+
+- [x] 抽 `dispatch-core` 包：`DecisionPolicy`（§2.1）+ 成本函数 + 图快照，**纯函数、无 Spring 依赖** —— 落为 `com.fsd.dispatch.core`，并由 `DecisionCorePurityTest` 守住（扫描该包全部 `import`，出现 Spring / mapper / entity / config 引用即失败）
+
+
+### 7.2 缺陷修复（M1 内容，按严重度排）
+
+- [x] **灰度重掷**：`DispatchStrategyRuntimeServiceImpl.java:57-66` 每次调用各掷一次随机数，而 `DispatchVehicleAssignServiceImpl.java:94`/`:95` 分两次调用 → 同一单可能混用"实验侧能量阈值 + 生产侧权重"。改为每单解析一次并向下传递，分桶键用稳定哈希
+
+- [x] **`toEnergy` 丢字段**：`:102-115` 只拷 3 个字段，其余回落类默认值 → `FSD_FLEET_ENERGY_BUSY_DRAIN_METERS_PER_PERCENT`（`application.yml:387`）在派单链路失效，SOC 校验恒按 150 m/1% 计算；同样波及 `RealFleetSwapCoordinator.java:69`、`ParkPilotSimulationServiceImpl.java:700`
+
+- [x] **死权重**：`weightPriority`、`weightCongestion` 进公式或删除配置与界面项，不许留着不生效
+
+- [x] **Webhook 熔断只开不关**：`:94-98` 命中即 `continue`，唯一归零在 `:149` 成功分支（熔断后不可达），另一处只有管理端编辑 `IntegrationAdminServiceImpl.java:63` → 连续 5 次失败后订阅**永久静默**。加冷却窗口半开探测。**这是接 Jev 的前置条件**
+
+- [x] **MQTT 重连不重订阅**（→ §13.26 已修，但本机无 broker，live 验证待部署环境）：`Vda5050MqttGateway.java:110-111` + `subscribe()` 只在 `connect()` 内 `:128` + `connectionLost` 只记日志 `:51-53` → 断网重连后 FMS 失聪。改用 `MqttCallbackExtended.connectComplete`
+
+- [x] **MAPF 单位不一致**（→ §13.19 已修）：`MapfRoutePlannerService` 拿 **haversine 米** 除以 `vehicleSpeedPxPerSecond=8.0`，而那个值实际取自 `fsd.park.vehicle-speed-px-per-second` —— 前端动画/仿真器的 px/s。加上本 seed px→米各向异性（横 1.2263 / 纵 0.7390 m/px，86 条边实测比值 0.741–1.226），**每条边的预约只覆盖真实占位时间的 37%–62%（均值 45.8%）**，MAPF 看着在跑其实几乎不挡车。现改成 `vehicleSpeedMetersPerSecond=3.66`（=§13.17 那个实测 13.19 km/h）、`ParkRoadGraph.distanceMetersTo()` 恒为米、A\* 边权同口径。
+  **本条另一半仍待本人定口径**：重规划用尽后**仍返回未预约路线并照常派单**（`reserved=false`）—— 该不该拦是 SLA 问题；本轮先把比例变成可观测（`dispatchflow.mapf.reservation{result}`），未改行为
+
+- [x] **异常处置人**：前端写死 `u1001`（§6.4）→ 已改为真实登录身份（`useAuthStore().user.username` + `displayName`），取不到身份时直接拒绝提交而不是塞假值；`front/src/views/exception/Index.vue` 两处调用点均走 `resolverIdentity()`
+
+- [x] **失败原因标签错位**（本轮 §7.6 实测撞出 → **§13.23 已修**）：`socEligible` 这一层同时混了 SOC、维保、车型、车队池、配送区、载重六个过滤器，任何一条不满足都对外报 `LOW_SOC`。实测两处：100 车规模压测里车号前缀不对 → 报"空闲车辆电量低于可派车阈值"；`tasks/64` 因池子过滤失败也是同一句。要么给 `DispatchAssignFailReason` 加一个"无匹配车辆（约束不满足）"并在 `DispatchFailExplainSupport` 补译，要么把这六个过滤器拆开各报各的。**§7.3 要的"派单失败原因分布"在这个标签下不可信**
+
+- [x] **并列裁决没有显式规则** → **§13.25 已修**（总分 → `vehicleCode` 字典序 → `vehicleId`；实测影响面 4/558 = 0.7% 的成功派单）：M 档 20 台实测出现 `score_gap=0.0000 / tie_count=2`（同泊位、同 SOC 的两台车），当前由稳定排序的**列表原序**（即 DB 返回顺序）决定谁中选 —— 结果可复现但语义上是"碰巧"。要么显式规定并列时的次级键（如 vehicleCode / 累计派单数最少优先），要么把它做成有意的公平性轮转
+
+
+### 7.3 决策可证明性
+
+- [x] 新迁移（V52 起）`t_dispatch_decision_snapshot`：task_id、park_id、候选清单与分项分数、**命中策略标识与版本**、臂标签、路网图版本、撮合算法标识、耗时、`generated_at` —— 实际落在 **V54**（V52 给了列守卫、V53 给熔断冷却），漏斗四列在 **V55**；`task_id` 在首次自动派单路径上仍为 NULL，见 §13.4 已知缺口
+
+- [x] 写入点：`DispatchVehicleAssignServiceImpl.java:200-212` 的 `explanation` 目前只进 response VO（`DispatchTaskServiceImpl.java:364` → `DispatchTaskAssignResponse.java:33`），**落库即丢** → 现由 `selectBestVehicle` 外层统一写快照，成功与失败都留痕，实测有行
+
+
+### 7.5 地理数据治理（同时解决"迁移太多"与"范围怪"）
+
+- [x] 把 V21–V47 的地理 DML 收敛为当前态快照 `back/sql/seed/zjf_geo.sql`（幂等 upsert，业务键 `fence_code`/`station_code`/`slot_code`）—— 270 条 upsert，由 `scripts/dev/export-geo-seed.sh` 从实库生成；9 张地理表的业务键上本来就有 UNIQUE 索引，无需改表
+
+- [x] 迁移目录此后只留 DDL；seed 与迁移的执行顺序写进 `back/sql/init/` 与 `docs/DispatchFlow_部署整改任务路线图_2026-09-21.md`（**注：原 `docs/DEPLOYMENT.md` 等 20 份文档已于 2026-09-21 删除，本文件与部署整改路线图是仅存的两份**）—— 顺序已写进 `00-run-migrations.sh` 头部
+
+- [x] 新库初始化路径 = 「V01–V20 基线 + DDL 迁移 + seed」，**新库与已有库两条路径各测一遍** → `scripts/dev/verify-geo-init-paths.sh`，实测两侧指纹逐字节相同
+
+- [x] 回退 `V33`/`V34`（当前各 +18/−2 行，checksum 已漂移，Flyway validate 会阻断启动），幂等保护另开新迁移，`flyway repair` 写进 `scripts/deploy.sh` 前置检查 → 见 §13.1；幂等保护落在 **V52**，repair 需显式 `DEPLOY_FLYWAY_REPAIR=1`
+
+- [x] `CONTRIBUTING.md` 增加硬规则：**禁止修改已应用迁移** → 新增「Migration discipline」一节，并顺手纠正了原文把 `back/sql/init/` 说成迁移目录的错误
+
+
+### M0　环境与工作区收口（阻塞一切）
+
+- [x] 三环境 Flyway 版本对齐：**代码 V56 / 本地 V56 / 生产 V56**（2026-09-22 第一轮部署追平；部署前生产停在 V51、history 基线在 V50 —— 过程记录在《已完成工作记录》）
+
+- [x] 本地库补齐 V48–V51 并复跑 §0.2 查询，记录差异 → 差异见 §13.1；其中"79 节点全部 ACTIVE"一行本身有误，见 §13.2
+
+- [x] 一条命令把本地演示数据重置到"可派单"状态（车辆遥测刷新、SOC 分布化、坐标合法），**脚本须显式禁止指向生产** → `scripts/dev/reset-demo-dispatchable.sh`，实测 `PASS=13 WARN=0 FAIL=0`；坐标一项的处置见 §13.2 第 1 条的修正
+
+- [x] §7.5 的 V33/V34 回退 + repair 前置 —— **2026-09-22 部署前实测判定不需要 repair**（生产 history 只有 V50 BASELINE + V51，那两列来自 dump；校验和逐条比对一致），基线 tag `pre-deploy-v52-56` 已打
+
+
+### M2　地理与设施收敛
+
+- [x] §7.6 删除园区示意调度 —— **两条尾巴有意留着**：像素坐标路径（`parkXYToGcj02` 兜底）必须与 §7.2 坐标改写同批改，现在删会让地图上没有车；`digital-twin` 降级与 `DemoModePanel`（被冻结文件 `Tracking.vue:133/605` 引用）属 §6.2/M7 的监控台重构。逐条状态见 §13.7
+
+- [x] 地理池车数从 3 提到 **20（M 档，§1.3）**（`FSD_PARK_SIMULATION_GEO_VEHICLE_COUNT` 默认与 `ParkPilotProperties.geoVehicleCount` 都改为 20），`ZJF-IDLE-01` 的 `capacity_limit` 20→28（由 `scripts/dev/reset-demo-dispatchable.sh` 落库并 `--verify` 断言），本地演示数据自洽（§1.7）
+
+- [x] 根 `docker-compose.yml` 与 `back/docker-compose.yml` 补透传 `FSD_AMAP_WEB_SERVICE_KEY` —— **根 compose 其实没有 backend 服务**，它只 `include: back/docker-compose.yml`（§0.2 那条"两处未透传"应读作"一处"），已补进 `back/docker-compose.yml`
+
+
+### M2E　扩范围（**依赖 M5 的图缓存，不得先做**）
+
+- [x] 按 §1.6 路 A 重取 OSM：bbox `121.068–121.094 / 31.956–31.972` → 实取 `121.0680–121.0905 / 31.9550–31.9715`，Overpass 200 / 112 KB / ODbL，落 `data/map.expanded.osm`（§1.6 预估 1.4 MB / 400–600 节点，量级同一：**原始抽取** 346 节点 / 321 way 引用；**但"36.99 km"是未裁断的口径，作废** —— 裁断后入库 91 节点 / 113 边 / 24.35 km，见 §13.9.2）
+
+
+### M3　仿真实验台
+
+- [x] §5 全部，默认 M 档 **20 台 / 13 站 / 1.35 km²** —— 20 台 ✅；**两处口径与本文不同，别当已对齐**：① 范围用的是**现役** 5 个派单围栏外接框 1613 × 500 m，1.35 km² 要等 §1.8 那 4 个站点进库后重跑；② **"13 站"没有进模型** —— M3 的 OD 是园区内随机点而非站点对（站点级需求分布属 M6 输入），所以撮合/空驶/regret 的结论成立，**站点维度的结论不成立**。见 §13.10
+
+
+### M4　让已有能力生效
+
+- [x] 错峰返充接线：`shouldDeferReturnToCharge`（`EnergyForecastServiceImpl.java:79-96`，已带安全兜底）此前唯一调用方是仿真 `ParkPilotSimulationServiceImpl.java:808`，真实链路一行都没查 —— **现已接入 `DispatchAutomationRuleServiceImpl.evaluateFleetEnergyRules`**：有峰段场景里高峰推迟 = 完成率 **+7.38pp [+6.35, +8.42]**、桩位排队 **−14.1 车·分钟**、接驾距离 −70 m，且必充档不受影响。（曾一度按 §13.12 降级，那是齐次到达下的结论，前提已补掉）
+  - **修正数（§13.16-a，补上"开去充电"这条腿之后重跑同一对臂）**：完成率 **+10.65pp [+9.38, +11.92]**、完成单数 +18.42、空驶率 −8.53pp、总里程由 **+8.3 km 翻成 −7.0 km**、而排队收益变小（−14.1 → **−8.98 车·分钟**）。引用这条时以 §13.16-a 为准，并带 §13.16-b 的 14.6pp 参数扰动带。
+
+- [x] **（§13.12 换来的新优先级，§13.15 改过落点，本轮已量）选桩策略实验 → 结论是"三条都不值得做"**：库里实测**6 根桩全挂在 ZJF-CHG-01、六个车位坐标逐字相同**，所以"选近桩"在现役设施下是空命题（§13.16）。真正缺的是"开去充电"这条腿，已补进实验台并量出：漏掉它**系统性抬高完成率约 3pp**、每次补能漏计 745.8 m 空驶；把 6 根桩摊到 5 个真实站址 **完成率只 +0.50pp 且分不出来**（⇒ §1.8 的价值不能按"缓解抢桩"论证）；排队感知选址与另一个点**逐指标完全相同**、"最闲桩"分散反而多花 4.1 km 里程且没摊平。四张表在 `reports/scenario-bench/pile-selection-m-tier.md`，判语与自抓的 (0,0) 瞬移 bug 见 §13.16。**已完成**：时机与预置两条对照都已在有腿模型里重跑，修正数见 §13.16-a / §13.16-c
+
+- [x] ~~选桩粒度从园区降到桩（`ChargingSessionServiceImpl.java:164-224`，负载因子现为"园区活跃会话/10" `:215-217`）~~ —— **立论已推翻（§13.15 第三例）**：那段代码全仓零调用方，改它不影响任何线上行为。原文留此划线是为了不再被当成待办
+
+- [x] 能耗只做**参数化 + 敏感性分析**（`busyDrainMetersPerPercent` 在 100–250 m/1% 对派单可行域的影响），**不得称"预测模型"** —— **已扫（§13.16-b）**：完成率 0.6970 → 0.8433，**总跨度 14.63pp**，且失败归因会从 `NO_VEHICLE` 换成 `LOW_SOC`。这条同时给整个 M3/M4 的完成率结论钉了一条**扰动上限**：小于 14.6pp 的完成率差不该归因给策略
+
+
+### M5　多目标撮合与规模
+
+- [x] 路网图缓存（`ParkRoutePlannerServiceImpl.java:133-148` 每次全量重查；本地 79/124 与压测 1000 节点两种规模都测）→ `ParkRoadGraphCacheTest` 6 条，见 §13.1
+
+- [x] 待派池 + 批量撮合（§2.3）—— **算法与对照表已完成（§13.13）**：`Config.matchStrategy` + `matchWindowTicks`，匈牙利解对过穷举。**真实链路未接**，因为②"同窗口内换配对"确实更好（里程 −3.2 km、端到端 −9.4 s，均可分）而③"开 2 分钟窗口"要用 +51 s 等派去换 → 属于 SLA 与成本的业务取舍，等本人定口径（§13.13 末）
+
+- [x] MAPF 单位统一（§7.2）—— 已修，见 §13.19：预约窗口原来只覆盖真实占位时间的 37%–62%，现按米÷米每秒统一，A\* 边权同口径（路径选择在现役数据上零变化，由 21 条既有测试证明）。**"冲突仍照常派单"未改**，只加了冲突率计数器，等本人定 SLA 口径
+
+- [x] 同硬件重压测，双口径留档 → §13.21（MAPF 修复后重测，8 轮 × 20 单 × 两臂）：**进程内图缓存把 P50 从 103.96 ms 降到 77.61 ms（+33.9%，8×8 逐轮全分离）**，P95 两臂区间重叠 ⇒ 分不出来；MAPF 单位统一**没有**改变热路径耗时（修复前 78.19 / 意外复测 77.78 / 修复后 77.61，互相落在对方区间内），但冲突率第一次可读：**24.4%**。**表述纪律守住**：这一轮量的是 JVM 内图缓存，不是 Redis ⇒ 不得写成"Redis 贡献"（Redis 在热路径上承担的是暂停标志/充电策略热更新/事件幂等，本轮未单独设臂）
+
+- [x] L 档 40 台退化曲线 → §13.20：需求固定时 10→20 台 +39.95 pp、20→40 台只 +7.36 pp 且完成率饱和（1.0000，CI 宽度 0）；需求同比放大时完成率不退化（0.862→0.954），**退化在别处** —— 补能阻塞 4×车 ⇒ 120×、候选/次派单 ⇒ 2.6×。范围/桩数仍取现役值，**不得当 §1.3 目标 L 档的容量证明**
+
+
+### M6　需求预测与热区预置（"引力波"最小可信版）
+
+- [x] 站点×小时订单需求 P50/P90（数据由 M3 生成，本地 `t_dispatch_task` 现为 0 行）→ `ScenarioBench.demandProfile` + `reports/scenario-bench/demand-m-tier.md`；一致性断言卡住"各格合计=名义到达量"。**限定**：默认 `FLAT` 到达下小时差是抽样噪声，要测峰谷必须切 `ArrivalProfile.PEAK_SECOND_HOUR`（§13.14①）
+
+- [x] 空闲超阈值车辆向热区预置；收益指标：平均接驾距离、接驾时延、峰时未响应单量 → 实验台已实现并量完（§13.14②）：接驾距离 **−164 m**、端到端 **−32.6 s** 可分，但 **regret +6.9pp、补能排队 +37.5 车·分钟** 同样可分 —— 预置把车队聚到一个点，代价真实，**不能只报有利的那一列**；真实链路接入待与选桩/分散度一起调
+
+
+### 12.4 部署动作（与 M0 一一对应，顺序不能换）
+
+- [x] ~~V33/V34 回退 + flyway repair~~ → **2026-09-22 实测判定不需要**：生产 history 只有 `V50 BASELINE` + `V51`，V33/V34 的 `channel_type`/`agg_count` 是 dump 带进来的（所以谈不上「改了就应用的迁移」），部署前用 `check-migration-checksums.js` 逐条比对**校验和全部一致** ⇒ 直接 validate 通过、未跑 repair。原条保留划线以免后人又当成待办 —— 否则 `FLYWAY_ENABLED=true` 下启动即校验失败（`docs/DispatchFlow_部署整改任务路线图_2026-09-21.md` §1.1 已列为阻断项）
+
+- [x] 部署后跑 §12.3 第 1、3、4 条复验并回填 §12.5 —— **已完成**（V56、日志未轮转、生产 DEFAULT-BOUNDARY 4 顶点、车辆坐标确认为像素）
+
+
+### 「本轮工作中**没有**做的事」（原路线图 §13.27，2026-09-22 迁入）
+
+- **服务器动作已在授权后执行完第一轮**（此前该条为"全部未碰"）：2026-09-22 按你指令做了服务器清理
+  （`codefolio` 容器与两个数据卷删除、`code.aplicity.online` 置 410、构建缓存回收 4.15 GB）
+  与第一轮部署（V51 → V56，未跑 repair，实测校验和一致）；核查真实值见本文「附：生产实测回填」。
+  **仍然没做的服务器动作**：日志轮转、内存上限调整、`.env` 的 `FSD_ADMIN_TOKEN_HMAC_KEY` 补齐、真车 MQTT 压测。
+- 提交与基线 tag：部署前为"未提交、无 tag"，现已按主题提交并打 tag `pre-deploy-v52-56`（部署包即从该提交树 `git archive` 导出）。
+  **仍按你的搁置决定留在工作区未提交的只有两处**：`.gh-check.js`（CI 探针草稿）与未接线的 geo 三件套
+  （`GeoQueryService`/`GeoServiceClient`/`GeoServiceProperties` + 其测试）—— 后者若进 main 就是死代码 bean，
+  按路线图 §9 应"接进围栏补 N≥5,000 压测"或明确 README 记载未接线，二者都还没做。
+- **两文档分工的自查（2026-09-22，第二次清理后）**：路线图 782 行、**0 个 `- [x]`**、150 个未完成项；本记录 1027 行。
+  两次清理都用脚本做**守恒校验**：原文逐行比对，被删的行必须逐字出现在本文（改写行再按数字与反引号标识符逐个回查，
+  确认事实仍在）——第一次迁出 49 个勾选块，第二次删掉内联在未完成条目与闸门里的"已完成叙述"39 行。
+  `reports/*.md` 已解除 .gitignore 屏蔽进仓库，因为两份文档几十处引用它们，此前它们在仓库外、克隆即断链。
+- **§7.2「乐观锁是装饰品」的当前状态证据（已复核，尚未修）**：全仓 main 里 `@Version` 与 `OptimisticLockerInnerInterceptor` **零命中**，而 `AdminUserServiceImpl.java:60`、`DispatchStrategyAdminServiceImpl.java:89`、`InfrastructureAdminServiceImpl.java:104/:173` 等仍在 `setVersion(0)` —— 即版本号只被写死成初值，既不递增也不参与 WHERE ⇒ `t_dispatch_task.version` 的注释「乐观锁版本号」是假的。修法二选一（接上插件并证明并发下确有一次更新失败重试，或删列 + 删注释），需要一轮独立工作：接插件会改变该实体所有 UPDATE 的语义，必须先用 `DispatchConcurrencyIntegrationTest` 钉住前后差异，不能盲接。本轮未动它。
+- 未动 `Tracking.vue`、`digital-twin/Index.vue`、`ParkPilotSimulationServiceImpl` 本体（冻结清单）；`ParkPilotSimulationServiceImpl` 与 `RealFleetSwapCoordinator` 只改了 §7.2 点名的调用行（方法签名换 `strategyForAssign`），未触算法。
