@@ -10,7 +10,7 @@
 #
 # 域名（宿主机 Nginx 按域名分发，实际生效值）：
 #   www.aplicity.online / app.aplicity.online -> 127.0.0.1:8081 (fsd-frontend)
-#   code.aplicity.online                      -> 127.0.0.1:8082 (codefolio)
+#   code.aplicity.online                      -> 已下线（2026-09-22 按指令移除 codefolio 与其数据卷，返回 410）
 #   （不存在 admin.aplicity.online；早期文档写 admin 的一律按 app 理解）
 # Cloudflare 配置：
 #   SSL/TLS 模式设为 Full (strict)
