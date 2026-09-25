@@ -60,16 +60,34 @@ extra_join() {
   esac
 }
 
+# 泊位/充电桩的占用列是运行时状态（仿真器每 tick 都在写），不是地图内容。
+# 原样导出会把"某辆车正停在 P3"冻进权威态，新库一起来就带着 6 个假占用，
+# 而 verify-geo-init-paths.sh 两条路径都用同一份 seed，比对是查不出这种污染的。
+# 这里按建表默认值写成"空占用态"，取值域见 information_schema 列注释
+# （status: FREE/OCCUPIED/RESERVED/CHARGING/FAULT，DEFAULT 'FREE'）。
+override_expr() {
+  case "$1:$2" in
+    t_parking_slot:status|t_charging_pile:status|t_charging_pile:reservation_state)
+      printf "quote('FREE')" ;;
+    t_parking_slot:occupied_vehicle_id|t_charging_pile:occupied_vehicle_id|t_charging_pile:estimated_release_at)
+      printf "'NULL'" ;;
+    *) printf '' ;;
+  esac
+}
+
 SKIP_COLS="'id','created_at','updated_at'"
 
 seed_table() {
-  local table="$1" cols col ref value_exprs=() col_list=() upd_list=() joined select_expr
+  local table="$1" cols col ref ov value_exprs=() col_list=() upd_list=() joined select_expr
   while IFS= read -r col; do
     [ -z "$col" ] && continue
     col_list+=("\`$col\`")
     upd_list+=("\`$col\`=VALUES(\`$col\`)")
+    ov="$(override_expr "$table" "$col")"
     ref="$(resolve_expr "$table" "$col")"
-    if [ -n "$ref" ]; then
+    if [ -n "$ov" ]; then
+      value_exprs+=("$ov")
+    elif [ -n "$ref" ]; then
       value_exprs+=("$ref")
     else
       value_exprs+=("if(t.\`$col\` is null, 'NULL', quote(t.\`$col\`))")
@@ -106,6 +124,21 @@ TABLES=(t_park t_park_geofence t_station t_road_node t_road_segment t_parking_sl
 
 mkdir -p "$(dirname "$OUT")"
 
+# 前置：seed 必须从"静止的库"导出。活库只要还在被仿真器写，运行时列就不止泊位/桩这两张表
+# 会漂（本项目已经两次把仿真占用冻进"权威地图内容"）。这里用可观测的症状拦，而不是查端口。
+busy="$(mysql_q "SELECT (SELECT COUNT(*) FROM t_charging_pile WHERE deleted=0 AND (status<>'FREE' OR occupied_vehicle_id IS NOT NULL))
+                       + (SELECT COUNT(*) FROM t_parking_slot  WHERE deleted=0 AND (status<>'FREE' OR occupied_vehicle_id IS NOT NULL));")"
+if [ "${busy:-0}" -gt 0 ]; then
+  echo "[ERROR] 来源库有 $busy 个泊位/桩处于占用态 —— 这是仿真运行时状态，不能当成地图内容导出。" >&2
+  echo "        先停掉后端，再 bash scripts/dev/reset-demo-dispatchable.sh 复位后重跑。" >&2
+  exit 1
+fi
+
+# 先写临时文件、校验通过再落位：中途失败不能把原有 seed 覆盖成半成品
+TMP="$(mktemp "${TMPDIR:-/tmp}/zjf_geo.XXXXXX.sql")"
+cleanup() { [ -n "${TMP:-}" ] && rm -f "$TMP"; }
+trap cleanup EXIT
+
 {
   printf -- '-- =====================================================================\n'
   printf -- '-- DispatchFlow 园区地理当前态种子。自动生成，请勿直接编辑内容。\n'
@@ -119,11 +152,27 @@ mkdir -p "$(dirname "$OUT")"
   for table in "${TABLES[@]}"; do
     seed_table "$table"
   done
-} > "$OUT"
+} > "$TMP"
 
-statements=$(grep -c '^INSERT INTO' "$OUT" || true)
+statements=$(grep -c '^INSERT INTO' "$TMP" || true)
 if [ "${statements:-0}" -lt 50 ]; then
-  echo "[ERROR] 只导出 $statements 条，疑似来源库为空或列解析失败" >&2
+  echo "[ERROR] 只导出 $statements 条，疑似来源库为空或列解析失败（未覆盖 $OUT）" >&2
   exit 1
 fi
-echo "[OK] $OUT：$statements 条 upsert"
+
+# 守门断言：占用列必须是空占用态。运行时状态一旦进 seed，新库和旧库会"一致地错"，
+# 两条路径指纹比对查不出来，所以必须在生成侧拦。
+runtime=$(grep -E '^INSERT INTO (t_parking_slot|t_charging_pile) ' "$TMP" \
+          | grep -cE "'(OCCUPIED|RESERVED|CHARGING|FAULT)'|, [0-9]+, 'FREE'" || true)
+if [ "${runtime:-0}" -gt 0 ]; then
+  echo "[ERROR] seed 里混进运行时占用状态（$runtime 条），拒绝写出：$OUT" >&2
+  grep -nE "^INSERT INTO (t_parking_slot|t_charging_pile) " "$TMP" | head -2 >&2
+  exit 1
+fi
+if grep -qE '^INSERT INTO .* \`version\`' "$TMP"; then
+  echo "[ERROR] seed 里仍有遗留 version 列（V62 已删除），拒绝写出：$OUT" >&2
+  exit 1
+fi
+
+cp "$TMP" "$OUT"
+echo "[OK] $OUT：$statements 条 upsert（占用列已按空占用态导出）"

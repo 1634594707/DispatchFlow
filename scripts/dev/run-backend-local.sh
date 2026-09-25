@@ -50,9 +50,17 @@ export SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-}"
 # 与 back/docker-compose.yml 一致：本地关掉管理端鉴权与移动端下单密钥，便于冒烟派单
 export FSD_ADMIN_AUTH_ENABLED="${FSD_ADMIN_AUTH_ENABLED:-false}"
 export MOBILE_ORDER_REQUIRE_KEY="${MOBILE_ORDER_REQUIRE_KEY:-false}"
+# ⚠ 光有上面那行**不够**：`validateMobileOrderKey` 要同时满足 require-api-key=false
+#   与 unsafe-no-auth=true 才放行，而后者以前读的是 JVM 系统属性 ⇒ 环境变量拨不动它，
+#   手机下单页因此在本地和线上都拿不到站点（全回 MOBILE_ORDER_KEY_REQUIRED）。
+#   现在它改成了 Spring 属性，这一行才是那句注释承诺的行为。**只对本机默认开。**
+export FSD_MOBILE_ORDER_UNSAFE_NO_AUTH="${FSD_MOBILE_ORDER_UNSAFE_NO_AUTH:-true}"
 
 missing=()
-for container in fsd-mysql fsd-redis fsd-rabbitmq; do
+# Redis 不在这张名单里：它由下面的 127.0.0.1:$REDIS_PORT 探针判定。按容器名判定会把
+# "fsd-redis 由别的 compose 项目带起、没发布宿主机端口"这种真实可用的配置（改用
+# fsd-redis-localdev，见下方提示）挡在门外 —— 而名字在、端口不在时它也挡不住。
+for container in fsd-mysql fsd-rabbitmq; do
   if [ "$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null || echo false)" != "true" ]; then
     missing+=("$container")
   fi
