@@ -98,8 +98,8 @@ fsd:
   park:
     enabled: ${FSD_PARK_ENABLED:true}
     default-park-code: ${FSD_PARK_DEFAULT_CODE:DEFAULT}
-    width: ${FSD_PARK_WIDTH:1200}
-    height: ${FSD_PARK_HEIGHT:800}
+    width: ${FSD_PARK_WIDTH:1600}
+    height: ${FSD_PARK_HEIGHT:1854}
     min-zoom: ${FSD_PARK_MIN_ZOOM:-1}
     max-zoom: ${FSD_PARK_MAX_ZOOM:3}
     vehicle-speed-px-per-second: ${FSD_PARK_VEHICLE_SPEED_PX_PER_SECOND:8}
@@ -114,31 +114,33 @@ fsd:
     geo:
       enabled: ${FSD_PARK_GEO_ENABLED:true}
       osm-geo-path: ${FSD_PILOT_OSM_GEO_PATH:../../data/pilot_osm_geo.json}
-      anchor-lng: ${FSD_PARK_GEO_ANCHOR_LNG:121.080354}
-      anchor-lat: ${FSD_PARK_GEO_ANCHOR_LAT:31.961977}
-      park-width-meters: ${FSD_PARK_GEO_WIDTH_M:1570}
-      park-height-meters: ${FSD_PARK_GEO_HEIGHT_M:470}
+      anchor-lng: ${FSD_PARK_GEO_ANCHOR_LNG:121.0932364}
+      anchor-lat: ${FSD_PARK_GEO_ANCHOR_LAT:31.9373442}
+      park-width-meters: ${FSD_PARK_GEO_WIDTH_M:7957.7}
+      park-height-meters: ${FSD_PARK_GEO_HEIGHT_M:9221.0}
       scenario: ${FSD_PARK_GEO_SCENARIO:ZJF_DIESHIQIAO_PILOT}
-      # Phase 4：4 点仿射变换参考点（schematic x/y ↔ GCJ-02 lng/lat）
-      # 坐标来自 V38 迁移公式：x=(lng-121.072)*77000, y=(31.9645-lat)*150000
-      # 选点覆盖西南/东/西北/东北四个方位，确保仿射变换在全园区内误差 < 10 米
+      # §范围补齐：画布与参考点由 scripts/geo/osm_to_road_graph.py 的 fit_canvas 反解
+      # （data/map.corridor.osm 在走廊框 31.8994,121.0487,31.9793,121.1288 内的节点 GCJ 外接框
+      #  → 米制各向同性画布 1600x1854，0 节点越界）。4 个参考点全落在同一线性映射
+      #  x=(lng-X0)*SX / y=(Y0-lat)*SY 上，故 resolveAffine 精确还原，
+      #  与 zjf_road_network.sql 的 coord_x/coord_y 同源。产物见 docs/park_transform_params_2026-09-23.txt。
       reference-points:
-        - x: 188.881
-          y: 615.600
-          lng: 121.074453
-          lat: 31.960396
-        - x: 1155.385
-          y: 408.000
-          lng: 121.087005
-          lat: 31.961780
-        - x: 182.259
-          y: 142.800
-          lng: 121.074367
-          lat: 31.963548
-        - x: 915.761
-          y: 250.050
-          lng: 121.083893
-          lat: 31.962833
+        - x: 40
+          y: 40
+          lng: 121.0532242
+          lat: 31.9769738
+        - x: 1560
+          y: 40
+          lng: 121.1332486
+          lat: 31.9769738
+        - x: 40
+          y: 1814
+          lng: 121.0532242
+          lat: 31.8977147
+        - x: 1560
+          y: 1814
+          lng: 121.1332486
+          lat: 31.8977147
     x-field-alias: currentLongitude
     y-field-alias: currentLatitude
     parking-spots:
@@ -369,8 +371,12 @@ fsd:
       max-trail-size: ${FSD_PARK_SIMULATION_MAX_TRAIL_SIZE:30}
       offline-duration-seconds: ${FSD_PARK_SIMULATION_OFFLINE_DURATION_SECONDS:8}
       offline-probability: ${FSD_PARK_SIMULATION_OFFLINE_PROBABILITY:0.005}
+      # T1-d 取证结论：下面两行在本仓库【无读取方】——全仓 grep 只有 ParkPilotProperties.java
+      # 的字段声明与此处绑定，没有任何 Java/前端代码消费它们。真实的派单与回补判据走 fsd.fleet.energy.*。
+      # 因此 T1-a 把 min-assignable-battery 由 25 改 30 只是消除它与代码默认值（30）的分叉、防误读，
+      # 不产生任何行为变化；不要据此推断派单门槛被本次改动影响过。
       low-battery-threshold: ${FSD_PARK_SIMULATION_LOW_BATTERY_THRESHOLD:25}
-      min-assignable-battery: ${FSD_PARK_SIMULATION_MIN_ASSIGNABLE_BATTERY:25}
+      min-assignable-battery: ${FSD_PARK_SIMULATION_MIN_ASSIGNABLE_BATTERY:30}
       full-charge-level: ${FSD_PARK_SIMULATION_FULL_CHARGE_LEVEL:100}
       charge-rate-per-tick: ${FSD_PARK_SIMULATION_CHARGE_RATE_PER_TICK:4}
       reserve-battery-floor: ${FSD_PARK_SIMULATION_RESERVE_BATTERY_FLOOR:8}
@@ -380,14 +386,19 @@ fsd:
     telemetry:
       scheduler-enabled: ${FSD_FLEET_TELEMETRY_SCHEDULER_ENABLED:true}
     energy:
-      low-soc-threshold: ${FSD_FLEET_ENERGY_LOW_SOC_THRESHOLD:20}
-      return-to-charge-threshold: ${FSD_FLEET_ENERGY_RETURN_TO_CHARGE_THRESHOLD:20}
+      # T1-b（Q1 已裁"对齐 RMS"）：回补触发线由 20 提到 30，与 §0.1 [业务] 口径"<30% 自动回母港补能"一致。
+      # 语义是 soc <= threshold 触发回补，故 soc==30 也回补；与 min-assignable-soc=30 在 30 这一点重叠是有意为之
+      # ——原值 20 使 20~30 区间的车既派不出去也不回补，只能趴着，这次一并消掉。
+      # 演示节奏代价（在场车变少）由 M0 倍速对冲。判定见 FleetChargePolicyImpl / ChargingSessionServiceImpl。
+      low-soc-threshold: ${FSD_FLEET_ENERGY_LOW_SOC_THRESHOLD:30}
+      return-to-charge-threshold: ${FSD_FLEET_ENERGY_RETURN_TO_CHARGE_THRESHOLD:30}
       min-assignable-soc: ${FSD_FLEET_ENERGY_MIN_ASSIGNABLE_SOC:30}
       full-soc: ${FSD_FLEET_ENERGY_FULL_SOC:100}
       charge-rate-per-tick: ${FSD_FLEET_ENERGY_CHARGE_RATE_PER_TICK:4}
       reserve-soc-floor: ${FSD_FLEET_ENERGY_RESERVE_SOC_FLOOR:8}
       busy-drain-interval-ticks: ${FSD_FLEET_ENERGY_BUSY_DRAIN_INTERVAL_TICKS:8}
-      busy-drain-meters-per-percent: ${FSD_FLEET_ENERGY_BUSY_DRAIN_METERS_PER_PERCENT:150}
+      # 1,800 m/1% = 满电 180 km（新石器 L4 满载规格）；旧值 150（满电 15 km）出处不明，压低一个数量级
+      busy-drain-meters-per-percent: ${FSD_FLEET_ENERGY_BUSY_DRAIN_METERS_PER_PERCENT:1800}
       idle-drain-probability: ${FSD_FLEET_ENERGY_IDLE_DRAIN_PROBABILITY:0.06}
       plugged-standby-no-drain: ${FSD_FLEET_ENERGY_PLUGGED_STANDBY_NO_DRAIN:true}
       idle-charge-when-no-demand: ${FSD_FLEET_ENERGY_IDLE_CHARGE_WHEN_NO_DEMAND:true}
@@ -395,7 +406,7 @@ fsd:
   # Java 手算路径，生产行为与接入前完全一致；开启后走 PostGIS，失败自动降级回手算。
   # 等价性证据见 geo-py/tests/test_java_parity.py（每张真实围栏 60x60 网格逐点比对）。
   # 注意：本服务只承担读侧空间查询，写路径真相源仍是 MySQL；未接线到派单/围栏热路径，
-  # 详见 docs/实施记录-PostGIS地理服务-2026-09-20.md §6。
+  # 详见仓库根 README「未接线的实验件」段（原 docs/实施记录-PostGIS地理服务-2026-09-20.md 已随 2026-09-22 文档收敛删除）。
   geo-service:
     enabled: ${FSD_GEO_SERVICE_ENABLED:false}
     base-url: ${FSD_GEO_SERVICE_BASE_URL:http://127.0.0.1:8090}
@@ -422,6 +433,17 @@ fsd:
       lease-seconds: ${FSD_DISPATCH_OUTBOX_LEASE_SECONDS:60}
     lock:
       ttl: ${FSD_DISPATCH_LOCK_TTL:10s}
+    # §2.2 决策策略三阶段晋级 + §2.3 批量撮合开关。
+    # mode=OFF 时挑战者策略连计算都不做；SHADOW 只记录一致率/regret，不改变结果；
+    # GRAY 按订单稳定分桶放量；PRIMARY 才让挑战者接管。运行期可经
+    # POST /api/admin/dispatch/policy 一分钟内切回（§2.2 回退闸门），不必重启。
+    policy:
+      mode: ${FSD_DISPATCH_POLICY_MODE:OFF}
+      challenger: ${FSD_DISPATCH_POLICY_CHALLENGER:FORECAST}
+      gray-percent: ${FSD_DISPATCH_POLICY_GRAY_PERCENT:0}
+      batch-enabled: ${FSD_DISPATCH_POLICY_BATCH_ENABLED:false}
+      batch-algorithm: ${FSD_DISPATCH_POLICY_BATCH_ALGORITHM:HUNGARIAN}
+      batch-max-pool-size: ${FSD_DISPATCH_POLICY_BATCH_MAX_POOL_SIZE:20}
   alert:
     open-timeout-minutes: ${FSD_ALERT_OPEN_TIMEOUT_MINUTES:30}
     escalation-check-ms: ${FSD_ALERT_ESCALATION_CHECK_MS:60000}

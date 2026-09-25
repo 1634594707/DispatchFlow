@@ -27,6 +27,7 @@ final class IntegrationTestSchema {
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_road_node");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_exception_record");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_task_operate_log");
+        jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_pause_state");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_event_outbox");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_dispatch_task");
         jdbcTemplate.execute("DROP TABLE IF EXISTS t_order");
@@ -59,7 +60,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -90,8 +90,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
-                    delivery_zone VARCHAR(32) DEFAULT 'GENERAL',
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -110,7 +108,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -124,8 +121,16 @@ final class IntegrationTestSchema {
                     biz_type VARCHAR(32) NOT NULL,
                     park_id BIGINT,
                     route_id BIGINT,
-                    pickup_point_id BIGINT NOT NULL,
-                    dropoff_point_id BIGINT NOT NULL,
+                    pickup_point_id BIGINT,
+                    dropoff_point_id BIGINT,
+                    pickup_lng DECIMAL(10,6),
+                    pickup_lat DECIMAL(10,6),
+                    dropoff_lng DECIMAL(10,6),
+                    dropoff_lat DECIMAL(10,6),
+                    pickup_node_code VARCHAR(64),
+                    dropoff_node_code VARCHAR(64),
+                    pickup_snap_meters DECIMAL(8,2),
+                    dropoff_snap_meters DECIMAL(8,2),
                     priority VARCHAR(32) NOT NULL,
                     status VARCHAR(32) NOT NULL,
                     dispatch_task_id BIGINT,
@@ -133,8 +138,6 @@ final class IntegrationTestSchema {
                     created_by VARCHAR(64),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
-                    delivery_zone VARCHAR(32),
                     weight DECIMAL(10,2),
                     deleted TINYINT DEFAULT 0
                 )
@@ -159,7 +162,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -186,8 +188,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
-                    delivery_zone VARCHAR(32) DEFAULT 'BOTH',
                     max_load_capacity INT,
                     current_load INT DEFAULT 0,
                     width_cm INT,
@@ -251,6 +251,22 @@ final class IntegrationTestSchema {
                 )
                 """);
 
+        // V43 建表 / V58 把 park_id=0 定为全局档。审计列 pause_reason + paused_by 此前从未被写过，
+        // 这张表进夹具就是为了钉住"它们真的会被落库"。
+        jdbcTemplate.execute("""
+                CREATE TABLE t_dispatch_pause_state (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    park_id BIGINT NOT NULL,
+                    is_paused TINYINT NOT NULL DEFAULT 0,
+                    pause_reason VARCHAR(128),
+                    paused_by VARCHAR(64),
+                    paused_at TIMESTAMP,
+                    resumed_at TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT uk_park UNIQUE (park_id)
+                )
+                """);
+
         jdbcTemplate.execute("""
                 CREATE TABLE t_dispatch_exception_record (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -310,7 +326,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -334,7 +349,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -354,7 +368,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -376,7 +389,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -433,7 +445,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -462,7 +473,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -484,7 +494,6 @@ final class IntegrationTestSchema {
                     remark VARCHAR(255),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -543,7 +552,6 @@ final class IntegrationTestSchema {
                     last_login_at TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    version INT DEFAULT 0,
                     deleted TINYINT DEFAULT 0
                 )
                 """);
@@ -563,15 +571,15 @@ final class IntegrationTestSchema {
         jdbcTemplate.update("""
                 INSERT INTO t_park (
                     id, park_code, park_name, map_width, map_height, min_zoom, max_zoom,
-                    vehicle_speed_px_per_second, status, default_flag, version, deleted
-                ) VALUES (1, 'DEFAULT', 'Default Park', 1200, 800, -1, 3, 8, 'ACTIVE', 1, 0, 0)
+                    vehicle_speed_px_per_second, status, default_flag, deleted
+                ) VALUES (1, 'DEFAULT', 'Default Park', 1200, 800, -1, 3, 8, 'ACTIVE', 1, 0)
                 """);
         jdbcTemplate.update("""
                 INSERT INTO t_station (
-                    id, park_id, station_code, station_name, station_type, coord_x, coord_y, coord_lng, coord_lat, area, status, sort_order, version, deleted
+                    id, park_id, station_code, station_name, station_type, coord_x, coord_y, coord_lng, coord_lat, area, status, sort_order, deleted
                 ) VALUES
-                (101, 1, 'A1', 'A1 Pickup', 'PICKUP', 220, 170, 121.074400, 31.960400, 'A', 'ACTIVE', 1, 0, 0),
-                (201, 1, 'B1', 'B1 Dropoff', 'DROPOFF', 220, 620, 121.079700, 31.963600, 'B', 'ACTIVE', 11, 0, 0)
+                (101, 1, 'A1', 'A1 Pickup', 'PICKUP', 220, 170, 121.074400, 31.960400, 'A', 'ACTIVE', 1, 0),
+                (201, 1, 'B1', 'B1 Dropoff', 'DROPOFF', 220, 620, 121.079700, 31.963600, 'B', 'ACTIVE', 11, 0)
                 """);
     }
 }

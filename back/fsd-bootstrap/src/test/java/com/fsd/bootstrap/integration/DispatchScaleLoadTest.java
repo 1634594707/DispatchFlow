@@ -259,8 +259,8 @@ class DispatchScaleLoadTest {
             }
         }
         jdbcTemplate.batchUpdate("""
-                INSERT INTO t_road_node (park_id, node_code, coord_x, coord_y, status, version, deleted)
-                VALUES (1, ?, ?, ?, 'ACTIVE', 0, 0)
+                INSERT INTO t_road_node (park_id, node_code, coord_x, coord_y, status, deleted)
+                VALUES (1, ?, ?, ?, 'ACTIVE', 0)
                 """, nodes);
 
         List<Object[]> segments = new ArrayList<>();
@@ -276,8 +276,8 @@ class DispatchScaleLoadTest {
         }
         jdbcTemplate.batchUpdate("""
                 INSERT INTO t_road_segment (park_id, from_node_code, to_node_code, direction, status,
-                                            speed_limit_kmh, congestion_level, version, deleted)
-                VALUES (?, ?, ?, 'BIDIRECTIONAL', 'ACTIVE', 15, 0, 0, 0)
+                                            speed_limit_kmh, congestion_level, deleted)
+                VALUES (?, ?, ?, 'BIDIRECTIONAL', 'ACTIVE', 15, 0, 0)
                 """, segments);
 
         assertEquals(EFFECTIVE_NODES, nodes.size(),
@@ -312,8 +312,8 @@ class DispatchScaleLoadTest {
         jdbcTemplate.batchUpdate("""
                 INSERT INTO t_vehicle (park_id, vehicle_code, vehicle_name, vehicle_type, link_mode,
                                        online_status, dispatch_status, current_longitude, current_latitude,
-                                       battery_level, last_report_time, version, deleted)
-                VALUES (1, ?, ?, 'CAR', 'SIM', 'ONLINE', 'IDLE', ?, ?, 100, CURRENT_TIMESTAMP, 0, 0)
+                                       battery_level, last_report_time, deleted)
+                VALUES (1, ?, ?, 'CAR', 'SIM', 'ONLINE', 'IDLE', ?, ?, 100, CURRENT_TIMESTAMP, 0)
                 """, vehicles);
     }
 
