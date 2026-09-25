@@ -1,0 +1,16 @@
+-- 东侧路网扩展输入框（ZJF-ZONE-EAST-IN）
+--
+-- 为什么要有这一片：现役 ZJF-ZONE-SVC-01 的东界停在 121.128887，那是 **OSM 提取框**的东边，
+-- 不是路网能力的东边。实测有 31 个 ACTIVE 路网节点在 121.128887 以东（最远 121.1332486），
+-- 且 7 个设施（FSD-SWAP-02/04/12/14/35、FSD-CHG-02/04）的锚点节点 OSM0397/0342/0203/0399/OSMS0263
+-- 全部落在**最大强连通分量（component 1，685 节点）**里 —— 这些地方"250 m 内吸得到、能派单"，
+-- 却被围栏挡在外面，属于围栏画小了，不是设施放错了地方。
+--
+-- 用途只有一个：喂给 scripts/geo/service_area_from_snapping.py 参与"围栏并集 ∩ 可吸附"的计算，
+-- 调用顺序必须是 zjf_geo.sql, zjf_service_area.sql, 本文件（zjf_service_area.sql 抬头那条 UPDATE
+-- 会把所有非 SVC 的 ZJF-ZONE-* 置 DISABLED，排它前面就等于没加）。
+-- ⚠ 本文件【不进运行时 seed 序列】：线上受理只认 ACTIVE 的 ZJF-ZONE-*，让这块矩形 ACTIVE
+--   等于绕过"由吸附算出来"这条正道，把未验证的范围当成可下单区。
+-- 一行式 INSERT 不是排版选择：service_area_from_snapping.py 的 seed 解析按单行匹配，
+-- 跨行写法会被静默跳过（实测"可派单围栏 1 片"里没有它）。
+INSERT INTO t_park_geofence (`park_id`, `fence_code`, `fence_name`, `fence_type`, `response_level`, `buffer_meters`, `polygon_json`, `status`, `remark`, `deleted`) SELECT (select id from t_park where park_code='DEFAULT'), 'ZJF-ZONE-EAST-IN', '东侧路网扩展输入框（仅供生成器求并集）', 'BOUNDARY', 'WARN', '0.00', '[[121.128887, 31.8994], [121.1345, 31.8994], [121.1345, 31.979237], [121.128887, 31.979237]]', 'ACTIVE', '生成器输入用，不参与线上受理；SCC 取证见文件头注释', 0 FROM DUAL ON DUPLICATE KEY UPDATE `fence_name`=VALUES(`fence_name`), `polygon_json`=VALUES(`polygon_json`), `status`=VALUES(`status`), `remark`=VALUES(`remark`), `deleted`=0;

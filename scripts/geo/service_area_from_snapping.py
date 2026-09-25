@@ -207,7 +207,15 @@ def disabled_by_update(texts: list[str], codes: set[str]) -> tuple[set[str], int
 
 
 def load_fences(texts: list[str]) -> list[tuple[str, np.ndarray]]:
+    """按 seed 的**先后顺序重放**：先吃本文件的 INSERT，再落本文件的停用 UPDATE。
+
+    原来是对全部文本先收集所有 INSERT、再全局套用所有 UPDATE —— 那样"排在含停用语句
+    那份 seed 之后"的输入围栏会被自己那条 UPDATE 误杀，等于这台工具没法接收任何新增输入片
+    （实测：加一片 ZJF-ZONE-EAST-IN 后仍打印"可派单围栏 1 片"）。按语句顺序重放才是
+    MySQL 的真实执行语义；现役两份 seed 的结果不变（仍是 1 片 / 同一面积）。
+    """
     found: dict[str, np.ndarray] = {}
+    disable_stmts, total_dropped = 0, 0
     for text in texts:
         for m in FENCE_RE.finditer(text):
             if m.group("status") != "ACTIVE":
@@ -220,12 +228,14 @@ def load_fences(texts: list[str]) -> list[tuple[str, np.ndarray]]:
             if len(ring) < 3:
                 continue
             found[m.group("code")] = np.array(ring, dtype=float)   # 后一份 seed 覆盖前一份
-    dropped, stmts = disabled_by_update(texts, set(found))
-    if stmts and not dropped:
+        dropped, stmts = disabled_by_update([text], set(found))
+        disable_stmts += stmts
+        total_dropped += len(dropped)
+        for code in sorted(dropped):
+            found.pop(code, None)
+    if disable_stmts and not total_dropped:
         raise SystemExit("[ERROR] 解析到停用 UPDATE 却一片没停用 —— 先怀疑这里的正则，"
                          "不要接受『围栏还在』这个结论")
-    for code in sorted(dropped):
-        found.pop(code, None)
     return list(found.items())
 
 
