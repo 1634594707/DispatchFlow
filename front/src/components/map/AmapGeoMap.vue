@@ -326,6 +326,19 @@ watch(
 
 <style scoped lang="less">
 .amap-geo-map {
+  /* 这块地图（含 AMap 自己注入的 marker/label/面板节点）永远画在深色浮层上。
+     但外层页面可以重定主题：移动端亮色页在 ParkOrder.vue 里把
+     --fsd-text-primary/secondary/tertiary/muted 改成 #1a1a1a/#666/#999/#ccc，
+     还把 --fsd-bg-hover 改成了浅色 #edf2f3 —— 于是深色芯片上落深色字：
+     marker 标签 38 个全部隐形，L0/L1/L2 与图层面板对比度只剩 ~2.9:1，悬停态更是浅字压浅底。
+     在组件根上把这几个名字钉回暗色档，比逐条规则换 token 更稳（新加的规则也一并罩住）。 */
+  --fsd-text-primary: var(--fsd-text-on-overlay);
+  --fsd-text-heading: var(--fsd-text-on-overlay);
+  --fsd-text-secondary: var(--fsd-text-on-overlay-secondary);
+  --fsd-text-tertiary: var(--fsd-text-on-overlay-tertiary);
+  --fsd-text-muted: var(--fsd-text-on-overlay-muted);
+  --fsd-bg-hover: var(--fsd-surface-hover);
+
   position: relative;
   width: 100%;
   height: 100%;

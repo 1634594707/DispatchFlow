@@ -299,7 +299,7 @@ M3 ──┘   M4 独立，可插队
 | T2-e | ✅ | 2026-09-25 | 基准间隔具名 `TRACKING_POLL_BASE_MS = 1500`，退避封顶 30 s 未动（e2e 断言两点）。代价按 §4 原文记账：匿名路径不过限流、QPS×2，仅演示时长内可接受 |
 | T2-f | ✅ | 2026-09-25 | `ORDER_REJECT_SERVICE_AREA_GUIDANCE='请在高亮的服务范围内选点'` 只挂在吸附失败/围栏外两类码上（其余原因码不给，e2e 断言）；围栏描边闪一次走 `flashOutline`，**只改样式**：e2e 比对闪前/闪后的围栏集合与几何完全相同。`[data-testid=order-rejection]` 仍是常驻元素，没改成 toast |
 | 前端总闸门 | ✅ | 2026-09-25 | `vue-tsc --noEmit` 干净；`npm run build` 成功；`npx playwright test scripts/e2e` **63 passed / 0 failed**（`--workers=2`，与 CI 同范围）。⚠ 本行原先写"66 passed"是**假绿**：那次跑的是整个 playwright 配置（含 `scripts/perf`）且带着 `.env.local` 与真后端代理 ⇒ 掩盖了三个环境依赖缺陷，详见 §11.1 |
-| 彩排目视（§9 步 2） | ✅ | 2026-09-25 | 截图已落档 `docs/assets/demo-tracking-map-500ms.png`（430×1080，tick=500 档，同屏 `vehicleMarkers=20 / swapMarkers=35 / positionUnknown=0`）。⚠ 图里那排黑药丸是 §12.2 的标签缺陷，不是地图坏了 |
+| 彩排目视（§9 步 2） | ✅ | 2026-09-25 | 截图已落档 `docs/assets/demo-tracking-map-500ms.png`（430×1080，tick=500 档，同屏 `vehicleMarkers=20 / swapMarkers=35 / positionUnknown=0`）。图中芯片文字可读——标签隐形缺陷已按方案①修掉，见 §12.2 |
 | T3-a | ✅（零改动） | 2026-09-25 | 裁定"不补洞"，且**现网文案本就没有**过度声明：`覆盖 100%`/`100% 覆盖` 全仓 0 命中；`全覆盖`/`55 km` 命中处都是闸门自述或"洞不描、洞内拒单"的反向陈述 ⇒ 闸门通过，无需改文案。见 §5 T3-a 与下方巡检表 |
 | T3-b | ✅ | 2026-09-25 | 六个旧数全仓逐处定性（70 处命中 / 28 文件）：`front/` 与 `README.md` **0 命中**；唯一把旧面积写成现值的活文案 = `ParkPilotProperties.java:126`"服务范围因此定成 32.2 km²" ⇒ 已改为历史量 + 现值 47.18 km²。其余 历史/无关 或 落在禁改区：`V64__order_arbitrary_points.sql:13`（**不能改**，改注释会破已应用迁移的 Flyway 校验和）、`ScenarioBench.java:984` 的 17.84 出处陈述（要干净修只能重跑 bench，§7.7 禁）、`scripts/geo/amap_route_diff.py:49,52`（第二份产能算式，§7.7 禁）。明细见 §10.1 |
 | M5 彩排 | ✅ | 2026-09-25 | §9.2 表：步骤 0/1/5 PASS（接单 1.555 s），步骤 3 达成但**按证据强度重新表述**（空闲补能是混淆项），步骤 4 只验了坐标兜底那半 |
@@ -384,16 +384,36 @@ CI 在 `bcfa1a4` 三项全绿；第三轮部署后容器内 `find / -name park-m
 > 直连容器 `127.0.0.1:8081` 取到的是 `text/html` / 1693 B / 与首页同尺寸，即 nginx `try_files … /index.html` 的 SPA 兜底。
 > 结论：**判"资源是否还在"要看到容器内的文件系统与响应 Content-Type，不能只看 HTTP 状态码**（200 也可能是兜底页）。
 
-### 12.2 未修：marker 标签深色字压深色底（截图里可见，待本人裁）
+### 12.2 已修：marker 标签深色字压深色底（本人裁"选①，保持暗色主题一致"）
 
-`AmapGeoMap.vue` 的 `.amap-marker-label` 把芯片底色改成了 `var(--fsd-surface-overlay)=#151a21`，
-但**文字色没赢下来**：实测 38 个标签芯片 `color: rgb(26,26,26)` 落在 `background: rgb(21,26,33)` 上 ⇒
-文字不可见，屏幕上就是一排黑药丸。生产同样存在（部署前就有，与 12.1 无关），
-且 Cloudflare 对静态资源带 `cache-control: max-age=14400`，改完上线后边缘最长 4 h 才干净。
+**真正的根因不是"文字色没赢过 AMap"**——我第一版判断错了，探针打脸后才看清：
+标签是个**没有子节点**的扁平 `div.amap-marker-label`，文字直接在里面，我们的规则确实生效了
+（底色 `rgb(21,26,33)` 就是 `--fsd-surface-overlay`）。问题在于 **token 被外层改写了**：
 
-**为什么我没直接改**：这是你演示屏的视觉风格决定，不是明确的缺陷单。两条路等你选——
-① 让文字色赢过 AMap 自带规则（保留深色芯片）；② 撤掉我们的底色覆盖、回到 AMap 默认浅底深字。
-两者都不动几何与数据，改的是 `AmapGeoMap.vue` 一处样式。
+```
+:root            --fsd-text-primary = #eef2f6   ← 暗色档
+.map-wrap.geo    --fsd-text-primary = #1a1a1a   ← 移动端亮色页在 ParkOrder.vue:703 局部重定
+```
+
+所以 `color: var(--fsd-text-primary)` 忠实地解析成了深色，落在永远深色的芯片上 ⇒ 隐形。
+同一个组件里还有 **4 处**同病：`--fsd-text-secondary`(2 处)、`-tertiary`、`-muted`，
+以及 `--fsd-bg-hover`（移动端把它改成了浅色 `#edf2f3`）——层级按钮实测只剩 **#666 on #151a21 ≈ 2.9:1**。
+
+**修法**：新增一组不可被外层改写的 `--fsd-text-on-overlay{,-secondary,-tertiary,-muted}`，
+在 `.amap-geo-map` **组件根上把 5 个通用名钉回暗色档**（含 `--fsd-bg-hover: var(--fsd-surface-hover)`）。
+选钉根而不是逐条换 token：这样组件里**以后新写**的规则也一并罩住，不会再漏。
+
+**实测结果**（真浏览器、真高德、37 个标签）：标签对比度 **2.9 → 15.5:1**，层级按钮 **→ 7.7:1**；
+截图已重生成，`docs/assets/demo-tracking-map-500ms.png` 里芯片文字可读。
+
+**守卫的边界要说清**：新增的 `v15-overlay-contrast.spec.ts` 是**源码级**断言（钉 token 那段话在不在），
+不是渲染断言。原因：marker 标签 DOM 由高德 JSAPI 注入，而 e2e 为稳定会 `abort` `*.amap.com`
+（见 v14 的 `seedMobilePage`）⇒ CI 里根本没有 `.amap-marker-label` 节点，测不到。
+15.5:1 / 7.7:1 这两个数是手工在真浏览器里量的，CI 只保证"钉 token 的契约不被悄悄删掉"，
+并额外钉住前提（移动端确实还在局部重定主题）。
+
+> 更正一处我先前的判断：我原以为"改完上线后边缘最长 4 h 才干净"。那条只对**固定文件名**成立
+> （`park-map.svg` 那种）；CSS/JS 走内容 hash 文件名，`index.html` 一改就指向新文件，没有 4 h 尾巴。
 
 > **本轮同步修掉的死链**（《已完成工作记录》《调度算法与地理收敛任务路线图》《部署整改任务路线图》三份文档已退场后遗留）：`README.md` 四处（徽章、"文档只剩三份"导语、生产部署段、文档表三行）与 `scripts/dev/reset-demo-dispatchable.sh:6` 一处改指现存文档；守卫 `node scripts/check-doc-links.mjs` 复跑 `[OK] 检查 21 条引用`。已删文档**未恢复**，其内容按路径可在 `git log --diff-filter=D -- docs/` 查到。
 

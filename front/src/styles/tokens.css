@@ -34,6 +34,16 @@
 
   /* Text. Tertiary text remains readable on every dark surface. */
   --fsd-text-primary: #eef2f6;
+  /* ── on-overlay 文字组 ────────────────────────────────────────────
+     上面四个 text token 会被局部重定主题：移动端亮色页在 `ParkOrder.vue` 里把
+     primary/secondary/tertiary/muted 全部改成深色值（#1a1a1a/#666/#999/#ccc）。
+     而地图这类组件的底色始终是深色浮层，两者一配就出现"深字压深底"的隐形文字
+     ——marker 标签实测 38 个全瞎，L0/L1/L2 与图层面板同样只剩 ~2.9:1 对比。
+     需要"永远落在深色浮层上"的文字，用下面这组，不要用会被外层改写的通用名。 */
+  --fsd-text-on-overlay: #eef2f6;
+  --fsd-text-on-overlay-secondary: #a3adba;
+  --fsd-text-on-overlay-tertiary: #7f8a98;
+  --fsd-text-on-overlay-muted: #687482;
   --fsd-text-secondary: #a3adba;
   --fsd-text-tertiary: #7f8a98;
   --fsd-text-heading: #f5f7fa;
