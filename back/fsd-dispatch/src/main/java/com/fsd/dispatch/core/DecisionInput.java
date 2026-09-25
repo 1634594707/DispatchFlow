@@ -19,12 +19,22 @@ public record DecisionInput(String orderPriority,
      * @param roadDistanceMetres   到取货点的路网距离（米，已含 geo 混合）
      * @param pluggedFullStandby   插电 + STANDBY + 满电，三者同时成立才给停车位奖励
      * @param idleMinutes          距最后一次上报的空闲分钟数，≤0 表示不奖励
+     * @param forecastPressure     目标站点的预测压力（§2.1 实现 B），归一化 0..1，由调用方从
+     *                             {@code t_energy_forecast} 解析好；规则策略与 SHADOW 未接线时恒为 0
      */
     public record CandidateState(RankedCandidateIdentity identity,
                                  int soc,
                                  double roadDistanceMetres,
                                  boolean pluggedFullStandby,
-                                 long idleMinutes) {
+                                 long idleMinutes,
+                                 double forecastPressure) {
+
+        /** 无预测项的构造（§2.1 实现 A 的等价迁移、SHADOW 接线前的热路径都用这条），forecastPressure 恒为 0。 */
+        public CandidateState(RankedCandidateIdentity identity,
+                              int soc, double roadDistanceMetres,
+                              boolean pluggedFullStandby, long idleMinutes) {
+            this(identity, soc, roadDistanceMetres, pluggedFullStandby, idleMinutes, 0D);
+        }
     }
 
     /** 候选车的身份标识，避免策略层依赖 ORM 实体。 */

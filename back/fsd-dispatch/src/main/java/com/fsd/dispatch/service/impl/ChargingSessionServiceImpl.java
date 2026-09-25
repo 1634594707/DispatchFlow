@@ -16,6 +16,8 @@ import com.fsd.dispatch.entity.ParkingSlotEntity;
 import com.fsd.dispatch.geo.GeoPolygonUtils;
 import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
+import com.fsd.dispatch.geo.ParkGeoTransformService.ParkPoint;
+import com.fsd.dispatch.geo.VehiclePositionResolver;
 import com.fsd.dispatch.mapper.ChargingPileMapper;
 import com.fsd.dispatch.mapper.ChargingSessionMapper;
 import com.fsd.dispatch.mapper.ParkingSlotMapper;
@@ -57,6 +59,7 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
     private final FleetEnergyProperties fleetEnergyProperties;
     private final ParkRoutePlannerService parkRoutePlannerService;
     private final ParkGeoTransformService parkGeoTransformService;
+    private final VehiclePositionResolver vehiclePositionResolver;
 
     public ChargingSessionServiceImpl(ChargingSessionMapper chargingSessionMapper,
                                       ChargingPileMapper chargingPileMapper,
@@ -64,7 +67,8 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
                                       VehicleMapper vehicleMapper,
                                       FleetEnergyProperties fleetEnergyProperties,
                                       ParkRoutePlannerService parkRoutePlannerService,
-                                      ParkGeoTransformService parkGeoTransformService) {
+                                      ParkGeoTransformService parkGeoTransformService,
+                                      VehiclePositionResolver vehiclePositionResolver) {
         this.chargingSessionMapper = chargingSessionMapper;
         this.chargingPileMapper = chargingPileMapper;
         this.parkingSlotMapper = parkingSlotMapper;
@@ -72,6 +76,7 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
         this.fleetEnergyProperties = fleetEnergyProperties;
         this.parkRoutePlannerService = parkRoutePlannerService;
         this.parkGeoTransformService = parkGeoTransformService;
+        this.vehiclePositionResolver = vehiclePositionResolver;
     }
 
     @Override
@@ -87,7 +92,6 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
         entity.setSessionStatus(ChargingSessionStatus.ACTIVE.name());
         entity.setStartSoc(startSoc);
         entity.setStartTime(LocalDateTime.now());
-        entity.setVersion(0);
         entity.setDeleted(0);
         chargingSessionMapper.insert(entity);
         return entity;
@@ -166,16 +170,17 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
             return null;
         }
         VehicleEntity vehicle = vehicleMapper.selectById(vehicleId);
-        if (vehicle == null
-                || vehicle.getCurrentLongitude() == null
-                || vehicle.getCurrentLatitude() == null) {
+        if (vehicle == null) {
             return null;
         }
-        // Phase 4：车辆 currentLongitude/currentLatitude 实际存储 schematic x/y。
-        // 解析真实 GPS 用于端点补全；schematic x/y 用于路网 buildRoute。
-        BigDecimal vehicleX = vehicle.getCurrentLongitude();
-        BigDecimal vehicleY = vehicle.getCurrentLatitude();
-        Optional<GeoPoint> vehicleGeoOpt = parkGeoTransformService.toGcj02(vehicleX, vehicleY);
+        // 坐标列的空间语义按 linkMode 而变（§7.2）：像素供路网 buildRoute，GCJ 供端点补全。
+        Optional<ParkPoint> vehiclePark = vehiclePositionResolver.toPark(vehicle);
+        if (vehiclePark.isEmpty()) {
+            return null;
+        }
+        BigDecimal vehicleX = vehiclePark.get().x();
+        BigDecimal vehicleY = vehiclePark.get().y();
+        Optional<GeoPoint> vehicleGeoOpt = vehiclePositionResolver.toGeo(vehicle);
 
         List<ChargingPileEntity> freePiles = chargingPileMapper.selectList(new QueryWrapper<ChargingPileEntity>()
                 .eq("status", ParkingSlotStatus.FREE.name())

@@ -16,10 +16,13 @@ import org.junit.jupiter.api.Test;
 
 class FleetSnapshotAssemblerTest {
 
+    private static final ParkGeoTransformService TRANSFORM = new ParkGeoTransformService(new ParkPilotProperties());
+
     private final FleetSnapshotAssembler assembler = new FleetSnapshotAssembler(
             mock(FleetChargePolicy.class),
-            new ParkGeoTransformService(new ParkPilotProperties()),
-            new TelemetryFreshnessPolicy(30));
+            TRANSFORM,
+            new TelemetryFreshnessPolicy(30),
+            new com.fsd.dispatch.geo.VehiclePositionResolver(TRANSFORM));
 
     @Test
     void shouldPreferRedisGeoOverParkTransform() {

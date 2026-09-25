@@ -136,6 +136,12 @@ public class ParkOrderIdempotencyServiceImpl implements ParkOrderIdempotencyServ
                 safe(request.getExternalOrderNo() == null ? null : request.getExternalOrderNo().trim()),
                 String.valueOf(request.getPickupStationId()),
                 String.valueOf(request.getDropoffStationId()),
+                // 任意点下单：坐标不同就是两张不同的单。漏进指纹会让改过位置的重复提交
+                // 被当成同一意图重放，静默返回旧订单。
+                String.valueOf(request.getPickupLng()),
+                String.valueOf(request.getPickupLat()),
+                String.valueOf(request.getDropoffLng()),
+                String.valueOf(request.getDropoffLat()),
                 String.valueOf(request.getRouteId()),
                 safe(normalizePriority(request.getPriority())),
                 safe(request.getRemark() == null ? null : request.getRemark().trim()));

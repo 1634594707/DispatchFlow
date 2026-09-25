@@ -56,7 +56,6 @@ public class EnergyForecastEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

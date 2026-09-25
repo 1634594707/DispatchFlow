@@ -55,8 +55,8 @@ public class ParkGeoTransformService {
         ParkPilotProperties.GeoConfig geo = parkPilotProperties.getGeo();
         int mapWidth = safeDimension(parkPilotProperties.getWidth(), 1200);
         int mapHeight = safeDimension(parkPilotProperties.getHeight(), 800);
-        int widthMeters = safeDimension(geo.getParkWidthMeters(), 2400);
-        int heightMeters = safeDimension(geo.getParkHeightMeters(), 1600);
+        double widthMeters = safeDimension(geo.getParkWidthMeters(), 2400D);
+        double heightMeters = safeDimension(geo.getParkHeightMeters(), 1600D);
 
         double anchorLng = geo.getAnchorLng().doubleValue();
         double anchorLat = geo.getAnchorLat().doubleValue();
@@ -67,6 +67,10 @@ public class ParkGeoTransformService {
         double lng = anchorLng + deltaEastMeters / metersPerDegreeLng(anchorLat);
         double lat = anchorLat + deltaNorthMeters / METERS_PER_DEGREE_LAT;
         return Optional.of(new GeoPoint(scale(lng), scale(lat)));
+    }
+
+    private static double safeDimension(java.math.BigDecimal value, double fallback) {
+        return value == null || value.signum() <= 0 ? fallback : value.doubleValue();
     }
 
     private static int safeDimension(Integer value, int fallback) {
@@ -100,8 +104,8 @@ public class ParkGeoTransformService {
         ParkPilotProperties.GeoConfig geo = parkPilotProperties.getGeo();
         int mapWidth = safeDimension(parkPilotProperties.getWidth(), 1200);
         int mapHeight = safeDimension(parkPilotProperties.getHeight(), 800);
-        int widthMeters = safeDimension(geo.getParkWidthMeters(), 2400);
-        int heightMeters = safeDimension(geo.getParkHeightMeters(), 1600);
+        double widthMeters = safeDimension(geo.getParkWidthMeters(), 2400D);
+        double heightMeters = safeDimension(geo.getParkHeightMeters(), 1600D);
 
         double anchorLng = geo.getAnchorLng().doubleValue();
         double anchorLat = geo.getAnchorLat().doubleValue();

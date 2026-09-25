@@ -84,7 +84,8 @@ class Phase3AcceptanceTest {
         FleetAdapterRegistry registry = new FleetAdapterRegistry(java.util.List.of(realFleetAdapter));
 
         VehicleGatewayServiceImpl gatewayService = new VehicleGatewayServiceImpl(
-                vehicleService, vehicleReportService, registry, idempotencyService);
+                vehicleService, vehicleReportService, registry, idempotencyService,
+                new com.fsd.dispatch.geo.ParkGeoTransformService(new com.fsd.dispatch.config.ParkPilotProperties()));
 
         VehicleEntity vehicle = realVehicle();
         VehicleTelemetryRequest request = telemetryRequest(2002L);
@@ -135,7 +136,8 @@ class Phase3AcceptanceTest {
                 vehicleService,
                 mock(VehicleReportService.class),
                 registry,
-                idempotencyService);
+                idempotencyService,
+                new com.fsd.dispatch.geo.ParkGeoTransformService(new com.fsd.dispatch.config.ParkPilotProperties()));
 
         VehicleEntity vehicle = realVehicle();
         vehicle.setLinkMode(VehicleLinkMode.SIM.name());

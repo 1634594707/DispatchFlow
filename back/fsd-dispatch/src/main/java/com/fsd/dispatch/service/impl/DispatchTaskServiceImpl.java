@@ -192,7 +192,6 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
         entity.setRemark(request.getRemark());
 
-        entity.setVersion(0);
 
         entity.setDeleted(0);
 

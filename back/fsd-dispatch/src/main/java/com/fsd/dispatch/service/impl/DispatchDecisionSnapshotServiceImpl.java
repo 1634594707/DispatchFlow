@@ -62,6 +62,39 @@ public class DispatchDecisionSnapshotServiceImpl implements DispatchDecisionSnap
         return registry.counter(SNAPSHOT_WRITE_METRIC, "result", outcome);
     }
 
+    @Override
+    public java.util.List<DispatchDecisionSnapshotEntity> latestByTask(Long taskId, int limit) {
+        if (taskId == null) {
+            return java.util.List.of();
+        }
+        return snapshotMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query
+                .LambdaQueryWrapper<DispatchDecisionSnapshotEntity>()
+                .eq(DispatchDecisionSnapshotEntity::getTaskId, taskId)
+                .eq(DispatchDecisionSnapshotEntity::getDeleted, 0)
+                .orderByDesc(DispatchDecisionSnapshotEntity::getGeneratedAt)
+                .orderByDesc(DispatchDecisionSnapshotEntity::getId)
+                .last("LIMIT " + clamped(limit)));
+    }
+
+    @Override
+    public java.util.List<DispatchDecisionSnapshotEntity> latestByOrder(Long orderId, int limit) {
+        if (orderId == null) {
+            return java.util.List.of();
+        }
+        return snapshotMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query
+                .LambdaQueryWrapper<DispatchDecisionSnapshotEntity>()
+                .eq(DispatchDecisionSnapshotEntity::getOrderId, orderId)
+                .eq(DispatchDecisionSnapshotEntity::getDeleted, 0)
+                .orderByDesc(DispatchDecisionSnapshotEntity::getGeneratedAt)
+                .orderByDesc(DispatchDecisionSnapshotEntity::getId)
+                .last("LIMIT " + clamped(limit)));
+    }
+
+    /** limit 走整数钳制而不是拼接字符串：这是唯一进 SQL 的调用方输入，不能带任何形状。 */
+    private static int clamped(int limit) {
+        return Math.max(1, Math.min(limit, 20));
+    }
+
     DispatchDecisionSnapshotEntity toEntity(OrderEntity order, Long parkId, DecisionTrace trace,
                                             DispatchAssignResult result, long durationMicros) {
         DispatchDecisionSnapshotEntity entity = new DispatchDecisionSnapshotEntity();
@@ -71,6 +104,15 @@ public class DispatchDecisionSnapshotServiceImpl implements DispatchDecisionSnap
         entity.setTaskId(order == null ? null : order.getDispatchTaskId());
         entity.setPolicyId(trace.getPolicyId());
         entity.setPolicyVersion(trace.getPolicyVersion());
+        entity.setShadowPolicyId(trace.getShadowPolicyId());
+        entity.setShadowPolicyVersion(trace.getShadowPolicyVersion());
+        entity.setShadowWinnerCode(trace.getShadowWinnerCode());
+        if (trace.getShadowAgreed() != null) {
+            entity.setShadowAgreed(trace.getShadowAgreed() ? 1 : 0);
+        }
+        if (trace.getShadowRegret() != null) {
+            entity.setShadowRegret(money(trace.getShadowRegret()));
+        }
         entity.setMatchAlgorithm(trace.getMatchAlgorithm());
         entity.setRoadGraphVersion(trace.getRoadGraphVersion());
         entity.setCandidateTotal(trace.getCandidateTotal());
@@ -105,7 +147,9 @@ public class DispatchDecisionSnapshotServiceImpl implements DispatchDecisionSnap
             entity.setWinnerVehicleId(winner.vehicleId());
             entity.setWinnerVehicleCode(winner.vehicleCode());
             entity.setWinnerScore(money(winner.totalScore()));
-            entity.setScoreGap(money(bestAlternativeScore(ranked, winner) - winner.totalScore()));
+            double runnerUp = bestAlternativeScore(ranked, winner);
+            entity.setRunnerUpScore(money(runnerUp));
+            entity.setScoreGap(money(runnerUp - winner.totalScore()));
             entity.setTieCount(countTies(ranked, winner.totalScore()));
         }
         // MAPF 为避时空冲突可能放弃分数更优的候选，此时 winner 不在 ranked 首位、分差为负，
@@ -159,6 +203,7 @@ public class DispatchDecisionSnapshotServiceImpl implements DispatchDecisionSnap
             row.put("pluggedBonus", candidate.pluggedBonus());
             row.put("idleBonus", candidate.idleBonus());
             row.put("priorityFactor", candidate.priorityFactor());
+            row.put("forecastPenalty", candidate.forecastPenalty());
             row.put("total", candidate.totalScore());
             rows.add(row);
         }

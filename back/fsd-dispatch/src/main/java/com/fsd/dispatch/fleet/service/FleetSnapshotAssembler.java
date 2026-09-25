@@ -6,6 +6,8 @@ import com.fsd.dispatch.fleet.model.FleetTrajectoryPoint;
 import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.fleet.policy.TelemetryFreshnessPolicy;
 import com.fsd.dispatch.geo.ParkGeoTransformService;
+import com.fsd.dispatch.geo.VehiclePositionResolver;
+import com.fsd.dispatch.geo.ParkGeoTransformService.ParkPoint;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
 import com.fsd.vehicle.entity.VehicleEntity;
@@ -25,19 +27,26 @@ public class FleetSnapshotAssembler {
     /** 遥测新鲜度统一判定（路线图 5.1）：阈值与可派判定共用同一规则。 */
     private final TelemetryFreshnessPolicy telemetryFreshnessPolicy;
 
+    /** 车辆坐标列的空间语义按 linkMode 而变（路线图 §7.2）。 */
+    private final VehiclePositionResolver vehiclePositionResolver;
+
     public FleetSnapshotAssembler(FleetChargePolicy fleetChargePolicy,
                                   ParkGeoTransformService parkGeoTransformService,
-                                  TelemetryFreshnessPolicy telemetryFreshnessPolicy) {
+                                  TelemetryFreshnessPolicy telemetryFreshnessPolicy,
+                                  VehiclePositionResolver vehiclePositionResolver) {
         this.fleetChargePolicy = fleetChargePolicy;
         this.parkGeoTransformService = parkGeoTransformService;
         this.telemetryFreshnessPolicy = telemetryFreshnessPolicy;
+        this.vehiclePositionResolver = vehiclePositionResolver;
     }
 
     public ParkVehicleSnapshotResponse assemble(VehicleEntity vehicle, FleetRuntime runtime) {
         FleetRuntime effectiveRuntime = runtime != null ? runtime : defaultRuntime(vehicle);
-        java.math.BigDecimal x = firstNonNull(effectiveRuntime.getX(), vehicle.getCurrentLongitude());
-        java.math.BigDecimal y = firstNonNull(effectiveRuntime.getY(), vehicle.getCurrentLatitude());
-        var geo = resolveGeo(effectiveRuntime, x, y);
+        java.math.BigDecimal x = firstNonNull(effectiveRuntime.getX(),
+                vehiclePositionResolver.toPark(vehicle).map(ParkPoint::x).orElse(null));
+        java.math.BigDecimal y = firstNonNull(effectiveRuntime.getY(),
+                vehiclePositionResolver.toPark(vehicle).map(ParkPoint::y).orElse(null));
+        var geo = resolveGeo(vehicle, effectiveRuntime, x, y);
         return ParkVehicleSnapshotResponse.builder()
                 .parkId(vehicle.getParkId())
                 .vehicleId(vehicle.getId())
@@ -82,8 +91,8 @@ public class FleetSnapshotAssembler {
                 .pluggedIn(false)
                 .targetType("STANDBY")
                 .soc(vehicle.getBatteryLevel())
-                .x(vehicle.getCurrentLongitude())
-                .y(vehicle.getCurrentLatitude())
+                .x(vehiclePositionResolver.toPark(vehicle).map(ParkPoint::x).orElse(null))
+                .y(vehiclePositionResolver.toPark(vehicle).map(ParkPoint::y).orElse(null))
                 .lastTelemetryAt(vehicle.getLastReportTime())
                 .trajectory(new ArrayList<>())
                 .build();
@@ -131,11 +140,15 @@ public class FleetSnapshotAssembler {
                 : vehicle.getLinkMode();
     }
 
-    private ParkGeoTransformService.GeoPoint resolveGeo(FleetRuntime runtime,
-                                                          java.math.BigDecimal x,
-                                                          java.math.BigDecimal y) {
+    private ParkGeoTransformService.GeoPoint resolveGeo(VehicleEntity vehicle,
+                                                        FleetRuntime runtime,
+                                                        java.math.BigDecimal x,
+                                                        java.math.BigDecimal y) {
         if (runtime.getLongitude() != null && runtime.getLatitude() != null) {
             return new ParkGeoTransformService.GeoPoint(runtime.getLongitude(), runtime.getLatitude());
+        }
+        if (!vehiclePositionResolver.storesSchematicXy(vehicle)) {
+            return vehiclePositionResolver.toGeo(vehicle).orElse(null);
         }
         return parkGeoTransformService.toGcj02(x, y).orElse(null);
     }

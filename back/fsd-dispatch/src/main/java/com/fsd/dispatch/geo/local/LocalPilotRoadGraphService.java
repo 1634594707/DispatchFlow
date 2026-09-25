@@ -21,17 +21,54 @@ import org.springframework.stereotype.Service;
 @ConditionalOnExpression("${fsd.park.geo.enabled:true}")
 public class LocalPilotRoadGraphService implements RoadRouteService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(LocalPilotRoadGraphService.class);
+
     private static final double SNAP_THRESHOLD_METERS = 50D;
 
     private final Map<String, List<GeoPoint>> segmentCache = new LinkedHashMap<>();
     private final Map<String, GeoPoint> stationAnchors = new LinkedHashMap<>();
     private final OsmPilotGeoRepository osmPilotGeoRepository;
+    /** W2-e：现役 DB 路网。测试里可以不带（{@code null}）⇒ 逐字退回改之前的行为。 */
+    private DbRoadGraphRouteService dbRoadGraphRouteService;
 
     public LocalPilotRoadGraphService(OsmPilotGeoRepository osmPilotGeoRepository) {
         this.osmPilotGeoRepository = osmPilotGeoRepository;
         initAnchors();
         // 手工走廊始终保留：OSM 子图不连通时作为回退，避免直线穿楼
         initSegments();
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setDbRoadGraphRouteService(DbRoadGraphRouteService dbRoadGraphRouteService) {
+        this.dbRoadGraphRouteService = dbRoadGraphRouteService;
+    }
+
+    /**
+     * W2-e：先问现役 DB 路网（446 节点那张，边折线已带几何），拿不到再退回
+     * {@code pilot_osm_geo.json} 的 30 条折线与手工走廊 —— 后者 bbox 只有 3.195 km²。
+     */
+    private RoadRouteResult viaDbRoadGraph(GeoPoint origin, GeoPoint destination) {
+        if (dbRoadGraphRouteService == null) {
+            // 这条若出现 ⇒ setter 注入没生效，W2-e 整条链路根本没接上（§13.98 候选①）
+            log.warn("DB road graph route service NOT injected, W2-e path inactive");
+            return null;
+        }
+        if (!dbRoadGraphRouteService.isEnabled()) {
+            log.info("DB road graph route source disabled by fsd.park.geo.route-source-from-graph");
+            return null;
+        }
+        RoadRouteResult viaGraph = dbRoadGraphRouteService.plan(origin, destination);
+        if (viaGraph == null) {
+            return null;   // 原因已由 DbRoadGraphRouteService.miss() 点名
+        }
+        if (viaGraph.polyline().size() < 2 || viaGraph.isForbiddenFallback()) {
+            // 宁缺不假：拿回一条直线就当没算出来，交给下面的老回退，别把它当"沿实路"的结果
+            log.info("DB road graph result rejected: vertices={} forbiddenFallback={}",
+                    viaGraph.polyline().size(), viaGraph.isForbiddenFallback());
+            return null;
+        }
+        return viaGraph;
     }
 
     private void initAnchors() {
@@ -252,6 +289,11 @@ public class LocalPilotRoadGraphService implements RoadRouteService {
     public RoadRouteResult planDrivingRoute(GeoPoint origin, GeoPoint destination) {
         if (origin == null || destination == null) {
             return new RoadRouteResult(List.of(), 0D, RoadRouteSource.STRAIGHT_LINE);
+        }
+        // W2-e：现役 DB 路网优先 —— 它才是那张覆盖服务范围的图，且边折线已带几何
+        RoadRouteResult viaGraph = viaDbRoadGraph(origin, destination);
+        if (viaGraph != null) {
+            return viaGraph;
         }
         if (osmPilotGeoRepository.isLoaded()) {
             List<GeoPoint> osmPath = osmPilotGeoRepository.shortestRoadPath(origin, destination);

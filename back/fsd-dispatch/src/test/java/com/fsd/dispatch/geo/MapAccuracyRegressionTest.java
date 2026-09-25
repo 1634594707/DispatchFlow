@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 往返后，haversine 偏差小于 20 米。
  *
  * <p>参考数据来源：{@code front/src/maps/zjfStationAnchors.ts}。
- * 园区配置与 {@code ZJF_PILOT_GEO} 一致：anchor(121.080354, 31.961977)、
- * parkWidthMeters=1570、parkHeightMeters=470、width=1200、height=800。
+ * 园区配置与 {@code ZJF_PILOT_GEO} 一致（§范围补齐后由 fit_canvas 反解）：
+ * anchor(121.0836782, 31.9612033)、parkWidthMeters=2215.5、parkHeightMeters=1891.5、width=1600、height=1366。
  */
 class MapAccuracyRegressionTest {
 
@@ -65,14 +65,16 @@ class MapAccuracyRegressionTest {
     @BeforeEach
     void setUp() {
         ParkPilotProperties properties = new ParkPilotProperties();
-        properties.setWidth(1200);
-        properties.setHeight(800);
+        properties.setWidth(1600);
+        properties.setHeight(1366);
         ParkPilotProperties.GeoConfig geo = properties.getGeo();
         geo.setEnabled(true);
-        geo.setAnchorLng(new BigDecimal("121.080354"));
-        geo.setAnchorLat(new BigDecimal("31.961977"));
-        geo.setParkWidthMeters(1570);
-        geo.setParkHeightMeters(470);
+        geo.setAnchorLng(new BigDecimal("121.0836782"));
+        geo.setAnchorLat(new BigDecimal("31.9612033"));
+        // 数值与本用例引入时一致（当时属性类型是 Integer，只能取整）；属性已改成 BigDecimal
+        // 以容纳 seed 里的真实值 2215.50 / 1891.50 —— 这里刻意保持旧数值，锚定断言才有可比性
+        geo.setParkWidthMeters(BigDecimal.valueOf(2215));
+        geo.setParkHeightMeters(BigDecimal.valueOf(1891));
 
         ParkGeoTransformService geoTransformService = new ParkGeoTransformService(properties);
         service = new CoordinateTransformService(properties, geoTransformService, null);

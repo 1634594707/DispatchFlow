@@ -160,8 +160,14 @@ public class ParkStationServiceImpl implements ParkStationService {
         }
     }
 
+    /**
+     * 站点必须落在 ACTIVE 的 {@code ZJF-ZONE-*} 围栏并集内。
+     *
+     * <p>原名 {@code assertStationWithinDeliveryZone} 是误导：它从来没读过 {@code delivery_zone}
+     * 那一列（该列已随 V65 删除），判的是几何围栏包含。
+     */
     @Override
-    public void assertStationWithinDeliveryZone(Long stationId, Long parkId) {
+    public void assertStationWithinServiceArea(Long stationId, Long parkId) {
         StationEntity stationEntity = requireStationEntity(stationId);
         if (!isGeoDeliveryStation(stationEntity)) {
             return;
@@ -186,7 +192,7 @@ public class ParkStationServiceImpl implements ParkStationService {
                 .anyMatch(fence -> GeoPolygonUtils.contains(
                         parseFenceVertices(fence.getPolygonJson()), geo.longitude(), geo.latitude()));
         if (!inside) {
-            throw new BusinessException("ZJF_OUT_OF_DELIVERY_ZONE", OUT_OF_ZONE_MESSAGE);
+            throw new BusinessException("STATION_OUT_OF_SERVICE_AREA", OUT_OF_ZONE_MESSAGE);
         }
     }
 
@@ -252,7 +258,7 @@ public class ParkStationServiceImpl implements ParkStationService {
                 .serviceHours(station.getServiceHours())
                 .avgServiceSeconds(station.getAvgServiceSeconds())
                 .capacityLimit(station.getCapacityLimit())
-                .deliveryZone(station.getDeliveryZone())
+                .status(station.getStatus())
                 .build();
     }
 

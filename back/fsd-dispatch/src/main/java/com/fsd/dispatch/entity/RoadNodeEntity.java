@@ -36,7 +36,6 @@ public class RoadNodeEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

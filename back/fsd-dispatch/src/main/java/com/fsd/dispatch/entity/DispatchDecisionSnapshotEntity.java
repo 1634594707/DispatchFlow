@@ -26,6 +26,17 @@ public class DispatchDecisionSnapshotEntity {
 
     private String policyVersion;
 
+    private String shadowPolicyId;
+
+    private String shadowPolicyVersion;
+
+    private String shadowWinnerCode;
+
+    /** 1=影子与在位策略 top-1 一致，0=不一致，NULL=本单未跑影子。 */
+    private Integer shadowAgreed;
+
+    private BigDecimal shadowRegret;
+
     private Long profileId;
 
     private String profileType;

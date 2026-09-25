@@ -1,6 +1,7 @@
 package com.fsd.dispatch.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +52,39 @@ class VehicleReportServiceImplTest {
     @InjectMocks
     private VehicleReportServiceImpl vehicleReportService;
 
+    /** 状态迁移走带前置条件的 UPDATE：默认放行（影响 1 行），竞态用例单独改写返回 0。 */
+    @org.junit.jupiter.api.BeforeEach
+    void allowStatusGuardedUpdate() {
+        org.mockito.Mockito.lenient().when(dispatchTaskMapper.update(any(), any())).thenReturn(1);
+    }
+
+    @Test
+    void concurrentStateChangeShouldRejectReportInsteadOfClobbering() {
+        VehicleReportRequest request = buildRequest("START_EXECUTE", 3020L, 1020L, "V-020");
+
+        VehicleEntity vehicleEntity = new VehicleEntity();
+        vehicleEntity.setId(9020L);
+        vehicleEntity.setVehicleCode("V-020");
+
+        DispatchTaskEntity taskEntity = buildTask(3020L, 1020L, DispatchTaskStatus.ASSIGNED.name());
+
+        when(reportIdempotencyService.markIfFirstReport(request)).thenReturn(true);
+        when(vehicleService.updateSnapshot(request)).thenReturn(vehicleEntity);
+        when(dispatchTaskStateService.getTask(3020L)).thenReturn(taskEntity);
+        doNothing().when(dispatchTaskStateService).assertCanStartExecute(taskEntity);
+        // 库里已被超时任务改成 FAILED：前置状态不再匹配 ⇒ 0 行
+        when(dispatchTaskMapper.update(any(), any())).thenReturn(0);
+
+        com.fsd.common.exception.BusinessException ex = org.junit.jupiter.api.Assertions
+                .assertThrows(com.fsd.common.exception.BusinessException.class,
+                        () -> vehicleReportService.handleReport(request));
+
+        assertEquals("DISPATCH_TASK_STATE_CONFLICT", ex.getCode());
+        // 幂等标记必须释放，车端重报才会被再次处理
+        verify(reportIdempotencyService).releaseReport(request);
+        org.mockito.Mockito.verifyNoInteractions(eventPublisher);
+    }
+
     @Test
     void handleStartExecuteShouldPromoteTaskAndOrder() {
         VehicleReportRequest request = buildRequest("START_EXECUTE", 3001L, 1001L, "V-001");
@@ -71,6 +105,20 @@ class VehicleReportServiceImplTest {
         assertEquals(DispatchTaskStatus.EXECUTING.name(), response.getTaskStatus());
         assertEquals("IN_PROGRESS", response.getOrderStatus());
         verify(orderStateService).markInProgress(1001L);
+
+        // 守卫必须真的落进 WHERE：只验"调了 update"证明不了前置状态进了条件
+        org.mockito.ArgumentCaptor<DispatchTaskEntity> entityCaptor =
+                org.mockito.ArgumentCaptor.forClass(DispatchTaskEntity.class);
+        org.mockito.ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.Wrapper<DispatchTaskEntity>> wrapperCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.Wrapper.class);
+        verify(dispatchTaskMapper).update(entityCaptor.capture(), wrapperCaptor.capture());
+        // 只验结构：走的是"实体 + 条件 Wrapper"的重载，且 SET 的是新状态。
+        // Wrapper 内部内容在裸单测里不可观测——MP 到渲染 SQL 时才填 paramNameValuePairs（实测为空 Map），
+        // 且 lambda 列名解析要 MyBatis 启动期的 TableInfo 缓存。WHERE 真身留给集成测试钉。
+        assertEquals(DispatchTaskStatus.EXECUTING.name(), entityCaptor.getValue().getStatus(),
+                "SET 的是新状态");
+        verify(dispatchTaskMapper, org.mockito.Mockito.never())
+                .updateById(org.mockito.ArgumentMatchers.any(DispatchTaskEntity.class));
     }
 
     @Test

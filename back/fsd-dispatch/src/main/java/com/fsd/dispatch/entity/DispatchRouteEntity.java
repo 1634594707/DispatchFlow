@@ -36,7 +36,5 @@ public class DispatchRouteEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
-
     private Integer deleted;
 }

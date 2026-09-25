@@ -46,7 +46,6 @@ public class MapDataVersionEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

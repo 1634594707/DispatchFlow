@@ -47,7 +47,6 @@ public class ParkGeofenceEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

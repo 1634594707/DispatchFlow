@@ -86,7 +86,6 @@ public class ParkGeofenceServiceImpl implements ParkGeofenceService {
         entity.setStatus("ACTIVE");
         entity.setRemark(remark);
         entity.setDeleted(0);
-        entity.setVersion(0);
         geofenceMapper.insert(entity);
         return toResponse(entity);
     }
@@ -219,7 +218,11 @@ public class ParkGeofenceServiceImpl implements ParkGeofenceService {
     }
 
     private static boolean isDispatchable(ParkGeofenceEntity entity) {
-        return entity.getFenceCode() != null && entity.getFenceCode().startsWith("ZJF-ZONE-");
+        // 只看编码前缀会把停用的围栏也报成可派单：库里 ZJF-ZONE-SXZ/WLG/CJ 三片末端场站
+        // 2026-09-23 已置 DISABLED，但接口 VO 上一直仍写着 dispatchable=true。
+        // 受理判据（OrderEndpointResolver）直接吃这个字段，所以这里必须连状态一起判。
+        return "ACTIVE".equalsIgnoreCase(entity.getStatus())
+                && entity.getFenceCode() != null && entity.getFenceCode().startsWith("ZJF-ZONE-");
     }
 
     private List<List<BigDecimal>> readPolygon(String polygonJson) {

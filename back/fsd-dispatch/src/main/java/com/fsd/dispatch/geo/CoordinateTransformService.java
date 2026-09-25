@@ -53,8 +53,8 @@ public class CoordinateTransformService {
         ParkPilotProperties.GeoConfig geo = parkPilotProperties.getGeo();
         int mapWidth = safeDimension(parkPilotProperties.getWidth(), 1200);
         int mapHeight = safeDimension(parkPilotProperties.getHeight(), 800);
-        int widthMeters = safeDimension(geo.getParkWidthMeters(), 2400);
-        int heightMeters = safeDimension(geo.getParkHeightMeters(), 1600);
+        double widthMeters = safeDimension(geo.getParkWidthMeters(), 2400D);
+        double heightMeters = safeDimension(geo.getParkHeightMeters(), 1600D);
 
         double anchorLng = geo.getAnchorLng().doubleValue();
         double anchorLat = geo.getAnchorLat().doubleValue();
@@ -90,6 +90,10 @@ public class CoordinateTransformService {
                 .longitude(geo != null ? geo.longitude() : null)
                 .latitude(geo != null ? geo.latitude() : null)
                 .build();
+    }
+
+    private static double safeDimension(java.math.BigDecimal value, double fallback) {
+        return value == null || value.signum() <= 0 ? fallback : value.doubleValue();
     }
 
     private static int safeDimension(Integer value, int fallback) {

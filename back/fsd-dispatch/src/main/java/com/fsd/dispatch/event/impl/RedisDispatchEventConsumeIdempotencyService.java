@@ -19,7 +19,21 @@ public class RedisDispatchEventConsumeIdempotencyService implements DispatchEven
 
     @Override
     public boolean markIfFirstConsume(String eventId) {
-        Boolean result = stringRedisTemplate.opsForValue().setIfAbsent(KEY_PREFIX + eventId, "1", IDEMPOTENCY_TTL);
+        Boolean result = stringRedisTemplate.opsForValue().setIfAbsent(buildKey(eventId), "1", IDEMPOTENCY_TTL);
         return Boolean.TRUE.equals(result);
+    }
+
+    @Override
+    public boolean isConsumed(String eventId) {
+        return Boolean.TRUE.equals(stringRedisTemplate.hasKey(buildKey(eventId)));
+    }
+
+    @Override
+    public void markConsumed(String eventId) {
+        stringRedisTemplate.opsForValue().set(buildKey(eventId), "1", IDEMPOTENCY_TTL);
+    }
+
+    private String buildKey(String eventId) {
+        return KEY_PREFIX + eventId;
     }
 }

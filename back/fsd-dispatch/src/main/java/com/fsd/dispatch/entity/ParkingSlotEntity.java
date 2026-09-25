@@ -54,7 +54,6 @@ public class ParkingSlotEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

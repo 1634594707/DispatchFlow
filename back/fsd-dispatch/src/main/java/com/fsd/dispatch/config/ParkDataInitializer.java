@@ -73,7 +73,6 @@ public class ParkDataInitializer implements ApplicationRunner {
         }
         park.setStatus(ParkStatus.ACTIVE.name());
         park.setDefaultFlag(1);
-        park.setVersion(0);
         park.setDeleted(0);
         parkMapper.insert(park);
 
@@ -92,7 +91,6 @@ public class ParkDataInitializer implements ApplicationRunner {
             station.setArea(config.getArea());
             station.setStatus(StationStatus.ACTIVE.name());
             station.setSortOrder(++sort);
-            station.setVersion(0);
             station.setDeleted(0);
             stationMapper.insert(station);
         }

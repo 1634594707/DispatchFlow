@@ -35,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -53,6 +54,7 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     private final FleetRuntimeService fleetRuntimeService;
     private final FleetSnapshotAssembler fleetSnapshotAssembler;
     private final ParkGeofenceService parkGeofenceService;
+    private final com.fsd.dispatch.geo.VehiclePositionResolver vehiclePositionResolver;
 
     public ParkPilotServiceImpl(ParkPilotProperties parkPilotProperties,
                                 ParkStationService parkStationService,
@@ -63,7 +65,8 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                                 DispatchTaskMapper dispatchTaskMapper,
                                 FleetRuntimeService fleetRuntimeService,
                                 FleetSnapshotAssembler fleetSnapshotAssembler,
-                                ParkGeofenceService parkGeofenceService) {
+                                ParkGeofenceService parkGeofenceService,
+                                com.fsd.dispatch.geo.VehiclePositionResolver vehiclePositionResolver) {
         this.parkPilotProperties = parkPilotProperties;
         this.parkStationService = parkStationService;
         this.parkPilotSimulationService = parkPilotSimulationService;
@@ -74,6 +77,7 @@ public class ParkPilotServiceImpl implements ParkPilotService {
         this.fleetRuntimeService = fleetRuntimeService;
         this.fleetSnapshotAssembler = fleetSnapshotAssembler;
         this.parkGeofenceService = parkGeofenceService;
+        this.vehiclePositionResolver = vehiclePositionResolver;
     }
 
     @Override
@@ -261,11 +265,13 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     }
 
     private double calculateRouteDistance(VehicleEntity vehicle, ParkStationResponse station) {
-        BigDecimal currentX = vehicle.getCurrentLongitude();
-        BigDecimal currentY = vehicle.getCurrentLatitude();
-        if (currentX == null || currentY == null) {
+        Optional<com.fsd.dispatch.geo.ParkGeoTransformService.ParkPoint> parkPoint =
+                vehiclePositionResolver.toPark(vehicle);
+        if (parkPoint.isEmpty()) {
             return Double.MAX_VALUE;
         }
+        BigDecimal currentX = parkPoint.get().x();
+        BigDecimal currentY = parkPoint.get().y();
         try {
             Long parkId = station.getParkId() != null
                     ? station.getParkId()

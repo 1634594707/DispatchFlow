@@ -4,6 +4,7 @@ import com.fsd.dispatch.config.AmapProperties;
 import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
+import com.fsd.dispatch.geo.ParkGeoTransformService.ParkPoint;
 import com.fsd.dispatch.geo.amap.AmapLogisticsDistanceService;
 import com.fsd.dispatch.mapper.ParkMapper;
 import com.fsd.dispatch.vo.ParkStationResponse;
@@ -26,35 +27,39 @@ public class DispatchGeoDistanceService {
     private final AmapLogisticsDistanceService amapLogisticsDistanceService;
     private final AmapProperties amapProperties;
     private final ParkMapper parkMapper;
+    private final VehiclePositionResolver vehiclePositionResolver;
 
     public DispatchGeoDistanceService(FleetGeoResolver fleetGeoResolver,
                                       FleetRuntimeService fleetRuntimeService,
                                       AmapLogisticsDistanceService amapLogisticsDistanceService,
                                       AmapProperties amapProperties,
-                                      ParkMapper parkMapper) {
+                                      ParkMapper parkMapper,
+                                      VehiclePositionResolver vehiclePositionResolver) {
         this.fleetGeoResolver = fleetGeoResolver;
         this.fleetRuntimeService = fleetRuntimeService;
         this.amapLogisticsDistanceService = amapLogisticsDistanceService;
         this.amapProperties = amapProperties;
         this.parkMapper = parkMapper;
+        this.vehiclePositionResolver = vehiclePositionResolver;
     }
 
     public boolean isGeoBlendEnabled() {
         return amapLogisticsDistanceService.isAvailable();
     }
 
+    /**
+     * 车辆位姿只从 {@link VehiclePositionResolver} 取（列的空间语义按 linkMode 而变，见 §7.2）：
+     * 像素经仿射变换推 GPS；真车列里已是 GCJ-02，直取即可。
+     */
     public Optional<GeoPoint> resolveVehicleGeo(VehicleEntity vehicle) {
+        Optional<ParkPoint> park = vehiclePositionResolver.toPark(vehicle);
         return fleetRuntimeService.get(vehicle.getId())
                 .flatMap(runtime -> fleetGeoResolver.resolve(
-                        runtime.getX() != null ? runtime.getX() : vehicle.getCurrentLongitude(),
-                        runtime.getY() != null ? runtime.getY() : vehicle.getCurrentLatitude(),
+                        runtime.getX() != null ? runtime.getX() : park.map(ParkPoint::x).orElse(null),
+                        runtime.getY() != null ? runtime.getY() : park.map(ParkPoint::y).orElse(null),
                         runtime.getLongitude(),
                         runtime.getLatitude()))
-                .or(() -> fleetGeoResolver.resolve(
-                        vehicle.getCurrentLongitude(),
-                        vehicle.getCurrentLatitude(),
-                        null,
-                        null));
+                .or(() -> vehiclePositionResolver.toGeo(vehicle));
     }
 
     public Optional<GeoPoint> resolveStationGeo(ParkStationResponse station) {

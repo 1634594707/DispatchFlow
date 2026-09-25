@@ -1,5 +1,6 @@
 package com.fsd.dispatch.sim;
 
+import com.fsd.dispatch.core.AssignmentSolver;
 import com.fsd.dispatch.core.DecisionInput;
 import com.fsd.dispatch.core.DecisionOutcome;
 import com.fsd.dispatch.core.DecisionPolicy;
@@ -153,11 +154,35 @@ public final class ScenarioBench {
          */
         public static final String ROAD_GRAPH_OSM_EXPANDED = "osm-expanded-2026-09-21/91n-113e-24354m";
 
-        /** §1.3 的 M 档默认场景：20 台车 / 56 单每小时 / 2 小时 / 6 桩，范围取现役派单围栏外接框。 */
+        /**
+         * "能耗真正成为约束"的班次时长 = 8 小时。
+         *
+         * <p>依据 §1.1-b：真车能耗下 M 档单车产能 3.93 单/小时，一趟 1,704 m 耗 0.95% SOC
+         * ⇒ 把 70 个可用点耗完要 ≈ 74 趟 ≈ 19 小时<b>连续</b>跑；给 8 小时班次 + 20 台车（含空闲与排队）
+         * 后，顺势补能那一档才开始真的抢到桩。这个数是<b>场景设定</b>不是实测班次，
+         * 用它只为"让补能链路可观测"，不为模仿真实排班。
+         */
+        public static final int ENERGY_BINDING_HORIZON_MINUTES = 480;
+
+        /**
+         * §1.3 近场档的默认场景：20 台车 / 56 单每小时 / 2 小时 / 6 桩，范围取现役派单围栏外接框。
+         *
+         * <p>能耗与充电时长两个常数按<b>真车新石器 L4 规格</b>取值（§1.1-b 口径，本人 2026-09-23 提供：
+         * 满载 ≈180 km、一次充电约 2 h）：
+         * <ul>
+         *   <li>{@code busyDrainMetersPerPercent = 1800} —— 180 km ÷ 100%，与
+         *       {@code FleetEnergyProperties} 默认值逐字一致。旧值 150（= 满电 15 km）差 12 倍，
+         *       是 §13.72 撤掉那批产能结论的根因，不得调回。</li>
+         *   <li>{@code chargeSeconds = 7200} —— 本字段语义是"补满一个 SOC 工作带（20→90，70 个点）"
+         *       的时长。取 7,200 s 是沿用 §1.1-b 的保守折算：<b>把"一次 2 h 充电"整笔摊给这 70 个点</b>
+         *       （等价于按 0→100 充满 2 h、再按比例只给 70 个点用 ⇒ 5,040 s，比这里乐观 30%）。
+         *       真车充电曲线没有实测数据（§0.2），所以这是**假设**，不是标定值。</li>
+         * </ul>
+         */
         public static Config mTier(long seed) {
             return new Config("M", ROAD_GRAPH_OSM_EXPANDED, 20, 56, 120, 12, seed, 30, 20, 90,
                     ChargeTiming.OPPORTUNISTIC, MatchStrategy.SEQUENTIAL_GREEDY, 1, 20, 3, 100,
-                    150D, 1.481D, 17.84D, 474, 1800, 6, 1613D, 500D,
+                    1800D, 1.481D, 17.84D, 474, 7200, 6, 1613D, 500D,
                     Demand.UNIFORM, ArrivalProfile.FLAT, 0, 40D,
                     List.of(), PileChoice.NEAREST_FREE, ChargeCurve.LINEAR);
         }
@@ -263,9 +288,9 @@ public final class ScenarioBench {
         /**
          * 充电曲线的**形状**参数（M4「充电曲线分段」）。
          *
-         * <p>现役模型是线性的：`1800 s ×（90 − SOC）/（90 − 20）`，即"最深一次补能 30 分钟"，
-         * 每 1% 花的时间一样。真实锂电在 SOC 高了之后会转恒压、电流下降，所以尾部更慢 ——
-         * 尾部慢意味着**同一根桩被占更久**，直接打在"6 根桩"这个硬上限上。
+         * <p>现役模型是线性的：`chargeSeconds ×（90 − SOC）/（90 − 20）`，M 档默认 chargeSeconds=7,200 s
+         * （真车一次约 2 h），即"最深一次补能 2 小时"，每 1% 花的时间一样。真实锂电在 SOC 高了之后会转恒压、
+         * 电流下降，所以尾部更慢 —— 尾部慢意味着**同一根桩被占更久**，直接打在"6 根桩"这个硬上限上。
          *
          * <p>本参数只做**敏感性**，不做拟合：仓库里没有真车真充电曲线数据（§0.2），
          * 拐点与倍率都是情景设定，必须随报告声明（与 §9 对能耗的那条纪律同一口径）。
@@ -344,6 +369,18 @@ public final class ScenarioBench {
 
         public Config withRepeats(int n) {
             return copy(b -> b.repeats = n);
+        }
+
+        /**
+         * 改仿真时长（分钟）。真车能耗下这个旋钮会改变**结论的含义**，所以必须显式用：
+         * 默认 2 小时窗口恰好等于一次补能的时长（{@code chargeSeconds = 7,200 s}），而初始 SOC 铺在
+         * [20,100] ⇒ 短窗里看到的补能行为由"开局谁低电"决定，不由能耗决定（实测同一短窗
+         * `NEVER` 比 `OPPORTUNISTIC` 高 5.82pp，而 8 小时稳态下两者差 0.98pp 且 CI 跨 0）。
+         * 要问"电/桩位/补能时机值多少"，用 {@link Config#ENERGY_BINDING_HORIZON_MINUTES}；
+         * 沿用 2 小时窗口的报告必须在标题里写清窗口（§13.77 的引用限定）。
+         */
+        public Config withHorizon(int minutes) {
+            return copy(b -> b.horizonMinutes = minutes);
         }
 
         public Config withChargeTiming(ChargeTiming timing) {
@@ -599,7 +636,9 @@ public final class ScenarioBench {
             for (Order order : pending) {
                 List<Vehicle> free = fleet.stream().filter(v -> v.freeAt(nowTick)).toList();
                 // 每次派单尝试要评估多少台车 = 决策成本的规模代理（L 档退化曲线的横轴之一，
-                // 也是热路径那个 277 ms 的直接来源）。NO_VEHICLE 那一支同样算一次尝试：
+                // 也是热路径时延的直接来源。引数注意仪表：277 ms 是 H2 合成基准，
+                // 本机真 MySQL 实测 P95 696.5 ms（§13.81）。
+                // NO_VEHICLE 那一支同样算一次尝试：
                 // 它确实跑了"扫一遍空闲车"的工作，只是结果为空。
                 decisionAttempts++;
                 candidateEvaluations += free.size();
@@ -944,10 +983,22 @@ public final class ScenarioBench {
                         + "取均值 1.481，§1.1 原假设 1.3 相当于中位数",
                 "均速 avgSpeedKmh = 17.84，来自 seed 头部 speed_weighted_avg_kmh（按边长加权的限速均值）。"
                         + "裁掉提取框外的路之后从 16.42 升到 17.84 —— 框外多是低速 service 路。仍是单一常数，不分路段等级",
-                "场景范围 1613 × 500 m = **现役** 5 个派单围栏的外接框（§0.1 实测）。M 档目标范围 1.35 km²"
-                        + " 要等 §1.8 那 4 个站点落地后才能进库，届时必须重跑本表",
+                "场景范围 1613 × 500 m = **现役**派单围栏的外接框（§0.1 实测）。这不是 §1.12 的规划范围"
+                        + "（近场 L1 2.19 km² + 三条干线走廊 ≈11.0 km²）：原述的\"M 档目标范围 1.35 km²\"已作废"
+                        + "（实测并集只有 0.992 km²，§13.71），而 L1/干线的点位要等走廊 OSM 重提取 + 吸附后才能进库，"
+                        + "**届时必须重跑本表**（§1.12 落地顺序第④步）",
                 "服务时长固定 serviceSeconds（取 §0.2 实测装货 210 s + 卸货 264 s 之和 474 s），不含排队与人工干预",
-                "充电线性（默认）：一次补能的时长 = 实测 1800 s ×（chargeCompleteSoc 90 − 当前 SOC）/（90 − 20），"
+                "能耗 busyDrainMetersPerPercent = **1,800 m/1% SOC**（= 真车新石器 L4 满载 ≈180 km ÷ 100%，"
+                        + "本人于 2026-09-23 提供的规格，与 FleetEnergyProperties 默认值一致）。"
+                        + "**旧默认 150 m/1%（满电 15 km）低 12 倍，是 §13.72 撤掉那批产能/桩数结论的根因**；"
+                        + "180 km 本身是\"满载\"保守值（标称 200 km ⇒ 2,000 m/1%），没扣温度与载重折损，"
+                        + "所以它是**规格折算不是标定**，扰动带见 energy-sensitivity 那张扫描表",
+                "充电时长 chargeSeconds = **7,200 s / 次**（真车一次约 2 h，本人提供）。字段语义是"
+                        + "\"补满一个 SOC 工作带（20→90，70 个点）\"的时长，把整笔 2 h 摊给这 70 个点 —— "
+                        + "这是 §1.1-b 的保守折算口径，比\"按 0→100 比例折算（5,040 s）\"悲观 30%。"
+                        + "真车充电曲线无实测数据（§0.2），**假设，非标定**；库里 ZJF-CHG-01 的 "
+                        + "avg_service_seconds 仍是仿真时代的 1,800 s，两套口径并存的收口挂在 §10.2 第 3 问",
+                "充电线性（默认）：一次补能的时长 = chargeSeconds ×（chargeCompleteSoc 90 − 当前 SOC）/（90 − 20），"
                         + "充到 90% 即恢复派单（三个阈值与 FleetEnergyProperties 同值）。"
                         + "回桩位移**默认不计**（chargeLayout 为空 = 原地瞬间开充，历史基线口径）；"
                         + "给了布局就按路网单程计入空驶与耗电，车落点移到该桩位所在点",
@@ -1035,7 +1086,7 @@ public final class ScenarioBench {
 
         /**
          * 充到 chargeCompleteSoc 需要的 tick 数。默认（{@link ChargeCurve#LINEAR}）等价于历史口径：
-         * 按"最深一次补能实测 1800 s"线性折算；给了曲线则把 SOC 高于拐点的部分按倍率拉长。
+         * 按"最深一次补能 = chargeSeconds（M 档默认 7,200 s，真车 2 h）"线性折算；给了曲线则把 SOC 高于拐点的部分按倍率拉长。
          */
         int chargeTicks(Config cfg) {
             return Math.max(1, (int) Math.ceil(cfg.chargeSecondsFor(soc, cfg.chargeCompleteSoc()) / TICK_SECONDS));
@@ -1307,7 +1358,7 @@ public final class ScenarioBench {
                 }
             }
         }
-        int[] rowToCol = hungarian(cost);
+        int[] rowToCol = AssignmentSolver.hungarian(cost);
         Map<Order, Vehicle> pair = new LinkedHashMap<>();
         Set<Vehicle> used = new HashSet<>();
         for (int r = 0; r < cost.length; r++) {
@@ -1329,73 +1380,6 @@ public final class ScenarioBench {
     }
 
     private static final double UNPAIRABLE = 1.0E12D;
-
-    /**
-     * 矩形指派问题的匈牙利算法（n 行 &lt;= m 列，O(n^2 * m)）。返回每行分到的列下标。
-     *
-     * <p>实现取自 e-maxx 的势函数版本：不可行对用 {@link #UNPAIRABLE} 这种有限大数挡，而不是无限 ——
-     * 用无限会让"行多列少"时的可行度判定失真，也拿不到"这行根本没配上"的信号。
-     */
-    static int[] hungarian(double[][] cost) {
-        int n = cost.length;
-        int m = cost[0].length;
-        double[] u = new double[n + 1];
-        double[] v = new double[m + 1];
-        int[] p = new int[m + 1];
-        int[] way = new int[m + 1];
-        java.util.Arrays.fill(p, 0);
-        for (int i = 1; i <= n; i++) {
-            p[0] = i;
-            int j0 = 0;
-            double[] minv = new double[m + 1];
-            boolean[] used = new boolean[m + 1];
-            java.util.Arrays.fill(minv, Double.POSITIVE_INFINITY);
-            do {
-                used[j0] = true;
-                int i0 = p[j0];
-                int j1 = -1;
-                double delta = Double.POSITIVE_INFINITY;
-                for (int j = 1; j <= m; j++) {
-                    if (used[j]) {
-                        continue;
-                    }
-                    double cur = cost[i0 - 1][j - 1] - u[i0] - v[j];
-                    if (cur < minv[j]) {
-                        minv[j] = cur;
-                        way[j] = j0;
-                    }
-                    if (minv[j] < delta) {
-                        delta = minv[j];
-                        j1 = j;
-                    }
-                }
-                if (j1 < 0) {
-                    break;
-                }
-                for (int j = 0; j <= m; j++) {
-                    if (used[j]) {
-                        u[p[j]] += delta;
-                        v[j] -= delta;
-                    } else {
-                        minv[j] -= delta;
-                    }
-                }
-                j0 = j1;
-            } while (p[j0] != 0);
-            do {
-                int j1 = way[j0];
-                p[j0] = p[j1];
-                j0 = j1;
-            } while (j0 != 0);
-        }
-        int[] answer = new int[n];
-        for (int j = 1; j <= m; j++) {
-            if (p[j] != 0) {
-                answer[p[j] - 1] = j - 1;
-            }
-        }
-        return answer;
-    }
 
     // ---------------------------------------------------------------- 统计工具
 

@@ -59,7 +59,6 @@ public class ParkEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

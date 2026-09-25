@@ -85,7 +85,8 @@ class ApiAuthBoundaryTest {
                 vehicleService,
                 mock(com.fsd.vehicle.service.VehicleReportService.class),
                 mock(FleetAdapterRegistry.class),
-                idempotencyService);
+                idempotencyService,
+                new com.fsd.dispatch.geo.ParkGeoTransformService(new com.fsd.dispatch.config.ParkPilotProperties()));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> gateway.ingestTelemetry(telemetryRequest()));

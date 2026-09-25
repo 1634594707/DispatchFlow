@@ -85,7 +85,6 @@ public class RouteAuditEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

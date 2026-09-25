@@ -68,10 +68,5 @@ public class StationEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
-
-    /** 配送区域: GEO_DELIVERY / GENERAL（SCHEMATIC 已随 §7.6 停用，列注释仍留在 V37） */
-    private String deliveryZone;
-
     private Integer deleted;
 }

@@ -168,6 +168,16 @@ class ScenarioBenchTest {
         List<PairedSummary> inPeakWithLeg = ScenarioBench.comparePaired(peakOnAtPile, peakOffAtPile);
         assertEquals(13, inPeakWithLeg.size());
 
+        // ⑥ 真车常数下必须在**稳态窗口**重做一遍"补不补"：2 小时窗口里一次 2 h 的补能永远做不完，
+        //    ①那张表量到的是初始 SOC 的 transient（实测顺势补臂反而低 5.82pp）。要判断
+        //    "空闲即补到 90%"这条生产语义（idleChargeWhenNoDemand）到底值不值，必须给电量足够时间沉淀。
+        Config steadyOn = opportunistic.withHorizon(Config.ENERGY_BINDING_HORIZON_MINUTES);
+        Config steadyOff = never.withHorizon(Config.ENERGY_BINDING_HORIZON_MINUTES);
+        List<PairedSummary> steady = ScenarioBench.comparePaired(steadyOn, steadyOff);
+        assertEquals(13, steady.size());
+        assertTrue(steady.stream().anyMatch(s -> Math.abs(s.diff()) > 0D),
+                "8 小时班次里补不补能逐指标完全相同 —— 补能链路在稳态下是死的，先查 chargeTiming");
+
         String report = ScenarioBench.compareReport(opportunistic, never, "补能时机对照（M 档 · 齐次到达）",
                 "`chargeTiming=OPPORTUNISTIC`（空闲即补能，现状 `idleChargeWhenNoDemand=true`）",
                 "`chargeTiming=NEVER`（只在必充阈值以下才回桩）", onOff)
@@ -189,7 +199,13 @@ class ScenarioBenchTest {
                 + ScenarioBench.compareReport(peakOnAtPile, peakOffAtPile,
                         "⑤ 同一个真·错峰对照，但**补能要开车过去**（现役布局：6 桩挂在 ZJF-CHG-01）"
                                 + " —— §13.14③ 的修正数，替代那张表里的 completion_rate/接驾距离",
-                        "`DEFER_IN_PEAK` + 开去充电", "`OPPORTUNISTIC` + 开去充电", inPeakWithLeg);
+                        "`DEFER_IN_PEAK` + 开去充电", "`OPPORTUNISTIC` + 开去充电", inPeakWithLeg)
+                + "\n---\n\n"
+                + ScenarioBench.compareReport(steadyOn, steadyOff,
+                        "⑥ **8 小时班次**（" + Config.ENERGY_BINDING_HORIZON_MINUTES / 60 + " h）里的"
+                                + "「补不补」—— ①那张表是 2 小时窗口，而真车一次补能要 2 h，"
+                                + "所以 ① 量到的是初始 SOC 的 transient，不是稳态",
+                        "`OPPORTUNISTIC`（空闲即补到 90%，现状语义）", "`NEVER`（只在必充档以下回桩）", steady);
 
         Path file = Path.of("..", "..", "reports", "scenario-bench", "charge-timing-m-tier.md").normalize();
         Files.createDirectories(file.getParent());
@@ -218,7 +234,7 @@ class ScenarioBenchTest {
                     cost[i][j] = rng.nextInt(100) / 10D;
                 }
             }
-            int[] assign = ScenarioBench.hungarian(cost);
+            int[] assign = com.fsd.dispatch.core.AssignmentSolver.hungarian(cost);
             assertEquals(rows, assign.length);
             Set<Integer> distinct = new HashSet<>();
             for (int j : assign) {
@@ -406,12 +422,14 @@ class ScenarioBenchTest {
                 "有布局却没算开过去多远 —— beginChargingAt 那条路没走通");
 
         // 口径守卫（本轮真踩过：无位置布局把车赋值成桩点坐标 (0,0)，默认臂完成率 0.93 掉到 0.89 而无人察觉）：
-        // 默认臂必须逐字复现 §13.10 记下的基线，否则§13.10~13.14 的全部结论一起作废。
+        // 默认臂必须逐字复现下面钉住的基线，否则 §13.10~13.14 那一族的对照全部作废。
         List<Summary> baselineRows = ScenarioBench.summarise(Config.mTier(20260921L));
-        assertEquals(0.93D, metricOf(baselineRows, "completion_rate").mean(), 0.005D,
-                "默认（teleport）臂的完成率漂了，§13.10 记的是 0.93 [0.90, 0.95]");
-        assertEquals(138200D, metricOf(baselineRows, "total_distance_m").mean(), 2000D,
-                "默认臂的总里程漂了，§13.10 记的是 138.2 km —— 加开关不许动默认口径");
+        // 这两个数是 **真车常数下的新基线**（drain 1,800 m/1% + chargeSeconds 7,200 s，§13.77 重跑落定）。
+        // 旧基线 0.93 [0.90, 0.95] / 138.2 km 是 150 m/1% 夹具的产物，随 §13.72 一并作废，别拿它回来对。
+        assertEquals(0.8941D, metricOf(baselineRows, "completion_rate").mean(), 0.005D,
+                "默认（teleport）臂的完成率漂了，§13.77 重跑钉的是 0.8941 [0.86, 0.93]");
+        assertEquals(136900D, metricOf(baselineRows, "total_distance_m").mean(), 2000D,
+                "默认臂的总里程漂了，§13.77 记的是 136.9 km —— 加开关不许动默认口径");
 
         List<PairedSummary> legCost = ScenarioBench.comparePaired(atPile, teleport);
         List<PairedSummary> layoutValue = ScenarioBench.comparePaired(spread, atPile);
@@ -491,60 +509,93 @@ class ScenarioBenchTest {
     }
 
     @Test
-    @DisplayName("M4 能耗敏感性：扫 100–250 m/1% 看派单可行域，只出参数化结论，不得称\"预测模型\"")
+    @DisplayName("M4 能耗敏感性：在**真车规格两侧**扫 m/1%，只出参数化结论，不得称\"预测模型\"")
     void energyDrainSensitivityIsSweptNotClaimed() throws Exception {
-        // 锚在"有腿 + 站点场景"上：§13.16 之后这才是现役模型，扫 teleport 会给出偏乐观的可行域。
+        // 锚在"有腿 + 站点场景 + 8 小时班次"上：§13.16 之后"有腿"才是现役模型，而真车能耗下
+        // 2 小时窗口内补能根本不会被触发（§13.77），短窗扫描会让整条曲线躺在"电不是约束"那一侧，
+        // 量不出能耗对结论的扰动带。班次时长取 ENERGY_BINDING_HORIZON_MINUTES。
         Config anchor = Config.mTier(20260921L).withRepeats(12).withStationDemand(0.9D)
+                .withHorizon(Config.ENERGY_BINDING_HORIZON_MINUTES)
                 .withChargeLayout(Config.ChargeLayouts.singlePointSixPiles(), Config.PileChoice.NEAREST_FREE);
-        double[] sweep = {100D, 150D, 200D, 250D};    // §8/M4 点名的区间；150 = 现行默认
+        // 扫描点全部锚在**已知出处**上，不是等距网格：
+        //   900  = 规格折半（低温/重载的最坏保守下界，假设）
+        //   1350 = −25%（对"满载 180 km"再打一轮折损，假设）
+        //   1800 = 默认档：满载实测口径 180 km ÷ 100%（本人提供规格）
+        //   2000 = 厂商标称 200 km ÷ 100%（本人提供规格的上界）
+        double[] sweep = {900D, 1350D, 1800D, 2000D};
+        double low = sweep[0];
+        double high = sweep[sweep.length - 1];
 
         StringBuilder out = new StringBuilder();
-        out.append("# 能耗参数敏感性（M 档 · 站点场景 skew=0.9 · 12 次重复 · 有\"开去充电\"这条腿）\n\n")
+        out.append("# 能耗参数敏感性（M 档 · 站点场景 skew=0.9 · 12 次重复 · 有\"开去充电\"这条腿 · ")
+                .append(Config.ENERGY_BINDING_HORIZON_MINUTES / 60).append(" 小时班次）\n\n")
                 .append("`busyDrainMetersPerPercent` = 每 1% SOC 能跑多少米。**这是敏感性扫描，不是能耗预测模型**")
                 .append("（§9 口径纪律：没有真车真能耗数据，不许称模型）。\n")
-                .append("默认 150 m/1%（= 满电 100% 折算 15 km 续航）。看的是它对**派单可行域**的影响：\n")
-                .append("完成率、被 SOC 挡掉的候选（LOW_SOC）、无可用车的落单（NO_VEHICLE）、补能次数。\n\n")
-                .append("| m/1% | 完成率 [95% CI] | LOW_SOC 次/运行 | NO_VEHICLE 次/运行 | 补能次数 | 补能排队车·分钟 |\n")
-                .append("| --- | --- | --- | --- | --- | --- |\n");
+                .append("默认 **1,800 m/1%**（= 真车新石器 L4 满载 ≈180 km ÷ 100%，§1.1-b 口径；")
+                .append("旧默认 150 m/1% = 满电 15 km 低 12 倍，已被 §13.72 作废）。")
+                .append("看的是它对**派单可行域**的影响：完成率、被 SOC 挡掉的候选（LOW_SOC）、")
+                .append("无可用车的落单（NO_VEHICLE）、补能次数。\n\n")
+                .append("**为什么用 8 小时而不是 M 档默认的 2 小时**：真车能耗下一趟只耗 0.95% SOC（§1.1-b），")
+                .append("而一次补能要 2 h —— 恰好等于默认窗口长度 ⇒ 2 小时窗口量到的不是稳态，是")
+                .append("**初始 SOC 铺在 [20,100] 这一 transient**（`startTask` 前 fleet 按车位序铺开，")
+                .append("让必充/顺势补两条路一开始都有车走）：开局低电的车一旦去补就整窗不回来。")
+                .append("实测这条 transient 有多大：同一个 2 小时窗口，`NEVER`（只在必充时补）完成率 ")
+                .append("**0.9523**，`OPPORTUNISTIC`（现状）**0.8941**，差 −5.82pp（见 charge-timing 表①）。")
+                .append("所以短窗扫描会得到\"完成率与能耗无关\"的假象，扰动带必须在稳态窗口上量。")
+                .append("班次时长本身是**场景设定**不是实测排班。\n\n")
+                .append("| m/1% | 出处 | 完成率 [95% CI] | LOW_SOC 次/运行 | NO_VEHICLE 次/运行 | 补能次数 | 补能排队车·分钟 |\n")
+                .append("| --- | --- | --- | --- | --- | --- | --- |\n");
 
-        double rateAt100 = Double.NaN;
-        double rateAt250 = Double.NaN;
+        java.util.Map<Double, String> provenance = java.util.Map.of(
+                900D, "规格折半（保守下界，假设）",
+                1350D, "默认档再打 25% 折损（假设）",
+                1800D, "**默认档**：满载 180 km（本人提供）",
+                2000D, "标称 200 km（本人提供）");
+
+        double rateAtLow = Double.NaN;
+        double rateAtHigh = Double.NaN;
         for (double drain : sweep) {
             Config cfg = anchor.withEnergyDrain(drain);
             List<Summary> rows = ScenarioBench.summarise(cfg);
             Summary rate = metricOf(rows, "completion_rate");
             java.util.Map<String, Double> fails = ScenarioBench.failureMeans(cfg);
-            out.append(String.format(java.util.Locale.ROOT, "| %.0f | %.4f [%.4f, %.4f] | %.2f | %.2f | %.1f | %.1f |%n",
-                    drain, rate.mean(), rate.low(), rate.high(),
+            out.append(String.format(java.util.Locale.ROOT,
+                    "| %.0f | %s | %.4f [%.4f, %.4f] | %.2f | %.2f | %.1f | %.1f |%n",
+                    drain, provenance.get(drain), rate.mean(), rate.low(), rate.high(),
                     fails.getOrDefault("LOW_SOC", 0D), fails.getOrDefault("NO_VEHICLE", 0D),
                     metricOf(rows, "charge_sessions").mean(),
                     metricOf(rows, "charge_blocked_car_min").mean()));
-            if (drain == 100D) {
-                rateAt100 = rate.mean();
+            if (drain == low) {
+                rateAtLow = rate.mean();
             }
-            if (drain == 250D) {
-                rateAt250 = rate.mean();
+            if (drain == high) {
+                rateAtHigh = rate.mean();
             }
         }
 
         // 单调性：省电（m/1% 大 = 同样电量跑更远）不该让完成率变差。
         // 这条不是为了"证明结论"，是为了挡住"参数接反/接错单位"这类静默失效。
-        assertTrue(rateAt250 >= rateAt100 - 1e-9D,
+        assertTrue(rateAtHigh >= rateAtLow - 1e-9D,
                 "更省的能耗参数反而完成率更低：先查 withEnergyDrain 的单位与 metersToSoc 的方向");
-        double span = rateAt250 - rateAt100;
-        out.append("\n**从 100 到 250 m/1%（2.5 倍跨度）完成率的总变化 = ")
+        double span = rateAtHigh - rateAtLow;
+        out.append("\n**从 ").append(String.format(java.util.Locale.ROOT, "%.0f", low))
+                .append(" 到 ").append(String.format(java.util.Locale.ROOT, "%.0f", high))
+                .append(" m/1%（").append(String.format(java.util.Locale.ROOT, "%.1f", high / low))
+                .append(" 倍跨度）完成率的总变化 = ")
                 .append(String.format(java.util.Locale.ROOT, "%+.4f", span))
-                .append("**，两值分别 ").append(String.format(java.util.Locale.ROOT, "%.4f / %.4f", rateAt100, rateAt250))
+                .append("**，两值分别 ").append(String.format(java.util.Locale.ROOT, "%.4f / %.4f", rateAtLow, rateAtHigh))
                 .append("。这个量级就是\"能耗参数标不准\"能给**完成率类结论**带来的最大扰动：")
-                .append("小于它的完成率差，不足以归因给策略（它同样可以是 2.5 倍能耗不确定度里的任意一档）。")
-                .append("对里程类结论不构成同量级的界，别混用。\n");
+                .append("小于它的完成率差，不足以归因给策略（它同样可以是这个倍数的能耗不确定度里的任意一档）。")
+                .append("对里程类结论不构成同量级的界，别混用。\n")
+                .append("\n> 旧表（150 m/1% 夹具、100→250 扫描）给出的界是 **14.63 pp**，"
+                        + "那张表连同它撑起的\"≈22 pp 不确定带\"一并作废：见 §13.77。\n");
 
         Path file = Path.of("..", "..", "reports", "scenario-bench", "energy-sensitivity-m-tier.md").normalize();
         Files.createDirectories(file.getParent());
         Files.writeString(file, out.toString(), java.nio.file.StandardOpenOption.CREATE,
                 java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
-        System.out.printf(Locale.ROOT, "[scenario-bench] 能耗敏感性写出 %s（100→250 完成率 %+.4f）%n",
-                file.toAbsolutePath(), span);
+        System.out.printf(Locale.ROOT, "[scenario-bench] 能耗敏感性写出 %s（%.0f→%.0f 完成率 %+.4f）%n",
+                file.toAbsolutePath(), low, high, span);
     }
 
     @Test
@@ -553,13 +604,13 @@ class ScenarioBenchTest {
         Config anchor = Config.mTier(20260921L).withRepeats(12).withStationDemand(0.9D)
                 .withChargeLayout(Config.ChargeLayouts.singlePointSixPiles(), Config.PileChoice.NEAREST_FREE);
 
-        // ① 算术先对上：LINEAR 就是历史那条折算式 1800 × (90-50)/(90-20)
-        assertEquals(1800D * 40 / 70, anchor.chargeSecondsFor(50, 90), 1e-9,
-                "默认曲线改变了历史折算口径");
+        // ① 算术先对上：LINEAR 就是那条折算式 chargeSeconds × (90-50)/(90-20)，默认档 7,200 s（真车 2 h）
+        assertEquals(7200D * 40 / 70, anchor.chargeSecondsFor(50, 90), 1e-9,
+                "默认曲线改变了 §1.1-b 的充电时长折算口径");
         assertTrue(anchor.withChargeCurve(Config.ChargeCurve.TAPER_80_HALF).chargeSecondsFor(50, 90)
                 > anchor.chargeSecondsFor(50, 90), "拐点之上的部分必须更慢");
         // 拐点在目标之上时，任何倍率都不该改变任何东西（LINEAR 的定义域守卫）
-        assertEquals(1800D * 10 / 70,
+        assertEquals(7200D * 10 / 70,
                 anchor.withChargeCurve(new Config.ChargeCurve(95D, 9D)).chargeSecondsFor(80, 90), 1e-9,
                 "拐点高于目标 SOC 时不该有慢充段");
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,

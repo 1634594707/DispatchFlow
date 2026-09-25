@@ -30,6 +30,56 @@ public final class DecisionTrace {
     private String policyId = "RULE";
     private String policyVersion = "rule-v1";
 
+    /**
+     * 影子对照结果（§2.2 SHADOW）：只有影子真跑过一次才有值，未跑时全为 null ⇒
+     * 快照里 NULL 与"影子策略选了同一台车"是两件不同的事，不能都记成 0/true。
+     */
+    private String shadowPolicyId;
+    private String shadowPolicyVersion;
+    private String shadowWinnerCode;
+    private Boolean shadowAgreed;
+    private Double shadowRegret;
+
+    public String getShadowPolicyId() {
+        return shadowPolicyId;
+    }
+
+    public void setShadowPolicyId(String shadowPolicyId) {
+        this.shadowPolicyId = shadowPolicyId;
+    }
+
+    public String getShadowPolicyVersion() {
+        return shadowPolicyVersion;
+    }
+
+    public void setShadowPolicyVersion(String shadowPolicyVersion) {
+        this.shadowPolicyVersion = shadowPolicyVersion;
+    }
+
+    public String getShadowWinnerCode() {
+        return shadowWinnerCode;
+    }
+
+    public void setShadowWinnerCode(String shadowWinnerCode) {
+        this.shadowWinnerCode = shadowWinnerCode;
+    }
+
+    public Boolean getShadowAgreed() {
+        return shadowAgreed;
+    }
+
+    public void setShadowAgreed(Boolean shadowAgreed) {
+        this.shadowAgreed = shadowAgreed;
+    }
+
+    public Double getShadowRegret() {
+        return shadowRegret;
+    }
+
+    public void setShadowRegret(Double shadowRegret) {
+        this.shadowRegret = shadowRegret;
+    }
+
     public String getPolicyId() {
         return policyId;
     }

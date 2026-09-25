@@ -31,13 +31,19 @@ public final class DispatchFailExplainSupport {
                     rawMessage != null && !rawMessage.isBlank()
                             ? rawMessage : "有空闲且电量足够的车，但车型/车队池/配送区/载重/维保等约束都不满足",
                     List.of("看消息里的 binding 层：MAINTENANCE=维保占用、VEHICLE_TYPE=线路要求车型、"
-                                    + "FLEET_POOL=试点车队池、DELIVERY_ZONE=配送区、LOAD_CAPACITY=载重",
+                                    + "FLEET_POOL=试点车队池、LOAD_CAPACITY=载重",
                             "放宽该线路的 requiredVehicleType 或把车辆加入对应配送区/车队池",
                             "确认不是维保状态没解除（车辆列表 → 调度状态）"));
             case "ROUTE_BLOCKED" -> new ExplainResult(
                     "ROUTE_BLOCKED",
                     rawMessage != null && !rawMessage.isBlank() ? rawMessage : "取货点路网不可达或途经路段被管制",
                     List.of("打开路网管理，检查禁用路段与节点", "查看交通态势，处理高拥堵路段", "确认取货站点坐标在路网范围内"));
+            case "ZONE_PAUSED" -> new ExplainResult(
+                    "ZONE_PAUSED",
+                    rawMessage != null && !rawMessage.isBlank() ? rawMessage : "取货点位于已挂起的交通管制区内，该区域暂停派单",
+                    List.of("打开交通态势，确认这块管制区是否仍应存在",
+                            "若为遗留状态：取消该管制区（会同时清理 Redis 缓存键 fsd:traffic:pause:<parkId>）",
+                            "⚠ 管制区可能只存在于缓存里：真相表 t_traffic_pause_zone 为空但缓存键仍在，且该键无 TTL 不会自愈"));
             case "HUB_CAPACITY_FULL" -> new ExplainResult(
                     "HUB_CAPACITY_FULL",
                     rawMessage != null && !rawMessage.isBlank() ? rawMessage : "枢纽/母港容量已满，暂无法派车",
@@ -70,7 +76,9 @@ public final class DispatchFailExplainSupport {
         return switch (internalCode.trim().toUpperCase(Locale.ROOT)) {
             case "NO_VEHICLE" -> "NO_IDLE_VEHICLE";
             case "LOW_SOC" -> "LOW_BATTERY";
-            case "UNREACHABLE", "ZONE_PAUSED" -> "ROUTE_BLOCKED";
+            // ZONE_PAUSED 刻意**不再**折进 ROUTE_BLOCKED：它是"有人挂了这块区域"（运营态），
+            // 而 ROUTE_BLOCKED 是"图上到不了"（拓扑态）。合成一个码就会重演那次误诊。
+            case "UNREACHABLE" -> "ROUTE_BLOCKED";
             default -> internalCode.trim().toUpperCase(Locale.ROOT);
         };
     }
@@ -83,6 +91,7 @@ public final class DispatchFailExplainSupport {
                 links.add("road-network");
                 links.add("traffic");
             }
+            case "ZONE_PAUSED" -> links.add("traffic");
             case "HUB_CAPACITY_FULL", "ROUTE_OCCUPANCY_FULL" -> links.add("hub-overview");
             default -> links.add("exceptions");
         }

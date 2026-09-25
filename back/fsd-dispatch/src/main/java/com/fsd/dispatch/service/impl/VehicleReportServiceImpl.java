@@ -1,7 +1,9 @@
 package com.fsd.dispatch.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.enums.VehicleDispatchStatus;
+import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.event.DispatchEventPublisher;
 import com.fsd.dispatch.event.DispatchEventType;
@@ -87,7 +89,7 @@ public class VehicleReportServiceImpl implements VehicleReportService {
                     String beforeStatus = taskEntity.getStatus();
                     taskEntity.setStatus(DispatchTaskStatus.EXECUTING.name());
                     taskEntity.setStartTime(request.getReportTime());
-                    dispatchTaskMapper.updateById(taskEntity);
+                    updateIfStatusUnchanged(taskEntity, beforeStatus);
                     orderStateService.markInProgress(taskEntity.getOrderId());
                     operateLogService.record(taskEntity.getId(), "START_EXECUTE", beforeStatus, taskEntity.getStatus(),
                             "VEHICLE", request.getVehicleCode(), request.getVehicleCode(), request.getResultMessage());
@@ -101,7 +103,7 @@ public class VehicleReportServiceImpl implements VehicleReportService {
                     taskEntity.setStatus(DispatchTaskStatus.SUCCESS.name());
                     taskEntity.setFinishTime(request.getReportTime());
                     taskEntity.setPeakModeAtFinish(peakModeService.isPeakMode(resolveTaskParkId(taskEntity)) ? "PEAK" : "NORMAL");
-                    dispatchTaskMapper.updateById(taskEntity);
+                    updateIfStatusUnchanged(taskEntity, beforeStatus);
                     orderStateService.markCompleted(taskEntity.getOrderId());
                     vehicleService.releaseVehicle(vehicleEntity.getId(), VehicleDispatchStatus.IDLE.name());
                     operateLogService.record(taskEntity.getId(), "FINISH_SUCCESS", beforeStatus, taskEntity.getStatus(),
@@ -122,7 +124,7 @@ public class VehicleReportServiceImpl implements VehicleReportService {
                         taskEntity.setFailReasonMsg(request.getResultMessage());
                         taskEntity.setVehicleId(null);
                         taskEntity.setAssignTime(null);
-                        dispatchTaskMapper.updateById(taskEntity);
+                        updateIfStatusUnchanged(taskEntity, beforeStatus);
                         vehicleService.releaseVehicle(vehicleEntity.getId(), VehicleDispatchStatus.IDLE.name());
                         try {
                             orderStateService.revertToWaitingDispatch(taskEntity.getOrderId());
@@ -143,7 +145,7 @@ public class VehicleReportServiceImpl implements VehicleReportService {
                         taskEntity.setFinishTime(request.getReportTime());
                         taskEntity.setFailReasonCode(request.getResultCode());
                         taskEntity.setFailReasonMsg(request.getResultMessage());
-                        dispatchTaskMapper.updateById(taskEntity);
+                        updateIfStatusUnchanged(taskEntity, beforeStatus);
                         orderStateService.markFailed(taskEntity.getOrderId(), request.getResultMessage());
                         vehicleService.releaseVehicle(vehicleEntity.getId(), VehicleDispatchStatus.IDLE.name());
                         dispatchExceptionService.recordException(taskEntity.getId(), taskEntity.getOrderId(), vehicleEntity.getId(),
@@ -172,6 +174,24 @@ public class VehicleReportServiceImpl implements VehicleReportService {
                 .orderStatus(orderStatus)
                 .vehicleDispatchStatus(request.getDispatchStatus())
                 .build();
+    }
+
+    /**
+     * 状态迁移只在"库里仍是本次读到的前置状态"时才生效。
+     *
+     * <p>派单/取消/超时那 6 处入口都先持 {@code acquireTaskLock}，<b>上报路径没有</b>这把锁，此前是无条件
+     * {@code updateById}：超时置 FAILED 与车端回报置 SUCCESS 同时到达时后写覆盖前写，还会拿调用方手上的
+     * 旧快照把别人刚改的列整行盖回去。把前置状态写进 WHERE ⇒ 真竞态时影响 0 行并抛冲突，
+     * 由 {@link #handleReport} 释放幂等标记后交给车端重试，而不是静默写坏。</p>
+     */
+    private void updateIfStatusUnchanged(DispatchTaskEntity taskEntity, String expectedStatus) {
+        int rows = dispatchTaskMapper.update(taskEntity, new LambdaUpdateWrapper<DispatchTaskEntity>()
+                .eq(DispatchTaskEntity::getId, taskEntity.getId())
+                .eq(DispatchTaskEntity::getStatus, expectedStatus));
+        if (rows == 0) {
+            throw new BusinessException("DISPATCH_TASK_STATE_CONFLICT",
+                    "任务状态已被并发变更，本次上报未生效: taskId=" + taskEntity.getId());
+        }
     }
 
     private Map<String, Object> buildTaskPayload(DispatchTaskEntity taskEntity) {

@@ -45,7 +45,6 @@ public class DispatchTaskEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

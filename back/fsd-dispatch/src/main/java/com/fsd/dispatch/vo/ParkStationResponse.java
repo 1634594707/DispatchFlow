@@ -40,6 +40,9 @@ public class ParkStationResponse {
     /** 站点承载上限 */
     private Integer capacityLimit;
 
-    /** 配送区域: GEO_DELIVERY / GENERAL（SCHEMATIC 已随 §7.6 停用，列注释仍留在 V37） */
-    private String deliveryZone;
+    /**
+     * 站点启停状态（ACTIVE / INACTIVE）。§6.4 前端要按"可服务与否"筛点，
+     * 之前只能靠 `ZJF-CHG-` 编码前缀猜（库里 CHG-02…05 恰好都是 INACTIVE 才碰巧对）。
+     */
+    private String status;
 }

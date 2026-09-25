@@ -2,6 +2,7 @@ package com.fsd.dispatch.dispatch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -69,8 +70,11 @@ class DispatchVehicleAssignServiceImplTest {
     @Mock
     private com.fsd.dispatch.service.DispatchDecisionSnapshotService decisionSnapshotService;
 
+    private final com.fsd.dispatch.geo.VehiclePositionResolver vehiclePositionResolver =
+            new com.fsd.dispatch.geo.VehiclePositionResolver(null);
+
     private final DispatchGeoDistanceService dispatchGeoDistanceService = new DispatchGeoDistanceService(
-            null, null, null, null, null) {
+            null, null, null, null, null, vehiclePositionResolver) {
         @Override
         public boolean isGeoBlendEnabled() {
             return false;
@@ -125,11 +129,25 @@ class DispatchVehicleAssignServiceImplTest {
                 peakModeService,
                 automationRuleService,
                 dispatchGeoDistanceService,
+                vehiclePositionResolver,
                 mapfRoutePlannerService,
                 chargingSessionService,
                 new com.fsd.dispatch.fleet.policy.TelemetryFreshnessPolicy(30),
                 decisionSnapshotService,
-                new com.fsd.dispatch.core.RulePolicy());
+                policyRouter(),
+                new com.fsd.dispatch.metrics.DispatchDecisionMetrics(
+                        new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
+    }
+
+    /** OFF 模式的路由器逐字等价于直接用 RulePolicy：既有断言钉住的行为不因引入路由器而改变。 */
+    private static com.fsd.dispatch.policy.DecisionPolicyRouter policyRouter() {
+        com.fsd.dispatch.core.RulePolicy rule = new com.fsd.dispatch.core.RulePolicy();
+        return new com.fsd.dispatch.policy.DecisionPolicyRouter(
+                rule,
+                java.util.List.of(rule, new com.fsd.dispatch.core.ForecastAwarePolicy()),
+                new com.fsd.dispatch.config.DispatchPolicyProperties(),
+                new com.fsd.dispatch.metrics.DispatchDecisionMetrics(
+                        new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
     }
 
     @Test
@@ -144,6 +162,31 @@ class DispatchVehicleAssignServiceImplTest {
 
         assertFalse(result.isSuccess());
         assertEquals(DispatchAssignFailReason.NO_VEHICLE, result.getFailReason());
+    }
+
+    /**
+     * 管制区挂起必须报 ZONE_PAUSED，不能报 UNREACHABLE。
+     *
+     * <p>这道分支原来恒被 setUp 里的 {@code isPointInPausedZone -> false} 绕过，所以它发错码
+     * 长期无人发现；生产上真因是 Redis 里一块真相表已不存在的遗留管制区，却被读成"路网不可达"，
+     * 排查被带到图/缓存/锚点三条错路上。这条用例同时钉住两点：**码要对**、**门禁在取车之前**。
+     */
+    @Test
+    void pausedZoneReportsZonePausedNotUnreachable() {
+        OrderEntity order = new OrderEntity();
+        order.setPickupPointId(101L);
+        order.setDropoffPointId(201L);
+        order.setParkId(1L);
+        when(trafficZoneControlService.isPointInPausedZone(any(), any(), any())).thenReturn(true);
+        // 刻意不 stub listAssignableVehicles：Mockito 严格模式会因"这个 stub 没被用到"报错，
+        // 而那正好证明管制区门禁在取候选车**之前**就短路了 —— 顺序也是这条用例要钉的东西。
+
+        DispatchAssignResult result = assignService.selectBestVehicle(order);
+
+        assertFalse(result.isSuccess());
+        assertEquals(DispatchAssignFailReason.ZONE_PAUSED, result.getFailReason());
+        assertNotEquals(DispatchAssignFailReason.UNREACHABLE, result.getFailReason());
+        assertNotEquals(DispatchAssignFailReason.NO_VEHICLE, result.getFailReason());
     }
 
     @Test

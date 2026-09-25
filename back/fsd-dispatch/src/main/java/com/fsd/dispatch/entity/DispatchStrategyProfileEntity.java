@@ -42,7 +42,6 @@ public class DispatchStrategyProfileEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

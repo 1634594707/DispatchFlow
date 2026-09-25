@@ -14,6 +14,15 @@ public enum DispatchAssignFailReason {
      */
     NO_MATCHING_VEHICLE,
     UNREACHABLE,
+    /**
+     * 取货点落在"交通管制/暂停区"内，该区域派单被人工挂起。
+     *
+     * <p>以前这里报的是 {@link #UNREACHABLE}，于是"有人框了一块管制区"和"路网图上不连通"
+     * 共用一个码 —— 生产上曾因此把一次排查整条带偏（去查图、查缓存、查锚点，
+     * 而真因是 Redis 里一块真相表早已不存在的陈旧管制区）。
+     * 与 {@link #NO_MATCHING_VEHICLE} 从 {@link #LOW_SOC} 拆出来是同一个道理：**标签不可信，读数就不能用**。
+     */
+    ZONE_PAUSED,
     HUB_CAPACITY_FULL,
     ROUTE_OCCUPANCY_FULL,
     CONFLICT,

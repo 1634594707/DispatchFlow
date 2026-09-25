@@ -14,6 +14,8 @@ import com.fsd.dispatch.fleet.PilotFleetSupport;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.policy.TelemetryFreshnessPolicy;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
+import com.fsd.dispatch.metrics.DispatchDecisionMetrics;
+import com.fsd.dispatch.policy.DecisionPolicyRouter;
 import com.fsd.dispatch.service.DispatchStrategyRuntimeService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
@@ -24,6 +26,8 @@ import com.fsd.dispatch.service.HubCapacityService;
 import com.fsd.dispatch.service.PeakModeService;
 import com.fsd.dispatch.service.TrafficZoneControlService;
 import com.fsd.dispatch.geo.DispatchGeoDistanceService;
+import com.fsd.dispatch.geo.ParkGeoTransformService.ParkPoint;
+import com.fsd.dispatch.geo.VehiclePositionResolver;
 import com.fsd.dispatch.mapf.MapfRoutePlanResult;
 import com.fsd.dispatch.mapf.MapfRoutePlannerService;
 import com.fsd.common.exception.BusinessException;
@@ -34,6 +38,7 @@ import com.fsd.order.entity.OrderEntity;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.service.VehicleService;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,11 +62,13 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
     private final PeakModeService peakModeService;
     private final DispatchAutomationRuleService automationRuleService;
     private final DispatchGeoDistanceService dispatchGeoDistanceService;
+    private final VehiclePositionResolver vehiclePositionResolver;
     private final MapfRoutePlannerService mapfRoutePlannerService;
     private final com.fsd.dispatch.service.ChargingSessionService chargingSessionService;
     private final TelemetryFreshnessPolicy telemetryFreshnessPolicy;
     private final com.fsd.dispatch.service.DispatchDecisionSnapshotService decisionSnapshotService;
-    private final DecisionPolicy decisionPolicy;
+    private final DecisionPolicyRouter policyRouter;
+    private final DispatchDecisionMetrics decisionMetrics;
 
     public DispatchVehicleAssignServiceImpl(VehicleService vehicleService,
                                             ParkStationService parkStationService,
@@ -75,11 +82,13 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                                             PeakModeService peakModeService,
                                             DispatchAutomationRuleService automationRuleService,
                                             DispatchGeoDistanceService dispatchGeoDistanceService,
+                                            VehiclePositionResolver vehiclePositionResolver,
                                             MapfRoutePlannerService mapfRoutePlannerService,
                                             com.fsd.dispatch.service.ChargingSessionService chargingSessionService,
                                             TelemetryFreshnessPolicy telemetryFreshnessPolicy,
                                             com.fsd.dispatch.service.DispatchDecisionSnapshotService decisionSnapshotService,
-                                            DecisionPolicy decisionPolicy) {
+                                            DecisionPolicyRouter policyRouter,
+                                            DispatchDecisionMetrics decisionMetrics) {
         this.vehicleService = vehicleService;
         this.parkStationService = parkStationService;
         this.parkRoutePlannerService = parkRoutePlannerService;
@@ -92,32 +101,80 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         this.peakModeService = peakModeService;
         this.automationRuleService = automationRuleService;
         this.dispatchGeoDistanceService = dispatchGeoDistanceService;
+        this.vehiclePositionResolver = vehiclePositionResolver;
         this.mapfRoutePlannerService = mapfRoutePlannerService;
         this.chargingSessionService = chargingSessionService;
         this.telemetryFreshnessPolicy = telemetryFreshnessPolicy;
         this.decisionSnapshotService = decisionSnapshotService;
-        this.decisionPolicy = decisionPolicy;
+        this.policyRouter = policyRouter;
+        this.decisionMetrics = decisionMetrics;
     }
 
     @Override
     public DispatchAssignResult selectBestVehicle(OrderEntity order) {
+        return selectBestVehicle(order, "GREEDY");
+    }
+
+    @Override
+    public DispatchAssignResult selectBestVehicle(OrderEntity order, String matchAlgorithm) {
         long startedAtNanos = System.nanoTime();
         DecisionTrace trace = new DecisionTrace();
-        DispatchAssignResult result = assignWithTrace(order, trace);
-        decisionSnapshotService.record(order, trace.getParkId(), trace, result,
-                (System.nanoTime() - startedAtNanos) / 1_000L);
-        return result;
+        trace.setMatchAlgorithm(matchAlgorithm == null || matchAlgorithm.isBlank() ? "GREEDY" : matchAlgorithm);
+        DispatchAssignResult result = null;
+        try {
+            result = assignWithTrace(order, trace);
+            return result;
+        } finally {
+            long elapsedNanos = System.nanoTime() - startedAtNanos;
+            // result 为 null 只剩一种可能：漏斗之前抛了业务异常（如园区暂停）。它既不是成功也不该
+            // 混进失败原因分布，但**必须**进时延与"异常"计数 —— 否则这条路径在监控里等于不存在。
+            decisionMetrics.recordAssignment(result, Duration.ofNanos(elapsedNanos));
+            if (result != null) {
+                decisionSnapshotService.record(order, trace.getParkId(), trace, result, elapsedNanos / 1_000L);
+            }
+        }
+    }
+
+    @Override
+    public List<RankedCandidate> rankCandidatesForBatch(OrderEntity order) {
+        DecisionTrace trace = new DecisionTrace();
+        Pool pool = buildPool(order, trace);
+        return pool.failure() == null ? pool.ranked() : List.of();
     }
 
     private DispatchAssignResult assignWithTrace(OrderEntity order, DecisionTrace trace) {
+        Pool pool = buildPool(order, trace);
+        if (pool.failure() != null) {
+            return pool.failure();
+        }
+        RankedCandidate best = selectWithMapfReservation(pool.parkId(), pool.pickup(), pool.ranked(), pool.vehiclesById());
+        if (best == null) {
+            return DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
+                    "No conflict-free MAPF route to pickup from any candidate vehicle");
+        }
+        String explanation = RulePolicy.explain(best,
+                dispatchGeoDistanceService.isGeoBlendEnabled(),
+                mapfRoutePlannerService.isEnabled());
+        return DispatchAssignResult.success(pool.vehiclesById().get(best.vehicleId()), explanation, best.totalScore(),
+                best.distanceScore(), best.socScore(), best.pluggedBonus());
+    }
+
+    /**
+     * 候选漏斗 + 打分，<b>不带任何写入副作用</b>（MAPF 预约、快照、状态都不在这里）。
+     *
+     * <p>抽出来是为了让"批量撮合算成本矩阵"与"逐单派车"共用同一套可行性判据（§2.3）：
+     * 矩阵判定可行的单，真正派车时必须走同样的过滤，否则撮合收益只是纸面排序。
+     */
+    private Pool buildPool(OrderEntity order, DecisionTrace trace) {
         Long parkId = resolveParkId(order);
         trace.setParkId(parkId);
         if (dispatchPauseControlService.isDispatchPaused(parkId)) {
             throw new BusinessException("DISPATCH_PAUSED", "当前园区已暂停新派单");
         }
         // 一单只解析一次策略：能量阈值与打分权重必须来自同一侧，否则灰度会混档（§7.2）
+        String bucketKey = strategyBucketKey(order);
         DispatchStrategyRuntimeService.AssignStrategy strategy =
-                strategyRuntimeService.strategyForAssign(parkId, strategyBucketKey(order));
+                strategyRuntimeService.strategyForAssign(parkId, bucketKey);
         FleetEnergyProperties energy = strategy.energy();
         DispatchScoringProperties scoring = strategy.scoring();
         trace.setProfileId(strategy.profileId());
@@ -130,44 +187,39 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         parkStationService.assertStationInPark(order.getPickupPointId(), parkId);
         ParkStationResponse dropoff = parkStationService.requireStation(order.getDropoffPointId());
 
-        // 配送区域只有一个语义：地理派单（示意模式已随 §7.6 删除）
-        if (order.getDeliveryZone() == null || order.getDeliveryZone().isBlank()) {
-            order.setDeliveryZone("GEO_DELIVERY");
-        }
-
         if (hubCapacityService.isHubLikeStation(pickup) && !hubCapacityService.isHubCapacityAvailable(pickup.getStationId())) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.HUB_CAPACITY_FULL,
-                    "Pickup hub/buffer capacity full: " + pickup.getStationName());
+            return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.HUB_CAPACITY_FULL,
+                    "Pickup hub/buffer capacity full: " + pickup.getStationName()));
         }
         if (hubCapacityService.isHubLikeStation(dropoff) && !hubCapacityService.isHubCapacityAvailable(dropoff.getStationId())) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.HUB_CAPACITY_FULL,
-                    "Dropoff hub/mothership capacity full: " + dropoff.getStationName());
+            return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.HUB_CAPACITY_FULL,
+                    "Dropoff hub/mothership capacity full: " + dropoff.getStationName()));
         }
 
         if (order.getRouteId() != null) {
             DispatchRouteEntity route = dispatchRouteService.findRoute(order.getRouteId()).orElse(null);
             if (route != null) {
                 if (!dispatchRouteService.isRouteWithinServiceWindow(route)) {
-                    return DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
-                            "Route outside service window: " + route.getRouteName());
+                    return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
+                            "Route outside service window: " + route.getRouteName()));
                 }
                 if (!dispatchRouteService.isRouteOccupancyAvailable(route)) {
-                    return DispatchAssignResult.failure(DispatchAssignFailReason.ROUTE_OCCUPANCY_FULL,
-                            "Route concurrent task limit reached: " + route.getRouteName());
+                    return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.ROUTE_OCCUPANCY_FULL,
+                            "Route concurrent task limit reached: " + route.getRouteName()));
                 }
             }
         }
 
         if (trafficZoneControlService.isPointInPausedZone(parkId, pickup.getX(), pickup.getY())) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
-                    "Pickup station is inside a traffic pause zone; dispatch suspended for this area");
+            return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.ZONE_PAUSED,
+                    "Pickup station is inside a traffic pause zone; dispatch suspended for this area"));
         }
 
         List<VehicleEntity> idleOnline = vehicleService.listAssignableVehicles();
         trace.setCandidateTotal(idleOnline.size());
         if (idleOnline.isEmpty()) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.NO_VEHICLE,
-                    "No online idle vehicle available in fleet");
+            return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.NO_VEHICLE,
+                    "No online idle vehicle available in fleet"));
         }
 
         // 遥测新鲜度门禁（路线图 5.1）：数据年龄超过统一阈值或从未上报的车辆禁止派车
@@ -176,9 +228,9 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                 .toList();
         trace.setFreshTelemetry(freshTelemetry.size());
         if (freshTelemetry.isEmpty() && !idleOnline.isEmpty()) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.TELEMETRY_STALE,
+            return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.TELEMETRY_STALE,
                     "All idle vehicles have stale telemetry beyond threshold "
-                            + telemetryFreshnessPolicy.threshold().toSeconds() + "s");
+                            + telemetryFreshnessPolicy.threshold().toSeconds() + "s"));
         }
 
         List<VehicleEntity> socEligible = freshTelemetry.stream()
@@ -186,8 +238,8 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                 .toList();
         trace.setSocEligible(socEligible.size());
         if (socEligible.isEmpty()) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.LOW_SOC,
-                    "All idle vehicles are below minimum assignable SOC");
+            return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.LOW_SOC,
+                    "All idle vehicles are below minimum assignable SOC"));
         }
 
         // §7.2：这五个约束过滤器原本和 SOC 挤在同一层，任何一条不满足都对外报 LOW_SOC ⇒
@@ -205,10 +257,10 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
             }
         }
         if (constraintEligible.isEmpty()) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.NO_MATCHING_VEHICLE,
+            return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.NO_MATCHING_VEHICLE,
                     "No idle vehicle satisfies the order constraints (SOC-passing candidates: "
                             + socEligible.size() + "; survivors per filter " + survivors
-                            + "; binding: " + binding + ")");
+                            + "; binding: " + binding + ")"));
         }
 
         // 全链路SOC校验：取货+送货+返航充电站后SOC需 > 安全余量
@@ -217,13 +269,27 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                 .toList();
         trace.setSocChainEligible(socChainEligible.size());
         if (socChainEligible.isEmpty()) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.LOW_SOC,
-                    "All idle vehicles cannot complete the full task chain with safe SOC margin");
+            return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.LOW_SOC,
+                    "All idle vehicles cannot complete the full task chain with safe SOC margin"));
         }
+
+        // §M5 候选预筛：先一次反向 BFS 求出"送得到取货点"的节点集，把注定不可达的车在跑 A* 之前就剪掉。
+        // 空图/空集时不剪 —— isReachable 在空图上是放行的，预筛不能把这条旧语义改掉。
+        com.fsd.dispatch.road.ParkRoadGraph candidateGraph = parkRoutePlannerService.loadGraph(parkId);
+        java.util.Set<String> canReachPickup = candidateGraph == null
+                ? java.util.Set.of() : parkRoutePlannerService.nodesThatCanReach(parkId, pickup.getX(), pickup.getY());
+        boolean prefilterApplies = !canReachPickup.isEmpty();
 
         List<VehicleEntity> reachableVehicles = new ArrayList<>();
         List<Double> parkDistances = new ArrayList<>();
         for (VehicleEntity vehicle : socChainEligible) {
+            if (prefilterApplies) {
+                java.util.Optional<ParkPoint> at = vehiclePositionResolver.toPark(vehicle);
+                String atNode = at.map(p -> candidateGraph.nearestNodeCode(p.x(), p.y())).orElse(null);
+                if (atNode == null || !canReachPickup.contains(atNode)) {
+                    continue;
+                }
+            }
             double distance = estimateRouteDistance(parkId, vehicle, pickup);
             if (Double.isInfinite(distance)) {
                 continue;
@@ -233,32 +299,39 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         }
         trace.setReachable(reachableVehicles.size());
         if (reachableVehicles.isEmpty()) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
-                    "Pickup station is not reachable from any candidate vehicle on the road network");
+            return Pool.failed(DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
+                    "Pickup station is not reachable from any candidate vehicle on the road network"));
         }
 
         List<Double> blendedDistances = dispatchGeoDistanceService.applyGeoBlend(reachableVehicles, pickup, parkDistances);
         Map<Long, VehicleEntity> vehiclesById = indexById(reachableVehicles);
-        DecisionOutcome outcome = decisionPolicy.decide(new DecisionInput(
+        DecisionInput input = new DecisionInput(
                 order.getPriority(),
                 peakModeService.isPeakMode(parkId),
                 automationRuleService.resolvePeakDistanceFactor(parkId, 0.85D),
                 toWeights(energy, scoring),
-                toCandidateStates(reachableVehicles, blendedDistances, energy)));
+                toCandidateStates(reachableVehicles, blendedDistances, energy));
+        // §2.2：每单只解析一次策略并向下传递；OFF/SHADOW 下拿到的都是在位策略，结果不变
+        DecisionPolicy policy = policyRouter.selectForOrder(bucketKey);
+        DecisionOutcome outcome = policy.decide(input);
+        policyRouter.shadowCompare(input, outcome, trace);
         List<RankedCandidate> reachable = outcome.ranked();
         trace.setRanked(reachable);
         trace.setPolicyId(outcome.policyId());
         trace.setPolicyVersion(outcome.policyVersion());
-        RankedCandidate best = selectWithMapfReservation(parkId, pickup, reachable, vehiclesById);
-        if (best == null) {
-            return DispatchAssignResult.failure(DispatchAssignFailReason.UNREACHABLE,
-                    "No conflict-free MAPF route to pickup from any candidate vehicle");
+        return new Pool(parkId, pickup, reachable, vehiclesById, null);
+    }
+
+    /** 漏斗与打分的产物；{@code failure} 非空表示本单没有可打分候选，原因在 failure 里。 */
+    private record Pool(Long parkId,
+                        ParkStationResponse pickup,
+                        List<RankedCandidate> ranked,
+                        Map<Long, VehicleEntity> vehiclesById,
+                        DispatchAssignResult failure) {
+
+        static Pool failed(DispatchAssignResult failure) {
+            return new Pool(null, null, List.of(), Map.of(), failure);
         }
-        String explanation = RulePolicy.explain(best,
-                dispatchGeoDistanceService.isGeoBlendEnabled(),
-                mapfRoutePlannerService.isEnabled());
-        return DispatchAssignResult.success(vehiclesById.get(best.vehicleId()), explanation, best.totalScore(),
-                best.distanceScore(), best.socScore(), best.pluggedBonus());
     }
 
     private static Map<Long, VehicleEntity> indexById(List<VehicleEntity> vehicles) {
@@ -325,11 +398,15 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         }
         for (RankedCandidate candidate : ranked) {
             VehicleEntity vehicle = vehiclesById.get(candidate.vehicleId());
+            Optional<ParkPoint> parkPoint = vehiclePositionResolver.toPark(vehicle);
+            if (parkPoint.isEmpty()) {
+                continue;
+            }
             MapfRoutePlanResult plan = mapfRoutePlannerService.planAndReserve(
                     parkId,
                     vehicle.getId(),
-                    vehicle.getCurrentLongitude(),
-                    vehicle.getCurrentLatitude(),
+                    parkPoint.get().x(),
+                    parkPoint.get().y(),
                     pickup.getX(),
                     pickup.getY());
             if (plan.isSuccess() && plan.isReserved()) {
@@ -353,11 +430,12 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
     }
 
     private double estimateRouteDistance(Long parkId, VehicleEntity vehicle, ParkStationResponse station) {
-        BigDecimal currentX = vehicle.getCurrentLongitude();
-        BigDecimal currentY = vehicle.getCurrentLatitude();
-        if (currentX == null || currentY == null) {
+        Optional<ParkPoint> parkPoint = vehiclePositionResolver.toPark(vehicle);
+        if (parkPoint.isEmpty()) {
             return Double.MAX_VALUE;
         }
+        BigDecimal currentX = parkPoint.get().x();
+        BigDecimal currentY = parkPoint.get().y();
         if (!parkRoutePlannerService.isReachable(parkId, currentX, currentY, station.getX(), station.getY())) {
             return Double.POSITIVE_INFINITY;
         }
@@ -476,7 +554,6 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
         filters.put("MAINTENANCE", vehicle -> !isUnderMaintenance(vehicle));
         filters.put("VEHICLE_TYPE", vehicle -> matchesRequiredVehicleType(order, vehicle));
         filters.put("FLEET_POOL", PilotFleetSupport::matchesOrderFleet);
-        filters.put("DELIVERY_ZONE", vehicle -> matchesDeliveryZone(order, vehicle));
         filters.put("LOAD_CAPACITY", vehicle -> matchesLoadCapacity(order, vehicle));
         return filters;
     }
@@ -496,20 +573,6 @@ public class DispatchVehicleAssignServiceImpl implements DispatchVehicleAssignSe
                         || required.equalsIgnoreCase(vehicle.getVehicleType())
                         || "GENERAL".equalsIgnoreCase(vehicle.getVehicleType()))
                 .orElse(true);
-    }
-
-    private boolean matchesDeliveryZone(OrderEntity order, VehicleEntity vehicle) {
-        String vehicleZone = vehicle.getDeliveryZone();
-        // 车辆未配置区域或为BOTH：匹配所有订单
-        if (vehicleZone == null || vehicleZone.isBlank() || "BOTH".equals(vehicleZone)) {
-            return true;
-        }
-        // 根据取货站点判断订单区域
-        String orderZone = order.getDeliveryZone();
-        if (orderZone == null || orderZone.isBlank()) {
-            orderZone = "GEO_DELIVERY";
-        }
-        return vehicleZone.equals(orderZone);
     }
 
     private boolean matchesLoadCapacity(OrderEntity order, VehicleEntity vehicle) {

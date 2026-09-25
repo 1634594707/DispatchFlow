@@ -32,5 +32,4 @@ public class DispatchPauseStateEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 }

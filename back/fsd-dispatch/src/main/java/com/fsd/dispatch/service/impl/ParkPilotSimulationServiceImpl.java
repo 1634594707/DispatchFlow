@@ -185,7 +185,6 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             vehicle.setBatteryLevel(ThreadLocalRandom.current().nextInt(80, 101));
             vehicle.setLastReportTime(LocalDateTime.now());
             vehicle.setRemark("park-pilot-geo");
-            vehicle.setVersion(0);
             vehicle.setDeleted(0);
             vehicleMapper.insert(vehicle);
             simulationMotionStore.put(vehicle.getId(), createIdleState(vehicle, i));
@@ -1050,9 +1049,9 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     private double geoMetersPerTick() {
         int mapWidth = parkPilotProperties.getWidth() == null ? 1200 : parkPilotProperties.getWidth();
-        int widthMeters = parkPilotProperties.getGeo().getParkWidthMeters() == null
-                ? 960 : parkPilotProperties.getGeo().getParkWidthMeters();
-        double metersPerPx = widthMeters / (double) mapWidth;
+        double widthMeters = parkPilotProperties.getGeo().getParkWidthMeters() == null
+                ? 960D : parkPilotProperties.getGeo().getParkWidthMeters().doubleValue();
+        double metersPerPx = widthMeters / mapWidth;
         return parkPilotProperties.getVehicleSpeedPxPerSecond().doubleValue() * metersPerPx;
     }
 
@@ -1371,7 +1370,6 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     private boolean isSimulationVehicle(VehicleEntity vehicle) {
-        String linkMode = vehicle.getLinkMode();
-        return linkMode == null || linkMode.isBlank() || VehicleLinkMode.SIM.name().equals(linkMode);
+        return VehicleLinkMode.isSimulated(vehicle.getLinkMode());
     }
 }

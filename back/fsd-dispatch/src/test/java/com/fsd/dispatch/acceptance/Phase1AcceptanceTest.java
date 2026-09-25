@@ -45,7 +45,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Phase 1 acceptance criteria — automated behavioral checks.
- * See docs/phase1-acceptance.md for manual UI verification steps.
+ * (The companion manual UI checklist doc was removed in the 2026-09-22 docs consolidation;
+ *  these automated checks are the surviving acceptance criteria.)
  */
 @DisplayName("Phase 1 验收")
 class Phase1AcceptanceTest {

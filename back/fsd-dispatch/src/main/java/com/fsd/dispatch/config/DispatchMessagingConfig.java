@@ -4,6 +4,7 @@ import org.springframework.amqp.core.AnonymousQueue;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +18,10 @@ public class DispatchMessagingConfig {
     /** 兼容保留：历史共享流队列名（V49 前使用）。 */
     public static final String DISPATCH_STREAM_QUEUE = "fsd.dispatch.stream.queue";
     public static final String DISPATCH_WEBHOOK_QUEUE = "fsd.dispatch.webhook.queue";
+    /** 死信拓扑（路线图 §7.4）：投递失败的事件不再原地重投，落到 DLQ 由人处置。 */
+    public static final String DISPATCH_DLX = "fsd.dispatch.dlx";
+    public static final String DISPATCH_WEBHOOK_DLQ = "fsd.dispatch.webhook.dlq";
+    public static final String DISPATCH_WEBHOOK_DEAD_KEY = "dispatch.webhook.dead";
 
     @Bean
     public TopicExchange dispatchExchange() {
@@ -39,8 +44,35 @@ public class DispatchMessagingConfig {
     }
 
     @Bean
+    public TopicExchange dispatchDeadLetterExchange() {
+        return new TopicExchange(DISPATCH_DLX, true, false);
+    }
+
+    /**
+     * webhook 队列挂死信：投递失败的消息 nack(requeue=false) 后进 {@link #dispatchWebhookDeadLetterQueue()}。
+     *
+     * <p>注意这是**队列参数变更**：RabbitMQ 不允许用不同参数重声明已存在的队列（PRECONDITION_FAILED，
+     * 直接关通道）。已有环境部署时必须先删掉旧的 {@code fsd.dispatch.webhook.queue} 再启动，
+     * 队列里若还有未消费事件要先 purge 或迁移 —— 部署动作由本人执行，见路线图 §7.4。</p>
+     */
+    @Bean
     public Queue dispatchWebhookQueue() {
-        return new Queue(DISPATCH_WEBHOOK_QUEUE, true);
+        return QueueBuilder.durable(DISPATCH_WEBHOOK_QUEUE)
+                .deadLetterExchange(DISPATCH_DLX)
+                .deadLetterRoutingKey(DISPATCH_WEBHOOK_DEAD_KEY)
+                .build();
+    }
+
+    @Bean
+    public Queue dispatchWebhookDeadLetterQueue() {
+        return new Queue(DISPATCH_WEBHOOK_DLQ, true);
+    }
+
+    @Bean
+    public Binding dispatchWebhookDeadLetterBinding(Queue dispatchWebhookDeadLetterQueue,
+                                                    TopicExchange dispatchDeadLetterExchange) {
+        return BindingBuilder.bind(dispatchWebhookDeadLetterQueue).to(dispatchDeadLetterExchange)
+                .with(DISPATCH_WEBHOOK_DEAD_KEY);
     }
 
     @Bean

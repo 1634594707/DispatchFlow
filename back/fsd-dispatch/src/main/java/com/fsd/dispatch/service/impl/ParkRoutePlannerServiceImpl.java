@@ -81,14 +81,83 @@ public class ParkRoutePlannerServiceImpl implements ParkRoutePlannerService {
         // Phase 4：START/END 仅携带 schematic x/y（调用方未提供 GPS），中间节点携带 GPS 坐标，
         // 供下游 pathLength 使用 haversine 计算真实路径长度（米）。
         route.add(point("START", startX, startY, null, null));
+        String previous = null;
         for (String code : nodePath) {
             ParkRoadGraph.NodeView node = graph.node(code);
-            if (node != null) {
-                route.add(point(code, node.x(), node.y(), node.coordLng(), node.coordLat()));
+            if (node == null) {
+                continue;
             }
+            // 先把上一条边的中间形状点铺进去。A* 只给节点序列，而现役 633 条 ACTIVE 边里 275 条
+            // 是 700–2,740 m 的长边 —— 只输出节点就等于在这些边上拉直线，即"路线不沿实路"的成因。
+            if (previous != null) {
+                appendEdgeShapePoints(route, graph, previous, code);
+            }
+            route.add(point(code, node.x(), node.y(), node.coordLng(), node.coordLat()));
+            previous = code;
         }
         route.add(point("END", endX, endY, null, null));
         return route;
+    }
+
+    /**
+     * 追加 {@code from→to} 这条边的中间形状点。
+     *
+     * <p>两端本身已由节点行给出，所以跳过首点；末点只在"它确实等于 to 节点"时跳过 ——
+     * seed 里的折线是 OSM way 原样，端点与节点坐标可能差几个厘米级的小数，直接丢末点会让折线
+     * 与节点序列错位。
+     *
+     * <p><b>每个形状点同时带 GPS 与示意 x/y</b>：{@code pathLength} 在拿不到双侧 GPS 时会退回
+     * {@code Math.hypot(x,y)}（像素），留空就是让这条边按像素记账、和同一次派单里其他按米记的数混起来。
+     * 示意映射是<b>无旋转的逐轴仿射</b>（见 {@code fit_canvas}：{@code lng=a*x+c, lat=e*y+f}），
+     * 所以拿两端节点的 (x,y)↔(lng,lat) 对应做线性内插就是<b>精确解</b>，不需要再注入变换服务。
+     */
+    private void appendEdgeShapePoints(List<ParkPointResponse> route, ParkRoadGraph graph,
+                                       String from, String to) {
+        List<double[]> geometry = graph.edgeGeometry(from, to);
+        if (geometry.size() < 3) {
+            return; // 只有两端 = 节点行已经给过了
+        }
+        ParkRoadGraph.NodeView source = graph.node(from);
+        ParkRoadGraph.NodeView target = graph.node(to);
+        for (int i = 1; i < geometry.size(); i++) {
+            double[] lngLat = geometry.get(i);
+            boolean isLast = i == geometry.size() - 1;
+            if (isLast && target != null && target.coordLng() != null && target.coordLat() != null
+                    && Math.abs(target.coordLng().doubleValue() - lngLat[0]) < 1e-7
+                    && Math.abs(target.coordLat().doubleValue() - lngLat[1]) < 1e-7) {
+                continue;
+            }
+            route.add(point(from + ">" + to + "#" + i,
+                    schematic(lngLat[0], source, target, true),
+                    schematic(lngLat[1], source, target, false),
+                    BigDecimal.valueOf(lngLat[0]), BigDecimal.valueOf(lngLat[1])));
+        }
+    }
+
+    /**
+     * 逐轴线性内插出一个形状点的示意坐标。{@code from}/{@code to} 缺任一侧对应关系时返回 null，
+     * 由调用方的下游按 GPS 走（{@code pathLength} 的双侧 GPS 分支此时成立）。
+     */
+    private static BigDecimal schematic(double value, ParkRoadGraph.NodeView from, ParkRoadGraph.NodeView to,
+                                        boolean lngAxis) {
+        if (from == null || to == null || from.coordLng() == null || from.coordLat() == null
+                || to.coordLng() == null || to.coordLat() == null) {
+            return null;
+        }
+        BigDecimal fromGeo = lngAxis ? from.coordLng() : from.coordLat();
+        BigDecimal toGeo = lngAxis ? to.coordLng() : to.coordLat();
+        BigDecimal fromPx = lngAxis ? from.x() : from.y();
+        BigDecimal toPx = lngAxis ? to.x() : to.y();
+        if (fromPx == null || toPx == null) {
+            return null;
+        }
+        double span = toGeo.doubleValue() - fromGeo.doubleValue();
+        if (Math.abs(span) < 1e-12) {
+            return fromPx; // 该轴上两端重合（正南北/正东西边）：形状点在这一轴上就是同一个值
+        }
+        double fraction = (value - fromGeo.doubleValue()) / span;
+        return BigDecimal.valueOf(fromPx.doubleValue() + fraction * (toPx.doubleValue() - fromPx.doubleValue()))
+                .setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     @Override

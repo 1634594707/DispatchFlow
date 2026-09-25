@@ -7,7 +7,6 @@ import com.fsd.dispatch.entity.WebhookSubscriptionEntity;
 import com.fsd.dispatch.event.DispatchDomainEvent;
 import com.fsd.dispatch.mapper.WebhookDeliveryLogMapper;
 import com.fsd.dispatch.mapper.WebhookSubscriptionMapper;
-import jakarta.annotation.PreDestroy;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -23,9 +22,6 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -46,7 +42,6 @@ public class WebhookDeliveryService {
     private final WebhookDeliveryLogMapper deliveryLogMapper;
     private final FieldEncryptionService fieldEncryptionService;
     private final RobotMessageFormatter messageFormatter;
-    private final ExecutorService deliveryExecutor = Executors.newFixedThreadPool(4);
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3))
             .build();
@@ -73,38 +68,47 @@ public class WebhookDeliveryService {
         this.messageFormatter = messageFormatter;
     }
 
-    @PreDestroy
-    public void shutdown() {
-        deliveryExecutor.shutdown();
-        try {
-            if (!deliveryExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                deliveryExecutor.shutdownNow();
-            }
-        } catch (InterruptedException ex) {
-            deliveryExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-    }
-
     public void deliver(DispatchDomainEvent event) {
         List<WebhookSubscriptionEntity> subs = subscriptionMapper.selectList(
                 new LambdaQueryWrapper<WebhookSubscriptionEntity>()
                         .eq(WebhookSubscriptionEntity::getDeleted, 0)
                         .eq(WebhookSubscriptionEntity::getEnabled, 1));
+        int matched = 0;
+        int failed = 0;
+        Throwable firstFailure = null;
         for (WebhookSubscriptionEntity sub : subs) {
             if (!matches(sub.getEventTypes(), event.getEventType())) {
                 continue;
             }
+            matched++;
             if (isCircuitOpen(sub)) {
+                // 熔断打开期间同样算"没送到"：事件必须留在 DLQ 等冷却后重放，而不是被 ack 掉。
                 persistLog(sub.getId(), event, "Webhook delivery skipped by circuit breaker", null,
                         false, sub.getFailureCount(), "WEBHOOK_CIRCUIT_OPEN");
+                failed++;
                 continue;
             }
-            deliveryExecutor.execute(() -> deliverToSubscription(sub, event));
+            // 同步投递：手动 ack 要求"结果在 ack 之前可知"。丢给线程池再立刻返回，等于让监听器
+            // 在还不知道成败时就确认掉这条消息 —— §13.56 端到端实测正是这样：投递失败、日志有记录、
+            // 消息却被 ack，DLQ 一条没收到。代价是一个坏端点会占住消费线程最长 3 次重试 × 5 s 超时，
+            // 而熔断（连续 5 次失败）把上界封在几条消息之内。
+            try {
+                if (!deliverToSubscription(sub, event)) {
+                    failed++;
+                }
+            } catch (RuntimeException ex) {
+                failed++;
+                if (firstFailure == null) {
+                    firstFailure = ex;
+                }
+            }
+        }
+        if (failed > 0) {
+            throw new WebhookDeliveryException(matched, failed, firstFailure);
         }
     }
 
-    private void deliverToSubscription(WebhookSubscriptionEntity sub, DispatchDomainEvent event) {
+    private boolean deliverToSubscription(WebhookSubscriptionEntity sub, DispatchDomainEvent event) {
         String channelType = sub.getChannelType() != null ? sub.getChannelType() : "GENERIC";
         String body = messageFormatter.format(channelType, event);
         String summary = truncate(body, 480);
@@ -119,7 +123,7 @@ public class WebhookDeliveryService {
             persistLog(sub.getId(), event, summary, null, false, baseAttempt + 1,
                     "WEBHOOK_SSRF_BLOCKED:" + truncate(ex.getMessage(), 200));
             markFailure(sub);
-            return;
+            return false;
         }
 
         String secret = null;
@@ -153,7 +157,7 @@ public class WebhookDeliveryService {
                     sub.setFailureCount(0);
                     sub.setLastDeliveryAt(LocalDateTime.now());
                     subscriptionMapper.updateById(sub);
-                    return;
+                    return true;
                 }
                 if (retryIndex == MAX_RETRY_ATTEMPTS - 1) {
                     markFailure(sub);
@@ -162,7 +166,7 @@ public class WebhookDeliveryService {
                 Thread.currentThread().interrupt();
                 persistLog(sub.getId(), event, summary, null, false, attempt, "WEBHOOK_RETRY_INTERRUPTED");
                 markFailure(sub);
-                return;
+                return false;
             } catch (Exception ex) {
                 log.warn("Webhook delivery failed for {}: {}", sub.getCallbackUrl(), ex.getMessage());
                 persistLog(sub.getId(), event, summary, null, false, attempt, truncate(ex.getMessage(), 480));
@@ -171,6 +175,7 @@ public class WebhookDeliveryService {
                 }
             }
         }
+        return false;
     }
 
     /**

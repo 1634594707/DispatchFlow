@@ -66,7 +66,6 @@ public class StationServicePositionEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

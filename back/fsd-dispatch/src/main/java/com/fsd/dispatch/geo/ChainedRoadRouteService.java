@@ -17,6 +17,8 @@ public class ChainedRoadRouteService implements RoadRouteService {
     private final RoadRouteService amapService;
     private final RoadRouteService localGraphService;
     private final RoadRouteCollisionValidator collisionValidator;
+    /** W2-b：路线门禁。setter 注入 ⇒ 不接它时本类的行为逐字不变。 */
+    private RoadRouteGate routeGate;
 
     public ChainedRoadRouteService(@Qualifier("amap") RoadRouteService amapService,
                                    @Qualifier("localGraph") RoadRouteService localGraphService,
@@ -24,6 +26,28 @@ public class ChainedRoadRouteService implements RoadRouteService {
         this.amapService = amapService;
         this.localGraphService = localGraphService;
         this.collisionValidator = collisionValidator;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setRouteGate(RoadRouteGate routeGate) {
+        this.routeGate = routeGate;
+    }
+
+    /**
+     * 出口统一过门禁（§13.88：{@code isForbiddenFallback()} 此前全仓零调用，是个死守卫）。
+     *
+     * <p>{@code routeGate} 没接、或两个开关没全拧开时原样返回 ⇒ 今天的行为不变。
+     */
+    private RoadRouteResult gated(RoadRouteResult result, String context) {
+        if (routeGate == null || result == null) {
+            return result;
+        }
+        RoadRouteGate.Verdict verdict = routeGate.evaluate(result, context);
+        if (!verdict.rejected()) {
+            return result;
+        }
+        // 撤掉这条线：空折线 ⇒ 下游 routeInvalid ⇒ 地图上画不出来。宁缺不假。
+        return new RoadRouteResult(List.of(), 0D, RoadRouteSource.STRAIGHT_LINE);
     }
 
     public RoadRouteService getAmapService() {
@@ -48,7 +72,7 @@ public class ChainedRoadRouteService implements RoadRouteService {
         if (amapService.isAvailable()) {
             RoadRouteResult result = amapService.planDrivingRoute(origin, destination);
             if (result.fromAmap() && result.polyline().size() >= 4) {
-                return result;
+                return gated(result, "amap");
             }
             log.debug("Amap route returned {} vertices, falling back to local graph", result.polyline().size());
         }
@@ -56,12 +80,13 @@ public class ChainedRoadRouteService implements RoadRouteService {
             RoadRouteResult result = collisionValidator.applyValidation(
                     localGraphService.planDrivingRoute(origin, destination));
             if (result.fromLocalGraph() && result.polyline().size() >= 4 && !result.invalid()) {
-                return result;
+                return gated(result, "localGraph");
             }
             log.debug("Local graph returned {} vertices (invalid={}), no straight-line fallback",
                     result.polyline().size(), result.invalid());
         }
-        return collisionValidator.applyValidation(new RoadRouteResult(List.of(), 0D, RoadRouteSource.STRAIGHT_LINE));
+        return gated(collisionValidator.applyValidation(
+                new RoadRouteResult(List.of(), 0D, RoadRouteSource.STRAIGHT_LINE)), "noRouteFound");
     }
 
     private static RoadRouteResult straightLine(GeoPoint origin, GeoPoint destination) {

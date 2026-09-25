@@ -16,26 +16,63 @@ import java.util.Objects;
 public final class ParkRoadGraph {
 
     /**
-     * 示意坐标 px → 米的换算系数，<b>两个轴不一样</b>。
+     * 示意坐标 px → 米的换算系数，<b>两个轴不一样</b>。<b>仅当节点无 GPS 时</b>作兜底：
+     * 扩范围后 ACTIVE 节点 91/91 带 GPS，距离一律走 haversine 米，这条路在生产不触发，
+     * 故它与 §13.30 的 fit_canvas 画布**无关**（画布改的是 coord_x/y 与前端/后端 affine，不是这个像素兜底）。
      *
      * <p>由 V38 的线性映射反解：{@code x=(lng-121.072)*77000} 且本纬度 1° 经度 ≈ 94 430 m
      * ⇒ 1.2263 m/px；{@code y=(31.9645-lat)*150000} 且 1° 纬度 ≈ 110 852 m ⇒ 0.7390 m/px。
-     * 对 seed 里 86 条 ACTIVE↔ACTIVE 边实测的 米/hypot(px) 比值：min 0.741、均值 0.999、max 1.226
-     * —— 正好落在这两个系数之间，说明映射一致、且"px 当米用"的误差纯由航向决定。
+     * 对 seed 里 86 条 ACTIVE↔ACTIVE 边实测的 米/hypot(px) 比值：min 0.741、均值 0.999、max 1.226。
      */
     public static final double METRES_PER_PX_X = 1.2263D;
     public static final double METRES_PER_PX_Y = 0.7390D;
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper POLYLINE_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private final Map<String, NodeView> nodes;
     private final Map<String, List<String>> adjacency;
     private final Map<String, Double> edgeCostMultiplier;
+    /**
+     * 每条有向边的 GCJ-02 形状点链（含两端节点），键 {@code from>to}。
+     *
+     * <p>为什么必须带：A* 只给节点序列，而 633 条 ACTIVE 边里 275 条是 700–2,740 m 的"两个路口之间一条边"。
+     * 只输出节点 = 在那些长边上拉直线，这正是"路线不沿实路"的成因。折线本身库里一直有
+     * （{@code t_road_segment.polyline_geojson}），只是从没进过图对象。
+     *
+     * <p>只可能有值的路径是 {@link #fromDatabase}；YAML 图没有边几何，那里拿到的是空表。
+     */
+    private final Map<String, List<double[]>> edgeGeometries;
+    /** 懒算缓存，见 {@link #reverseAdjacency()}；除首次构造外只读。 */
+    private volatile Map<String, List<String>> reverseAdjacency;
 
     private ParkRoadGraph(Map<String, NodeView> nodes,
                           Map<String, List<String>> adjacency,
                           Map<String, Double> edgeCostMultiplier) {
+        this(nodes, adjacency, edgeCostMultiplier, Map.of());
+    }
+
+    private ParkRoadGraph(Map<String, NodeView> nodes,
+                          Map<String, List<String>> adjacency,
+                          Map<String, Double> edgeCostMultiplier,
+                          Map<String, List<double[]>> edgeGeometries) {
         this.nodes = nodes;
         this.adjacency = adjacency;
         this.edgeCostMultiplier = edgeCostMultiplier;
+        this.edgeGeometries = edgeGeometries;
+    }
+
+    public static String edgeKey(String from, String to) {
+        return from + ">" + to;
+    }
+
+    /** 该有向边的 GCJ-02 形状点链；无几何（未 seed 或被过滤掉）时返回空表。 */
+    public List<double[]> edgeGeometry(String from, String to) {
+        return edgeGeometries.getOrDefault(edgeKey(from, to), List.of());
+    }
+
+    public int edgeGeometryCount() {
+        return edgeGeometries.size();
     }
 
     public boolean isEmpty() {
@@ -56,6 +93,36 @@ public final class ParkRoadGraph {
 
     public List<String> neighbors(String code) {
         return adjacency.getOrDefault(code, List.of());
+    }
+
+    /**
+     * 反向邻接表：从"目标点"往回走能到哪些节点，一次 BFS 就等价于对每台候选车跑一次可达性判定。
+     * 图是不可变的（{@code fromDatabase} 构造后不再改），所以懒算一次并缓存。
+     * 方向语义直接沿用 {@link #adjacency()} —— BIDIRECTIONAL 已被展开成两条，FORWARD 只有一条。
+     */
+    public Map<String, List<String>> reverseAdjacency() {
+        Map<String, List<String>> cached = reverseAdjacency;
+        if (cached == null) {
+            Map<String, List<String>> reverse = new HashMap<>();
+            adjacency.forEach((from, tos) -> tos.forEach(to ->
+                    reverse.computeIfAbsent(to, k -> new ArrayList<>()).add(from)));
+            reverse.replaceAll((to, froms) -> List.copyOf(froms));
+            cached = Map.copyOf(reverse);
+            reverseAdjacency = cached;
+        }
+        return cached;
+    }
+
+    /**
+     * 离给定位置最近的节点。刻意与 {@code ParkRoutePlannerServiceImpl#nearestNode} 用同一把尺
+     * （示意 px 欧氏、同一个 {@link NodeView#distanceTo}）—— 预筛和寻路只要口径不同，
+     * 就会把"其实送得到"的车剪掉，那是最难查的一类错。
+     */
+    public String nearestNodeCode(BigDecimal x, BigDecimal y) {
+        return nodes.values().stream()
+                .min(java.util.Comparator.comparingDouble(node -> node.distanceTo(x, y)))
+                .map(NodeView::code)
+                .orElse(null);
     }
 
     public double edgeCost(String from, String to) {
@@ -105,6 +172,7 @@ public final class ParkRoadGraph {
             adjacency.put(code, new ArrayList<>());
         }
         Map<String, Double> edgeCostMultiplier = new HashMap<>();
+        Map<String, List<double[]>> edgeGeometries = new HashMap<>();
         for (RoadSegmentEntity segment : dbSegments) {
             if (segment == null || !"ACTIVE".equalsIgnoreCase(segment.getStatus())) {
                 continue;
@@ -148,8 +216,52 @@ public final class ParkRoadGraph {
             if (reverse) {
                 putMultiplier(edgeCostMultiplier, segment.getToNodeCode(), segment.getFromNodeCode(), multiplier);
             }
+            // 边几何：正向按 seed 里存的顺序，反向把同一条折线倒过来，拼接时才不会跳回起点
+            List<double[]> geometry = parsePolylineGeojson(segment.getPolylineGeojson());
+            if (!geometry.isEmpty()) {
+                if (forward) {
+                    edgeGeometries.put(edgeKey(segment.getFromNodeCode(), segment.getToNodeCode()), geometry);
+                }
+                if (reverse) {
+                    List<double[]> backwards = new ArrayList<>(geometry);
+                    java.util.Collections.reverse(backwards);
+                    edgeGeometries.put(edgeKey(segment.getToNodeCode(), segment.getFromNodeCode()), backwards);
+                }
+            }
         }
-        return new ParkRoadGraph(nodes, adjacency, edgeCostMultiplier);
+        return new ParkRoadGraph(nodes, adjacency, edgeCostMultiplier, Map.copyOf(edgeGeometries));
+    }
+
+    /**
+     * 解析 {@code t_road_segment.polyline_geojson}。库里存的是<b>裸</b>坐标数组
+     * {@code [[lng,lat],...]}（{@code scripts/geo/osm_to_road_graph.py} 的 emit_sql 就是这么写的），
+     * 不是带 {@code "type":"LineString"} 的完整 GeoJSON 对象 —— 两种都吃，因为
+     * {@code zjf_amap_terminal_links.sql} 那批边将来补几何时会按标准 GeoJSON 灌。
+     *
+     * <p>坐标系是 GCJ-02。解不出来就返回空表，让调用方退回"只有节点"的折线 ——
+     * 宁可得一条粗线，也不要因为一行脏数据就把整张图建不起来。
+     */
+    private static List<double[]> parsePolylineGeojson(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode root = POLYLINE_MAPPER.readTree(raw);
+            com.fasterxml.jackson.databind.JsonNode coords = root.isArray() ? root : root.path("coordinates");
+            if (!coords.isArray() || coords.size() < 2) {
+                return List.of();
+            }
+            List<double[]> points = new ArrayList<>(coords.size());
+            for (com.fasterxml.jackson.databind.JsonNode pair : coords) {
+                if (!pair.isArray() || pair.size() < 2 || !pair.get(0).isNumber() || !pair.get(1).isNumber()) {
+                    return List.of();
+                }
+                points.add(new double[]{pair.get(0).asDouble(), pair.get(1).asDouble()});
+            }
+            return List.copyOf(points);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return List.of();
+        }
     }
 
     /**
