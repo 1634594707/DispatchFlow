@@ -1,5 +1,6 @@
 package com.fsd.admin.controller;
 
+import com.fsd.admin.auth.AdminAuthContext;
 import com.fsd.admin.auth.AdminAuthSupport;
 import com.fsd.admin.dto.AdminDispatchPauseRequest;
 import com.fsd.admin.vo.AdminDispatchPauseStatusResponse;
@@ -39,11 +40,7 @@ public class AdminDispatchPauseController {
     public ApiResponse<AdminDispatchPauseStatusResponse> status(@RequestParam(required = false) Long parkId,
                                                                 HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
-        return ApiResponse.success(AdminDispatchPauseStatusResponse.builder()
-                .parkId(parkId)
-                .globalPaused(dispatchPauseControlService.isGlobalDispatchPaused())
-                .parkPaused(parkId != null && dispatchPauseControlService.isDispatchPaused(parkId))
-                .build());
+        return ApiResponse.success(statusOf(parkId));
     }
 
     @PostMapping
@@ -56,12 +53,22 @@ public class AdminDispatchPauseController {
     })
     public ApiResponse<AdminDispatchPauseStatusResponse> setPaused(@Valid @RequestBody AdminDispatchPauseRequest body,
                                                                    HttpServletRequest request) {
-        AdminAuthSupport.requireAdmin(request);
-        dispatchPauseControlService.setDispatchPaused(body.getParkId(), body.getPaused());
-        return ApiResponse.success(AdminDispatchPauseStatusResponse.builder()
-                .parkId(body.getParkId())
+        AdminAuthContext actor = AdminAuthSupport.requireAdmin(request);
+        // 操作人取服务端会话，不取请求体：否则"谁按了紧急停止"这条审计可以随便写。
+        dispatchPauseControlService.setDispatchPaused(
+                body.getParkId(), body.getPaused(), body.getReason(), actor.getUsername());
+        return ApiResponse.success(statusOf(body.getParkId()));
+    }
+
+    private AdminDispatchPauseStatusResponse statusOf(Long parkId) {
+        DispatchPauseControlService.PauseState state = dispatchPauseControlService.pauseState(parkId);
+        return AdminDispatchPauseStatusResponse.builder()
+                .parkId(parkId)
                 .globalPaused(dispatchPauseControlService.isGlobalDispatchPaused())
-                .parkPaused(body.getParkId() != null && dispatchPauseControlService.isDispatchPaused(body.getParkId()))
-                .build());
+                .parkPaused(parkId != null && dispatchPauseControlService.isDispatchPaused(parkId))
+                .pauseReason(state.reason())
+                .pausedBy(state.pausedBy())
+                .pausedAt(state.pausedAt())
+                .build();
     }
 }

@@ -99,7 +99,6 @@ public class VerticalAdminServiceImpl implements VerticalAdminService {
         applyRouteFields(route, request);
         route.setStatus(resolveStatus(request.getStatus(), "ACTIVE"));
         route.setDeleted(0);
-        route.setVersion(0);
         dispatchRouteMapper.insert(route);
         replaceRouteStations(route.getId(), request.getStationIds());
         return toRouteResponse(route);

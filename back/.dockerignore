@@ -2,6 +2,7 @@
 .idea
 .mvn
 **/target
+**/.m2
 **/.DS_Store
 boot.out.log
 boot.err.log

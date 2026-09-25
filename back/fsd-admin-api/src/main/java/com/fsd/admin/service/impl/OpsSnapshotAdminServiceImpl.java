@@ -8,6 +8,8 @@ import com.fsd.admin.vo.AdminOpsClusterItem;
 import com.fsd.admin.vo.AdminOpsSnapshotResponse;
 import com.fsd.admin.vo.AdminOpsVehicleItem;
 import com.fsd.dispatch.config.FleetEnergyProperties;
+import com.fsd.dispatch.geo.ParkGeoTransformService.ParkPoint;
+import com.fsd.dispatch.geo.VehiclePositionResolver;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
 import java.time.Duration;
@@ -16,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -24,13 +27,16 @@ public class OpsSnapshotAdminServiceImpl implements OpsSnapshotAdminService {
     private final VehicleMapper vehicleMapper;
     private final VerticalAdminService verticalAdminService;
     private final FleetEnergyProperties fleetEnergyProperties;
+    private final VehiclePositionResolver vehiclePositionResolver;
 
     public OpsSnapshotAdminServiceImpl(VehicleMapper vehicleMapper,
                                        VerticalAdminService verticalAdminService,
-                                       FleetEnergyProperties fleetEnergyProperties) {
+                                       FleetEnergyProperties fleetEnergyProperties,
+                                       VehiclePositionResolver vehiclePositionResolver) {
         this.vehicleMapper = vehicleMapper;
         this.verticalAdminService = verticalAdminService;
         this.fleetEnergyProperties = fleetEnergyProperties;
+        this.vehiclePositionResolver = vehiclePositionResolver;
     }
 
     @Override
@@ -54,15 +60,17 @@ public class OpsSnapshotAdminServiceImpl implements OpsSnapshotAdminService {
             if (soc == null || soc > fleetEnergyProperties.getLowSocThreshold()) {
                 continue;
             }
-            if (vehicle.getCurrentLongitude() == null || vehicle.getCurrentLatitude() == null) {
+            // 热力分桶是像素刻度（/100），故统一取像素空间（§7.2）
+            Optional<ParkPoint> parkPoint = vehiclePositionResolver.toPark(vehicle);
+            if (parkPoint.isEmpty()) {
                 continue;
             }
-            int gridX = (int) (vehicle.getCurrentLongitude().doubleValue() / 100);
-            int gridY = (int) (vehicle.getCurrentLatitude().doubleValue() / 100);
+            double parkX = parkPoint.get().x().doubleValue();
+            double parkY = parkPoint.get().y().doubleValue();
+            int gridX = (int) (parkX / 100);
+            int gridY = (int) (parkY / 100);
             String key = gridX + ":" + gridY;
-            ClusterAcc acc = clusters.computeIfAbsent(key, k -> new ClusterAcc(k,
-                    vehicle.getCurrentLongitude().doubleValue(),
-                    vehicle.getCurrentLatitude().doubleValue(), soc));
+            ClusterAcc acc = clusters.computeIfAbsent(key, k -> new ClusterAcc(k, parkX, parkY, soc));
             acc.count++;
             acc.minSoc = Math.min(acc.minSoc, soc);
         }

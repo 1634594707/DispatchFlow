@@ -7,8 +7,10 @@ import com.fsd.dispatch.entity.RouteAuditEntity;
 import com.fsd.dispatch.entity.RoadNodeEntity;
 import com.fsd.dispatch.mapper.RouteAuditMapper;
 import com.fsd.dispatch.mapper.RoadNodeMapper;
+import com.fsd.dispatch.geo.VehiclePositionResolver;
 import com.fsd.vehicle.vo.VehicleAdminDetailResponse;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 /**
@@ -24,10 +26,13 @@ public class VehicleDetailEnrichmentService {
 
     private final RouteAuditMapper routeAuditMapper;
     private final RoadNodeMapper roadNodeMapper;
+    private final VehiclePositionResolver vehiclePositionResolver;
 
-    public VehicleDetailEnrichmentService(RouteAuditMapper routeAuditMapper, RoadNodeMapper roadNodeMapper) {
+    public VehicleDetailEnrichmentService(RouteAuditMapper routeAuditMapper, RoadNodeMapper roadNodeMapper,
+                                          VehiclePositionResolver vehiclePositionResolver) {
         this.routeAuditMapper = routeAuditMapper;
         this.roadNodeMapper = roadNodeMapper;
+        this.vehiclePositionResolver = vehiclePositionResolver;
     }
 
     /** 就地填充路线执行上下文字段；任何缺失数据保持 null，不影响原详情。 */
@@ -55,7 +60,13 @@ public class VehicleDetailEnrichmentService {
     }
 
     private void enrichCurrentRoad(VehicleAdminDetailResponse detail) {
-        if (detail.getCurrentLongitude() == null || detail.getCurrentLatitude() == null || detail.getParkId() == null) {
+        if (detail.getParkId() == null) {
+            return;
+        }
+        // 列的空间语义按 linkMode 而变（§7.2）：SIM 行的像素须先转正为 GCJ，才能与节点 GPS 做 haversine
+        Optional<GeoPoint> positionOpt = vehiclePositionResolver.toGeo(
+                detail.getLinkMode(), detail.getCurrentLongitude(), detail.getCurrentLatitude());
+        if (positionOpt.isEmpty()) {
             return;
         }
         List<RoadNodeEntity> nodes = roadNodeMapper.selectList(new LambdaQueryWrapper<RoadNodeEntity>()
@@ -63,7 +74,7 @@ public class VehicleDetailEnrichmentService {
                 .eq(RoadNodeEntity::getStatus, "ACTIVE")
                 .isNotNull(RoadNodeEntity::getCoordLng)
                 .isNotNull(RoadNodeEntity::getCoordLat));
-        GeoPoint position = new GeoPoint(detail.getCurrentLongitude(), detail.getCurrentLatitude());
+        GeoPoint position = positionOpt.get();
         RoadNodeEntity nearest = null;
         double nearestDistance = Double.MAX_VALUE;
         for (RoadNodeEntity node : nodes) {

@@ -35,10 +35,12 @@ public final class AdminAuthSupport {
         return context;
     }
 
-    public static void requireAdmin(HttpServletRequest request) {
+    /** 返回上下文：写操作要把**服务端**身份记进审计列，不能让调用方自报。 */
+    public static AdminAuthContext requireAdmin(HttpServletRequest request) {
         AdminAuthContext context = requireAuth(request);
         if (context.getRole() != AdminRole.ADMIN) {
             throw new BusinessException("ADMIN_FORBIDDEN", "Admin role is required");
         }
+        return context;
     }
 }

@@ -56,7 +56,6 @@ public class VehicleAdminManageServiceImpl implements VehicleAdminManageService 
         vehicle.setOnlineStatus(VehicleOnlineStatus.OFFLINE.name());
         vehicle.setDispatchStatus(VehicleDispatchStatus.UNAVAILABLE.name());
         vehicle.setDeleted(0);
-        vehicle.setVersion(0);
         vehicleMapper.insert(vehicle);
         return vehicleAdminQueryService.getVehicleDetail(vehicle.getId());
     }
@@ -148,7 +147,6 @@ public class VehicleAdminManageServiceImpl implements VehicleAdminManageService 
                 ? request.getStatus() : "COMPLETED");
         entity.setRemark(request.getRemark());
         entity.setDeleted(0);
-        entity.setVersion(0);
         vehicleMaintenanceMapper.insert(entity);
         // 进入维保（PLANNED）时将车辆置为 UNAVAILABLE，避免被选车逻辑命中
         if ("PLANNED".equals(entity.getStatus())

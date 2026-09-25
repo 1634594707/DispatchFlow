@@ -31,7 +31,6 @@ public class VehicleMaintenanceEntity {
 
     private LocalDateTime updatedAt;
 
-    private Integer version;
 
     private Integer deleted;
 }

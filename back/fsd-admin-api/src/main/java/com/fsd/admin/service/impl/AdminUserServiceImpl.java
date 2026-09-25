@@ -57,7 +57,6 @@ public class AdminUserServiceImpl implements AdminUserService {
         user.setRole(request.getRole());
         user.setStatus(AdminUserStatus.ACTIVE.name());
         user.setDeleted(0);
-        user.setVersion(0);
         adminUserMapper.insert(user);
         return AdminAuthServiceImpl.toUserResponse(user);
     }

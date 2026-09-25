@@ -4,16 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.VehicleDispatchStatus;
-import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.common.enums.VehicleOnlineStatus;
 import com.fsd.common.exception.BusinessException;
-import com.fsd.common.geo.Wgs84Gcj02Converter;
 import com.fsd.vehicle.dto.VehicleReportRequest;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
 import com.fsd.vehicle.service.VehicleService;
 import com.fsd.vehicle.vo.VehicleSummaryResponse;
-import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -101,29 +98,16 @@ public class VehicleServiceImpl implements VehicleService {
         VehicleEntity vehicleEntity = getByVehicleCode(request.getVehicleCode());
         vehicleEntity.setOnlineStatus(request.getOnlineStatus());
         vehicleEntity.setDispatchStatus(request.getDispatchStatus());
-        // Phase 5 任务 5.1：真实车辆（linkMode 非 SIM）上报的经纬度为 WGS-84，
-        // 需在入库前转 GCJ-02 以保证高德地图显示位置正确；
-        // 仿真车辆（linkMode=SIM）上报的是 schematic x/y，跳过转换。
-        if (!isSimulationVehicle(vehicleEntity)) {
-            BigDecimal[] gcj = Wgs84Gcj02Converter.wgs84ToGcj02(
-                    request.getLongitude(), request.getLatitude());
-            vehicleEntity.setCurrentLongitude(gcj[0]);
-            vehicleEntity.setCurrentLatitude(gcj[1]);
-        } else {
-            vehicleEntity.setCurrentLatitude(request.getLatitude());
-            vehicleEntity.setCurrentLongitude(request.getLongitude());
-        }
+        // 坐标语义按 linkMode 逐行判定（§7.2 定约）：真车行存 GCJ-02、仿真行存 schematic 像素。
+        // 这里刻意不做任何换算 —— 上报侧（VehicleGatewayServiceImpl.resolveGcj02）已保证真车进来的
+        // 就是 GCJ-02；再转一次 WGS-84→GCJ-02 等于把园区像素当经纬度处理，落库即垃圾坐标。
+        // 取位统一走 geo/VehiclePositionResolver.toPark/toGeo。
+        vehicleEntity.setCurrentLongitude(request.getLongitude());
+        vehicleEntity.setCurrentLatitude(request.getLatitude());
         vehicleEntity.setBatteryLevel(request.getBatteryLevel());
         vehicleEntity.setLastReportTime(request.getReportTime());
         vehicleMapper.updateById(vehicleEntity);
         return vehicleEntity;
-    }
-
-    /** 仿真车辆 linkMode=SIM 或为空（向后兼容历史数据）。 */
-    private boolean isSimulationVehicle(VehicleEntity vehicleEntity) {
-        String linkMode = vehicleEntity.getLinkMode();
-        return linkMode == null || linkMode.isBlank()
-                || VehicleLinkMode.SIM.name().equals(linkMode);
     }
 
     @Override

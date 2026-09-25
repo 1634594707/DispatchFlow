@@ -6,32 +6,100 @@ import com.fsd.admin.vo.AdminBatchTaskItemResult;
 import com.fsd.admin.vo.AdminBatchTaskResultResponse;
 import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.exception.BusinessException;
+import com.fsd.dispatch.config.DispatchPolicyProperties;
+import com.fsd.dispatch.dispatch.DispatchBatchAssignService;
 import com.fsd.dispatch.dto.DispatchTaskManualAssignRequest;
 import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.DispatchTaskService;
+import com.fsd.order.entity.OrderEntity;
+import com.fsd.order.service.OrderStateService;
 import com.fsd.dispatch.vo.DispatchTaskAssignResponse;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
 public class BatchTaskAdminServiceImpl implements BatchTaskAdminService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(BatchTaskAdminServiceImpl.class);
+
     private final DispatchTaskService dispatchTaskService;
     private final DispatchTaskMapper dispatchTaskMapper;
+    private final OrderStateService orderStateService;
+    private final DispatchBatchAssignService batchAssignService;
+    private final DispatchPolicyProperties policyProperties;
 
     public BatchTaskAdminServiceImpl(DispatchTaskService dispatchTaskService,
-                                     DispatchTaskMapper dispatchTaskMapper) {
+                                     DispatchTaskMapper dispatchTaskMapper,
+                                     OrderStateService orderStateService,
+                                     DispatchBatchAssignService batchAssignService,
+                                     DispatchPolicyProperties policyProperties) {
         this.dispatchTaskService = dispatchTaskService;
         this.dispatchTaskMapper = dispatchTaskMapper;
+        this.orderStateService = orderStateService;
+        this.batchAssignService = batchAssignService;
+        this.policyProperties = policyProperties;
     }
 
     @Override
     public AdminBatchTaskResultResponse batchAutoAssign(AdminBatchTaskRequest request,
                                                         String operatorId,
                                                         String operatorName) {
-        return executeBatch("AUTO_ASSIGN", request.getTaskIds(), (taskId) -> dispatchTaskService.autoAssignTask(taskId));
+        // 批量撮合开关打开时，提交顺序由待派池成本矩阵决定（§2.3）；关闭时保持原有到达顺序贪心。
+        // 注意改的是**顺序**，不是可行性判据：每单仍走 autoAssignTask 的完整漏斗与任务锁。
+        return executeBatch("AUTO_ASSIGN", orderForMatching(request.getTaskIds()),
+                (taskId) -> dispatchTaskService.autoAssignTask(taskId));
+    }
+
+    /**
+     * 矩阵给出的提交顺序：撮合配上的单按分数升序排在前面，未配上的保持原序跟在后面。
+     *
+     * <p>撮合本身失败（订单已被派走、矩阵为空、求解异常）绝不允许把"批量自动派车"这个按钮打死，
+     * 所以这里任何异常都退成原顺序并留一条 WARN。
+     */
+    private List<Long> orderForMatching(List<Long> taskIds) {
+        if (!policyProperties.isBatchEnabled() || taskIds == null || taskIds.size() < 2) {
+            return taskIds;
+        }
+        try {
+            Map<Long, Long> orderIdByTaskId = new LinkedHashMap<>();
+            List<OrderEntity> pool = new ArrayList<>();
+            for (Long taskId : taskIds) {
+                DispatchTaskEntity task = dispatchTaskMapper.selectById(taskId);
+                if (task == null || task.getOrderId() == null) {
+                    continue;
+                }
+                OrderEntity order = orderStateService.getOrder(task.getOrderId());
+                if (order == null) {
+                    continue;
+                }
+                orderIdByTaskId.put(order.getId(), taskId);
+                pool.add(order);
+            }
+            if (pool.size() < 2) {
+                return taskIds;
+            }
+            DispatchBatchAssignService.BatchAssignOutcome outcome = batchAssignService.assignOrders(pool);
+            List<Long> ordered = new ArrayList<>(taskIds.size());
+            outcome.planInOrder().keySet().forEach(orderId -> {
+                Long taskId = orderIdByTaskId.get(orderId);
+                if (taskId != null) {
+                    ordered.add(taskId);
+                }
+            });
+            taskIds.stream().filter(taskId -> !ordered.contains(taskId)).forEach(ordered::add);
+            log.info("batch matching applied: algorithm={} matched={}/{} greedy={}/{} savings={}",
+                    outcome.algorithm(), outcome.matched(), outcome.orders(),
+                    outcome.greedyMatched(), outcome.orders(), outcome.savings());
+            return ordered;
+        } catch (RuntimeException ex) {
+            log.warn("batch matching skipped, keeping submission order: {}", ex.toString());
+            return taskIds;
+        }
     }
 
     @Override

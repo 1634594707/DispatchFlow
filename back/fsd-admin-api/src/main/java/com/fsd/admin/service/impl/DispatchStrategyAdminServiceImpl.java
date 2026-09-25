@@ -86,7 +86,6 @@ public class DispatchStrategyAdminServiceImpl implements DispatchStrategyAdminSe
         apply(entity, request);
         entity.setActiveFlag(0);
         entity.setDeleted(0);
-        entity.setVersion(0);
         profileMapper.insert(entity);
         appendLog(entity, "CREATE", operatorName, "新建策略配置");
         runtimeService.refreshCache();

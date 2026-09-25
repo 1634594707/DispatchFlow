@@ -10,12 +10,15 @@ import com.fsd.dispatch.entity.FleetTelemetryPointEntity;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.model.FleetTrajectoryPoint;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
+import com.fsd.dispatch.geo.ParkGeoTransformService.ParkPoint;
+import com.fsd.dispatch.geo.VehiclePositionResolver;
 import com.fsd.dispatch.mapper.FleetTelemetryPointMapper;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,13 +28,16 @@ public class VehicleTrajectoryAdminServiceImpl implements VehicleTrajectoryAdmin
     private final VehicleMapper vehicleMapper;
     private final FleetRuntimeService fleetRuntimeService;
     private final FleetTelemetryPointMapper telemetryPointMapper;
+    private final VehiclePositionResolver vehiclePositionResolver;
 
     public VehicleTrajectoryAdminServiceImpl(VehicleMapper vehicleMapper,
                                              FleetRuntimeService fleetRuntimeService,
-                                             FleetTelemetryPointMapper telemetryPointMapper) {
+                                             FleetTelemetryPointMapper telemetryPointMapper,
+                                             VehiclePositionResolver vehiclePositionResolver) {
         this.vehicleMapper = vehicleMapper;
         this.fleetRuntimeService = fleetRuntimeService;
         this.telemetryPointMapper = telemetryPointMapper;
+        this.vehiclePositionResolver = vehiclePositionResolver;
     }
 
     @Override
@@ -85,11 +91,12 @@ public class VehicleTrajectoryAdminServiceImpl implements VehicleTrajectoryAdmin
                         .build());
             }
         }
-        if (vehicle.getCurrentLongitude() != null && vehicle.getCurrentLatitude() != null) {
+        Optional<ParkPoint> parkPoint = vehiclePositionResolver.toPark(vehicle);
+        if (parkPoint.isPresent()) {
             points.add(AdminTrajectoryPointResponse.builder()
                     .ts(vehicle.getLastReportTime())
-                    .x(vehicle.getCurrentLongitude().doubleValue())
-                    .y(vehicle.getCurrentLatitude().doubleValue())
+                    .x(parkPoint.get().x().doubleValue())
+                    .y(parkPoint.get().y().doubleValue())
                     .soc(vehicle.getBatteryLevel())
                     .build());
         }

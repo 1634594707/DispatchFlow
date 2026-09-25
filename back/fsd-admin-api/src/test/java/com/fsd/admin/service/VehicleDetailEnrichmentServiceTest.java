@@ -6,8 +6,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fsd.common.enums.VehicleLinkMode;
+import com.fsd.dispatch.config.ParkPilotProperties;
 import com.fsd.dispatch.entity.RoadNodeEntity;
 import com.fsd.dispatch.entity.RouteAuditEntity;
+import com.fsd.dispatch.geo.ParkGeoTransformService;
+import com.fsd.dispatch.geo.VehiclePositionResolver;
 import com.fsd.dispatch.mapper.RoadNodeMapper;
 import com.fsd.dispatch.mapper.RouteAuditMapper;
 import com.fsd.vehicle.vo.VehicleAdminDetailResponse;
@@ -30,16 +34,23 @@ class VehicleDetailEnrichmentServiceTest {
     void setUp() {
         routeAuditMapper = mock(RouteAuditMapper.class);
         roadNodeMapper = mock(RoadNodeMapper.class);
-        service = new VehicleDetailEnrichmentService(routeAuditMapper, roadNodeMapper);
+        service = new VehicleDetailEnrichmentService(routeAuditMapper, roadNodeMapper,
+                new VehiclePositionResolver(new ParkGeoTransformService(new ParkPilotProperties())));
     }
 
-    private VehicleAdminDetailResponse detail(Long parkId, String lng, String lat) {
+    /** 坐标列的空间语义按 linkMode 而变（§7.2）：本夹具给的是经纬度 ⇒ 声明为真车链路。 */
+    private VehicleAdminDetailResponse detail(Long parkId, String linkMode, String lng, String lat) {
         return VehicleAdminDetailResponse.builder()
                 .vehicleId(7L)
                 .parkId(parkId)
+                .linkMode(linkMode)
                 .currentLongitude(lng == null ? null : new BigDecimal(lng))
                 .currentLatitude(lat == null ? null : new BigDecimal(lat))
                 .build();
+    }
+
+    private VehicleAdminDetailResponse detail(Long parkId, String lng, String lat) {
+        return detail(parkId, VehicleLinkMode.REAL.name(), lng, lat);
     }
 
     private RouteAuditEntity audit(String routeId, String mapVersion, double deviation) {
@@ -101,5 +112,27 @@ class VehicleDetailEnrichmentServiceTest {
         service.enrich(7L, noPosition);
 
         assertNull(noPosition.getCurrentRoadNodeCode());
+    }
+
+    /**
+     * SIM 行的列里是像素：接 seam 之前拿像素当经纬度去 haversine，这条路<b>恒不匹配</b>（§7.2 的存在理由）。
+     * 接上 seam 后 (600,400) 转正为 GCJ-02，才落在节点 50 m 内。
+     */
+    @Test
+    void simulatedRowPixelPositionShouldBeTransformedBeforeRoadMatching() {
+        VehicleAdminDetailResponse target = detail(1L, VehicleLinkMode.SIM.name(), "600", "400");
+        when(routeAuditMapper.selectOne(any())).thenReturn(null);
+        RoadNodeEntity node = new RoadNodeEntity();
+        node.setNodeCode("N-SIM");
+        node.setParkId(1L);
+        node.setStatus("ACTIVE");
+        node.setCoordLng(new BigDecimal("121.080354"));
+        node.setCoordLat(new BigDecimal("31.961977"));
+        when(roadNodeMapper.selectList(any())).thenReturn(List.of(node));
+
+        service.enrich(7L, target);
+
+        assertEquals("N-SIM", target.getCurrentRoadNodeCode(),
+                "像素转正后才能与节点 GPS 同空间比较");
     }
 }

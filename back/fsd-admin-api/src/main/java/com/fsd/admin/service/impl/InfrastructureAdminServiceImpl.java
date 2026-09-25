@@ -101,7 +101,6 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         park.setStatus(resolveParkStatus(request.getStatus(), ParkStatus.ACTIVE.name()));
         park.setDefaultFlag(Boolean.TRUE.equals(request.getDefaultPark()) ? 1 : 0);
         park.setDeleted(0);
-        park.setVersion(0);
         if (park.getDefaultFlag() != null && park.getDefaultFlag() == 1) {
             clearDefaultParkFlag(null);
         }
@@ -170,7 +169,6 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         zjfStationGeoAdminService.snapAndValidate(station);
         station.setStatus(resolveStationStatus(request.getStatus(), "ACTIVE"));
         station.setDeleted(0);
-        station.setVersion(0);
         stationMapper.insert(station);
         return toStationResponse(station, park);
     }
@@ -214,7 +212,6 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         applyParkingSlotFields(slot, request);
         slot.setStatus(resolveSlotStatus(request.getStatus(), ParkingSlotStatus.FREE.name()));
         slot.setDeleted(0);
-        slot.setVersion(0);
         parkingSlotMapper.insert(slot);
         return toParkingSlotResponse(slot, park);
     }
@@ -266,7 +263,6 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         applyChargingPileFields(pile, request);
         pile.setStatus(resolveSlotStatus(request.getStatus(), ParkingSlotStatus.FREE.name()));
         pile.setDeleted(0);
-        pile.setVersion(0);
         chargingPileMapper.insert(pile);
         return toChargingPileResponse(pile, park, slot);
     }
@@ -363,7 +359,6 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         applyRoadNodeFields(node, request);
         node.setStatus(resolveRoadStatus(request.getStatus(), ROAD_ACTIVE));
         node.setDeleted(0);
-        node.setVersion(0);
         roadNodeMapper.insert(node);
         return toRoadNodeResponse(node, park);
     }
@@ -407,7 +402,6 @@ public class InfrastructureAdminServiceImpl implements InfrastructureAdminServic
         applyRoadSegmentFields(segment, request);
         segment.setStatus(resolveRoadStatus(request.getStatus(), ROAD_ACTIVE));
         segment.setDeleted(0);
-        segment.setVersion(0);
         roadSegmentMapper.insert(segment);
         return toRoadSegmentResponse(segment, park);
     }
