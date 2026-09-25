@@ -125,8 +125,9 @@ public class GeoQueryService {
     }
 
     private static boolean isCharging(StationEntity station) {
-        String code = station.getStationCode() == null ? "" : station.getStationCode().toUpperCase();
-        String type = station.getStationType() == null ? "" : station.getStationType().toUpperCase();
+        // Locale.ROOT：枚举式比对不能用默认 locale，土耳其语环境下 "chg"/"charge" 的 i/I 互换会把站点判错。
+        String code = station.getStationCode() == null ? "" : station.getStationCode().toUpperCase(java.util.Locale.ROOT);
+        String type = station.getStationType() == null ? "" : station.getStationType().toUpperCase(java.util.Locale.ROOT);
         return code.contains("CHG") || code.contains("CHARGE") || type.contains("CHARG");
     }
 
@@ -141,12 +142,17 @@ public class GeoQueryService {
                             List.class, objectMapper.getTypeFactory().constructCollectionType(List.class, Number.class)));
             List<double[]> ring = new ArrayList<>(raw.size());
             for (List<Number> point : raw) {
-                if (point.size() >= 2) {
-                    ring.add(new double[] {point.get(0).doubleValue(), point.get(1).doubleValue()});
+                // 显式判空后再抛：原来靠 catch (Exception) 顺手吞掉顶点为 null 时的 NPE。
+                // 语义保持不变——含脏顶点仍然**整片围栏作废**（部分解析出的围栏比没有围栏更危险：
+                // 它会拿一条缺角的边界去判受理）。
+                if (point == null || point.size() < 2 || point.get(0) == null || point.get(1) == null) {
+                    throw new IllegalArgumentException("围栏多边形含空顶点");
                 }
+                ring.add(new double[] {point.get(0).doubleValue(), point.get(1).doubleValue()});
             }
             return ring;
-        } catch (Exception ex) {
+        } catch (com.fasterxml.jackson.core.JsonProcessingException
+                 | IllegalArgumentException ex) {
             log.warn("围栏多边形解析失败，按无围栏处理: {}", ex.toString());
             return List.of();
         }

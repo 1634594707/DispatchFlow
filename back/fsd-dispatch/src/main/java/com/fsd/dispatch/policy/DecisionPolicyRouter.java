@@ -125,7 +125,7 @@ public class DecisionPolicyRouter {
     public void applyOverride(DispatchPolicyProperties.Mode mode, Integer grayPercent, String challengerId) {
         this.overrideMode = mode;
         this.overrideGrayPercent = grayPercent == null ? null : Math.max(0, Math.min(100, grayPercent));
-        this.overrideChallenger = challengerId == null || challengerId.isBlank() ? null : challengerId.trim().toUpperCase();
+        this.overrideChallenger = challengerId == null || challengerId.isBlank() ? null : challengerId.trim().toUpperCase(java.util.Locale.ROOT);
         log.warn("decision policy stage switched at runtime: mode={} grayPercent={} challenger={}",
                 effectiveMode(), effectiveGrayPercent(), effectiveChallengerId());
     }

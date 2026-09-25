@@ -56,7 +56,7 @@ public class DispatchPolicyProperties {
     }
 
     public void setChallenger(String challenger) {
-        this.challenger = challenger == null || challenger.isBlank() ? "FORECAST" : challenger.trim().toUpperCase();
+        this.challenger = challenger == null || challenger.isBlank() ? "FORECAST" : challenger.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     public int getGrayPercent() {
@@ -81,7 +81,7 @@ public class DispatchPolicyProperties {
 
     public void setBatchAlgorithm(String batchAlgorithm) {
         this.batchAlgorithm = batchAlgorithm == null || batchAlgorithm.isBlank()
-                ? "HUNGARIAN" : batchAlgorithm.trim().toUpperCase();
+                ? "HUNGARIAN" : batchAlgorithm.trim().toUpperCase(java.util.Locale.ROOT);
     }
 
     public int getBatchMaxPoolSize() {

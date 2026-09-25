@@ -732,7 +732,8 @@ public final class ScenarioBench {
                     if (!v.freeAt(tick) || v.charging || v.soc <= cfg.repositionSocFloor()) {
                         continue;
                     }
-                    if ((tick - v.freeSinceTick) * TICK_SECONDS < cfg.idleRepositionMinutes() * 60L) {
+                    // 先转 long 再乘：tick 计数与 15 s 相乘在长跑场景下会溢出 int（35 分钟就到 2^31/15 tick 量级）
+                    if ((tick - v.freeSinceTick) * (long) TICK_SECONDS < cfg.idleRepositionMinutes() * 60L) {
                         continue;
                     }
                     double move = roadMeters(v.x, v.y, hot.x(), hot.y(), cfg);
@@ -913,11 +914,10 @@ public final class ScenarioBench {
             for (int h = 0; h < hours; h++) {
                 String key = s.code() + "#" + h;
                 List<Double> v = new ArrayList<>(cells.getOrDefault(key, List.of()));
-                if (v.size() < cfg.repeats()) {
-                    // 某次重复该 cell 一单没有 -> 计数是 0，不是缺失；补齐才不会把 P50 抬高
-                    while (v.size() < cfg.repeats()) {
-                        v.add(0D);
-                    }
+                // 某次重复该 cell 一单没有 -> 计数是 0，不是缺失；补齐才不会把 P50 抬高。
+                // （原来外面还包了一层同样条件的 if——while 自己就会判，那层重复测试是噪音。）
+                while (v.size() < cfg.repeats()) {
+                    v.add(0D);
                 }
                 v.sort(Double::compare);
                 double mean = v.stream().mapToDouble(Double::doubleValue).average().orElse(0D);

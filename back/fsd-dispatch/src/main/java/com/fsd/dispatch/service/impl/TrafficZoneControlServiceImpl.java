@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
  * 现读走 cache-aside（miss 回真相表并回填缓存），写走「先落库、再刷新缓存」。
  * Redis 不可用时直接读库，功能不因缺缓存而退化，只是少了缓存加速。
  */
+@Slf4j
 @Service
 public class TrafficZoneControlServiceImpl implements TrafficZoneControlService {
 
@@ -53,8 +55,9 @@ public class TrafficZoneControlServiceImpl implements TrafficZoneControlService 
                 try {
                     return objectMapper.readValue(raw, new TypeReference<List<PauseZone>>() {
                     });
-                } catch (Exception ignored) {
+                } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
                     // 缓存脏值：当作 miss 回落真相表并重建
+                    log.debug("traffic pause cache unreadable, falling back to truth table: {}", ex.toString());
                 }
             }
         }
@@ -124,8 +127,10 @@ public class TrafficZoneControlServiceImpl implements TrafficZoneControlService 
         }
         try {
             redis.opsForValue().set(KEY_PREFIX + parkId, objectMapper.writeValueAsString(zones), cacheTtl);
-        } catch (Exception ignored) {
-            // 缓存写失败不影响真相；下次读自然回源重建
+        // 仍然吞，但要留痕：Redis 抖动不该让"限行区"这条写路径失败（真相在表里，下次读自然回源重建）。
+        // 原来 `catch (Exception ignored) {}` 一声不吭，缓存长期坏掉也没人看得见。
+        } catch (RuntimeException | com.fasterxml.jackson.core.JsonProcessingException ex) {
+            log.debug("traffic pause cache write skipped: {}", ex.toString());
         }
     }
 }

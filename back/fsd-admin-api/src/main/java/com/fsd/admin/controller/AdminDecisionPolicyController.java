@@ -72,12 +72,14 @@ public class AdminDecisionPolicyController {
             router.clearOverride();
         } else {
             DispatchPolicyProperties.Mode parsed = mode == null || mode.isBlank()
-                    ? null : DispatchPolicyProperties.Mode.valueOf(mode.trim().toUpperCase());
+                    ? null : DispatchPolicyProperties.Mode.valueOf(mode.trim().toUpperCase(java.util.Locale.ROOT));
             if (grayPercent != null && (grayPercent < 0 || grayPercent > 100)) {
                 return ApiResponse.failure("BAD_REQUEST", "grayPercent 必须在 0-100");
             }
+            // 必须与 DecisionPolicyRouter.applyOverride 用同一个 Locale.ROOT 归一化：
+            // 这里若沿用默认 locale，注册的策略 id 比对就会在特定 locale 下与存进去的值差一个字符而误判"未注册"。
             if (challenger != null && !challenger.isBlank()
-                    && !router.registeredPolicyIds().contains(challenger.trim().toUpperCase())) {
+                    && !router.registeredPolicyIds().contains(challenger.trim().toUpperCase(java.util.Locale.ROOT))) {
                 return ApiResponse.failure("BAD_REQUEST", "未注册的策略标识：" + challenger);
             }
             router.applyOverride(parsed, grayPercent, challenger);
