@@ -10,23 +10,20 @@ import { fileURLToPath } from 'node:url'
  *    Node 里跑，不起浏览器 —— 这是 T2-b「可选参数只在移动端过滤、共用函数的默认行为不许变」最便宜的守法。
  *  - 页面门：marker 画在高德 canvas 上、DOM 数不到，所以 e2e 读追踪面板那行图层读数
  *    （`data-testid=tracking-map-legend` 的 data-*，值就是传给地图图层的 marker 数）。
+ *
+ * ⚠ T2-c 的判据在 2026-09-25 被本人**翻转**过一次：原来是"移动端也画 35 个补能点位"，
+ * 现在是"乘客视角 —— 只画本单的车与 OD，设施一个都不画"（设施层是运营叙事，留在 PC 大屏）。
+ * 所以这一层现在钉的是 `data-swap/charging/facility-points` 恒为 0，不是把它们删掉。
  */
 
 import {
-  MARKER_BUDGET,
   MOBILE_SERVICE_FENCE_PREFIX,
-  aggregateMarkersByPosition,
   buildGeofencePolygons,
   buildGeoPolylines,
-  buildStationGeoMarkers,
   buildVehicleGeoMarkers,
   countVehiclesWithUnknownPosition,
 } from '../../src/maps/parkGeoMapLayers'
-import {
-  buildGroupedMobileStationOptions,
-  filterMobileOrderStations,
-  mobileEnergyFacilityStations,
-} from '../../src/maps/stationLayers'
+import { buildGroupedMobileStationOptions, filterMobileOrderStations } from '../../src/maps/stationLayers'
 import {
   ORDER_ENDPOINT_REJECT_LABELS,
   ORDER_REJECT_SERVICE_AREA_GUIDANCE,
@@ -165,32 +162,11 @@ function localFacilityStations(): ParkStation[] {
   return stations
 }
 
-/** 桩各自占一个坐标的情形（用来验"只有桩"时这一层也画得出来）。 */
-function spreadPileStations(): ParkStation[] {
-  return localFacilityStations().map((item, index) =>
-    item.stationType === 'CHARGING_STATION'
-      ? ({ ...item, coordLng: 121.09 + index * 0.0005, coordLat: 31.965 } as ParkStation)
-      : item,
-  )
-}
-
-function facilityMarkers(stations: ParkStation[]) {
-  return aggregateMarkersByPosition(
-    buildStationGeoMarkers(
-      mobileEnergyFacilityStations(stations).map((item) => ({
-        station: item,
-        id: `station-${item.stationId}`,
-        label: `${item.stationName} · ${item.stationCode}`,
-      })),
-    ),
-  )
-}
-
 const FORBIDDEN_ORDER_OPTION = /SWAP_CABINET|CHG-|FSD-SWAP-|GEO-/
 
 // ───────────────────────────── 纯函数门（不起浏览器） ─────────────────────────────
 
-test.describe('T2-a 追踪地图画全部车辆 + 高亮指派车', () => {
+test.describe('T2-a 车辆 marker builder（PC 全量 / 移动端只画本单车，共用同一函数）', () => {
   const fleet = Array.from({ length: 20 }, (_, index) => vehicle(index + 1, true))
 
   test('20 台在图 ⇒ 20 个 marker，被指派那台是 selected', () => {
@@ -278,58 +254,20 @@ test.describe('T2-b 移动端只画受理围栏', () => {
   })
 })
 
-test.describe('T2-c 换电柜/充电桩图层上移动端', () => {
+test.describe('T2-c 追踪图是乘客视角：设施层不画进移动端', () => {
   const stations = localFacilityStations()
-  const markers = facilityMarkers(stations)
 
-  test('柜 marker 数 = 接口返回的 SWAP_CABINET 数（本机 35）', () => {
+  // 判据从"移动端画 35 个柜"翻成"一个都不画"。数据侧没动（PC 大屏/工作台照旧全画），
+  // 改的是移动端的消费方，所以这条不能只是删掉——真正钉"0 个"的是下面的页面门
+  // （它把 46 站真形态喂进去，再读 `tracking-map-legend` 的 data-*）。
+  test('设施仍由接口返回 35 柜 6 桩，但绝不进下单站点下拉（柜 / 桩 / GEO- 落点 零泄漏）', () => {
     expect(stations.filter((station) => station.stationType === 'SWAP_CABINET')).toHaveLength(35)
-    const swap = markers.filter((marker) => marker.markerType === 'swap')
-    expect(swap).toHaveLength(35)
-    expect(swap.every((marker) => marker.iconUrl === '/icons/map-station-swap.svg')).toBe(true)
-  })
-
-  test('6 根与柜同坐标的基地桩收进柜徽标，点位不叠成墨点（§7.5）', () => {
-    // 徽标代表是柜（`mobileEnergyFacilityStations` 把柜排在前），桩留在 `aggregatedLabels` 里：
-    // 于是"柜 marker 数 = 接口柜数"这条闸门在本机数据下依然成立，而 6 根桩一个都没丢。
-    expect(markers.filter((marker) => marker.markerType === 'charging')).toHaveLength(0)
-    expect(markers).toHaveLength(35)
-    const co = markers.find((marker) => marker.aggregatedCount === 2)
-    expect(co?.aggregatedLabels).toEqual(['防爆换电柜 1 · FSD-SWAP-01', '基地充电桩 1 · FSD-CHG-01'])
-    expect(co?.label).toContain('等 2 个点位')
-    expect(co?.markerType).toBe('swap')
-    // 桩各占一个坐标时（换布点就会这样），这一层单独也画得出来
-    const spread = facilityMarkers(spreadPileStations()).filter((m) => m.markerType === 'charging')
-    expect(spread).toHaveLength(6)
-  })
-
-  test('整页 marker 实测 57 个：三层全开仍在 `MARKER_BUDGET` 内', () => {
-    const total = [
-      ...markers,
-      ...buildVehicleGeoMarkers(Array.from({ length: 20 }, (_, index) => vehicle(index + 1, true)), {
-        selectedId: 7,
-      }),
-      ...buildStationGeoMarkers([
-        { id: 'pickup', station: HUB },
-        { id: 'dropoff', station: AUTO_ENDPOINT },
-      ]),
-    ]
-    // 35 个补能点位（含 6 个"柜+桩"合并徽标）+ 20 台车 + 本单取送 2 = 57 ≤ 60。
-    // 这条是"移动端把三层全开画不画得动"的实测口径：以后谁再往这页加层，先撞这条红。
-    expect(total).toHaveLength(35 + 20 + 2)
-    expect(total.length).toBeLessThanOrEqual(MARKER_BUDGET)
-  })
-
-  test('不变量：补能设施绝不进下单站点下拉（柜 / 桩 / GEO- 落点 零泄漏）', () => {
+    expect(stations.filter((station) => station.stationType === 'CHARGING_STATION')).toHaveLength(6)
     const orderable = filterMobileOrderStations(stations)
     expect(orderable.map((item) => item.stationCode)).toEqual(['FSD-HUB-01'])
     const options = buildGroupedMobileStationOptions(orderable).flatMap((group) => group.options)
     expect(options).toHaveLength(1)
     for (const option of options) expect(option.label).not.toMatch(FORBIDDEN_ORDER_OPTION)
-    for (const marker of facilityMarkers(stations)) {
-      const id = Number(marker.id.replace('station-', ''))
-      expect(orderable.some((item) => item.stationId === id)).toBe(false)
-    }
   })
 })
 
@@ -435,23 +373,41 @@ async function seedMobilePage(page: Page) {
   return vehicles
 }
 
-test.describe('移动端追踪地图页面门（T2-a/T2-c/T2-f）', () => {
-  test('全部车辆进图层、位置未知的另算，柜/桩按接口返回画', async ({ page }) => {
+test.describe('移动端追踪地图页面门（乘客视角：只画本单车 + 本单 OD）', () => {
+  test('46 站设施在场也不画；只画被指派那台车；补能读数恒为 0', async ({ page }) => {
     await seedMobilePage(page)
     await page.goto('/mobile/order')
 
     const legend = page.getByTestId('tracking-map-legend')
     await expect(legend).toBeVisible()
-    await expect(legend).toHaveAttribute('data-vehicle-markers', '12')
-    await expect(legend).toHaveAttribute('data-position-unknown', '1')
-    await expect(legend).toHaveAttribute('data-swap-markers', '35')
-    // 6 根基地桩与柜 01..06 同坐标 ⇒ 收进柜徽标，所以独立桩徽标是 0、补能点位共 35 处
+    // 本单指派的是 vehicle 7（fixture 里有真经纬度）⇒ 画 1 台，没有"位置未知"
+    await expect(legend).toHaveAttribute('data-vehicle-markers', '1')
+    await expect(legend).toHaveAttribute('data-position-unknown', '0')
+    // 设施层已从移动端撤掉：接口照旧返回 35 柜 6 桩（PC 端在用），这张图上必须一个都不画。
+    // 这三个 0 就是 T2-c 判据翻转后的形态 —— 谁把设施层接回来，这里立刻红。
+    await expect(legend).toHaveAttribute('data-swap-markers', '0')
     await expect(legend).toHaveAttribute('data-charging-markers', '0')
-    await expect(legend).toHaveAttribute('data-facility-points', '35')
-    await expect(legend).toContainText('1 台位置未知')
-    await expect(legend).toContainText('补能点 35 处')
+    await expect(legend).toHaveAttribute('data-facility-points', '0')
+    await expect(legend).not.toContainText('补能点')
+    await expect(legend).not.toContainText('车队')
     // T2-d：对外规格文案就在地图下面那行，演示时不用翻页
     await expect(page.getByTestId('vehicle-spec')).toContainText('X3 满载续航 180 km')
+  })
+
+  test('被指派那台车没有真经纬度时，图上不画点但必须报"1 台位置未知"（§7.5 逐行契约）', async ({ page }) => {
+    await seedMobilePage(page)
+    // 只改一件事：把被指派那台（id 7）的经纬度拿掉，像素 x/y 仍在 —— 这正是 SIM 行的常态
+    await page.route(api('/admin/park/vehicles**'), (route) =>
+      route.fulfill({
+        json: ok([vehicle(7, false), vehicle(2, true)]),
+      }),
+    )
+    await page.goto('/mobile/order')
+
+    const legend = page.getByTestId('tracking-map-legend')
+    await expect(legend).toHaveAttribute('data-vehicle-markers', '0')
+    await expect(legend).toHaveAttribute('data-position-unknown', '1')
+    await expect(legend).toContainText('1 台位置未知')
   })
 
   test('下单站点下拉里零个补能设施与自动落点', async ({ page }) => {

@@ -2,27 +2,44 @@ import { computed, onUnmounted, ref } from 'vue'
 import { DEMO_CONFIG } from '@/config/demo-config'
 import { createParkOrder, getParkStations } from '@/api/park'
 import { createIdempotencyKey } from '@/composables/useMobileOrderForm'
-import { filterMobileOrderStations, mobileOrderStationGroup } from '@/maps/stationLayers'
-import type { ParkStation } from '@/types/park'
+import type { ParkOrderCreateRequest, ParkStation } from '@/types/park'
 
+/** 演示单的取送货点：GCJ-02 坐标，走 V64 的"任意点下单"入口，不是 stationId。 */
 interface DemoRoute {
-  pickupStationId: number
-  dropoffStationId: number
+  pickupLng: number
+  pickupLat: number
+  dropoffLng: number
+  dropoffLat: number
 }
 
+/**
+ * 演示单的取送货点从哪来 —— **只用路网落点（`GEO_POINT`）的坐标**。
+ *
+ * 为什么不再按编码前缀找 `ZJF-PICK-*` / `ZJF-DROP-*`：设施 v2（`zjf_facility_v2.sql:26-31`）把
+ * 所有 `PICKUP/DROPOFF/GENERAL` 站点置了 INACTIVE，接口只返回 ACTIVE ⇒ 这条找法在当前数据下
+ * **恒为空**，于是"开始演示"点了就报错、立刻自停（就是本人截图里那句"没有可用的演示取送货站点"）。
+ * 而业务事实本来就是"没有可下单作业点、用户拿任意点下单"，所以演示单也应该走同一条真实链路：
+ * 给坐标，由后端吸附到路网节点。`GEO_POINT` 正是后端自己发布的落点，天然可吸附。
+ *
+ * ⚠ 这些坐标**不进下单下拉**：`filterMobileOrderStations()` 仍然把 `GEO-` 挡在外面（v14 钉零泄漏），
+ * 这里只是拿它们当演示单的起终点。
+ */
 function resolveDemoRoute(stations: ParkStation[], index: number): DemoRoute | null {
-  const orderable = filterMobileOrderStations(stations)
-  const pickups = orderable.filter((station) => mobileOrderStationGroup(station) === 'pickup')
-  const destinations = orderable.filter((station) => {
-    const group = mobileOrderStationGroup(station)
-    return group === 'dropoff' || group === 'express'
-  })
-  if (pickups.length === 0 || destinations.length === 0) return null
+  const points = stations.filter(
+    (station) =>
+      station.stationType === 'GEO_POINT' && station.coordLng != null && station.coordLat != null,
+  )
+  if (points.length < 2) return null
 
-  const pickup = pickups[index % pickups.length]
-  const dropoff = destinations[index % destinations.length]
+  const pickup = points[index % points.length]
+  const dropoff = points[(index + 1) % points.length]
   if (pickup.stationId === dropoff.stationId) return null
-  return { pickupStationId: pickup.stationId, dropoffStationId: dropoff.stationId }
+  return {
+    pickupLng: Number(pickup.coordLng),
+    pickupLat: Number(pickup.coordLat),
+    dropoffLng: Number(dropoff.coordLng),
+    dropoffLat: Number(dropoff.coordLat),
+  }
 }
 
 function resolveErrorMessage(error: unknown): string {
@@ -60,19 +77,19 @@ export function useDemoMode(resolveParkId: () => number | undefined) {
       const stationResponse = await getParkStations(parkId)
       const route = resolveDemoRoute(stationResponse.data || [], orderIndex.value)
       if (!route) {
-        lastError.value = '当前园区没有可用的演示取送货站点'
+        lastError.value = '当前园区没有可用的演示取送货点（需要 ≥2 个路网落点 GEO_POINT）'
         return false
       }
 
-      await createParkOrder({
+      const request: ParkOrderCreateRequest = {
         idempotencyKey: createIdempotencyKey(),
         parkId,
-        pickupStationId: route.pickupStationId,
-        dropoffStationId: route.dropoffStationId,
+        ...route,
         priority: 'P1',
         orderPriority: 'NORMAL',
         remark: '[演示] 自动生成',
-      })
+      }
+      await createParkOrder(request)
       orderIndex.value += 1
       lastError.value = ''
       return true

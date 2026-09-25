@@ -55,7 +55,6 @@ export {
   isZjfDispatchOnlyStation,
   isAutoGeoEndpointStation,
   isEnergyFacilityStation,
-  mobileEnergyFacilityStations,
   mobileOrderStationGroup,
   MOBILE_ORDER_STATION_GROUP_LABELS,
   workbenchStationColor,

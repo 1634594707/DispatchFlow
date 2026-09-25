@@ -90,7 +90,6 @@ import {
   listParks,
 } from '@/api/park'
 import {
-  aggregateMarkersByPosition,
   buildGeofencePolygons,
   buildGeoPolylines,
   buildStationGeoMarkers,
@@ -103,7 +102,6 @@ import {
   filterMobileOrderStations,
   isAmapConfigured,
   MOBILE_SERVICE_FENCE_PREFIX,
-  mobileEnergyFacilityStations,
   pilotMapCenter,
   syncDefaultOrderStations,
   vehicleGeoPosition,
@@ -266,40 +264,27 @@ const trackingMapCenter = computed((): [number, number] => {
 })
 
 /**
- * 追踪地图图层：补能设施（换电柜/充电桩）→ 本单取送点 → 全部在场车辆，被指派车高亮。
+ * 追踪地图图层 = **乘客视角**：本单取送点 + 派给这一单的那台车 + 路线，别的都不画。
  *
- * <p>为什么以前只有一台车：全量车辆数据一直在拉（`fetchVehicles` → `getParkVehicles`），
- * 只是渲染层写了 `trackedVehicle ? [它] : []`。演示要讲"车队在跑"，所以整支 ZJF-AV-* 都得画出来。
+ * <p>为什么不画整支车队、也不画 35 个换电柜/6 根充电桩（对齐美团/顺风车的读法）：这一页给用户看的是
+ * "我的车到哪了"。车队规模与补能网络是**运营侧**的叙事，它们在大屏（`/vehicle-tracking?mode=geo`）
+ * 与 PC 工作台上完整保留；手机端同屏 57 个 marker 里 35 个是基础设施，把唯一有用的那个点埋掉了。
  *
  * <p>⚠ 坐标只消费接口现成返回值（`vehicleGeoPosition`：没有真经纬度就返回 null）。SIM 行是像素坐标、
  * 真车行是 GCJ-02，这是逐行契约（§7.5），前端不许换算、不许兜底；拿不到坐标的车不画点，
  * 但必须计入 `trackingLayerSummary.positionUnknown`，不能安静消失。
  */
+const trackedVehicleList = computed(() => (trackedVehicle.value ? [trackedVehicle.value] : []))
+
 const trackingVehicleMarkers = computed(() =>
-  buildVehicleGeoMarkers(modeVehicles.value, { selectedId: trackedVehicle.value?.vehicleId ?? null }),
-)
-
-/** 补能设施图层（§4 T2-c）：35 个 `FSD-SWAP-*` + 6 根 `FSD-CHG-*`，只在追踪地图上画。
- *  ⚠ 它们**永远不是货的起终点**：下单下拉走 `filterMobileOrderStations()`，与本图层无交集。 */
-const facilityStations = computed(() => mobileEnergyFacilityStations(stations.value))
-
-const trackingFacilityMarkers = computed(() =>
-  aggregateMarkersByPosition(
-    buildStationGeoMarkers(
-      facilityStations.value.map((station) => ({
-        station,
-        id: `station-${station.stationId}`,
-        label: `${station.stationName} · ${station.stationCode}`,
-      })),
-    ),
-  ),
+  buildVehicleGeoMarkers(trackedVehicleList.value, {
+    selectedId: trackedVehicle.value?.vehicleId ?? null,
+  }),
 )
 
 const trackingGeoMarkers = computed(() => {
-  const markers = [...trackingFacilityMarkers.value]
-  if (trackedOrder.value) {
-    markers.push(
-      ...buildStationGeoMarkers([
+  const markers = trackedOrder.value
+    ? buildStationGeoMarkers([
         {
           id: 'pickup',
           station: trackedOrder.value.pickupStation,
@@ -310,20 +295,23 @@ const trackingGeoMarkers = computed(() => {
           station: trackedOrder.value.dropoffStation,
           label: `送 ${trackedOrder.value.dropoffStation.stationCode}`,
         },
-      ]),
-    )
-  }
+      ])
+    : []
   markers.push(...trackingVehicleMarkers.value)
   return markers
 })
 
-/** 图层小结：给地图下方那行读数用，也是 e2e 数 marker 的钩子（marker 在高德 canvas 里，DOM 数不到）。 */
+/**
+ * 图层小结：给地图下方那行读数用，也是 e2e 数 marker 的钩子（marker 在高德 canvas 里，DOM 数不到）。
+ * swap/charging/facilityPoints 在移动端恒为 0 —— 这三个字段留着不是装饰，是把"设施没回到这张图上"
+ * 变成可断言的判据（v14 钉的就是它等于 0）。
+ */
 const trackingLayerSummary = computed(() => ({
   vehicles: trackingVehicleMarkers.value.length,
-  positionUnknown: countVehiclesWithUnknownPosition(modeVehicles.value),
-  swap: trackingFacilityMarkers.value.filter((marker) => marker.markerType === 'swap').length,
-  charging: trackingFacilityMarkers.value.filter((marker) => marker.markerType === 'charging').length,
-  facilityPoints: trackingFacilityMarkers.value.length,
+  positionUnknown: countVehiclesWithUnknownPosition(trackedVehicleList.value),
+  swap: 0,
+  charging: 0,
+  facilityPoints: 0,
 }))
 
 const trackingGeoPolylines = computed(() => {

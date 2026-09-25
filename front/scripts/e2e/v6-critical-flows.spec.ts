@@ -267,7 +267,7 @@ test('exception close submits the backend CLOSE action', async ({ page }) => {
   expect(calls).toEqual([expect.objectContaining({ action: 'CLOSE' })])
 })
 
-test('tracking demo submits current station IDs from the active park', async ({ page }) => {
+test('tracking demo orders by road-node coordinates, not by station IDs', async ({ page }) => {
   const calls: unknown[] = []
   page.on('request', (request) => {
     if (new URL(request.url()).pathname === '/api/admin/park/orders' && request.method() === 'POST') {
@@ -295,9 +295,11 @@ test('tracking demo submits current station IDs from the active park', async ({ 
     { vehicleId: 6, vehicleCode: 'ZJF-AV-01', vehicleName: '演示车', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 82 },
   ]) }))
   await page.route(api('/admin/park/geofences**'), route => route.fulfill({ json: ok([]) }))
+  // 演示单的起终点 = 后端自己发布的路网落点（`GEO_POINT`）。设施 v2 之后 ACTIVE 站点里
+  // 已经没有任何 PICKUP/DROPOFF，所以演示链路必须吃坐标，不能再吃 stationId。
   await page.route(api('/admin/park/stations**'), route => route.fulfill({ json: ok([
-    { parkId: 1, stationId: 504, stationCode: 'ZJF-PICK-01', stationName: '门市一', area: 'ZJF', x: 10, y: 10 },
-    { parkId: 1, stationId: 506, stationCode: 'ZJF-DROP-01', stationName: '代发仓', area: 'ZJF', x: 90, y: 90 },
+    { parkId: 1, stationId: 900, stationCode: 'GEO-OSM0017', stationName: '落点 A', stationType: 'GEO_POINT', area: 'ZJF', x: 10, y: 10, coordLng: 121.0801, coordLat: 31.9601 },
+    { parkId: 1, stationId: 901, stationCode: 'GEO-OSM0018', stationName: '落点 B', stationType: 'GEO_POINT', area: 'ZJF', x: 90, y: 90, coordLng: 121.0902, coordLat: 31.9702 },
   ]) }))
   await page.route(api('/admin/park/orders'), async route => {
     if (route.request().method() !== 'POST') {
@@ -316,14 +318,69 @@ test('tracking demo submits current station IDs from the active park', async ({ 
   await orderRequest
   await expect.poll(() => calls.length).toBe(1)
 
-  expect(calls).toEqual([
-    expect.objectContaining({
-      parkId: 1,
-      pickupStationId: 504,
-      dropoffStationId: 506,
-      priority: 'P1',
-      orderPriority: 'NORMAL',
-    }),
-  ])
+  const [body] = calls as Array<Record<string, unknown>>
+  expect(body).toEqual(expect.objectContaining({
+    parkId: 1,
+    pickupLng: 121.0801,
+    pickupLat: 31.9601,
+    dropoffLng: 121.0902,
+    dropoffLat: 31.9702,
+    priority: 'P1',
+    orderPriority: 'NORMAL',
+  }))
+  expect(body.pickupStationId).toBeUndefined()
+  expect(body.dropoffStationId).toBeUndefined()
+})
+
+test('demo mode states why it cannot start instead of silently stopping (设施 v2 的真实站点形态)', async ({ page }) => {
+  const calls: unknown[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/admin/park/orders' && request.method() === 'POST') {
+      calls.push(request.postDataJSON())
+    }
+  })
+  await page.route(api('/admin/parks'), route => route.fulfill({ json: ok([
+    { parkId: 1, parkCode: 'ZJF', parkName: '叠石桥 L1', defaultPark: true },
+  ]) }))
+  await page.route(api('/admin/park/layout**'), route => route.fulfill({ json: ok({
+    parkId: 1,
+    width: 1000,
+    height: 600,
+    minZoom: 0.5,
+    maxZoom: 3,
+    vehicleSpeedPxPerSecond: 30,
+    centerLng: 121.08,
+    centerLat: 31.96,
+    stations: [],
+    parkingSpots: [],
+    roadNodes: [],
+    roadSegments: [],
+  }) }))
+  await page.route(api('/admin/park/vehicles**'), route => route.fulfill({ json: ok([
+    { vehicleId: 6, vehicleCode: 'ZJF-AV-01', vehicleName: '演示车', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 82 },
+  ]) }))
+  await page.route(api('/admin/park/geofences**'), route => route.fulfill({ json: ok([]) }))
+  // 那批站点在设施 v2 里已全部 INACTIVE、接口不再返回 ⇒ 旧版"按前缀找取送货站点"恒为空，
+  // 点了"开始演示"只是静默自停。现网真实形态 = 只有总仓库、没有任何 GEO_POINT 落点。
+  await page.route(api('/admin/park/stations**'), route => route.fulfill({ json: ok([
+    { parkId: 1, stationId: 501, stationCode: 'FSD-HUB-01', stationName: '总仓库', stationType: 'MOTHERSHIP', area: 'ZJF', x: 10, y: 10, coordLng: 121.08, coordLat: 31.96 },
+  ]) }))
+  await page.route(api('/admin/park/orders'), async route => {
+    if (route.request().method() !== 'POST') {
+      await route.fulfill({ json: ok([]) })
+      return
+    }
+    await route.fulfill({ json: ok({ orderId: 9001, orderNo: 'DEMO-9001' }) })
+  })
+  await page.route(api('/admin/sse-ticket'), route => route.fulfill({ json: ok({ ticket: 'test-ticket' }) }))
+
+  await page.goto('/vehicle-tracking?mode=geo')
+  await page.getByRole('button', { name: '开始演示' }).click()
+
+  const reason = page.locator('.demo-error[role=status]')
+  await expect(reason).toBeVisible()
+  await expect(reason).toContainText('没有可用的演示取送货点')
+  await expect(reason).toContainText('GEO_POINT')
+  expect(calls).toHaveLength(0)
 })
 

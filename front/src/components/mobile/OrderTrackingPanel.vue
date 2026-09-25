@@ -23,7 +23,23 @@
       </button>
     </div>
 
-    <div class="map-shell">
+    <!--
+      图层读数（§4 T2-a/T2-c）挂在 .map-shell 上：marker 画在高德 canvas 里、DOM 数不到，
+      这组 data-* 就是 e2e 唯一的计数钩子。**放在常驻可见的容器上而不是单独一个小条**，
+      因为单独的小条在两个 chip 都撤掉后会变成零高度（`toBeVisible()` 当场红），
+      而放进行内 v-if 的地图容器又会在"没配高德 Key"时整个消失（CI 就是那种环境）。
+      ⚠ 移动端这张图的判据是"设施必须为 0"（v14 钉 swap/charging/facility-points 三个 0）。
+    -->
+    <div
+      class="map-shell"
+      data-testid="tracking-map-legend"
+      :data-vehicle-markers="layerSummary?.vehicles ?? -1"
+      :data-position-unknown="layerSummary?.positionUnknown ?? -1"
+      :data-swap-markers="layerSummary?.swap ?? -1"
+      :data-charging-markers="layerSummary?.charging ?? -1"
+      :data-facility-points="layerSummary?.facilityPoints ?? -1"
+      :data-fence-flash="fenceFlash ? 'on' : 'off'"
+    >
       <div v-if="routeAnomalyText" class="route-anomaly">{{ routeAnomalyText }}</div>
 
       <div v-if="geoMapAvailable" class="map-wrap geo">
@@ -36,6 +52,8 @@
           :polygons="geoPolygons"
           :fit-view-points="fitViewPoints"
           :fit-view-on-change="Boolean(vehicle)"
+          :show-level-switcher="false"
+          :show-layer-switcher="false"
         />
       </div>
       <div v-else class="map-wrap geo-map-unconfigured" data-testid="tracking-map-unconfigured">
@@ -51,30 +69,13 @@
       </div>
 
       <!--
-        图层读数（§4 T2-a/T2-c）。marker 画在高德 canvas 上、DOM 里数不到，所以这行既是给讲解用的
-        "图上有几只什么"，也是 e2e 的计数钩子（data-* 就是传给地图图层的 marker 数）。
         ⚠ "位置未知"必须显式报出来：那是接口没给真经纬度的车 —— 不画点（也不许拿像素 x/y 换算，
-        §7.5 逐行契约），但更不能静默消失："少画 3 台"和"今天就 17 台"在页面上得长得不一样。
+        §7.5 逐行契约），但更不能静默消失："少画 1 台"和"这台车没有位置"在页面上得长得不一样。
+        车队规模与补能点数量不在这里报：那是运营侧叙事，看 PC 大屏。
       -->
-      <div
-        v-if="layerSummary"
-        class="map-legend"
-        data-testid="tracking-map-legend"
-        :data-vehicle-markers="layerSummary.vehicles"
-        :data-position-unknown="layerSummary.positionUnknown"
-        :data-swap-markers="layerSummary.swap"
-        :data-charging-markers="layerSummary.charging"
-        :data-facility-points="layerSummary.facilityPoints"
-        :data-fence-flash="fenceFlash ? 'on' : 'off'"
-      >
-        <span class="legend-item vehicles">车队 {{ layerSummary.vehicles }} 台</span>
-        <span v-if="layerSummary.positionUnknown > 0" class="legend-item warn">
-          {{ layerSummary.positionUnknown }} 台位置未知
-        </span>
-        <span v-if="layerSummary.facilityPoints > 0" class="legend-item swap">
-          补能点 {{ layerSummary.facilityPoints }} 处
-        </span>
-      </div>
+      <p v-if="layerSummary && layerSummary.positionUnknown > 0" class="map-legend">
+        <span class="legend-item warn">{{ layerSummary.positionUnknown }} 台位置未知</span>
+      </p>
 
       <!-- 对外规格（§4 T2-d）：静态文案，`t_vehicle` 没有续航/容量列，见 constants/vehicleSpec.ts -->
       <p v-if="vehicleSpec" class="vehicle-spec" data-testid="vehicle-spec">{{ vehicleSpec }}</p>

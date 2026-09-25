@@ -94,22 +94,6 @@ export function filterWorkbenchSituationStations(
   return [...orderable, ...extras]
 }
 
-/** 移动端追踪图的补能图层（§4 T2-c）：只挑"车去补能的地方"，绝不参与下单端点选择。
- *  ⚠ 只用于**画图**：下单下拉走 `filterMobileOrderStations()`，两者不许共用出口。 */
-export function mobileEnergyFacilityStations(stations: ParkStation[]): ParkStation[] {
-  const facilities = filterWorkbenchSituationStations(stations, { showCharging: true }).filter(
-    isEnergyFacilityStation,
-  )
-  // 柜排在桩前：`aggregateMarkersByPosition` 取组内第一个成员当徽标代表，而本机实测
-  // （2026-09-25 活库 46 站）6 根 `FSD-CHG-*` 与 `FSD-SWAP-01..06` 是**同一个坐标**——
-  // 谁在前决定那 6 个点画成"柜"还是"桩"。移动端的口径是 35 个柜（T2-c 闸门：柜 marker 数
-  // = 接口返回的 SWAP_CABINET 数），所以让柜当代表，桩仍在徽标的 `aggregatedLabels` 里。
-  return [
-    ...facilities.filter((station) => station.stationType === 'SWAP_CABINET'),
-    ...facilities.filter((station) => station.stationType !== 'SWAP_CABINET'),
-  ]
-}
-
 export type WorkbenchStationRole =
   | 'pickup' | 'dropoff' | 'express' | 'idle' | 'charging' | 'swap' | 'warehouse'
 
