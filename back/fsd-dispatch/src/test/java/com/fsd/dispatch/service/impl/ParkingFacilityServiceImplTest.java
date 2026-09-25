@@ -167,4 +167,67 @@ class ParkingFacilityServiceImplTest {
         assertEquals(0, java.math.BigDecimal.valueOf(121.080681).compareTo(point.getLongitude()));
         assertEquals(0, java.math.BigDecimal.valueOf(31.960337).compareTo(point.getLatitude()));
     }
+
+    private ParkingSlotEntity standbySlot(String code, double lng, double lat) {
+        ParkingSlotEntity slot = new ParkingSlotEntity();
+        slot.setId(2001L);
+        slot.setParkId(1L);
+        slot.setSlotCode(code);
+        slot.setSlotType(com.fsd.common.enums.ParkingSlotType.STANDBY.name());
+        slot.setStatus(ParkingSlotStatus.FREE.name());
+        slot.setCoordX(java.math.BigDecimal.valueOf(550.1236));
+        slot.setCoordY(java.math.BigDecimal.valueOf(406.6709));
+        slot.setCoordLng(java.math.BigDecimal.valueOf(lng));
+        slot.setCoordLat(java.math.BigDecimal.valueOf(lat));
+        return slot;
+    }
+
+    private Page<ParkingSlotEntity> pageOf(java.util.List<ParkingSlotEntity> records) {
+        Page<ParkingSlotEntity> page = new Page<>();
+        page.setRecords(records);
+        return page;
+    }
+
+    @Test
+    void reserveStandbySlotReusesTheSlotAlreadyHeldInsteadOfChurning() {
+        // 空闲态每个 tick 都会问一次待命点：不续用同一个位，车就会在车位之间来回跳。
+        ParkingSlotEntity held = standbySlot("P3", 121.078390, 31.961928);
+        held.setStatus(ParkingSlotStatus.RESERVED.name());
+        held.setOccupiedVehicleId(44L);
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class)))
+                .thenReturn(pageOf(java.util.List.of(held)));
+
+        var point = parkingFacilityService.reserveStandbySlot(1L, 44L).orElseThrow();
+
+        assertEquals("P3", point.getCode());
+        verify(parkingSlotMapper, org.mockito.Mockito.never()).update(any(), any());
+        verify(parkingSlotMapper, org.mockito.Mockito.never()).selectList(any());
+    }
+
+    @Test
+    void reserveStandbySlotReservesTheFirstFreeStandbySlotInSortOrder() {
+        ParkingSlotEntity slot = standbySlot("P7", 121.083128, 31.958820);
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class)))
+                .thenReturn(pageOf(java.util.Collections.emptyList()),
+                        pageOf(java.util.List.of(slot)),
+                        pageOf(java.util.List.of(slot)));
+        when(parkingSlotMapper.selectList(any(Wrapper.class))).thenReturn(java.util.List.of(slot));
+        when(parkingSlotMapper.update(any(), any())).thenReturn(1);
+
+        var point = parkingFacilityService.reserveStandbySlot(1L, 45L).orElseThrow();
+
+        assertEquals("P7", point.getCode());
+        assertEquals(0, java.math.BigDecimal.valueOf(121.083128).compareTo(point.getLongitude()));
+        assertEquals(0, java.math.BigDecimal.valueOf(31.958820).compareTo(point.getLatitude()));
+    }
+
+    @Test
+    void reserveStandbySlotIsEmptyWhenTheParkHasNoStandbySlot() {
+        // 没有车位时必须返回空，让调用方走下一级兜底 —— 不能凭空造一个坐标（那正是本次修掉的病）。
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class)))
+                .thenReturn(pageOf(java.util.Collections.emptyList()));
+        when(parkingSlotMapper.selectList(any(Wrapper.class))).thenReturn(java.util.Collections.emptyList());
+
+        assertTrue(parkingFacilityService.reserveStandbySlot(1L, 46L).isEmpty());
+    }
 }

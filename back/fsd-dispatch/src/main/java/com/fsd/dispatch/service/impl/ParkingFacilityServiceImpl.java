@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.ParkingSlotStatus;
+import com.fsd.common.enums.ParkingSlotType;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.entity.ChargingPileEntity;
 import com.fsd.dispatch.entity.ParkingSlotEntity;
@@ -148,17 +149,61 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
         List<String> candidates = listChargingSlotCodes(parkId, preferredSlotCode);
         for (String slotCode : candidates) {
             if (reserveSlot(parkId, vehicleId, slotCode)) {
-                ParkingSlotEntity slot = requireSlot(parkId, slotCode);
-                return Optional.of(ParkPointResponse.builder()
-                        .code(slot.getSlotCode())
-                        .x(slot.getCoordX())
-                        .y(slot.getCoordY())
-                        .longitude(slot.getCoordLng())
-                        .latitude(slot.getCoordLat())
-                        .build());
+                return Optional.of(toPoint(requireSlot(parkId, slotCode)));
             }
         }
         return Optional.empty();
+    }
+
+    @Override
+    @Transactional
+    public Optional<ParkPointResponse> reserveStandbySlot(Long parkId, Long vehicleId) {
+        if (parkId == null || vehicleId == null) {
+            return Optional.empty();
+        }
+        // 幂等守卫：空闲态每个 tick 都会来问一次待命点，不续用同一个位就会让车在车位之间来回跳。
+        Optional<ParkingSlotEntity> held = findSlotByVehicle(vehicleId);
+        if (held.isPresent() && ParkingSlotType.STANDBY.name().equals(held.get().getSlotType())) {
+            return Optional.of(toPoint(held.get()));
+        }
+        List<ParkingSlotEntity> candidates = parkingSlotMapper.selectList(new QueryWrapper<ParkingSlotEntity>()
+                .eq("park_id", parkId)
+                .eq("slot_type", ParkingSlotType.STANDBY.name())
+                .eq("deleted", 0)
+                .orderByAsc("sort_order"));
+        for (ParkingSlotEntity candidate : candidates) {
+            if (reserveSlot(parkId, vehicleId, candidate.getSlotCode())) {
+                return Optional.of(toPoint(requireSlot(parkId, candidate.getSlotCode())));
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public List<ParkPointResponse> listStandbySlots(Long parkId) {
+        if (parkId == null) {
+            return List.of();
+        }
+        return parkingSlotMapper.selectList(new QueryWrapper<ParkingSlotEntity>()
+                        .eq("park_id", parkId)
+                        .eq("slot_type", ParkingSlotType.STANDBY.name())
+                        .eq("deleted", 0)
+                        .isNotNull("coord_x")
+                        .isNotNull("coord_y")
+                        .orderByAsc("sort_order"))
+                .stream()
+                .map(this::toPoint)
+                .toList();
+    }
+
+    private ParkPointResponse toPoint(ParkingSlotEntity slot) {
+        return ParkPointResponse.builder()
+                .code(slot.getSlotCode())
+                .x(slot.getCoordX())
+                .y(slot.getCoordY())
+                .longitude(slot.getCoordLng())
+                .latitude(slot.getCoordLat())
+                .build();
     }
 
     private List<String> listChargingSlotCodes(Long parkId, String preferredSlotCode) {

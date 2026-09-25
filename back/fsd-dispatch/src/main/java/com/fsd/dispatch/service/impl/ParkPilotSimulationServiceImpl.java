@@ -171,7 +171,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         List<VehicleEntity> existing = listPilotVehicles(prefix);
         Long defaultParkId = parkStationService.requireDefaultPark().getId();
         for (int i = existing.size(); i < targetCount; i++) {
-            ParkPointResponse spawn = getGeoStandbySpot(i);
+            ParkPointResponse spawn = getGeoStandbySpot(null, i);
             VehicleEntity vehicle = new VehicleEntity();
             vehicle.setParkId(defaultParkId);
             vehicle.setVehicleCode(prefix + String.format(Locale.ROOT, "%02d", i + 1));
@@ -1082,7 +1082,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     private SimulationMotionState createIdleState(VehicleEntity vehicle, int index) {
         SimulationMotionState state = new SimulationMotionState();
-        state.standbyPoint = getGeoStandbySpot(index);
+        state.standbyPoint = getGeoStandbySpot(vehicle, index);
         state.chargingPoint = getChargingSpot(vehicle, index);
         state.stage = "STANDBY";
         state.stageStartedAt = LocalDateTime.now();
@@ -1165,7 +1165,36 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         return parkGeoTransformService.toGcj02(parkX, parkY).orElse(null);
     }
 
-    private ParkPointResponse getGeoStandbySpot(int index) {
+    /**
+     * 空闲车的待命点，三级顺序：
+     * ① {@code t_parking_slot} 里 {@code STANDBY} 类型的真车位（有车可占就原子占位；车行还没插入的
+     *    首次铺车队按序号轮转）—— 这是唯一带"一致像素 + GCJ-02 坐标 + 进/出节点"的来源；
+     * ② 具名站点 {@code ZJF-IDLE-01}（若它仍是 ACTIVE）；
+     * ③ 最后才是 {@code application.yml} 那组 {@code parking-spots}。
+     *
+     * <p>为什么把 ③ 降成兜底而不是直接用：②/③ 在当前数据下都是空的/假的 —— 设施 v2 把
+     * {@code ZJF-IDLE-01} 连同所有 GENERAL 站点置了 INACTIVE，而 yml 那组 x=80..200 / y=700..740
+     * 是**老示意图的像素坐标**，对现役 1600×1854 画布没有意义。实测后果：20 台车被分到 6 个凭空点，
+     * 3 台因此落在服务围栏外并且叠在同一个坐标上（就是本人截图里"车随便停在路边"）。
+     */
+    private ParkPointResponse getGeoStandbySpot(VehicleEntity vehicle, int index) {
+        try {
+            Long parkId = defaultParkId();
+            Optional<ParkPointResponse> reserved = vehicle == null
+                    ? Optional.empty()
+                    : parkingFacilityService.reserveStandbySlot(parkId, vehicle.getId());
+            if (reserved.isPresent()) {
+                return reserved.get();
+            }
+            if (vehicle == null) {
+                List<ParkPointResponse> slots = parkingFacilityService.listStandbySlots(parkId);
+                if (!slots.isEmpty()) {
+                    return slots.get(index % slots.size());
+                }
+            }
+        } catch (RuntimeException ex) {
+            // 车位服务不可用时继续往下找，不能把整轮仿真打断
+        }
         try {
             List<ParkStationResponse> idleStations = parkStationService.listStations(defaultParkId()).stream()
                     .filter(station -> "ZJF-IDLE-01".equals(station.getStationCode()))
@@ -1246,7 +1275,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     private void ensureStandbyLocation(VehicleEntity vehicle, SimulationMotionState state) {
         if (state.standbyPoint == null) {
-            state.standbyPoint = getGeoStandbySpot(0);
+            state.standbyPoint = getGeoStandbySpot(vehicle, 0);
         }
         if (state.chargingPoint == null) {
             state.chargingPoint = getChargingSpot(vehicle, 0);
