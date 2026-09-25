@@ -77,6 +77,8 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             DispatchTaskStatus.ASSIGNING.name(),
             DispatchTaskStatus.ASSIGNED.name(),
             DispatchTaskStatus.EXECUTING.name());
+    /** 画布像素意义上的"已经到位"容差（1 px ≈ 2 m），只用于避免到位后每 tick 重规划零长度路线。 */
+    private static final java.math.BigDecimal POSITION_EPS = new java.math.BigDecimal("2");
 
     private final ParkPilotProperties parkPilotProperties;
     private final FleetEnergyProperties fleetEnergyProperties;
@@ -1215,6 +1217,14 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         return getStandbySpot(index);
     }
 
+    /**
+     * 仿真器眼里的"可以去充电的地方"。
+     *
+     * <p>⚠ 判据原来是 `stationCode.startsWith("ZJF-CHG")` —— 设施 v2 之后基地充电桩的编码是
+     * {@code FSD-CHG-*}，那个前缀**一个都匹配不到**，于是本方法恒返回空、
+     * `getChargingSpot` 一路回退到 yml 里那组假像素坐标。现在按 `stationType` 判，
+     * 旧前缀只作为历史数据兜底保留。
+     */
     private List<ParkPointResponse> listZjfChargingSpots() {
         if (zjfChargingSpots != null) {
             return zjfChargingSpots;
@@ -1222,8 +1232,10 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         try {
             Long parkId = defaultParkId();
             zjfChargingSpots = parkStationService.listStations(parkId).stream()
-                    .filter(station -> station.getStationCode() != null
-                            && station.getStationCode().startsWith("ZJF-CHG"))
+                    .filter(station -> "CHARGING_STATION".equals(station.getStationType())
+                            || (station.getStationCode() != null
+                                    && (station.getStationCode().startsWith("ZJF-CHG")
+                                            || station.getStationCode().startsWith("FSD-CHG"))))
                     .map(station -> ParkPointResponse.builder()
                             .code(station.getStationCode())
                             .x(station.getX())
@@ -1256,14 +1268,23 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         ensureStandbyLocation(vehicle, state);
         state.busyMoveTicks = 0;
         state.pluggedIn = false;
-        parkingFacilityService.releaseByVehicle(vehicle.getId());
         Long parkId = defaultParkId();
         String preferred = state.chargingPoint != null ? state.chargingPoint.getCode() : null;
         var reserved = parkingFacilityService.reserveChargingSlot(parkId, vehicle.getId(), preferred);
         if (reserved.isEmpty()) {
+            // ⚠ 释放必须放在"真的抢到桩"之后，且等桩的车要回到自己的待命位。
+            // 原来这里是无条件 `releaseByVehicle` + 直接 `WAIT_CHARGING`：车先把自己刚占的待命位解开，
+            // 然后停在"决定去充电那一刻"的位置上不动（WAIT_CHARGING 每 tick 只是重试抢桩，不会移动）。
+            // 本机实测：`idleChargeWhenNoDemand` 开着时全部空闲车都先进这条路径，6 个桩位之外
+            // 的 13–16 台就是这么"停在路边"的（本人截图里那条）。
             state.stage = "WAIT_CHARGING";
+            if (state.standbyPoint != null && !atStandbyPoint(state)) {
+                state.stage = "RETURNING_TO_STANDBY";
+                routeToTarget(vehicle, state, state.standbyPoint, "STANDBY");
+            }
             return;
         }
+        parkingFacilityService.releaseByVehicle(vehicle.getId());
         state.chargingPoint = reserved.get();
         state.stage = "TO_CHARGING";
         routeToTarget(vehicle, state, state.chargingPoint, "CHARGING");
@@ -1271,6 +1292,17 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             state.stage = "CHARGING";
             bindCharging(vehicle, state);
         }
+    }
+
+    /** 车是否已经停在它的待命点上（用来避免"每 tick 重规划一条零长度路线"）。 */
+    private boolean atStandbyPoint(SimulationMotionState state) {
+        if (state.standbyPoint == null || state.standbyPoint.getX() == null || state.lastX == null) {
+            return false;
+        }
+        boolean sameX = state.lastX.subtract(state.standbyPoint.getX()).abs().compareTo(POSITION_EPS) <= 0;
+        boolean sameY = state.lastY != null && state.standbyPoint.getY() != null
+                && state.lastY.subtract(state.standbyPoint.getY()).abs().compareTo(POSITION_EPS) <= 0;
+        return sameX && sameY;
     }
 
     private void ensureStandbyLocation(VehicleEntity vehicle, SimulationMotionState state) {
