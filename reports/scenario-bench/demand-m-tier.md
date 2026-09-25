@@ -18,9 +18,11 @@
 
 - 距离 = 直线欧氏距离 × detourFactor。**detourFactor 已从假设转实测**：对扩范围路网最大连通分量的 5486 个可通行点对跑最短路/直线距离，均值 1.481、中位 1.374、P90 1.946（`scripts/geo/osm_to_road_graph.py::detour_factor`，统计写在 seed 头部）。取均值 1.481，§1.1 原假设 1.3 相当于中位数
 - 均速 avgSpeedKmh = 17.84，来自 seed 头部 speed_weighted_avg_kmh（按边长加权的限速均值）。裁掉提取框外的路之后从 16.42 升到 17.84 —— 框外多是低速 service 路。仍是单一常数，不分路段等级
-- 场景范围 1613 × 500 m = **现役** 5 个派单围栏的外接框（§0.1 实测）。M 档目标范围 1.35 km² 要等 §1.8 那 4 个站点落地后才能进库，届时必须重跑本表
+- 场景范围 1613 × 500 m = **现役**派单围栏的外接框（§0.1 实测）。这不是 §1.12 的规划范围（近场 L1 2.19 km² + 三条干线走廊 ≈11.0 km²）：原述的"M 档目标范围 1.35 km²"已作废（实测并集只有 0.992 km²，§13.71），而 L1/干线的点位要等走廊 OSM 重提取 + 吸附后才能进库，**届时必须重跑本表**（§1.12 落地顺序第④步）
 - 服务时长固定 serviceSeconds（取 §0.2 实测装货 210 s + 卸货 264 s 之和 474 s），不含排队与人工干预
-- 充电线性（默认）：一次补能的时长 = 实测 1800 s ×（chargeCompleteSoc 90 − 当前 SOC）/（90 − 20），充到 90% 即恢复派单（三个阈值与 FleetEnergyProperties 同值）。回桩位移**默认不计**（chargeLayout 为空 = 原地瞬间开充，历史基线口径）；给了布局就按路网单程计入空驶与耗电，车落点移到该桩位所在点
+- 能耗 busyDrainMetersPerPercent = **1,800 m/1% SOC**（= 真车新石器 L4 满载 ≈180 km ÷ 100%，本人于 2026-09-23 提供的规格，与 FleetEnergyProperties 默认值一致）。**旧默认 150 m/1%（满电 15 km）低 12 倍，是 §13.72 撤掉那批产能/桩数结论的根因**；180 km 本身是"满载"保守值（标称 200 km ⇒ 2,000 m/1%），没扣温度与载重折损，所以它是**规格折算不是标定**，扰动带见 energy-sensitivity 那张扫描表
+- 充电时长 chargeSeconds = **7,200 s / 次**（真车一次约 2 h，本人提供）。字段语义是"补满一个 SOC 工作带（20→90，70 个点）"的时长，把整笔 2 h 摊给这 70 个点 —— 这是 §1.1-b 的保守折算口径，比"按 0→100 比例折算（5,040 s）"悲观 30%。真车充电曲线无实测数据（§0.2），**假设，非标定**；库里 ZJF-CHG-01 的 avg_service_seconds 仍是仿真时代的 1,800 s，两套口径并存的收口挂在 §10.2 第 3 问
+- 充电线性（默认）：一次补能的时长 = chargeSeconds ×（chargeCompleteSoc 90 − 当前 SOC）/（90 − 20），充到 90% 即恢复派单（三个阈值与 FleetEnergyProperties 同值）。回桩位移**默认不计**（chargeLayout 为空 = 原地瞬间开充，历史基线口径）；给了布局就按路网单程计入空驶与耗电，车落点移到该桩位所在点
 - 充电曲线形状是**情景参数不是拟合**（Config.chargeCurve）：拐点与倍率都没有真车数据支撑（§0.2：仓库里没有真车真充电记录），所以只用它做敏感性扫描并给扰动带，不得称"充电模型"。默认 LINEAR 与历史逐字相同
 - 补能点位只有 5 个站址是实测坐标（t_station GCJ 换米）。**库里 6 根桩 CP1..CP6 全挂在 ZJF-CHG-01 上且六个车位坐标逐字相同**，所以"选近桩"在现役设施下无从谈起 —— spreadSixOverFiveStations 那一臂是 §1.8 的情景假设（把同样 6 根桩摊到 5 个站址），不是现状；桩位在各点间的 2/1/1/1/1 分配同样是假设
 - 补能时机用三档策略枚举（Config.chargeTiming），语义逐条对齐生产：NEVER = 只在必充阈值以下回桩；OPPORTUNISTIC = 现状 idleChargeWhenNoDemand=true（本 tick 无落空单就顺势补、只抢空桩不排队）；DEFER_UNDER_PRESSURE = 错峰推迟（近 pressureWindowTicks 个 tick 累计落单数达到 pressureDeferOrders 时连顺势补也推迟，但必充档不推迟 —— 同 shouldDeferReturnToCharge 的安全兜底）。注意：真实链路的高峰信号是 t_energy_forecast.pressure_p95 而不是 peak mode（§7.2 实测 peak cron 为 NULL）
