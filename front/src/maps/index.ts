@@ -30,18 +30,13 @@ export {
   haversineMeters,
   polylineLengthMeters,
 } from './geoDistance'
-export { defaultMapCenter, parkXYToGcj02, TEXTILE_PARK_GEO } from './textileParkGeo'
+export { defaultMapCenter, TEXTILE_PARK_GEO } from './textileParkGeo'
 export { toAvGeoMarker, resolveAvMapStatus, avMapIconUrl } from './vehicleMapIcon'
-export { ZJF_PILOT_GEO, ZJF_L0_COVERAGE, ZJF_FLEET_STATS } from './zjfPilotGeo'
+export { ZJF_PILOT_GEO, ZJF_L0_COVERAGE } from './zjfPilotGeo'
 export {
-  ZJF_STATION_ANCHORS,
-  ZJF_BASE_ANCHOR,
   ZJF_BASE_GEO_RADIUS_METERS,
-  isInsideZjfBase,
-  ZJF_ROAD_CORRIDORS,
   ZJF_DELIVERY_ZONES,
-  type ZjfStationAnchor,
-  type ZjfStationRole,
+  ZJF_REAL_WORLD_REFERENCE,
   type ZjfDeliveryZone,
 } from './zjfStationAnchors'
 export {
@@ -51,8 +46,6 @@ export {
   filterGeoDeliveryStations,
   filterMobileOrderStations,
   filterSchematicOrderStations,
-  filterStationsByDeliveryZone,
-  filterVehiclesByDeliveryZone,
   findMobileOrderStation,
   orderableStationsForMode,
   syncDefaultOrderStations,
@@ -68,24 +61,38 @@ export {
   isSchematicParkOrder,
   isSchematicParkStation,
   isZjfDispatchOnlyStation,
+  isAutoGeoEndpointStation,
+  isEnergyFacilityStation,
+  mobileEnergyFacilityStations,
   mobileOrderStationGroup,
   MOBILE_ORDER_STATION_GROUP_LABELS,
   workbenchStationColor,
   workbenchStationRole,
-  ZJF_ORDERABLE_STATION_COUNT,
-  SCHEMATIC_ORDERABLE_STATION_COUNT,
 } from './stationLayers'
 export {
   buildGeofencePolygons,
   buildGeoPolylines,
-  buildL0CoverageCircles,
+  L0_COVERAGE_CIRCLES,
+  MOBILE_SERVICE_FENCE_PREFIX,
   buildStationGeoMarkers,
   buildOperationalStationMarkers,
   buildVehicleGeoMarkers,
   markerColor,
   orderColor,
+  shortVehicleCode,
   collectRouteFitPoints,
   pilotMapCenter,
   stationGeoPosition,
   vehicleGeoPosition,
+  isVehiclePositionUnknown,
+  countVehiclesWithUnknownPosition,
+  splitVehiclesByBasePresence,
+  aggregateMarkersByPosition,
+  shouldAggregateMarkers,
+  isInsideBase,
+  basePositionFromStations,
+  ZJF_BASE_STATION_CODE,
+  ZJF_BASE_CHARGE_STATION_CODE,
+  MAP_SCALE_TIERS,
+  MARKER_BUDGET,
 } from './parkGeoMapLayers'

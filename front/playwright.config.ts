@@ -2,7 +2,6 @@ import { defineConfig, devices } from '@playwright/test'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const AUTH_FILE = resolve(dirname(fileURLToPath(import.meta.url)), 'scripts/perf/.auth/admin.json')
 const isE2E = process.argv.some(arg => arg.includes('scripts/e2e')) || process.env.npm_lifecycle_event === 'test:e2e'
 
 export default defineConfig({
@@ -16,7 +15,7 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
-    storageState: isE2E ? undefined : AUTH_FILE,
+    // 不给 storageState：perf 的登录态是 sessionStorage，由 scripts/perf/session.ts 注入
     trace: 'off',
     serviceWorkers: 'block',
     screenshot: 'off',

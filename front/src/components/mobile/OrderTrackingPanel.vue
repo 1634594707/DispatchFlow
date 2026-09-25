@@ -70,6 +70,35 @@
           >大屏跟车 →</router-link
         >
       </div>
+
+      <!--
+        图层读数（§4 T2-a/T2-c）。marker 画在高德 canvas 上、DOM 里数不到，所以这行既是给讲解用的
+        "图上有几只什么"，也是 e2e 的计数钩子（data-* 就是传给地图图层的 marker 数）。
+        ⚠ "位置未知"必须显式报出来：那是接口没给真经纬度的车 —— 不画点（也不许拿像素 x/y 换算，
+        §7.5 逐行契约），但更不能静默消失："少画 3 台"和"今天就 17 台"在页面上得长得不一样。
+      -->
+      <div
+        v-if="layerSummary"
+        class="map-legend"
+        data-testid="tracking-map-legend"
+        :data-vehicle-markers="layerSummary.vehicles"
+        :data-position-unknown="layerSummary.positionUnknown"
+        :data-swap-markers="layerSummary.swap"
+        :data-charging-markers="layerSummary.charging"
+        :data-facility-points="layerSummary.facilityPoints"
+        :data-fence-flash="fenceFlash ? 'on' : 'off'"
+      >
+        <span class="legend-item vehicles">车队 {{ layerSummary.vehicles }} 台</span>
+        <span v-if="layerSummary.positionUnknown > 0" class="legend-item warn">
+          {{ layerSummary.positionUnknown }} 台位置未知
+        </span>
+        <span v-if="layerSummary.facilityPoints > 0" class="legend-item swap">
+          补能点 {{ layerSummary.facilityPoints }} 处
+        </span>
+      </div>
+
+      <!-- 对外规格（§4 T2-d）：静态文案，`t_vehicle` 没有续航/容量列，见 constants/vehicleSpec.ts -->
+      <p v-if="vehicleSpec" class="vehicle-spec" data-testid="vehicle-spec">{{ vehicleSpec }}</p>
     </div>
 
     <div v-if="order.estimatedArrivalTime" class="eta-info">
@@ -126,6 +155,15 @@ import { parkDeliveryStageLabel } from '@/constants/parkDelivery'
 import type { GeoMapMarker, GeoMapPolygon, GeoMapPolyline } from '@/maps/types'
 import type { ParkLayout, ParkOrderSnapshot, ParkStation, ParkVehicleSnapshot } from '@/types/park'
 
+/** 传给地图图层的 marker 计数（§4 T2-a/T2-c）：由页面算好，面板只负责把这行读数画出来。 */
+interface TrackingLayerSummary {
+  vehicles: number
+  positionUnknown: number
+  swap: number
+  charging: number
+  facilityPoints: number
+}
+
 const props = defineProps<{
   order: ParkOrderSnapshot
   activeOrders: ParkOrderSnapshot[]
@@ -143,6 +181,12 @@ const props = defineProps<{
   remainingLabel?: string | null
   lastUpdatedLabel?: string | null
   connectionStale?: boolean
+  /** 传给地图图层的 marker 计数（§4 T2-a/T2-c），缺省则不画这行读数。 */
+  layerSummary?: TrackingLayerSummary | null
+  /** 车辆对外规格文案（§4 T2-d）。 */
+  vehicleSpec?: string | null
+  /** 围栏描边正在闪（§4 T2-f）：只作为 data 属性透出，样式在图层侧。 */
+  fenceFlash?: boolean
 }>()
 
 defineEmits<{
@@ -463,6 +507,56 @@ function formatTime(time: string): string {
   justify-content: space-between;
   gap: 10px;
   margin-top: 12px;
+}
+
+/* 图层读数：点的颜色对齐 `stationLayers.ts` 的角色色，图例和地图图标才是同一件事。 */
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-sm);
+  background: var(--fsd-bg-deep);
+  color: var(--fsd-text-secondary);
+  font-family: var(--fsd-font-mono);
+  font-size: 10px;
+  font-weight: var(--fsd-font-medium);
+
+  &::before {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--fsd-radius-full);
+    background: currentColor;
+    content: '';
+  }
+}
+
+.legend-item.vehicles {
+  color: var(--fsd-accent);
+}
+
+.legend-item.warn {
+  border-color: rgba(194, 148, 64, 0.4);
+  color: var(--fsd-warning);
+}
+
+.legend-item.swap {
+  color: #ff6b35;
+}
+
+.vehicle-spec {
+  margin: 10px 0 0;
+  color: var(--fsd-text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0;
 }
 
 .eta-pill {

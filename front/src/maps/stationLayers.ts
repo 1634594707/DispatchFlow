@@ -8,7 +8,7 @@ export function isGeoDeliveryStation(station: Pick<ParkStation, 'area' | 'statio
   return (station.stationCode ?? '').startsWith('ZJF-')
 }
 
-/** 园区内部调度站点（仅 schematic Tab · park-map.svg） */
+/** 园区调度站点（仅 schematic Tab · park-map.svg） */
 export function isSchematicParkStation(station: Pick<ParkStation, 'area' | 'stationCode'>): boolean {
   return !isGeoDeliveryStation(station)
 }
@@ -55,100 +55,119 @@ export function filterGeoDeliveryOrders(orders: ParkOrderSnapshot[]): ParkOrderS
   return orders.filter(isGeoDeliveryOrder)
 }
 
-/**
- * 按配送区域过滤车辆
- * - deliveryZone 为 'BOTH' 或缺失时，所有模式均可见
- * - zone='geo' 仅保留 'GEO_DELIVERY' 车辆（'BOTH' 通用）
- * - zone='schematic' 仅保留 'SCHEMATIC' 车辆（'BOTH' 通用）
- */
-export function filterVehiclesByDeliveryZone(
-  vehicles: ParkVehicleSnapshot[],
-  zone: 'geo' | 'schematic',
-): ParkVehicleSnapshot[] {
-  return vehicles.filter(vehicle => {
-    const vehicleZone = vehicle.deliveryZone || 'BOTH'
-    if (vehicleZone === 'BOTH') return true
-    return zone === 'geo'
-      ? vehicleZone === 'GEO_DELIVERY'
-      : vehicleZone === 'SCHEMATIC'
-  })
-}
-
-/**
- * 按配送区域过滤站点
- * - deliveryZone 为 'GENERAL' 或缺失时，所有模式均可见
- * - zone='geo' 仅保留 'GEO_DELIVERY' 站点（'GENERAL' 通用）
- * - zone='schematic' 仅保留 'SCHEMATIC' 站点（'GENERAL' 通用）
- */
-export function filterStationsByDeliveryZone(
-  stations: ParkStation[],
-  zone: 'geo' | 'schematic',
-): ParkStation[] {
-  return stations.filter(station => {
-    const stationZone = station.deliveryZone || 'GENERAL'
-    if (stationZone === 'GENERAL') return true
-    return zone === 'geo'
-      ? stationZone === 'GEO_DELIVERY'
-      : stationZone === 'SCHEMATIC'
-  })
-}
-
 /** 仅调度/回充 · 不可移动下单 · 默认不在工作台态势图层 */
 export function isZjfDispatchOnlyStation(station: Pick<ParkStation, 'stationCode'>): boolean {
   const code = station.stationCode ?? ''
   return code === 'ZJF-IDLE-01' || code.startsWith('ZJF-CHG-')
 }
 
-/** 移动下单 / 典型线路：8 个可下单 ZJF 站（排除 CHG/IDLE） */
-export function filterMobileOrderStations(stations: ParkStation[]): ParkStation[] {
-  return filterGeoDeliveryStations(stations).filter(station => !isZjfDispatchOnlyStation(station))
+/** 任意点下单自动落点（V64 `GEO-<节点>`）：不是人工作业点，不该出现在下单站点下拉里。 */
+export function isAutoGeoEndpointStation(
+  station: Pick<ParkStation, 'stationCode' | 'stationType'>,
+): boolean {
+  return station.stationType === 'GEO_POINT' || (station.stationCode ?? '').startsWith('GEO-')
 }
 
-/** 园区内部示意下单：A/B 区厂内站 */
+/** 补能设施（充电桩 / 换电柜）：是车去的地方，不是货去的地方。
+ *  `t_station` 里它们和作业点同表，只按 status/前缀过滤会漏 —— 35 个 `FSD-SWAP-*`
+ *  一旦进下单下拉，用户就能把"取货点"选成一个电池柜。 */
+export function isEnergyFacilityStation(
+  station: Pick<ParkStation, 'stationCode' | 'stationType'>,
+): boolean {
+  return station.stationType === 'SWAP_CABINET'
+    || station.stationType === 'CHARGING_STATION'
+    || (station.stationCode ?? '').startsWith('ZJF-CHG-')
+    || (station.stationCode ?? '').startsWith('FSD-SWAP-')
+}
+
+/** 移动下单 / 典型线路：地图上能作为**货的起终点**的 ZJF 站（排除补能/待命、自动落点）。
+ *  ⚠ 数量取决于库里当前启停了哪些站 ⇒ 要个数就现算 `.length`，别在别处写常数。 */
+export function filterMobileOrderStations(stations: ParkStation[]): ParkStation[] {
+  return filterGeoDeliveryStations(stations).filter(
+    (station) =>
+      !isZjfDispatchOnlyStation(station)
+      && !isAutoGeoEndpointStation(station)
+      && !isEnergyFacilityStation(station),
+  )
+}
+
+/** 园区示意地图下单：A/B 区厂内站 */
 export function filterSchematicOrderStations(stations: ParkStation[]): ParkStation[] {
   return filterSchematicStations(stations).filter(station => /^[AB][1-4]$/.test(station.stationCode ?? ''))
 }
-
-export const SCHEMATIC_ORDERABLE_STATION_COUNT = 8
 
 export function orderableStationsForMode(stations: ParkStation[], mode: 'geo' | 'schematic'): ParkStation[] {
   return mode === 'schematic' ? filterSchematicOrderStations(stations) : filterMobileOrderStations(stations)
 }
 
-export const ZJF_ORDERABLE_STATION_COUNT = 8
-
 export interface WorkbenchSituationFilterOptions {
   showIdle?: boolean
   showCharging?: boolean
+  /** 换电柜默认就画：它们是"车去哪儿补能"的主答案，藏起来地图上就只剩发货点。 */
+  showSwap?: boolean
 }
 
-/** 工作台园区态势：默认 8 运营站；可选待命点 / 充电站 */
+/** 工作台园区态势：可下单作业站 + 按需叠加的设施（待命点 / 充电桩 / 换电柜）。
+ *  ⚠ 设施按 **stationType** 选，不再写死 `ZJF-CHG-01` —— 写死一个码意味着"库里新增多少
+ *     充电桩和换电柜都不会出现在图上"，而 `FSD-SWAP-*` 那 35 个正是这样被吞掉的。 */
 export function filterWorkbenchSituationStations(
   stations: ParkStation[],
   options: WorkbenchSituationFilterOptions = {},
 ): ParkStation[] {
   const orderable = filterMobileOrderStations(stations)
+  const geo = filterGeoDeliveryStations(stations)
   const extras: ParkStation[] = []
-  if (options.showIdle || options.showCharging) {
-    extras.push(
-      ...filterGeoDeliveryStations(stations).filter(
-        (station) => station.stationCode === 'ZJF-CHG-01',
-      ),
-    )
+  if (options.showIdle) {
+    extras.push(...geo.filter((station) => station.stationCode === 'ZJF-IDLE-01'))
+  }
+  if (options.showCharging) {
+    extras.push(...geo.filter((station) => station.stationType === 'CHARGING_STATION'))
+  }
+  if (options.showSwap !== false) {
+    extras.push(...geo.filter((station) => station.stationType === 'SWAP_CABINET'))
   }
   return [...orderable, ...extras]
 }
 
-export type WorkbenchStationRole = 'pickup' | 'dropoff' | 'express' | 'idle' | 'charging'
+/** 移动端追踪图的补能图层（§4 T2-c）：只挑"车去补能的地方"，绝不参与下单端点选择。
+ *  ⚠ 只用于**画图**：下单下拉走 `filterMobileOrderStations()`，两者不许共用出口。 */
+export function mobileEnergyFacilityStations(stations: ParkStation[]): ParkStation[] {
+  const facilities = filterWorkbenchSituationStations(stations, { showCharging: true }).filter(
+    isEnergyFacilityStation,
+  )
+  // 柜排在桩前：`aggregateMarkersByPosition` 取组内第一个成员当徽标代表，而本机实测
+  // （2026-09-25 活库 46 站）6 根 `FSD-CHG-*` 与 `FSD-SWAP-01..06` 是**同一个坐标**——
+  // 谁在前决定那 6 个点画成"柜"还是"桩"。移动端的口径是 35 个柜（T2-c 闸门：柜 marker 数
+  // = 接口返回的 SWAP_CABINET 数），所以让柜当代表，桩仍在徽标的 `aggregatedLabels` 里。
+  return [
+    ...facilities.filter((station) => station.stationType === 'SWAP_CABINET'),
+    ...facilities.filter((station) => station.stationType !== 'SWAP_CABINET'),
+  ]
+}
 
-export function workbenchStationRole(station: Pick<ParkStation, 'stationCode'>): WorkbenchStationRole {
+export type WorkbenchStationRole =
+  | 'pickup' | 'dropoff' | 'express' | 'idle' | 'charging' | 'swap' | 'warehouse'
+
+/** 角色优先按 **stationType** 判，编码前缀只留给没有类型的历史站/示意站兜底。
+ *  ⚠ 原来纯按前缀判 + "不是 A 开头就当 dropoff" 的兜底，会把 `FSD-SWAP-01` 画成**送货点**。 */
+export function workbenchStationRole(
+  station: Pick<ParkStation, 'stationCode' | 'stationType'>,
+): WorkbenchStationRole {
+  switch (station.stationType) {
+    case 'SWAP_CABINET': return 'swap'
+    case 'CHARGING_STATION': return 'charging'
+    case 'MOTHERSHIP':
+    case 'HUB': return 'warehouse'
+    case 'GEO_POINT': return 'dropoff'
+    default: break
+  }
   const code = station.stationCode ?? ''
   if (code.startsWith('ZJF-PICK-')) return 'pickup'
   if (code.startsWith('ZJF-DROP-')) return 'dropoff'
   if (code.startsWith('ZJF-EXPRESS-')) return 'express'
   if (code.startsWith('ZJF-CHG-')) return 'charging'
   if (code === 'ZJF-IDLE-01') return 'idle'
-  return station.stationCode?.startsWith('A') ? 'pickup' : 'dropoff'
+  return code.startsWith('A') ? 'pickup' : 'dropoff'
 }
 
 const WORKBENCH_STATION_COLORS: Record<WorkbenchStationRole, string> = {
@@ -157,9 +176,13 @@ const WORKBENCH_STATION_COLORS: Record<WorkbenchStationRole, string> = {
   express: '#2DE08A',
   idle: '#9BA8B8',
   charging: '#9d4edd',
+  swap: '#ff6b35',
+  warehouse: '#4cc9f0',
 }
 
-export function workbenchStationColor(station: Pick<ParkStation, 'stationCode' | 'area'>): string {
+export function workbenchStationColor(
+  station: Pick<ParkStation, 'stationCode' | 'stationType' | 'area'>,
+): string {
   return WORKBENCH_STATION_COLORS[workbenchStationRole(station)]
 }
 

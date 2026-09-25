@@ -75,6 +75,9 @@
                   <span class="mono">{{ vdaTopicPrefix(store.detail) }}</span>
                 </a-descriptions-item>
               </template>
+              <a-descriptions-item label="对外规格" :span="2">
+                {{ PILOT_VEHICLE_SPEC }}
+              </a-descriptions-item>
               <a-descriptions-item label="备注">
                 {{ store.detail.remark || '-' }}
               </a-descriptions-item>
@@ -367,6 +370,7 @@ import { useVehicleStore } from '@/stores/vehicle'
 import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { fetchVehicleOperateLogs } from '@/api/operateLog'
+import { PILOT_VEHICLE_SPEC } from '@/constants/vehicleSpec'
 import {
   updateVehicle,
   fetchVehicleCredentials,

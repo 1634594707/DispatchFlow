@@ -27,7 +27,7 @@
           :disabled="submitting"
           @click="$emit('quickFill')"
         >
-          <ThunderboltOutlined />推荐线路
+          <ThunderboltOutlined />默认取货点
         </button>
       </div>
 
@@ -50,66 +50,57 @@
           /></span>
           <div class="address-fields">
             <a-form-item label="从哪里取货">
-              <a-select
-                :value="pickupStationId"
-                placeholder="选择取货服务点"
+              <OrderEndpointInput
+                :model-value="pickupEndpoint"
+                :groups="pickupGroups"
+                title="取货点"
+                test-id="pickup"
                 size="large"
-                popup-class-name="mobile-order-select-dropdown"
-                :loading="loadingStations"
-                show-search
-                option-filter-prop="label"
-                @update:value="onPickupChange"
-              >
-                <a-select-opt-group
-                  v-for="group in pickupGroups"
-                  :key="group.label"
-                  :label="group.label"
-                >
-                  <a-select-option
-                    v-for="opt in group.options"
-                    :key="opt.value"
-                    :value="opt.value"
-                    :label="opt.label"
-                  >
-                    {{ opt.label }}
-                  </a-select-option>
-                </a-select-opt-group>
-              </a-select>
+                :disabled="submitting"
+                :loading-stations="loadingStations"
+                station-placeholder="选择取货服务点"
+                :map-center="mapCenter"
+                @update:model-value="$emit('update:pickupEndpoint', $event)"
+              />
             </a-form-item>
 
             <a-form-item label="送到哪里">
-              <a-select
-                :value="dropoffStationId"
-                placeholder="选择送货服务点"
+              <OrderEndpointInput
+                :model-value="dropoffEndpoint"
+                :groups="dropoffGroups"
+                title="送货点"
+                test-id="dropoff"
                 size="large"
-                popup-class-name="mobile-order-select-dropdown"
-                :loading="loadingStations"
-                show-search
-                option-filter-prop="label"
-                @update:value="onDropoffChange"
-              >
-                <a-select-opt-group
-                  v-for="group in dropoffGroups"
-                  :key="group.label"
-                  :label="group.label"
-                >
-                  <a-select-option
-                    v-for="opt in group.options"
-                    :key="opt.value"
-                    :value="opt.value"
-                    :label="opt.label"
-                  >
-                    {{ opt.label }}
-                  </a-select-option>
-                </a-select-opt-group>
-              </a-select>
+                default-mode="coord"
+                :disabled="submitting"
+                :loading-stations="loadingStations"
+                station-placeholder="选择送货服务点"
+                :map-center="mapCenter"
+                @update:model-value="$emit('update:dropoffEndpoint', $event)"
+              />
             </a-form-item>
           </div>
-          <button type="button" class="swap-btn" title="交换取送货点" @click="swapStations">
+          <button type="button" class="swap-btn" title="交换取送货点" @click="swapEndpoints">
             <SwapOutlined />
           </button>
         </div>
       </a-form>
+
+      <div
+        v-if="rejection"
+        class="reject-note"
+        role="alert"
+        data-testid="order-rejection"
+        :data-code="rejection.code"
+      >
+        <strong>{{ rejection.headline }}</strong>
+        <span>{{ rejection.detail }}</span>
+        <!-- 吸附失败/围栏外这两类给"下一步去哪选点"的引导（§4 T2-f），其余原因不引导。 -->
+        <strong v-if="rejection.guidance" class="reject-guidance" data-testid="order-rejection-guidance">
+          {{ rejection.guidance }}
+        </strong>
+        <em>系统不会自动换成最近的服务点，请改一个范围内的位置或换用服务点下单。</em>
+      </div>
 
       <div class="route-preview">
         <span class="preview-station">{{ pickupPreview }}</span>
@@ -173,28 +164,6 @@
       </div>
     </section>
 
-    <section v-if="demoRoutes.length" class="order-section common-routes">
-      <div class="section-head">
-        <span class="section-title">常用路线</span>
-      </div>
-      <div class="route-cards">
-        <button
-          v-for="route in demoRoutes"
-          :key="route.label"
-          type="button"
-          class="route-card"
-          :disabled="submitting"
-          @click="$emit('submitDemo', route)"
-        >
-          <span class="route-card-main">
-            <strong class="route-label">{{ route.label }}</strong>
-            <span class="route-codes">{{ route.pickupCode }} → {{ route.dropoffCode }}</span>
-          </span>
-          <span class="route-action">一键下单</span>
-        </button>
-      </div>
-    </section>
-
     <footer class="submit-bar">
       <div class="submit-summary">
         <span class="summary-route">{{ pickupPreview }} → {{ dropoffPreview }}</span>
@@ -220,15 +189,12 @@ import {
   SwapOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons-vue'
+import OrderEndpointInput from '@/components/order/OrderEndpointInput.vue'
 import type { MobileOrderMode } from '@/constants/parkDelivery'
+import { endpointSummary } from '@/constants/orderEndpoints'
+import type { OrderRejection } from '@/constants/orderEndpoints'
 import { buildGroupedMobileStationOptions, orderableStationsForMode } from '@/maps/stationLayers'
-import type { ParkStation } from '@/types/park'
-
-export interface DemoRoutePreset {
-  label: string
-  pickupCode: string
-  dropoffCode: string
-}
+import type { ParkOrderEndpoint, ParkStation } from '@/types/park'
 
 const props = defineProps<{
   stations: ParkStation[]
@@ -237,9 +203,9 @@ const props = defineProps<{
   parkName: string
   parkId?: number
   orderMode: MobileOrderMode
-  demoRoutes: readonly DemoRoutePreset[]
-  pickupStationId?: number
-  dropoffStationId?: number
+  pickupEndpoint: ParkOrderEndpoint | null
+  dropoffEndpoint: ParkOrderEndpoint | null
+  rejection?: OrderRejection | null
   priority: string
   orderPriority: 'HIGH' | 'NORMAL' | 'LOW'
   weight?: number | null
@@ -248,15 +214,15 @@ const props = defineProps<{
   loadingStations?: boolean
   hasTrackedOrder?: boolean
   parkOptions?: { value: number; label: string }[]
+  mapCenter?: [number, number]
 }>()
 
 const emit = defineEmits<{
-  submitDemo: [route: DemoRoutePreset]
   submitCustom: []
   quickFill: []
   'update:parkId': [value: number]
-  'update:pickupStationId': [value: number]
-  'update:dropoffStationId': [value: number]
+  'update:pickupEndpoint': [value: ParkOrderEndpoint | null]
+  'update:dropoffEndpoint': [value: ParkOrderEndpoint | null]
   'update:weight': [value: number | undefined]
   'update:remark': [value: string]
 }>()
@@ -265,18 +231,13 @@ function onParkChange(value: number) {
   emit('update:parkId', value)
 }
 
-function onPickupChange(value: number) {
-  emit('update:pickupStationId', value)
-}
-
-function onDropoffChange(value: number) {
-  emit('update:dropoffStationId', value)
-}
-
-function swapStations() {
-  if (props.pickupStationId == null || props.dropoffStationId == null) return
-  emit('update:pickupStationId', props.dropoffStationId)
-  emit('update:dropoffStationId', props.pickupStationId)
+/** 交换取送：端点整体交换，坐标端与站点端可以互换（ kinds 跟着值走）。 */
+function swapEndpoints() {
+  const pickup = props.pickupEndpoint
+  const dropoff = props.dropoffEndpoint
+  if (!pickup || !dropoff) return
+  emit('update:pickupEndpoint', dropoff)
+  emit('update:dropoffEndpoint', pickup)
 }
 
 function onRemarkChange(value: string) {
@@ -322,6 +283,11 @@ function enableCustomWeight() {
 
 const orderableStations = computed(() => orderableStationsForMode(props.stations, props.orderMode))
 
+/** 只有取货端也是登记站点时才要去重；坐标端没有 stationId，排除不了也不该排除。 */
+const pickupStationIdForExclusion = computed(() =>
+  props.pickupEndpoint?.kind === 'station' ? props.pickupEndpoint.stationId : null,
+)
+
 const pickupGroups = computed(() =>
   buildGroupedMobileStationOptions(orderableStations.value, { mode: props.orderMode }),
 )
@@ -329,19 +295,13 @@ const pickupGroups = computed(() =>
 const dropoffGroups = computed(() =>
   buildGroupedMobileStationOptions(orderableStations.value, {
     mode: props.orderMode,
-    excludeStationId: props.pickupStationId ?? null,
+    excludeStationId: pickupStationIdForExclusion.value,
   }),
 )
 
-const pickupPreview = computed(() => {
-  const station = orderableStations.value.find((item) => item.stationId === props.pickupStationId)
-  return station?.stationCode ?? '--'
-})
+const pickupPreview = computed(() => endpointSummary(props.pickupEndpoint, props.stations))
 
-const dropoffPreview = computed(() => {
-  const station = orderableStations.value.find((item) => item.stationId === props.dropoffStationId)
-  return station?.stationCode ?? '--'
-})
+const dropoffPreview = computed(() => endpointSummary(props.dropoffEndpoint, props.stations))
 </script>
 
 <style scoped lang="less">
@@ -731,6 +691,44 @@ const dropoffPreview = computed(() => {
   color: var(--fsd-warning);
   font-weight: var(--fsd-font-bold);
   font-size: 16px;
+}
+
+/* ── 拒单原因（必须常驻，不能只是一个飘过的 toast） ── */
+.reject-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(196, 88, 104, 0.4);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: rgba(196, 88, 104, 0.08);
+
+  strong {
+    color: var(--fsd-error);
+    font-size: var(--fsd-text-sm);
+    font-weight: var(--fsd-font-semibold);
+  }
+
+  /* 引导语不是错误，是"下一步"：用强调色而不是又一个红。 */
+  .reject-guidance {
+    color: var(--fsd-accent-strong);
+    font-size: 11px;
+  }
+
+  span {
+    color: var(--fsd-text-secondary);
+    font-family: var(--fsd-font-mono);
+    font-size: 11px;
+    word-break: break-all;
+  }
+
+  em {
+    color: var(--fsd-text-tertiary);
+    font-size: 11px;
+    font-style: normal;
+  }
 }
 
 /* ── 规格选择块（配重 / 优先级） ── */
