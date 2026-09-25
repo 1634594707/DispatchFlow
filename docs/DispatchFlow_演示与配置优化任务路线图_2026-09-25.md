@@ -237,7 +237,7 @@ M3 ──┘   M4 独立，可插队
 | --- | --- | --- |
 | 0 | 起服务前把 20 台车电量拉高：`UPDATE t_vehicle SET battery_level=95 WHERE vehicle_code LIKE 'ZJF-AV-%';`（**注意：`ensurePilotFleet` 只在首次创建时随机 80–100，重启不满电**——更正上午方案里该说法） | `SELECT MIN(battery_level) ...` ≥90 |
 | 1 | 移动端在服务区中心点下单（预存常用点） | 30 s 内接单，无拒单块 |
-| 2 | 追踪页：看全部车 + 指派车高亮 + 围栏单线 | 截图目视 |
+| 2 | 追踪页：看全部车 + 指派车高亮 + 围栏单线 | 截图目视 ⇒ 已落档 [`docs/assets/demo-tracking-map-500ms.png`](assets/demo-tracking-map-500ms.png)（430×1080，tick=500 演示档；同屏计数器 `vehicleMarkers=20 / swapMarkers=35 / positionUnknown=0`）。⚠ 图里能看到**marker 标签是深色字压深色底**，见 §12.2 |
 | 3 | 挑一台车跑到 <30%（等 T1-b 生效的车或手动 UPDATE 压低） | 该车回补、换电、回场全程 ≤90 s 墙钟 |
 | 4 | 演示中翻车预案：吸附失败 → 现场改点选常用服务点；地图加载失败 → 手输经纬度兜底（已实现） | 兜底路径各演练 1 次 |
 | 5 | 记录：全程墙钟时长、各段耗时，回填本文档 | 数字进表 |
@@ -355,6 +355,45 @@ M3 ──┘   M4 独立，可插队
 `.env` mtime 仍是 2026-09-24 22:13（未被覆盖）；`deploy.sh` 新探针输出 `[OK] 后端健康：{"status":"UP"}`；
 线上产物 `ParkOrder-DjWaQXKs.js` 含 `tracking-map-legend`＋规格文案、`ParkOverview-B3BVd-JK.js` 含"数据已停止更新"；
 容器 `FSD_PARK_SIMULATION_TICK_INTERVAL_MS=500`、重启后后端日志 ERROR/Exception **0 行**、站点与移动页均 200。
+
+## §12 本轮追加的两件事（不在原 M0–M5 清单内）
+
+### 12.1 「园区调度」示意场景连根拔（本人 2026-09-25 追加指令）
+
+**为什么该删**：对着活库数过——`PARK-*` 仿真车 **0 台**、`^[AB][1-4]$` 示意站 **0 个**，
+所以移动端与 PC 大屏各留着一个"点了是空图 + 空下拉"的场景开关；
+更糟的是 `config/index.ts` 里 `DEFAULT_TRACKING_SCENE = 'park'` ⇒ **车辆监控大屏默认打开的就是那张空园区图**。
+
+**删了什么**：`front/public/park-map.svg`、`MobileOrderMode` 及其持久化、`Tracking.vue` 的 Leaflet 示意画布与
+`L.imageOverlay`（该文件净减 804 行）、`stationLayers` 的 `isSchematic*`/`filterSchematic*`/`orderableStationsForMode`、
+`OrderTrackingPanel` 的示意图分支，以及 `ParkMiniMap.vue`（grep 全站**零引用**，早已是死组件）。
+合计 19 文件 **+86 / −1747**。历史订单按本人裁定不做兼容。
+
+**没动**：能量设施与 `GEO-` 自动落点绝不进下单下拉那组不变量、`filterWorkbenchSituationStations`、
+`workbenchStationRole` 的类型优先判定、逐行坐标契约。剩余 `schematic` 命中全是解释性注释
+（`api/park.ts` 的坐标互转接口仍被基础设施选点用着，不属于这个场景）。
+
+**验证**：`vue-tsc` 干净；lint 0 error / 47 warning（上限 50）；`npm run build` 成功；
+`npx playwright test scripts/e2e` 全量 **63 passed**（与删除前同数）；
+两条被改 spec 的 `test()`/`expect()` 逐个比对 12/12、8/8、36/36、29/29 ⇒ 是改判据不是删断言。
+CI 在 `bcfa1a4` 三项全绿；第三轮部署后容器内 `find / -name park-map.svg` 为空、
+`/usr/share/nginx/html/assets/*.js` 无 `park-map` 引用。
+
+> 排查这条时踩到一个**仪表假信号**：`curl https://aplicity.online/park-map.svg` 返回 200 且
+> `Content-Type: image/svg+xml`、正文是旧图 —— 看着像"没删干净"。实际本机 curl 走的是环境里的 HTTP 代理缓存；
+> 直连容器 `127.0.0.1:8081` 取到的是 `text/html` / 1693 B / 与首页同尺寸，即 nginx `try_files … /index.html` 的 SPA 兜底。
+> 结论：**判"资源是否还在"要看到容器内的文件系统与响应 Content-Type，不能只看 HTTP 状态码**（200 也可能是兜底页）。
+
+### 12.2 未修：marker 标签深色字压深色底（截图里可见，待本人裁）
+
+`AmapGeoMap.vue` 的 `.amap-marker-label` 把芯片底色改成了 `var(--fsd-surface-overlay)=#151a21`，
+但**文字色没赢下来**：实测 38 个标签芯片 `color: rgb(26,26,26)` 落在 `background: rgb(21,26,33)` 上 ⇒
+文字不可见，屏幕上就是一排黑药丸。生产同样存在（部署前就有，与 12.1 无关），
+且 Cloudflare 对静态资源带 `cache-control: max-age=14400`，改完上线后边缘最长 4 h 才干净。
+
+**为什么我没直接改**：这是你演示屏的视觉风格决定，不是明确的缺陷单。两条路等你选——
+① 让文字色赢过 AMap 自带规则（保留深色芯片）；② 撤掉我们的底色覆盖、回到 AMap 默认浅底深字。
+两者都不动几何与数据，改的是 `AmapGeoMap.vue` 一处样式。
 
 > **本轮同步修掉的死链**（《已完成工作记录》《调度算法与地理收敛任务路线图》《部署整改任务路线图》三份文档已退场后遗留）：`README.md` 四处（徽章、"文档只剩三份"导语、生产部署段、文档表三行）与 `scripts/dev/reset-demo-dispatchable.sh:6` 一处改指现存文档；守卫 `node scripts/check-doc-links.mjs` 复跑 `[OK] 检查 21 条引用`。已删文档**未恢复**，其内容按路径可在 `git log --diff-filter=D -- docs/` 查到。
 
