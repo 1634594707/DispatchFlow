@@ -9,7 +9,6 @@
 
     <SkeletonLoader v-if="showSkeleton" preset="tracking" />
     <template v-else>
-      <div v-show="showSchematicMap" ref="mapContainer" class="map-container"></div>
       <AmapGeoMap
         v-if="showGeoMap"
         class="map-container geo-map-layer"
@@ -23,10 +22,7 @@
         :fit-view-on-change="Boolean(selectedId)"
         @marker-click="selectGeoMarker"
       />
-      <div
-        v-else-if="trackingScene === 'delivery'"
-        class="map-container geo-map-layer geo-map-unconfigured"
-      >
+      <div v-else class="map-container geo-map-layer geo-map-unconfigured">
         <div class="geo-map-unconfigured__body">
           <p class="geo-map-unconfigured__title">短驳地理图未加载</p>
           <p class="geo-map-unconfigured__hint">
@@ -98,12 +94,7 @@
               </span>
             </p>
             <div class="header-controls">
-              <p v-if="trackingScene === 'park'" class="map-scope-hint">
-                <a-tooltip title="内部路网示意，非真实道路；ZJF 短驳请切换「短驳地理」。">
-                  <span>园区调度图：内部路网与 AGV 任务，供后台审查。</span>
-                </a-tooltip>
-              </p>
-              <p v-else class="map-scope-hint geo">
+              <p class="map-scope-hint geo">
                 <span class="pilot-badge">当前：找家纺本地运营范围</span>
                 实际服务边界 · L1 自动派单分区 · 贴路轨迹
               </p>
@@ -161,26 +152,6 @@
                   SOC 预测
                 </a-button>
               </a-badge>
-            </div>
-            <div class="toolbar-field">
-              <span class="toolbar-label">场景</span>
-              <a-segmented
-                v-model:value="trackingScene"
-                size="small"
-                class="scene-segment"
-                :options="trackingSceneOptions"
-              />
-            </div>
-            <div v-if="trackingScene === 'park'" class="toolbar-field">
-              <span class="toolbar-label">园区</span>
-              <a-select
-                v-model:value="trackingParkId"
-                class="park-select"
-                :options="trackingParkOptions"
-                :loading="parkScope.loading"
-                placeholder="选择园区"
-                @change="onTrackingParkChange"
-              />
             </div>
           </div>
 
@@ -261,13 +232,6 @@
               @click="filterByStatus(item.value)"
             >
               {{ item.label }}
-            </button>
-            <button
-              class="filter-chip filter-chip-layer"
-              :class="{ active: showChargeLayer }"
-              @click="toggleChargeLayer"
-            >
-              充电图层
             </button>
             <button
               class="filter-chip filter-chip-layer"
@@ -586,10 +550,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import {
   CloseOutlined,
   InboxOutlined,
@@ -627,8 +589,6 @@ import {
   buildOperationalStationMarkers,
   splitVehiclesByBasePresence,
   vehicleGeoPosition,
-  markerColor,
-  orderColor,
   shortVehicleCode,
   L0_COVERAGE_CIRCLES,
   ZJF_BASE_STATION_CODE,
@@ -636,23 +596,17 @@ import {
 } from '@/maps'
 import {
   filterGeoDeliveryOrders,
-  filterSchematicOrders,
-  filterSchematicParkVehicles,
   filterGeoDeliverySimVehicles,
-  filterSchematicStations,
   isGeoDeliverySimVehicle,
   isGeoDeliveryStation,
-  isSchematicParkStation,
-  isSchematicParkVehicle,
 } from '@/maps/stationLayers'
 import type { GeoMapMarker, GeoMapPolygon, GeoMapPolyline, GeoMapCircle } from '@/maps'
-// 位置解析、三分法与"车/单状态色"统一走 @/maps 一份实现（§7.2② 像素兜底已删；§6.3 图层收敛）。
+// 位置解析与三分法统一走 @/maps 一份实现（§7.2② 像素兜底已删；§6.3 图层收敛）。
 import { routeAnomalyWarning } from '@/maps/routeValidation'
 import { getFleetTelemetryStreamUrl } from '@/api/dispatch'
 import { fetchPeakMode, updatePeakMode, fetchOpsSnapshot, type OpsSnapshot } from '@/api/vertical'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useAuthStore } from '@/stores/auth'
-import { DEFAULT_TRACKING_SCENE } from '@/config'
 import { useDemoMode } from '@/composables/useDemoMode'
 import { createSSEClient } from '@/utils/sseClient'
 import type { SSEClient } from '@/types/stream'
@@ -661,7 +615,6 @@ import type {
   ParkGeofence,
   ParkLayout,
   ParkOrderSnapshot,
-  ParkStation,
   ParkVehicleSnapshot,
 } from '@/types/park'
 
@@ -693,50 +646,17 @@ function getVehicleTrend(vehicleId: number) {
   return predictiveAlertStore.getVehicleTrend(vehicleId)
 }
 
-type TrackingScene = 'park' | 'delivery'
-const TRACKING_SCENE_KEY = 'fsd_tracking_scene'
-
-function loadTrackingScene(): TrackingScene {
-  const sceneParam = route.query.scene
-  if (sceneParam === 'park') return 'park'
-  if (sceneParam === 'delivery') return 'delivery'
-  if (route.query.mode === 'geo') return 'delivery'
-  const stored = localStorage.getItem(TRACKING_SCENE_KEY)
-  if (stored === 'delivery' || stored === 'park') return stored
-  return DEFAULT_TRACKING_SCENE
-}
-
-const trackingScene = ref<TrackingScene>(loadTrackingScene())
-const trackingSceneOptions = [
-  { label: '园区调度', value: 'park' as const },
-  { label: '短驳地理', value: 'delivery' as const },
-]
-
-const mapViewMode = ref<'schematic' | 'geo'>(
-  trackingScene.value === 'delivery' && isAmapConfigured() ? 'geo' : 'schematic',
-)
+// 「园区调度」场景已整条删除（示意底图 park-map.svg、A/B 工位、PARK-* 仿真池都不在了）：
+// 这台监控页只剩叠石桥短驳地理一个场景，因此不再有场景开关与 `fsd_tracking_scene` 持久化。
 const geoMapAvailable = isAmapConfigured()
 const geoMapZoom = 15
 
-const showSchematicMap = computed(() => trackingScene.value === 'park')
-const showGeoMap = computed(() => trackingScene.value === 'delivery' && geoMapAvailable)
+const showGeoMap = computed(() => geoMapAvailable)
 
-const trackingParkId = ref<number | undefined>()
-const trackingParkOptions = computed(() =>
-  parkScope.parks.map((park) => ({
-    value: park.parkId,
-    label: park.parkName,
-  })),
-)
-
-const demo = useDemoMode(() => trackingParkId.value ?? parkScope.resolveLayoutParkId())
+const demo = useDemoMode(() => parkScope.resolveLayoutParkId())
 const demoMode = computed(() => demo.demoMode.value)
 const demoRemainingLabel = computed(() => demo.remainingLabel.value)
 const demoErrorMessage = computed(() => demo.lastError.value)
-
-const schematicOrdersOnMap = computed(() => filterSchematicOrders(parkOrders.value))
-
-const schematicVehiclesOnMap = computed(() => filterSchematicParkVehicles(filteredVehicles.value))
 
 const geoVehiclesOnMap = computed(() => filterGeoDeliverySimVehicles(filteredVehicles.value))
 /**
@@ -760,13 +680,11 @@ const geoVehiclesAtBase = computed(
 const geoVehiclesOnRoad = computed(() => geoOnMapSplit.value.onRoad)
 const geoVehiclesUnknown = computed(() => geoOnMapSplit.value.unknown)
 
-const mapContainer = ref<HTMLElement>()
 const panelCollapsed = ref(false)
 const activeFilter = ref('all')
 const selectedId = ref<number | null>(null)
 const selectedGeoMarkerId = ref<string | null>(null)
 const refreshing = ref(false)
-const showChargeLayer = ref(false)
 const showL0Circles = ref(
   route.query.l0 === '1' ||
     route.query.l0circles === '1' ||
@@ -799,49 +717,8 @@ let fallbackPollTimer: ReturnType<typeof setInterval> | null = null
 
 const effectiveParkId = computed(() => parkScope.resolveLayoutParkId())
 
-const activeParkName = computed(() => {
-  if (trackingScene.value === 'delivery') return '叠石桥短驳试点'
-  const parkId = trackingParkId.value ?? effectiveParkId.value
-  const park = parkScope.parks.find((item) => item.parkId === parkId)
-  return park?.parkName || parkLayout.value?.parkName || '默认园区'
-})
-
-function syncTrackingParkSelection() {
-  const resolved = parkScope.resolveLayoutParkId()
-  if (resolved != null) {
-    trackingParkId.value = resolved
-  } else if (parkScope.parks[0]) {
-    trackingParkId.value = parkScope.parks[0].parkId
-  }
-}
-
-function applyTrackingScene(scene: TrackingScene) {
-  localStorage.setItem(TRACKING_SCENE_KEY, scene)
-  if (scene === 'park') {
-    mapViewMode.value = 'schematic'
-    syncTrackingParkSelection()
-    if (trackingParkId.value != null) {
-      parkScope.setParkId(trackingParkId.value)
-    }
-    nextTick(() => {
-      if (!map && mapContainer.value) initMap()
-      if (map && parkLayout.value) {
-        loadParkImage()
-        drawStations()
-        updateVehicleMarkers()
-        drawOrderChains()
-      }
-    })
-  } else {
-    mapViewMode.value = geoMapAvailable ? 'geo' : 'schematic'
-  }
-}
-
-function onTrackingParkChange(parkId: number | undefined) {
-  if (parkId == null) return
-  trackingParkId.value = parkId
-  parkScope.setParkId(parkId)
-}
+/** 单一场景：这页监控的就是叠石桥试点，园区名不再随场景变化（原 'park' 场景已删）。 */
+const activeParkName = '叠石桥短驳试点'
 
 const peakModeLabel = computed(() =>
   peakEnabled.value
@@ -883,15 +760,7 @@ async function loadOpsSnapshot() {
   }
 }
 
-let map: L.Map | null = null
-let markersLayer: L.LayerGroup | null = null
-let trajectoryLayer: L.LayerGroup | null = null
-let stationLayer: L.LayerGroup | null = null
-let orderLayer: L.LayerGroup | null = null
-let chargingLayer: L.LayerGroup | null = null
-let pollTimer: ReturnType<typeof setInterval> | null = null
 let clockTimer: ReturnType<typeof setInterval> | null = null
-let currentMarkerScale = 1
 
 const extraFilterOptions = [
   { label: '全部', value: 'all' },
@@ -921,11 +790,7 @@ const stageLabels: Record<string, string> = {
   OFFLINE: '离线',
 }
 
-const sceneVehicles = computed(() =>
-  trackingScene.value === 'delivery'
-    ? filterGeoDeliverySimVehicles(vehicles.value)
-    : filterSchematicParkVehicles(vehicles.value),
-)
+const sceneVehicles = computed(() => filterGeoDeliverySimVehicles(vehicles.value))
 
 const onlineCount = computed(
   () => sceneVehicles.value.filter((vehicle) => vehicle.onlineStatus === 'ONLINE').length,
@@ -954,9 +819,7 @@ const filteredVehicles = computed(() => {
     case 'LOW_BATTERY':
       return scopedVehicles.filter((vehicle) => vehicle.lowBattery)
     case 'SIM':
-      return scopedVehicles.filter(
-        (vehicle) => isSchematicParkVehicle(vehicle) || isGeoDeliverySimVehicle(vehicle),
-      )
+      return scopedVehicles.filter(isGeoDeliverySimVehicle)
     case 'REAL':
       return scopedVehicles.filter((vehicle) => vehicle.linkMode === 'REAL')
     case 'VDA5050':
@@ -1173,7 +1036,6 @@ function dispatchLabel(status: string) {
 
 function filterByStatus(status: string) {
   activeFilter.value = status
-  updateVehicleMarkers()
 }
 
 function formatOrderTime(value: string | null) {
@@ -1181,338 +1043,19 @@ function formatOrderTime(value: string | null) {
   return dayjs(value).fromNow()
 }
 
-function toggleChargeLayer() {
-  showChargeLayer.value = !showChargeLayer.value
-  drawChargeLayer()
-}
-
 function toggleL0Circles() {
   showL0Circles.value = !showL0Circles.value
   localStorage.setItem('fsd_tracking_l0_circles', String(showL0Circles.value))
 }
 
-const LABEL_SLOTS = [
-  { codeY: -28, stageY: 16, batteryY: 32 },
-  { codeY: -28, stageY: 16, batteryY: 32, codeX: 42 },
-  { codeY: -28, stageY: 16, batteryY: 32, codeX: -42 },
-  { codeY: 18, stageY: 36, batteryY: 52 },
-  { codeY: 18, stageY: 36, batteryY: 52, codeX: 42 },
-  { codeY: 18, stageY: 36, batteryY: 52, codeX: -42 },
-]
-
-function vehicleDistance(a: ParkVehicleSnapshot, b: ParkVehicleSnapshot) {
-  const dx = a.x - b.x
-  const dy = a.y - b.y
-  return Math.hypot(dx, dy)
-}
-
-function labelSlotForVehicle(vehicle: ParkVehicleSnapshot, list: ParkVehicleSnapshot[]) {
-  const nearbyBefore = list.filter(
-    (item) =>
-      item.vehicleId !== vehicle.vehicleId &&
-      list.indexOf(item) < list.indexOf(vehicle) &&
-      vehicleDistance(item, vehicle) < 72,
-  ).length
-  return nearbyBefore % LABEL_SLOTS.length
-}
-
-function createVehicleIcon(vehicle: ParkVehicleSnapshot, expanded = false, slot = 0) {
-  const color = markerColor(vehicle)
-  if (!expanded) {
-    return L.divIcon({
-      className: 'vehicle-marker-wrap vehicle-marker-wrap--compact',
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-      html: `
-        <div class="vehicle-marker vehicle-marker--compact" style="--marker-color:${color}">
-          <span class="vehicle-core"></span>
-        </div>
-      `,
-    })
-  }
-
-  const stage = stageLabel(vehicle.runtimeStage)
-  const batteryText = vehicle.charging ? `${vehicle.batteryLevel}%` : `${vehicle.batteryLevel}%`
-  const code = shortVehicleCode(vehicle.vehicleCode)
-  const offset = LABEL_SLOTS[slot] || LABEL_SLOTS[0]
-  const codeX = offset.codeX ?? 0
-  const codeTransform = codeX ? `translate(calc(-50% + ${codeX}px), 0)` : 'translateX(-50%)'
-  const stageTransform = codeX ? `translate(calc(-50% + ${codeX}px), 0)` : 'translateX(-50%)'
-  const batteryTransform = codeX ? `translate(calc(-50% + ${codeX}px), 0)` : 'translateX(-50%)'
-
-  return L.divIcon({
-    className: 'vehicle-marker-wrap',
-    iconSize: [96, 96],
-    iconAnchor: [48, 48],
-    html: `
-      <div class="vehicle-marker vehicle-marker--expanded" style="--marker-color:${color}">
-        <span class="vehicle-core"></span>
-        <span class="vehicle-code" style="top:calc(50% + ${offset.codeY}px);transform:${codeTransform}">${code}</span>
-        <span class="vehicle-stage" style="top:calc(50% + ${offset.stageY}px);transform:${stageTransform}">${stage}</span>
-        <span class="vehicle-battery" style="top:calc(50% + ${offset.batteryY}px);transform:${batteryTransform}">${batteryText}</span>
-      </div>
-    `,
-  })
-}
-
-function createStationIcon(station: ParkStation) {
-  const isPickup = station.area === 'A'
-  const color = isPickup ? '#2DE08A' : '#FF5C7C'
-  const label = isPickup ? '取货站' : '送货站'
-  return L.divIcon({
-    className: 'station-marker-wrap',
-    iconSize: [60, 48],
-    iconAnchor: [30, 40],
-    html: `
-      <div class="station-marker" style="--station-color:${color}">
-        <span class="station-label">${label}</span>
-        <span class="station-code">${station.stationCode}</span>
-      </div>
-    `,
-  })
-}
-
-function createParkingIcon(code: string, mode: 'idle' | 'charging' | 'normal') {
-  const color = mode === 'charging' ? '#FFC04D' : mode === 'idle' ? '#22C7E6' : '#9BA8B8'
-  const label = mode === 'charging' ? '停车充电位' : '停车位'
-  return L.divIcon({
-    className: 'parking-marker-wrap',
-    iconSize: [60, 38],
-    iconAnchor: [30, 32],
-    html: `
-      <div class="parking-marker" style="--parking-color:${color}">
-        <span class="parking-label">${label}</span>
-        <span class="parking-code">${code}</span>
-      </div>
-    `,
-  })
-}
-
-function createChargeVehicleIcon(vehicle: ParkVehicleSnapshot) {
-  const color = vehicle.charging ? '#FFC04D' : '#22C7E6'
-  const text = vehicle.charging ? `充电 ${vehicle.batteryLevel}%` : `待命 ${vehicle.batteryLevel}%`
-  return L.divIcon({
-    className: 'charge-vehicle-wrap',
-    iconSize: [84, 52],
-    iconAnchor: [42, 26],
-    html: `
-      <div class="charge-vehicle" style="--charge-color:${color}">
-        <span class="charge-vehicle-code">${vehicle.vehicleCode}</span>
-        <span class="charge-vehicle-state">${text}</span>
-      </div>
-    `,
-  })
-}
-
-function markerScaleForZoom(zoom: number) {
-  const scale = Math.pow(2, (zoom - 1) * 0.38)
-  return Math.min(1.2, Math.max(0.42, Number(scale.toFixed(3))))
-}
-
-function applyMarkerScale() {
-  if (!mapContainer.value || !map) return
-  const nextScale = markerScaleForZoom(map.getZoom())
-  if (nextScale === currentMarkerScale) return
-  currentMarkerScale = nextScale
-  mapContainer.value.style.setProperty('--map-marker-scale', String(nextScale))
-  mapContainer.value.style.setProperty(
-    '--map-line-weight-scale',
-    String(Math.max(0.72, Math.min(1.15, nextScale))),
-  )
-}
-
-function toLatLng(x: number, y: number): L.LatLngExpression {
-  if (!parkLayout.value) return [y, x]
-  return [parkLayout.value.height - y, x] as L.LatLngExpression
-}
-
-function initMap() {
-  if (!mapContainer.value) return
-  map = L.map(mapContainer.value, {
-    crs: L.CRS.Simple,
-    minZoom: -1,
-    maxZoom: 3,
-    zoomControl: false,
-    attributionControl: false,
-    maxBoundsViscosity: 1,
-  })
-  L.control.zoom({ position: 'bottomright' as never }).addTo(map)
-  stationLayer = L.layerGroup().addTo(map)
-  orderLayer = L.layerGroup().addTo(map)
-  trajectoryLayer = L.layerGroup().addTo(map)
-  markersLayer = L.layerGroup().addTo(map)
-  chargingLayer = L.layerGroup().addTo(map)
-  map.on('zoom zoomend viewreset resize', applyMarkerScale)
-  applyMarkerScale()
-}
-
-function loadParkImage() {
-  if (!map || !parkLayout.value) return
-  const bounds: L.LatLngBoundsExpression = [
-    [0, 0],
-    [parkLayout.value.height, parkLayout.value.width],
-  ]
-  L.imageOverlay('/park-map.svg', bounds, { interactive: false, opacity: 0.94 }).addTo(map)
-  const latLngBounds = L.latLngBounds(bounds)
-  map.setMaxBounds(latLngBounds.pad(0.08))
-  map.fitBounds(latLngBounds, {
-    paddingTopLeft: [420, 30],
-    paddingBottomRight: [40, 110],
-  })
-}
-
-function drawStations() {
-  if (!stationLayer || !parkLayout.value) return
-  stationLayer.clearLayers()
-
-  filterSchematicStations(parkLayout.value.stations).forEach((station) => {
-    stationLayer!.addLayer(
-      L.marker(toLatLng(station.x, station.y), {
-        icon: createStationIcon(station),
-        interactive: false,
-      }),
-    )
-  })
-}
-
-function drawChargeLayer() {
-  if (!chargingLayer || !parkLayout.value) return
-  chargingLayer.clearLayers()
-  if (!showChargeLayer.value) return
-
-  const occupiedTargets = new Map<string, ParkVehicleSnapshot[]>()
-  vehicles.value.forEach((vehicle) => {
-    if (!vehicle.targetCode) return
-    const list = occupiedTargets.get(vehicle.targetCode) || []
-    list.push(vehicle)
-    occupiedTargets.set(vehicle.targetCode, list)
-  })
-
-  parkLayout.value.parkingSpots.forEach((spot) => {
-    const assignedVehicles = occupiedTargets.get(spot.code) || []
-    const chargingVehicle = assignedVehicles.find((vehicle) => vehicle.charging)
-    const parkedVehicle = assignedVehicles[0]
-    const mode = chargingVehicle ? 'charging' : parkedVehicle ? 'idle' : 'normal'
-
-    chargingLayer!.addLayer(
-      L.marker(toLatLng(spot.x, spot.y), {
-        icon: createParkingIcon(spot.code, mode),
-        interactive: false,
-      }),
-    )
-
-    const vehicleToShow = chargingVehicle || parkedVehicle
-    if (vehicleToShow) {
-      chargingLayer!.addLayer(
-        L.marker(toLatLng(spot.x, spot.y - 34), {
-          icon: createChargeVehicleIcon(vehicleToShow),
-          interactive: false,
-        }),
-      )
-    }
-  })
-}
-
-function updateVehicleMarkers() {
-  if (!markersLayer || !trajectoryLayer) return
-  markersLayer.clearLayers()
-  trajectoryLayer.clearLayers()
-  const lineWeightScale = Math.max(0.72, Math.min(1.15, currentMarkerScale))
-
-  const vehiclesOnMap = showSchematicMap.value
-    ? schematicVehiclesOnMap.value
-    : filteredVehicles.value
-
-  vehiclesOnMap.forEach((vehicle) => {
-    if (vehicle.trajectory.length > 1) {
-      trajectoryLayer!.addLayer(
-        L.polyline(
-          vehicle.trajectory.map((point) => toLatLng(point.x, point.y)),
-          {
-            color: markerColor(vehicle),
-            weight: 2 * lineWeightScale,
-            opacity: 0.35,
-            dashArray: '5,7',
-          },
-        ),
-      )
-    }
-
-    const expanded = selectedId.value === vehicle.vehicleId
-    const slot = labelSlotForVehicle(vehicle, vehiclesOnMap)
-    const marker = L.marker(toLatLng(vehicle.x, vehicle.y), {
-      icon: createVehicleIcon(vehicle, expanded, slot),
-      zIndexOffset: expanded ? 1000 : 0,
-    }).on('click', () => {
-      selectedId.value = vehicle.vehicleId
-    })
-    markersLayer!.addLayer(marker)
-  })
-
-  drawChargeLayer()
-}
-
-function getVehicle(vehicleId: number | null) {
-  if (!vehicleId) return null
-  return sceneVehicles.value.find((vehicle) => vehicle.vehicleId === vehicleId) || null
-}
-
-function drawOrderChains() {
-  if (!orderLayer) return
-  orderLayer.clearLayers()
-  const lineWeightScale = Math.max(0.72, Math.min(1.15, currentMarkerScale))
-
-  schematicOrdersOnMap.value.forEach((order) => {
-    const color = orderColor(order.runtimeStage)
-    orderLayer!.addLayer(
-      L.polyline(
-        [
-          toLatLng(order.pickupStation.x, order.pickupStation.y),
-          toLatLng(order.dropoffStation.x, order.dropoffStation.y),
-        ],
-        {
-          color,
-          weight: 3 * lineWeightScale,
-          opacity: 0.55,
-          dashArray: order.runtimeStage === 'COMPLETED' ? '4,8' : undefined,
-        },
-      ),
-    )
-
-    const vehicle = getVehicle(order.vehicleId)
-    if (!vehicle) return
-
-    const target =
-      order.runtimeStage === 'TO_DROPOFF' ||
-      order.runtimeStage === 'HEADING_TO_DROPOFF' ||
-      order.runtimeStage === 'UNLOADING'
-        ? order.dropoffStation
-        : order.pickupStation
-
-    if (!isSchematicParkStation(target)) return
-
-    orderLayer!.addLayer(
-      L.polyline([toLatLng(vehicle.x, vehicle.y), toLatLng(target.x, target.y)], {
-        color,
-        weight: 2 * lineWeightScale,
-        opacity: 0.82,
-      }),
-    )
-  })
-}
-
+/** 选中车辆：地理图层由 `fit-view-points` / `selected` 自行跟随，这里只改选中态。 */
 function focusVehicle(vehicle: ParkVehicleSnapshot) {
   selectedId.value = vehicle.vehicleId
-  if (trackingScene.value === 'delivery') return
-  map?.flyTo(toLatLng(vehicle.x, vehicle.y), 2, { duration: 0.8 })
 }
 
 function applyRouteFocus() {
   const vehicleIdRaw = route.query.vehicleId
   const orderIdRaw = route.query.orderId
-  if (route.query.mode === 'geo') {
-    trackingScene.value = 'delivery'
-  }
 
   let vehicleId = vehicleIdRaw != null ? Number(vehicleIdRaw) : null
   if ((vehicleId == null || Number.isNaN(vehicleId)) && orderIdRaw != null) {
@@ -1535,16 +1078,11 @@ async function fetchLayout() {
   if (!parkId) return
   const response = await getParkLayout(parkId)
   parkLayout.value = response.data
-  loadParkImage()
-  drawStations()
-  drawChargeLayer()
 }
 
 async function fetchVehicles() {
   const response = await getParkVehicles({ parkId: effectiveParkId.value })
   vehicles.value = response.data || []
-  updateVehicleMarkers()
-  drawOrderChains()
 }
 
 function formatStreamLatency(ms: number) {
@@ -1570,8 +1108,6 @@ function applyStreamPayload(data: {
   }
   if (data.vehicles && Array.isArray(data.vehicles)) {
     vehicles.value = data.vehicles
-    updateVehicleMarkers()
-    drawOrderChains()
     streamConnected.value = true
     sseReconnecting.value = false
     backendOnline.value = true
@@ -1648,7 +1184,6 @@ function stopFallbackPoll() {
 async function fetchOrders() {
   const response = await getParkOrders()
   parkOrders.value = response.data || []
-  drawOrderChains()
 }
 
 async function fetchGeofences() {
@@ -1682,10 +1217,6 @@ async function bootstrapData() {
       await parkScope.loadParks()
     }
     parkScope.ensureValidSelection()
-    syncTrackingParkSelection()
-    if (trackingScene.value === 'park' && trackingParkId.value != null) {
-      parkScope.setParkId(trackingParkId.value)
-    }
     await fetchLayout()
     await Promise.all([
       fetchVehicles(),
@@ -1726,64 +1257,15 @@ async function manualRefresh() {
   }
 }
 
-watch(filteredVehicles, () => {
-  updateVehicleMarkers()
-})
-
-watch(selectedId, () => {
-  updateVehicleMarkers()
-})
-
 watch(
   () => parkScope.scopeVersion,
   async () => {
-    syncTrackingParkSelection()
     await handleParkChange()
   },
 )
 
-watch(trackingScene, (scene, prev) => {
-  if (scene === prev) return
-  applyTrackingScene(scene)
-  if (scene === 'delivery') {
-    void fetchRoadRouteHealth()
-  }
-})
-
-watch(mapViewMode, (mode) => {
-  if (trackingScene.value !== 'park' && mode === 'schematic' && geoMapAvailable) {
-    mapViewMode.value = 'geo'
-    return
-  }
-  if (mode === 'schematic' || (mode === 'geo' && !geoMapAvailable)) {
-    nextTick(() => {
-      if (!map && mapContainer.value && showSchematicMap.value) initMap()
-      if (map && parkLayout.value) {
-        loadParkImage()
-        drawStations()
-        updateVehicleMarkers()
-        drawOrderChains()
-      }
-    })
-  }
-})
-
-watch(showSchematicMap, (visible) => {
-  if (!visible) return
-  nextTick(() => {
-    if (!map && mapContainer.value) initMap()
-    if (map && parkLayout.value) {
-      loadParkImage()
-      drawStations()
-      updateVehicleMarkers()
-      drawOrderChains()
-    }
-  })
-})
-
 onMounted(async () => {
   await bootstrapData()
-  applyTrackingScene(trackingScene.value)
   applyRouteFocus()
   initSSEStream()
   clockTimer = setInterval(() => {
@@ -1799,11 +1281,7 @@ onUnmounted(() => {
   }
   stopFallbackPoll()
   document.removeEventListener('visibilitychange', handleVisibilityForPoll)
-  if (pollTimer) clearInterval(pollTimer)
   if (clockTimer) clearInterval(clockTimer)
-  map?.off('zoom zoomend viewreset resize', applyMarkerScale)
-  map?.remove()
-  map = null
 })
 </script>
 
@@ -1813,8 +1291,6 @@ onUnmounted(() => {
   inset: 0;
   overflow: hidden;
   background: var(--fsd-surface-page);
-  --map-marker-scale: 1;
-  --map-line-weight-scale: 1;
 }
 
 .screen-mode-incident {
@@ -1920,228 +1396,6 @@ onUnmounted(() => {
   &:hover {
     text-decoration: underline;
   }
-}
-
-.map-mode-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-sm);
-  background: var(--fsd-surface-status);
-  flex-shrink: 0;
-}
-
-.map-mode-btn {
-  border: none;
-  border-radius: 6px;
-  padding: 2px 10px;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--fsd-text-secondary);
-  background: transparent;
-  cursor: pointer;
-  transition:
-    color var(--fsd-transition-fast),
-    background var(--fsd-transition-fast);
-
-  &.active {
-    color: var(--fsd-accent-strong);
-    background: var(--fsd-accent-selected);
-  }
-
-  &.disabled,
-  &:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-}
-
-:deep(.leaflet-container) {
-  background: var(--fsd-bg-deep);
-  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
-}
-
-:deep(.leaflet-control-zoom a) {
-  background: rgba(6, 12, 22, 0.9) !important;
-  color: var(--fsd-text-primary) !important;
-  border-color: rgba(34, 199, 230, 0.22) !important;
-}
-
-:deep(.vehicle-marker-wrap),
-:deep(.station-marker-wrap),
-:deep(.parking-marker-wrap),
-:deep(.charge-vehicle-wrap) {
-  background: none !important;
-  border: none !important;
-}
-
-:deep(.vehicle-marker) {
-  position: relative;
-  width: 96px;
-  height: 96px;
-  transform: scale(var(--map-marker-scale));
-  transform-origin: center center;
-  transition: transform var(--fsd-transition-fast);
-}
-
-:deep(.vehicle-marker--compact) {
-  width: 28px;
-  height: 28px;
-}
-
-:deep(.vehicle-marker-wrap--compact) {
-  pointer-events: auto;
-}
-
-:deep(.vehicle-marker--compact .vehicle-core) {
-  width: 14px;
-  height: 14px;
-  border-width: 2px;
-  outline: 3px solid color-mix(in srgb, var(--marker-color) 22%, transparent);
-  outline-offset: 0;
-}
-
-:deep(.vehicle-marker--expanded) {
-  z-index: 2;
-}
-
-:deep(.vehicle-core) {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background: var(--marker-color);
-  border: 3px solid rgba(5, 9, 19, 0.92);
-  outline: 4px solid color-mix(in srgb, var(--marker-color) 22%, transparent);
-  outline-offset: 0;
-  z-index: 3;
-}
-
-:deep(.vehicle-code) {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(5, 9, 19, 0.88);
-  border: 1px solid color-mix(in srgb, var(--marker-color) 40%, transparent);
-  color: var(--fsd-text-primary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
-  z-index: 2;
-  pointer-events: none;
-}
-
-:deep(.vehicle-stage),
-:deep(.vehicle-battery) {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: rgba(5, 9, 19, 0.85);
-  white-space: nowrap;
-  z-index: 2;
-  pointer-events: none;
-}
-
-:deep(.vehicle-stage) {
-  color: var(--marker-color);
-  font-size: 9px;
-}
-
-:deep(.vehicle-battery) {
-  color: var(--fsd-text-secondary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-}
-
-:deep(.station-marker) {
-  padding: 4px 10px;
-  border-radius: 10px;
-  background: rgba(5, 9, 19, 0.9);
-  border: 1.5px solid var(--station-color);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  transform: scale(var(--map-marker-scale));
-  transform-origin: center bottom;
-  transition: transform var(--fsd-transition-fast);
-}
-
-:deep(.station-label) {
-  color: var(--station-color);
-  font-size: 9px;
-  opacity: 0.85;
-  letter-spacing: 0.06em;
-}
-
-:deep(.station-code) {
-  color: var(--station-color);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-:deep(.parking-marker) {
-  padding: 3px 8px;
-  border-radius: 8px;
-  background: rgba(5, 9, 19, 0.88);
-  border: 1px solid var(--parking-color);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  transform: scale(var(--map-marker-scale));
-  transform-origin: center bottom;
-  transition: transform var(--fsd-transition-fast);
-}
-
-:deep(.parking-label) {
-  color: var(--parking-color);
-  font-size: 8px;
-  opacity: 0.85;
-}
-
-:deep(.parking-code) {
-  color: var(--parking-color);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-:deep(.charge-vehicle) {
-  padding: 4px 8px;
-  border-radius: 10px;
-  background: rgba(5, 9, 19, 0.92);
-  border: 1px solid color-mix(in srgb, var(--charge-color) 48%, transparent);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  transform: scale(var(--map-marker-scale));
-  transform-origin: center center;
-}
-
-:deep(.charge-vehicle-code) {
-  color: var(--fsd-text-primary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-:deep(.charge-vehicle-state) {
-  color: var(--charge-color);
-  font-size: 9px;
-  white-space: nowrap;
 }
 
 .side-panel {
@@ -2428,38 +1682,6 @@ onUnmounted(() => {
   font-size: 12px;
   flex-shrink: 0;
   width: 36px;
-}
-
-.scene-segment {
-  flex: 1;
-  min-width: 0;
-}
-
-:deep(.scene-segment.ant-segmented) {
-  background: rgba(11, 16, 24, 0.9);
-  border: 1px solid var(--fsd-border);
-}
-
-:deep(.scene-segment .ant-segmented-item-label) {
-  font-size: 12px;
-  padding: 0 10px;
-}
-
-.park-select {
-  flex: 1;
-  min-width: 0;
-}
-
-:deep(.park-select .ant-select-selector) {
-  background: rgba(11, 16, 24, 0.9) !important;
-  border-color: var(--fsd-border) !important;
-  color: var(--fsd-text-primary) !important;
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif !important;
-}
-
-:deep(.park-select .ant-select-selection-item) {
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif !important;
-  letter-spacing: 0.02em;
 }
 
 .mobile-entry {

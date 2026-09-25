@@ -29,7 +29,6 @@ const sharedUiPaths = [
   'src/components/mobile/MobileTabBar.vue',
   'src/components/mobile/MerchantHomePanel.vue',
   'src/components/park/ParkDeliveryOrderModal.vue',
-  'src/components/workbench/ParkMiniMap.vue',
   'src/layouts/BasicLayout.vue',
 ]
 const sharedUi = (

@@ -26,7 +26,7 @@
     <div class="map-shell">
       <div v-if="routeAnomalyText" class="route-anomaly">{{ routeAnomalyText }}</div>
 
-      <div v-if="geoMapAvailable && !forceSchematicMap" class="map-wrap geo">
+      <div v-if="geoMapAvailable" class="map-wrap geo">
         <AmapGeoMap
           class="geo-map"
           :center="mapCenter"
@@ -38,30 +38,9 @@
           :fit-view-on-change="Boolean(vehicle)"
         />
       </div>
-      <div v-else-if="parkLayout" class="map-wrap schematic">
-        <img src="/park-map.svg" alt="园区示意" class="map-image" />
-        <svg
-          class="map-overlay"
-          :viewBox="`0 0 ${parkLayout.width} ${parkLayout.height}`"
-          preserveAspectRatio="none"
-        >
-          <polyline :points="schematicRoutePoints" class="route-line" />
-          <line
-            v-if="vehicle && currentTarget"
-            :x1="vehicle.x"
-            :y1="svgY(vehicle.y)"
-            :x2="currentTarget.x"
-            :y2="svgY(currentTarget.y)"
-            class="vehicle-line"
-          />
-        </svg>
-        <div class="pin pickup" :style="pinStyle(order.pickupStation.x, order.pickupStation.y)">
-          取
-        </div>
-        <div class="pin dropoff" :style="pinStyle(order.dropoffStation.x, order.dropoffStation.y)">
-          送
-        </div>
-        <div v-if="vehicle" class="pin vehicle" :style="pinStyle(vehicle.x, vehicle.y)">车</div>
+      <div v-else class="map-wrap geo-map-unconfigured" data-testid="tracking-map-unconfigured">
+        <p>地理底图未配置：本页需要高德 JS Key（<code>VITE_AMAP_KEY</code> /
+          <code>VITE_AMAP_SECURITY_CODE</code>）。</p>
       </div>
 
       <div class="map-meta">
@@ -153,7 +132,7 @@ import { computed } from 'vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
 import { parkDeliveryStageLabel } from '@/constants/parkDelivery'
 import type { GeoMapMarker, GeoMapPolygon, GeoMapPolyline } from '@/maps/types'
-import type { ParkLayout, ParkOrderSnapshot, ParkStation, ParkVehicleSnapshot } from '@/types/park'
+import type { ParkOrderSnapshot, ParkStation, ParkVehicleSnapshot } from '@/types/park'
 
 /** 传给地图图层的 marker 计数（§4 T2-a/T2-c）：由页面算好，面板只负责把这行读数画出来。 */
 interface TrackingLayerSummary {
@@ -168,9 +147,7 @@ const props = defineProps<{
   order: ParkOrderSnapshot
   activeOrders: ParkOrderSnapshot[]
   vehicle: ParkVehicleSnapshot | null
-  parkLayout: ParkLayout | null
   geoMapAvailable: boolean
-  forceSchematicMap?: boolean
   mapCenter: [number, number]
   geoMarkers: GeoMapMarker[]
   geoPolylines: GeoMapPolyline[]
@@ -233,24 +210,6 @@ const timelineHint = computed(() => {
   if (timelineState.value >= 2) return '沿道路前往取货点'
   return '等待派车或已接单'
 })
-
-const schematicRoutePoints = computed(() => {
-  const pickup = props.order.pickupStation
-  const dropoff = props.order.dropoffStation
-  return `${pickup.x},${svgY(pickup.y)} ${dropoff.x},${svgY(dropoff.y)}`
-})
-
-function svgY(y: number) {
-  return props.parkLayout ? props.parkLayout.height - y : y
-}
-
-function pinStyle(x: number, y: number) {
-  if (!props.parkLayout) return {}
-  return {
-    left: `${(x / props.parkLayout.width) * 100}%`,
-    top: `${(1 - y / props.parkLayout.height) * 100}%`,
-  }
-}
 
 function stageLabel(stage: string) {
   return parkDeliveryStageLabel(stage)
@@ -445,60 +404,21 @@ function formatTime(time: string): string {
   min-height: 220px;
 }
 
-.map-image,
-.map-overlay {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.map-image {
-  object-fit: cover;
-}
-
-.map-overlay {
-  pointer-events: none;
-}
-
-.route-line {
-  fill: none;
-  stroke: var(--fsd-accent);
-  stroke-width: 12;
-  stroke-linecap: round;
-  opacity: 0.85;
-}
-
-.vehicle-line {
-  stroke: rgba(251, 191, 36, 0.75);
-  stroke-width: 6;
-  stroke-dasharray: 14 10;
-}
-
-.pin {
-  position: absolute;
+/* 没有地理底图时不再退回园区示意图（示意场景已随 §园区调度删除）：明说什么条件下才有图。 */
+.geo-map-unconfigured {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--fsd-bg-base);
-  border-radius: var(--fsd-radius-full);
-  color: var(--fsd-text-on-action);
-  font-family: var(--fsd-font-sans);
-  font-size: 11px;
-  font-weight: var(--fsd-font-semibold);
-  transform: translate(-50%, -50%);
-}
+  padding: var(--fsd-space-4);
+  background: var(--fsd-bg-base);
+  color: var(--fsd-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
 
-.pin.pickup {
-  background: var(--fsd-success);
-}
-.pin.dropoff {
-  background: var(--fsd-warning);
-}
-.pin.vehicle {
-  background: var(--fsd-accent);
+  code {
+    color: var(--fsd-accent);
+  }
 }
 
 .map-meta {

@@ -209,18 +209,14 @@ test('vehicles without real coordinates are counted as unknown instead of drawn 
   await page.route(api('/admin/park/orders**'), route => route.fulfill({ json: ok([]) }))
   await page.route(api('/admin/sse-ticket'), route => route.fulfill({ json: ok({ ticket: 'test-ticket' }) }))
   await page.route(api('/admin/park/vehicles**'), route => route.fulfill({ json: ok([
-    // 地理桶 = SIM 且 ZJF-AV-*；PARK-* 属示意层，不该被算进这个计数
+    // 地理桶 = SIM 且 ZJF-AV-*；非 ZJF-AV-* 的车（历史 PARK-* 池）不属于这一层，不该被算进计数
     { vehicleId: 1, vehicleCode: 'ZJF-AV-01', vehicleName: '有定位', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 80, longitude: 121.0806, latitude: 31.9602 },
     { vehicleId: 2, vehicleCode: 'ZJF-AV-02', vehicleName: '缺定位', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 70 },
-    { vehicleId: 3, vehicleCode: 'PARK-01', vehicleName: '示意层车', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 60 },
+    { vehicleId: 3, vehicleCode: 'PARK-01', vehicleName: '非短驳车', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 60 },
   ]) }))
 
+  // §园区调度删除后短驳地理是唯一场景：`/vehicle-tracking` 直接进地理图层，没有场景开关可点。
   await page.goto('/vehicle-tracking?mode=geo')
-  // 场景（园区调度 / 短驳地理）是持久化的独立开关，?mode=geo 只切渲染层；
-  // 地理图层用的是 ZJF-AV-* 的 SIM 车，必须先把场景切过去。
-  // 必须限定在场景分段控件上：地图未配置时页面会出现"短驳地理图未加载"这块兜底面板，
-  // 裸 getByText('短驳地理') 在 CI（没有 front/.env.local ⇒ provider 回落 PARK_DIAGRAM）会命中两个节点而撞死 strict mode。
-  await page.locator('.ant-segmented-item', { hasText: '短驳地理' }).first().click()
 
   await expect(page.getByText('位置未知 1 台')).toBeVisible()
   await expect(page.getByText('未回传真实经纬度，已从地理图层剔除')).toBeVisible()

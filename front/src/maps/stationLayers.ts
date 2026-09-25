@@ -1,6 +1,6 @@
 import type { ParkOrderSnapshot, ParkStation, ParkVehicleSnapshot } from '@/types/park'
 
-/** 找家纺 L1 短驳站点（仅地理 Tab / 移动下单） */
+/** 找家纺 L1 短驳站点：地理图层与移动下单的口径基准。 */
 export const GEO_DELIVERY_AREA = 'ZJF'
 
 export function isGeoDeliveryStation(station: Pick<ParkStation, 'area' | 'stationCode'>): boolean {
@@ -8,47 +8,21 @@ export function isGeoDeliveryStation(station: Pick<ParkStation, 'area' | 'statio
   return (station.stationCode ?? '').startsWith('ZJF-')
 }
 
-/** 园区调度站点（仅 schematic Tab · park-map.svg） */
-export function isSchematicParkStation(station: Pick<ParkStation, 'area' | 'stationCode'>): boolean {
-  return !isGeoDeliveryStation(station)
-}
-
 export function isGeoDeliveryOrder(order: Pick<ParkOrderSnapshot, 'pickupStation' | 'dropoffStation'>): boolean {
   return isGeoDeliveryStation(order.pickupStation) || isGeoDeliveryStation(order.dropoffStation)
 }
 
-export function isSchematicParkOrder(order: Pick<ParkOrderSnapshot, 'pickupStation' | 'dropoffStation'>): boolean {
-  return isSchematicParkStation(order.pickupStation) && isSchematicParkStation(order.dropoffStation)
-}
-
-/** 园区示意地图仅展示仿真车；REAL/VDA5050 走外部遥测，不在 schematic 图层绘制。 */
-export function isSchematicParkVehicle(vehicle: Pick<ParkVehicleSnapshot, 'linkMode' | 'vehicleCode'>): boolean {
-  return (vehicle.linkMode || 'SIM') === 'SIM' && (vehicle.vehicleCode ?? '').startsWith('PARK-')
-}
-
-/** 叠石桥真实地图仿真车（ZJF-AV-*，与 PARK-* 分池）。 */
+/** 叠石桥真实地图仿真车（ZJF-AV-*）。 */
 export function isGeoDeliverySimVehicle(vehicle: Pick<ParkVehicleSnapshot, 'linkMode' | 'vehicleCode'>): boolean {
   return (vehicle.linkMode || 'SIM') === 'SIM' && (vehicle.vehicleCode ?? '').startsWith('ZJF-AV-')
-}
-
-export function filterSchematicParkVehicles(vehicles: ParkVehicleSnapshot[]): ParkVehicleSnapshot[] {
-  return vehicles.filter(isSchematicParkVehicle)
 }
 
 export function filterGeoDeliverySimVehicles(vehicles: ParkVehicleSnapshot[]): ParkVehicleSnapshot[] {
   return vehicles.filter(isGeoDeliverySimVehicle)
 }
 
-export function filterSchematicStations(stations: ParkStation[]): ParkStation[] {
-  return stations.filter(isSchematicParkStation)
-}
-
 export function filterGeoDeliveryStations(stations: ParkStation[]): ParkStation[] {
   return stations.filter(isGeoDeliveryStation)
-}
-
-export function filterSchematicOrders(orders: ParkOrderSnapshot[]): ParkOrderSnapshot[] {
-  return orders.filter(isSchematicParkOrder)
 }
 
 export function filterGeoDeliveryOrders(orders: ParkOrderSnapshot[]): ParkOrderSnapshot[] {
@@ -89,15 +63,6 @@ export function filterMobileOrderStations(stations: ParkStation[]): ParkStation[
       && !isAutoGeoEndpointStation(station)
       && !isEnergyFacilityStation(station),
   )
-}
-
-/** 园区示意地图下单：A/B 区厂内站 */
-export function filterSchematicOrderStations(stations: ParkStation[]): ParkStation[] {
-  return filterSchematicStations(stations).filter(station => /^[AB][1-4]$/.test(station.stationCode ?? ''))
-}
-
-export function orderableStationsForMode(stations: ParkStation[], mode: 'geo' | 'schematic'): ParkStation[] {
-  return mode === 'schematic' ? filterSchematicOrderStations(stations) : filterMobileOrderStations(stations)
 }
 
 export interface WorkbenchSituationFilterOptions {
@@ -148,8 +113,10 @@ export function mobileEnergyFacilityStations(stations: ParkStation[]): ParkStati
 export type WorkbenchStationRole =
   | 'pickup' | 'dropoff' | 'express' | 'idle' | 'charging' | 'swap' | 'warehouse'
 
-/** 角色优先按 **stationType** 判，编码前缀只留给没有类型的历史站/示意站兜底。
- *  ⚠ 原来纯按前缀判 + "不是 A 开头就当 dropoff" 的兜底，会把 `FSD-SWAP-01` 画成**送货点**。 */
+/** 角色优先按 **stationType** 判，编码前缀只留给没有类型的历史站兜底。
+ *  ⚠ 原来纯按前缀判 + "不是 A 开头就当 dropoff" 的兜底，会把 `FSD-SWAP-01` 画成**送货点**。
+ *    A/B 前缀那条规则随 §园区调度一并删除：活库里 `^[AB][1-4]$` 站点为 0 行（A1..B4 是
+ *    `deleted=1` 的历史行，接口不会返回），而它给出的答案与 `station_type` 声明的一致。 */
 export function workbenchStationRole(
   station: Pick<ParkStation, 'stationCode' | 'stationType'>,
 ): WorkbenchStationRole {
@@ -167,7 +134,9 @@ export function workbenchStationRole(
   if (code.startsWith('ZJF-EXPRESS-')) return 'express'
   if (code.startsWith('ZJF-CHG-')) return 'charging'
   if (code === 'ZJF-IDLE-01') return 'idle'
-  return code.startsWith('A') ? 'pickup' : 'dropoff'
+  // 判不出角色的站（无类型 + 无前缀）默认按送货点画：与删除前对"非 A 前缀"的处理一致，
+  // 不新造语义；要区分就得给站点补 `station_type`，而不是在前端猜。
+  return 'dropoff'
 }
 
 const WORKBENCH_STATION_COLORS: Record<WorkbenchStationRole, string> = {
@@ -216,40 +185,21 @@ export interface MobileStationSelectGroup {
 
 export function buildGroupedMobileStationOptions(
   stations: ParkStation[],
-  options?: { excludeStationId?: number | null; mode?: 'geo' | 'schematic' },
+  options?: { excludeStationId?: number | null },
 ): MobileStationSelectGroup[] {
   const grouped = new Map<MobileOrderStationGroup, MobileStationSelectOption[]>()
   for (const key of MOBILE_ORDER_GROUP_ORDER) grouped.set(key, [])
 
   for (const station of stations) {
     if (options?.excludeStationId != null && station.stationId === options.excludeStationId) continue
-    if (options?.mode === 'schematic') {
-      const code = station.stationCode ?? ''
-      const group: MobileOrderStationGroup = code.startsWith('A') ? 'pickup' : 'dropoff'
-      grouped.get(group)!.push({
-        value: station.stationId,
-        label: `${station.stationCode} · ${station.stationName}`,
-      })
-      continue
-    }
     grouped.get(mobileOrderStationGroup(station))!.push({
       value: station.stationId,
       label: `${station.stationCode} · ${station.stationName}`,
     })
   }
 
-  const groupOrder =
-    options?.mode === 'schematic'
-      ? (['pickup', 'dropoff'] as MobileOrderStationGroup[])
-      : MOBILE_ORDER_GROUP_ORDER
-
-  return groupOrder.filter(key => grouped.get(key)!.length > 0).map(key => ({
-    label:
-      options?.mode === 'schematic'
-        ? key === 'pickup'
-          ? '取货区 A'
-          : '送货区 B'
-        : MOBILE_ORDER_STATION_GROUP_LABELS[key],
+  return MOBILE_ORDER_GROUP_ORDER.filter(key => grouped.get(key)!.length > 0).map(key => ({
+    label: MOBILE_ORDER_STATION_GROUP_LABELS[key],
     options: grouped.get(key)!,
   }))
 }
@@ -269,32 +219,26 @@ export function findMobileOrderStation(
   return undefined
 }
 
-/** 丢弃失效站 ID，按模式回填默认可下单站点 */
+/** 丢弃失效站 ID，回填默认可下单站点 */
 export function syncDefaultOrderStations(
   stations: ParkStation[],
-  mode: 'geo' | 'schematic',
   current: { pickupStationId?: number | null; dropoffStationId?: number | null },
 ): { pickupStationId?: number; dropoffStationId?: number; repaired: boolean } {
-  const orderable = orderableStationsForMode(stations, mode)
+  const orderable = filterMobileOrderStations(stations)
   let pickup = findMobileOrderStation(stations, { stationId: current.pickupStationId }, orderable)
   let dropoff = findMobileOrderStation(stations, { stationId: current.dropoffStationId }, orderable)
   let repaired = false
 
   if (!pickup) {
     pickup =
-      mode === 'schematic'
-        ? orderable.find(station => station.stationCode === 'A1') ?? orderable[0]
-        : orderable.find(station => station.stationCode?.startsWith('ZJF-PICK-')) ?? orderable[0]
+      orderable.find(station => station.stationCode?.startsWith('ZJF-PICK-')) ?? orderable[0]
     repaired = true
   }
   if (!dropoff || dropoff.stationId === pickup?.stationId) {
     const previousDropoffValid = dropoff != null && dropoff.stationId !== pickup?.stationId
     dropoff =
-      mode === 'schematic'
-        ? orderable.find(station => station.stationCode === 'B1' && station.stationId !== pickup?.stationId) ??
-          orderable.find(station => station.stationId !== pickup?.stationId)
-        : orderable.find(station => station.stationCode === 'ZJF-DROP-01' && station.stationId !== pickup?.stationId) ??
-          orderable.find(station => station.stationId !== pickup?.stationId)
+      orderable.find(station => station.stationCode === 'ZJF-DROP-01' && station.stationId !== pickup?.stationId) ??
+      orderable.find(station => station.stationId !== pickup?.stationId)
     repaired = repaired || !previousDropoffValid
   }
 

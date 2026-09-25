@@ -33,33 +33,6 @@
 
     <main class="profile-main">
       <section class="menu-section">
-        <h3 class="section-title">配送模式</h3>
-        <div class="mode-switcher">
-          <button
-            type="button"
-            class="mode-btn"
-            :class="{ 'mode-active': orderMode === 'geo' }"
-            :aria-pressed="orderMode === 'geo'"
-            @click="switchMode('geo')"
-          >
-            <span class="mode-icon">🗺️</span>
-            <span class="mode-name">真实地图</span>
-            <span class="mode-desc">叠石桥沿路配送</span>
-          </button>
-          <button
-            type="button"
-            class="mode-btn"
-            :class="{ 'mode-active': orderMode === 'schematic' }"
-            :aria-pressed="orderMode === 'schematic'"
-            @click="switchMode('schematic')"
-          >
-            <span class="mode-icon">🏭</span>
-            <span class="mode-name">园区示意</span>
-          </button>
-        </div>
-      </section>
-
-      <section class="menu-section">
         <h3 class="section-title">服务区域</h3>
         <div class="zone-list">
           <p v-if="loadError" class="zone-desc">{{ '分区清单读取失败：' + loadError }}</p>
@@ -187,19 +160,12 @@ import MobileTabBar from '@/components/mobile/MobileTabBar.vue'
 import { getParkGeofences, getParkOrders, getParkStations, listParks } from '@/api/park'
 import {
   filterGeoDeliveryOrders,
-  filterSchematicOrders,
   filterGeoDeliveryStations,
   ZJF_DELIVERY_ZONES,
 } from '@/maps'
-import {
-  loadMobileOrderMode,
-  persistMobileOrderMode,
-  buildGeoTrackingLink,
-} from '@/constants/parkDelivery'
-import type { MobileOrderMode } from '@/constants/parkDelivery'
+import { buildGeoTrackingLink } from '@/constants/parkDelivery'
 import type { ParkOrderSnapshot, ParkStation } from '@/types/park'
 
-const orderMode = ref<MobileOrderMode>(loadMobileOrderMode())
 const orders = ref<ParkOrderSnapshot[]>([])
 const stations = ref<ParkStation[]>([])
 const mobileApiKey = ref('')
@@ -222,10 +188,7 @@ interface ServiceZoneRow {
 const serviceZones = ref<ServiceZoneRow[]>([])
 
 const stats = computed(() => {
-  const visible =
-    orderMode.value === 'schematic'
-      ? filterSchematicOrders(orders.value)
-      : filterGeoDeliveryOrders(orders.value)
+  const visible = filterGeoDeliveryOrders(orders.value)
   return {
     totalOrders: visible.length,
     activeOrders: visible.filter((o) => !['COMPLETED', 'FAILED'].includes(o.runtimeStage)).length,
@@ -239,12 +202,6 @@ const trackingShareUrl = computed(() => {
   const link = buildGeoTrackingLink(undefined, undefined)
   return link ? `${window.location.origin}${link}` : null
 })
-
-function switchMode(mode: MobileOrderMode) {
-  if (orderMode.value === mode) return
-  orderMode.value = mode
-  persistMobileOrderMode(mode)
-}
 
 function resolveDefaultMobileApiKey() {
   return (
@@ -403,53 +360,6 @@ onMounted(async () => {
   color: var(--mobile-secondary);
   font-size: var(--fsd-text-sm);
   font-weight: var(--fsd-font-semibold);
-}
-
-.mode-switcher {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--fsd-space-2);
-}
-
-.mode-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--fsd-space-1);
-  min-height: 96px;
-  padding: var(--fsd-space-3);
-  border: 1px solid var(--mobile-border);
-  border-radius: var(--fsd-radius-sm);
-  background: var(--mobile-surface);
-  cursor: pointer;
-  transition:
-    background-color var(--fsd-transition-base),
-    border-color var(--fsd-transition-base);
-
-  &.mode-active {
-    border-color: var(--fsd-accent-border);
-    background: var(--fsd-accent-selected);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--fsd-accent-strong);
-    outline-offset: 2px;
-  }
-}
-
-.mode-icon {
-  font-size: 24px;
-}
-.mode-name {
-  color: var(--mobile-text);
-  font-size: var(--fsd-text-sm);
-  font-weight: var(--fsd-font-semibold);
-}
-.mode-desc {
-  color: var(--mobile-secondary);
-  font-size: 11px;
-  text-align: center;
 }
 
 .zone-list {

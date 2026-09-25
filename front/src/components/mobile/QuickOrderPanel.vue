@@ -190,10 +190,9 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons-vue'
 import OrderEndpointInput from '@/components/order/OrderEndpointInput.vue'
-import type { MobileOrderMode } from '@/constants/parkDelivery'
 import { endpointSummary } from '@/constants/orderEndpoints'
 import type { OrderRejection } from '@/constants/orderEndpoints'
-import { buildGroupedMobileStationOptions, orderableStationsForMode } from '@/maps/stationLayers'
+import { buildGroupedMobileStationOptions, filterMobileOrderStations } from '@/maps/stationLayers'
 import type { ParkOrderEndpoint, ParkStation } from '@/types/park'
 
 const props = defineProps<{
@@ -202,7 +201,6 @@ const props = defineProps<{
   parkLocked: boolean
   parkName: string
   parkId?: number
-  orderMode: MobileOrderMode
   pickupEndpoint: ParkOrderEndpoint | null
   dropoffEndpoint: ParkOrderEndpoint | null
   rejection?: OrderRejection | null
@@ -281,20 +279,17 @@ function enableCustomWeight() {
   }
 }
 
-const orderableStations = computed(() => orderableStationsForMode(props.stations, props.orderMode))
+const orderableStations = computed(() => filterMobileOrderStations(props.stations))
 
 /** 只有取货端也是登记站点时才要去重；坐标端没有 stationId，排除不了也不该排除。 */
 const pickupStationIdForExclusion = computed(() =>
   props.pickupEndpoint?.kind === 'station' ? props.pickupEndpoint.stationId : null,
 )
 
-const pickupGroups = computed(() =>
-  buildGroupedMobileStationOptions(orderableStations.value, { mode: props.orderMode }),
-)
+const pickupGroups = computed(() => buildGroupedMobileStationOptions(orderableStations.value))
 
 const dropoffGroups = computed(() =>
   buildGroupedMobileStationOptions(orderableStations.value, {
-    mode: props.orderMode,
     excludeStationId: pickupStationIdForExclusion.value,
   }),
 )

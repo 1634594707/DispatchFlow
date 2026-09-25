@@ -30,19 +30,6 @@ export const parkDeliveryStageLabelMap: Record<string, string> = {
 //   现在货的起点唯一是总仓库 `FSD-HUB-01`，终点是用户在地图上选的坐标 ⇒ 没有"固定线路"可言。
 //   数据驱动的默认填充留在 `syncDefaultOrderStations()`（读活站表，不读常数）。
 
-export type MobileOrderMode = 'geo' | 'schematic'
-
-export const MOBILE_ORDER_MODE_KEY = 'fsd_mobile_order_mode'
-
-export function loadMobileOrderMode(): MobileOrderMode {
-  const stored = localStorage.getItem(MOBILE_ORDER_MODE_KEY)
-  return stored === 'schematic' ? 'schematic' : 'geo'
-}
-
-export function persistMobileOrderMode(mode: MobileOrderMode) {
-  localStorage.setItem(MOBILE_ORDER_MODE_KEY, mode)
-}
-
 export function parkDeliveryStageLabel(stage?: string | null) {
   return enumLabel(parkDeliveryStageLabelMap, stage, '阶段')
 }

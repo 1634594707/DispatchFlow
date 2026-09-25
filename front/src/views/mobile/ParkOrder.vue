@@ -23,7 +23,6 @@
         :park-locked="isSinglePark"
         :park-name="lockedParkName"
         :park-id="form.parkId"
-        :order-mode="orderMode"
         :pickup-endpoint="pickupEndpoint"
         :dropoff-endpoint="dropoffEndpoint"
         :rejection="rejection"
@@ -51,9 +50,7 @@
         :order="trackedOrder"
         :active-orders="activeOrders"
         :vehicle="trackedVehicle"
-        :park-layout="parkLayout"
         :geo-map-available="geoMapAvailable"
-        :force-schematic-map="false"
         :map-center="trackingMapCenter"
         :geo-markers="trackingGeoMarkers"
         :geo-polylines="trackingGeoPolylines"
@@ -83,7 +80,6 @@ import { message } from 'ant-design-vue'
 import OrderTrackingPanel from '@/components/mobile/OrderTrackingPanel.vue'
 import QuickOrderPanel from '@/components/mobile/QuickOrderPanel.vue'
 import MobileTabBar from '@/components/mobile/MobileTabBar.vue'
-import type { MobileOrderMode } from '@/constants/parkDelivery'
 import {
   createParkOrder,
   getParkGeofences,
@@ -104,10 +100,10 @@ import {
   filterGeoDeliveryOrders,
   filterGeoDeliverySimVehicles,
   findMobileOrderStation,
+  filterMobileOrderStations,
   isAmapConfigured,
   MOBILE_SERVICE_FENCE_PREFIX,
   mobileEnergyFacilityStations,
-  orderableStationsForMode,
   pilotMapCenter,
   syncDefaultOrderStations,
   vehicleGeoPosition,
@@ -145,7 +141,6 @@ const parkLayout = ref<ParkLayout | null>(null)
 const parkGeofences = ref<ParkGeofence[]>([])
 const trackedOrderId = ref<number | null>(null)
 const mobileApiKey = ref('')
-const orderMode = ref<MobileOrderMode>('geo')
 const geoMapAvailable = isAmapConfigured()
 const trackingPanelRef = ref<InstanceType<typeof OrderTrackingPanel> | null>(null)
 const quickOrderPanelRef = ref<InstanceType<typeof QuickOrderPanel> | null>(null)
@@ -214,7 +209,7 @@ const lockedParkName = computed(() => {
   return park?.parkName || '叠石桥 L1 试点'
 })
 
-const orderableStations = computed(() => orderableStationsForMode(stations.value, orderMode.value))
+const orderableStations = computed(() => filterMobileOrderStations(stations.value))
 
 /** 点选地图的初始视野：园区中心，缺省回落到试点常量。 */
 const orderMapCenter = computed<[number, number]>(() => {
@@ -444,7 +439,7 @@ function stationIdOf(endpoint: ParkOrderEndpoint | null): number | undefined {
  * 页面表现为"取货点空着、推荐线路点了没反应"。
  */
 function applyDefaultStations() {
-  const synced = syncDefaultOrderStations(stations.value, orderMode.value, {
+  const synced = syncDefaultOrderStations(stations.value, {
     pickupStationId: stationIdOf(pickupEndpoint.value),
     dropoffStationId: stationIdOf(dropoffEndpoint.value),
   })
@@ -478,7 +473,7 @@ function quickFillDefaults() {
 
 /** 站点端要仍然在可下单列表里；坐标端由后端判据负责，前端不重复判。 */
 function ensureValidOrderStations(): boolean {
-  const orderable = orderableStationsForMode(stations.value, orderMode.value)
+  const orderable = orderableStations.value
   for (const endpoint of [pickupEndpoint.value, dropoffEndpoint.value]) {
     if (endpoint?.kind !== 'station') continue
     if (!findMobileOrderStation(stations.value, { stationId: endpoint.stationId }, orderable)) {

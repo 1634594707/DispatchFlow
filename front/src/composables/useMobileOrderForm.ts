@@ -7,8 +7,6 @@
 import { ref, reactive, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { createParkOrder, getParkStations, listParks } from '@/api/park'
-import { loadMobileOrderMode, persistMobileOrderMode } from '@/constants/parkDelivery'
-import type { MobileOrderMode } from '@/constants/parkDelivery'
 import type { ParkOrderCreateRequest, ParkOrderCreateResponse, ParkSummary, ParkStation } from '@/types/park'
 
 /** 幂等键：每个“下单意图”一个；网络重试复用，仅在下单成功后换新键（路线图 3.3）。 */
@@ -27,8 +25,6 @@ export function useMobileOrderForm() {
   const stations = ref<ParkStation[]>([])
   const lastCreatedOrder = ref<ParkOrderCreateResponse | null>(null)
   const mobileApiKey = ref('')
-
-  const orderMode = ref<MobileOrderMode>(loadMobileOrderMode())
 
   const form = reactive<ParkOrderCreateRequest>({
     idempotencyKey: createIdempotencyKey(),
@@ -69,15 +65,6 @@ export function useMobileOrderForm() {
     const trimmed = mobileApiKey.value.trim()
     if (trimmed) sessionStorage.setItem('fsd_mobile_api_key', trimmed)
     else sessionStorage.removeItem('fsd_mobile_api_key')
-  }
-
-  function handleOrderModeUpdate(mode: MobileOrderMode) {
-    if (orderMode.value === mode) return
-    orderMode.value = mode
-    persistMobileOrderMode(mode)
-    form.pickupStationId = undefined as unknown as number
-    form.dropoffStationId = undefined as unknown as number
-    form.routeId = undefined
   }
 
   function validateForm(): boolean {
@@ -169,14 +156,12 @@ export function useMobileOrderForm() {
     stations,
     lastCreatedOrder,
     mobileApiKey,
-    orderMode,
     form,
     parkOptions,
     isSinglePark,
     lockedParkName,
     resolveDefaultMobileApiKey,
     persistMobileApiKey,
-    handleOrderModeUpdate,
     validateForm,
     submitOrder,
     fetchParks,

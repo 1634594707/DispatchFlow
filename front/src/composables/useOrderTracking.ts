@@ -7,41 +7,31 @@
 import { ref, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { buildGeofencePolygons } from '@/maps'
-import { filterSchematicOrders, filterGeoDeliveryOrders, filterSchematicParkVehicles, filterGeoDeliverySimVehicles } from '@/maps/stationLayers'
+import { filterGeoDeliveryOrders, filterGeoDeliverySimVehicles } from '@/maps/stationLayers'
 import { formatDeliveryEta, formatDistance, polylineLengthMeters } from '@/maps/geoDistance'
 import { routeAnomalyWarning } from '@/maps/routeValidation'
 import { buildGeoTrackingLink } from '@/constants/parkDelivery'
 import type { ParkOrderSnapshot, ParkVehicleSnapshot, ParkGeofence, ParkLayout } from '@/types/park'
-import type { MobileOrderMode } from '@/constants/parkDelivery'
 import type { Ref } from 'vue'
 
 export function useOrderTracking(options: {
-  orderMode: Ref<MobileOrderMode>
   parkOrders: Ref<ParkOrderSnapshot[]>
   vehicles: Ref<ParkVehicleSnapshot[]>
   parkGeofences: Ref<ParkGeofence[]>
   // parkLayout is reserved for future map center logic
   _parkLayout?: Ref<ParkLayout | null>
 }) {
-  const { orderMode, parkOrders, vehicles, parkGeofences } = options
+  const { parkOrders, vehicles, parkGeofences } = options
   const trackedOrderId = ref<number | null>(null)
   const lastToastStage = ref<string | null>(null)
 
-  const visibleParkOrders = computed(() =>
-    orderMode.value === 'schematic'
-      ? filterSchematicOrders(parkOrders.value)
-      : filterGeoDeliveryOrders(parkOrders.value),
-  )
+  const visibleParkOrders = computed(() => filterGeoDeliveryOrders(parkOrders.value))
 
   const activeOrders = computed(() =>
     visibleParkOrders.value.filter(order => !['COMPLETED', 'FAILED'].includes(order.runtimeStage)),
   )
 
-  const modeVehicles = computed(() =>
-    orderMode.value === 'schematic'
-      ? filterSchematicParkVehicles(vehicles.value)
-      : filterGeoDeliverySimVehicles(vehicles.value),
-  )
+  const modeVehicles = computed(() => filterGeoDeliverySimVehicles(vehicles.value))
 
   const trackedOrder = computed(() => {
     if (trackedOrderId.value) {

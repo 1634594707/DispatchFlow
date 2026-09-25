@@ -137,7 +137,7 @@ const dropoffGroups = computed(() =>
 )
 
 function applyDefaultStations() {
-  const synced = syncDefaultOrderStations(stations.value, 'geo', {
+  const synced = syncDefaultOrderStations(stations.value, {
     pickupStationId: pickupEndpoint.value?.kind === 'station' ? pickupEndpoint.value.stationId : undefined,
     dropoffStationId: dropoffEndpoint.value?.kind === 'station' ? dropoffEndpoint.value.stationId : undefined,
   })

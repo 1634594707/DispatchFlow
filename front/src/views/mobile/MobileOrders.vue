@@ -130,22 +130,16 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import MobileTabBar from '@/components/mobile/MobileTabBar.vue'
 import { getParkOrders } from '@/api/park'
-import { filterGeoDeliveryOrders, filterSchematicOrders } from '@/maps'
-import { loadMobileOrderMode, parkDeliveryStageLabel as stageLabel } from '@/constants/parkDelivery'
-import type { MobileOrderMode } from '@/constants/parkDelivery'
+import { filterGeoDeliveryOrders } from '@/maps'
+import { parkDeliveryStageLabel as stageLabel } from '@/constants/parkDelivery'
 import type { ParkOrderSnapshot } from '@/types/park'
 
 const router = useRouter()
 const orders = ref<ParkOrderSnapshot[]>([])
 const loading = ref(false)
 const activeFilter = ref<'all' | 'active' | 'completed' | 'failed'>('all')
-const orderMode = ref<MobileOrderMode>(loadMobileOrderMode())
 
-const visibleOrders = computed(() =>
-  orderMode.value === 'schematic'
-    ? filterSchematicOrders(orders.value)
-    : filterGeoDeliveryOrders(orders.value),
-)
+const visibleOrders = computed(() => filterGeoDeliveryOrders(orders.value))
 
 const activeOrders = computed(() =>
   visibleOrders.value.filter((o) => !['COMPLETED', 'FAILED'].includes(o.runtimeStage)),

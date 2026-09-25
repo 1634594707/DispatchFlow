@@ -12,7 +12,7 @@
         type="success"
         show-icon
         message="演示关键项已就绪"
-        description="当前使用本地路网与园区示意图；可打开车辆监控与移动下单进行录屏验收。"
+        description="当前使用高德地理底图与本地路网；可打开车辆监控与移动下单进行录屏验收。"
         class="overall-alert"
       />
       <a-alert
@@ -37,7 +37,7 @@
 
       <a-card size="small" title="配置指引" class="guide-card">
         <ul class="guide-list">
-          <li>地图模式：未配置高德 Key 时自动使用园区示意图与本地路网；需要高德时再设置 <code>VITE_MAP_PROVIDER=AMAP</code></li>
+          <li>地图模式：地理底图只有高德一条路；未配置 Key 时车辆监控与移动追踪会显示"底图未配置"提示（园区示意底图已随 §园区调度删除）</li>
           <li>高德模式：配置 <code>VITE_AMAP_KEY</code> 与安全密钥，并将<strong>线上域名</strong>加入白名单</li>
           <li>后端驾车路径：设置环境变量 <code>FSD_AMAP_WEB_SERVICE_KEY</code>（或依赖本地 OSM 路网）</li>
           <li>移动下单：<code>VITE_MOBILE_API_KEY</code> 与 Flyway V25 种子 Key 一致</li>
@@ -73,7 +73,8 @@ const mapConfig = getMapConfig()
 const mobileKey = (import.meta.env.VITE_MOBILE_API_KEY as string | undefined)?.trim() || ''
 
 const whitelistHosts = getAmapWhitelistHosts()
-const schematicMode = mapConfig.provider !== 'AMAP'
+/** 高德未启用 ⇒ 这页没有任何地图底图（园区示意底图已删除），所以地图项按"缺配置"处理。 */
+const amapDisabled = mapConfig.provider !== 'AMAP'
 
 const checks = computed<ConfigCheckItem[]>(() => {
   const jsKeyOk = !!mapConfig.amapKey
@@ -86,34 +87,34 @@ const checks = computed<ConfigCheckItem[]>(() => {
     {
       id: 'amap-js',
       title: '高德 JS API Key',
-      status: schematicMode ? 'warn' : jsKeyOk ? 'ok' : 'fail',
-      detail: schematicMode
-        ? '未启用高德，当前使用园区示意图与本地路网'
+      status: amapDisabled ? 'warn' : jsKeyOk ? 'ok' : 'fail',
+      detail: amapDisabled
+        ? '未启用高德（VITE_MAP_PROVIDER≠AMAP）：当前无地图底图'
         : jsKeyOk ? `已配置（${maskSecret(mapConfig.amapKey)}）` : '未配置 VITE_AMAP_KEY',
       hint: 'Web 端地图 Marker / 短驳地理场景',
     },
     {
       id: 'amap-sec',
       title: '高德安全密钥',
-      status: schematicMode ? 'warn' : secOk ? 'ok' : 'fail',
-      detail: schematicMode
-        ? '当前示意图模式无需高德安全密钥'
+      status: amapDisabled ? 'warn' : secOk ? 'ok' : 'fail',
+      detail: amapDisabled
+        ? '未启用高德，此项暂不需要'
         : secOk ? '已配置 VITE_AMAP_SECURITY_CODE' : '未配置安全密钥',
     },
     {
       id: 'amap-bundle',
       title: '前端地图可用',
-      status: schematicMode || isAmapConfigured() ? 'ok' : 'fail',
-      detail: schematicMode
-        ? '园区示意图可用（本地路网）'
-        : isAmapConfigured() ? 'AMAP 双 Key 就绪' : 'Key 或安全码缺失',
+      status: isAmapConfigured() ? 'ok' : 'fail',
+      detail: isAmapConfigured()
+        ? 'AMAP 双 Key 就绪'
+        : '无底图：园区示意底图已删除，必须配置高德双 Key',
     },
     {
       id: 'amap-domain',
       title: '高德域名白名单',
-      status: schematicMode ? 'ok' : isAmapConfigured() ? 'warn' : 'fail',
-      detail: schematicMode
-        ? '当前使用示意图，无需高德域名白名单'
+      status: amapDisabled ? 'ok' : isAmapConfigured() ? 'warn' : 'fail',
+      detail: amapDisabled
+        ? '未启用高德，无需域名白名单'
         : isAmapConfigured()
           ? `当前访问：${whitelistHosts.join(' · ')} — 须在高德控制台 JS Key 白名单中`
           : '先配置 Key 后再添加域名白名单',
@@ -147,7 +148,7 @@ const overallReady = computed(() =>
     item.status === 'ok'
     || (item.id === 'mobile-key' && item.status === 'warn')
     || (item.id === 'amap-domain' && item.status === 'warn')
-    || (schematicMode && (item.id === 'amap-js' || item.id === 'amap-sec') && item.status === 'warn'),
+    || (amapDisabled && (item.id === 'amap-js' || item.id === 'amap-sec') && item.status === 'warn'),
   ),
 )
 
