@@ -3,8 +3,8 @@
 # scripts/dev/reset-demo-dispatchable.sh
 #
 # 一条命令把「本地」演示库重置到可派单状态。
-# 对应路线图 docs/DispatchFlow_调度算法与地理收敛任务路线图_2026-09-21.md
-# 的 §M0 第 3 项 与 §1.7（"车在动"是观感第一优先级）。
+# 最早服务 §M0 第 3 项 与 §1.7（"车在动"是观感第一优先级）；那份路线图已退场，
+# 口径以 docs/DispatchFlow_演示与配置优化任务路线图_2026-09-25.md §0.2 现值表为准。
 #
 # 用法（在仓库根目录；Windows Git Bash / Linux / macOS 通用）：
 #   bash scripts/dev/reset-demo-dispatchable.sh            # 重置 + 自动验证
@@ -16,24 +16,32 @@
 # 它修什么
 # ---------------------------------------------------------------------
 #   1. 遥测刷新    last_report_time <- NOW()
-#      实测本地三台车停在 2026-08-22 20:57:56，年龄远超阈值，
+#      库里 `ZJF-AV-*` 的 `last_report_time` 一停摆就远超阈值（最早实测停在 2026-08-22 20:57:56），
 #      DispatchVehicleAssignServiceImpl.java:140-147 会直接把整批评成
 #      TELEMETRY_STALE —— 这才是"派不出单"的第一现场，不是坐标也不是 SOC。
 #   2. SOC 分布化  battery_level 按车号均匀铺到 35..100
-#      （原来三台全是 100，打分里的 socScore 项在演示上恒为 0，看不出选车逻辑）
+#      （刚补齐车队时全是 100，打分里的 socScore 项在演示上恒为 0，看不出选车逻辑）
 #      刻意保留 35 这种"过得了 min-assignable-soc 但过不了全链路 SOC"的车，
 #      让 DispatchVehicleAssignServiceImpl.java:163-169 的链路过滤真的会触发。
 #   3. 坐标合法    current_longitude / current_latitude 吸附到 ACTIVE 路网节点
 #   4. 状态机复位  IDLE / ONLINE / 清 current_task_id、current_order_id、current_load
 #   5. 卡死流程清理（等价于 scripts/dev/reset_stuck_dispatch.sql 的五步）
-#   6. 设施扩容    ZJF-IDLE-01 capacity_limit 20 -> 28（§10.1 M 档）
+#   6. 设施扩容    ZJF-IDLE-01 capacity_limit -> 40（§1.2/§1.3 的 50 台档；旧默认 28 已作废）
 #
 # ---------------------------------------------------------------------
 # 它不修什么（诚实声明）
 # ---------------------------------------------------------------------
-#   [!] 不写 GCJ-02。§10.1 的「保留列名，改写为合法 GCJ-02」被本脚本
-#       **刻意推迟**到 §7.6（删除园区示意调度）之后执行。当前整条派单链
-#       仍工作在 schematic 像素坐标系上，证据（本地实测 + 源码原文）：
+#   [!] 不写 GCJ-02 —— 这不是"推迟"，是**现行契约**（§1.5 / §7.2：列语义**逐行**由
+#       `VehicleLinkMode.isSimulated` 判定，SIM 行存 schematic 像素、真车行存 GCJ-02，
+#       读写都走唯一取位口 `geo/VehiclePositionResolver.toPark/toGeo`）。
+#       旧叙述"保留列名、改写为合法 GCJ-02、与 §7.6 同批翻列"**已被 §13.40 否决**：
+#       照它排工会把演示做废（20/20 吸附、可达率与 `isMetricConsistent` 全建立在
+#       "仿真行存像素"之上）。本脚本只动 `ZJF-AV-*`，而本地实测这些行
+#       **link_mode 全是 SIM**（`SELECT link_mode, COUNT(*) FROM t_vehicle WHERE deleted=0
+#       GROUP BY link_mode` → SIM 20 / 无其它值）⇒ 写像素才是对的，写经纬度才是错的。
+#       真车行为什么也不用这里管：写入侧已在 §13.49 按"上报即 GCJ-02"定约，
+#       且 `fsd.vda5050.enabled` 恒 false、本机无 broker ⇒ 库里不存在真车行。
+#       支撑证据（本地实测 + 源码原文）：
 #         - back/fsd-dispatch/src/main/java/com/fsd/dispatch/road/ParkRoadGraph.java:226-230
 #           NodeView.distanceTo(BigDecimal x, BigDecimal y) 只对 coord_x/coord_y
 #           做欧氏距离，**没有 GPS 分支**；haversine 只存在于节点之间的
@@ -50,14 +58,16 @@
 #           若把 121.08/31.96 写进这两列，nearestNode 会把车吸附到画布左上角的
 #           错误节点，派单距离与可达性全部失真 —— 演示当场就废。
 #       所以本脚本写入的仍是像素坐标，而且做到"正好落在 ACTIVE 节点上"
-#       （nearest-node distance = 0），把 §7.6/§7.2 的 GCJ-02 改写留给那一步。
+#       （nearest-node distance = 0）。§7.6 的前端像素兜底删除（§13.55）改的是**读侧换算**，
+#       不是这里的存储语义 —— 两件事别混。
 #
 #   [!] 不凭空造 20 台车。地理池车辆由仿真器自建：
 #       back/fsd-dispatch/src/main/java/com/fsd/dispatch/service/impl/ParkPilotSimulationServiceImpl.java:169-199
 #       ensurePilotFleet(GEO_VEHICLE_PREFIX, geoVehicleCount) 会按 ZJF-AV-01..NN 补齐。
-#       默认 3 台：back/fsd-bootstrap/src/main/resources/application.yml:365
-#       提到 M 档 20 台的正解是设 FSD_PARK_SIMULATION_GEO_VEHICLE_COUNT=20 后重启，
-#       仿真器补出 ZJF-AV-04..20，然后再跑一次本脚本即可把它们一起铺平。
+#       默认已是 20 台：back/fsd-bootstrap/src/main/resources/application.yml:369
+#       （`geo-vehicle-count: ${FSD_PARK_SIMULATION_GEO_VEHICLE_COUNT:20}`）；
+#       要改档就设这个环境变量后重启，仿真器会补齐 ZJF-AV-01..NN，然后再跑一次本脚本
+#       即可把它们一起铺平。
 #       （直接 INSERT 17 台假车会让仿真器的内存运动状态与库不一致。）
 #
 #   [!] 不动 schema、不建迁移、不改 application.yml —— 只改数据。
@@ -90,7 +100,8 @@ FSD_DB_PASSWORD="${!LOCAL_PWD_ENV:-root}"
 MIN_SOC="${FSD_MIN_ASSIGNABLE_SOC:-30}"
 STALE_SEC="${FSD_TELEMETRY_STALE_SEC:-30}"
 IDLE_STATION="ZJF-IDLE-01"
-IDLE_CAPACITY_TARGET="${FSD_IDLE_CAPACITY_TARGET:-28}"
+# 40 = §1.2/§1.3 的 50 台档下限（旧默认 28 是按 20 台算的，随 §1.10-A 一并作废）
+IDLE_CAPACITY_TARGET="${FSD_IDLE_CAPACITY_TARGET:-40}"
 CC_ROUNDS="${FSD_CC_ROUNDS:-60}"       # 连通分量标签传播轮数（>= 路网直径即可）
 # 标签在 t_lbl_a / t_lbl_b 间来回覆盖，只有偶数轮结束时结果才落在 t_lbl_a，
 # 而下方所有统计语句都读 t_lbl_a —— 轮数必须取偶。
@@ -252,8 +263,7 @@ UPDATE t_vehicle
        current_order_id=NULL,
        current_load=0,
        emergency_mode=0,
-       manual_override=0,
-       delivery_zone='BOTH'
+       manual_override=0
  WHERE deleted=0 AND vehicle_code LIKE '${VEHICLE_PREFIX}%';
 
 -- (3) 铺平面包屑：给每台地理池车分配一个 ACTIVE 路网节点的 schematic 坐标 +
@@ -299,7 +309,7 @@ UPDATE t_vehicle v
 
 DROP TEMPORARY TABLE IF EXISTS t_reset_plan;
 
--- (4) 设施扩容：ZJF-IDLE-01 待命位 20 -> 28（§10.1 M 档）。
+-- (4) 设施扩容：ZJF-IDLE-01 待命位 -> 40（§1.2/§1.3 的 50 台档下限）。
 --     GREATEST 保证幂等且不会把人工调大的值压回去。
 UPDATE t_station
    SET capacity_limit = GREATEST(capacity_limit, ${IDLE_CAPACITY_TARGET})
@@ -336,7 +346,7 @@ DROP TEMPORARY TABLE IF EXISTS t_v, t_s, t_edge, t_lbl_a, t_lbl_b, t_lbl_c, t_ms
 -- 每台车到最近 ACTIVE 路网节点的像素距离（= nearestNode 真实会做的事）
 CREATE TEMPORARY TABLE t_v AS
 SELECT v.id, v.vehicle_code vc, v.online_status os, v.dispatch_status ds,
-       v.battery_level soc, v.delivery_zone dz, v.link_mode lm,
+       v.battery_level soc, v.link_mode lm,
        v.current_longitude cx, v.current_latitude cy,
        TIMESTAMPDIFF(SECOND, v.last_report_time, NOW()) age_sec,
        (SELECT n.node_code FROM t_road_node n
@@ -358,7 +368,7 @@ SELECT s.station_code sc,
          ORDER BY POW(n.coord_x-s.coord_x,2)+POW(n.coord_y-s.coord_y,2), n.node_code
          LIMIT 1) nn
   FROM t_station s
- WHERE s.deleted=0 AND s.status='ACTIVE' AND s.station_type='PICKUP';
+ WHERE s.deleted=0 AND s.status='ACTIVE' AND s.station_type IN ('PICKUP','MOTHERSHIP');
 
 -- 图重建：与 ParkRoadGraph.fromDatabase 完全同规则（ACTIVE 节点/路段、
 -- BLOCKED 与 PEDESTRIAN_ONLY 禁行、direction 暂忽略因全为 BIDIRECTIONAL）
@@ -420,6 +430,13 @@ SELECT 'K','components',         COUNT(DISTINCT grp)     FROM t_lbl_a;
 -- "无向连通"并不等于 Java 侧 isReachable 能成路（实测裁断版图 113 边含 17 条单向）。
 SELECT 'K','scc_components',     COUNT(DISTINCT component_id) FROM t_road_node_component WHERE deleted=0;
 SELECT 'K','scc_largest',        COUNT(*) FROM t_road_node_component WHERE deleted=0 AND is_largest=1;
+-- 分量表是派生物（reanchor_facilities.py 写），路网 seed 加了新节点它不会自己跟上。
+-- 少了行的节点在下面会被 COALESCE 退回无向标签，而 s<id> 与无向标签永远不相等
+-- => 好端端的车被报成 NO_ROUTE。实测 AMWL/AMCJ 16 个节点就这样造出一个假 FAIL。
+SELECT 'K','scc_missing',        COUNT(*) FROM t_road_node r
+  WHERE r.deleted=0 AND r.status='ACTIVE' AND r.coord_lng IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM t_road_node_component c
+                     WHERE c.deleted=0 AND c.node_code=r.node_code);
 SELECT 'K','pickup_stations',    COUNT(*)                FROM t_s;
 SELECT 'K','pair_total', COUNT(*) FROM t_v v JOIN t_s s
   JOIN t_lbl_a a ON a.node_code=v.nn JOIN t_lbl_c b ON b.node_code=s.nn;
@@ -431,7 +448,7 @@ SELECT 'K','pair_ok', IFNULL(SUM(
   FROM t_v v JOIN t_s s
   JOIN t_lbl_a a ON a.node_code=v.nn JOIN t_lbl_c b ON b.node_code=s.nn;
 
-SELECT 'V', vc, os, ds, soc, age_sec, CONCAT(cx+0,' / ',cy+0), nn, ROUND(dist_px,2), dz, lm
+SELECT 'V', vc, os, ds, soc, age_sec, CONCAT(cx+0,' / ',cy+0), nn, ROUND(dist_px,2), lm
   FROM t_v ORDER BY vc;
 SELECT 'P', sc, nn FROM t_s ORDER BY sc;
 SELECT 'R', v.vc, s.sc, v.nn, s.nn, IF(COALESCE((SELECT CONCAT('s',c1.component_id) FROM t_road_node_component c1
@@ -480,7 +497,7 @@ fi
 
 IC="$(getv idle_capacity)"; ICT="$(getv idle_capacity_target)"
 if [ "${IC:-0}" -ge "$ICT" ] 2>/dev/null; then
-  ok "$IDLE_STATION capacity_limit = $IC (>= $ICT，§10.1 M 档待命位)"
+  ok "$IDLE_STATION capacity_limit = $IC (>= $ICT，§1.2/§1.3 待命位)"
 else
   bad "$IDLE_STATION capacity_limit = ${IC:-NULL}，未达到 $ICT"
 fi
@@ -500,15 +517,19 @@ if [ "$ANG" != "$GNG" ]; then
 fi
 
 log "几何前置条件：每台车 / 每个取货位 -> 最近 ACTIVE 节点"
-printf '%s\n' "$RAW" | awk -F'\t' '$1=="V"{printf "  车 %-10s %-6s/%-6s SOC=%-4s age=%-3ss pos=(%s) 最近节点=%-6s 距离=%-6spx zone=%-13s link=%s\n",$2,$3,$4,$5,$6,$7,$8,$9,$10,$11}'
+printf '%s\n' "$RAW" | awk -F'\t' '$1=="V"{printf "  车 %-10s %-6s/%-6s SOC=%-4s age=%-3ss pos=(%s) 最近节点=%-6s 距离=%-6spx link=%s\n",$2,$3,$4,$5,$6,$7,$8,$9,$10}'
 printf '%s\n' "$RAW" | awk -F'\t' '$1=="P"{printf "  取货位 %-10s -> 最近节点 %s\n",$2,$3}'
 PS="$(getv pickup_stations)"
-[ "${PS:-0}" -ge 1 ] && ok "ACTIVE PICKUP 站点 = $PS" || bad "没有 ACTIVE PICKUP 站点，派单无从谈起"
+[ "${PS:-0}" -ge 1 ] && ok "ACTIVE 取货位（含设施v2的总仓库 MOTHERSHIP）= $PS" || bad "没有 ACTIVE 取货位/总仓库，派单无从谈起"
 
 log "可达性（同一**有向强连通**分量 => Java 侧 isReachable/buildRoute 能成路）"
 CMP="$(getv components)"
 SCC="$(getv scc_components)"
 SCCL="$(getv scc_largest)"
+SCCM="$(getv scc_missing)"
+if [ "${SCC:-0}" -gt 0 ] 2>/dev/null && [ "${SCCM:-0}" -gt 0 ] 2>/dev/null; then
+  bad "t_road_node_component 落后于路网：$SCCM 个 ACTIVE 节点没有分量行 —— 下面的车-取货位判定会把它们当成不连通（假 NO_ROUTE）。先跑 python scripts/geo/reanchor_facilities.py --components-only 再验"
+fi
 if [ "${SCC:-0}" -gt 0 ] 2>/dev/null; then
   warn "路网分量：无向 $CMP 个 / 有向强连通 $SCC 个（最大 SCC $SCCL 节点）—— 跨强连通分量的取货必然 UNREACHABLE，无向数只作参考"
 elif [ "${CMP:-99}" = "1" ]; then
