@@ -131,7 +131,18 @@ docker compose -f "$COMPOSE_FILE" ps
 
 echo ""
 echo "  健康检查:"
-curl -fsS "http://127.0.0.1:8080/internal/actuator/health" 2>/dev/null && echo "" || echo "  [WARN] 后端健康检查未通过，请查看日志: docker logs fsd-backend"
+# ⚠ 这里以前 curl 宿主机的 127.0.0.1:8080 —— 但 prod compose 根本不给 backend 发布宿主端口
+#   （只有 `8080/tcp`），所以那句探针**永远失败**，每次部署都喷一句"[WARN] 后端健康检查未通过"，
+#   而 docker ps 明明写着 healthy。假警报看多了就会漏掉真故障。
+#   actuator 的真实路径是 /internal/actuator/health（打 /actuator/health 会 404），
+#   且只能在容器内访问 ⇒ 探针也走容器内。
+HEALTH_JSON="$(docker exec fsd-backend sh -c 'wget -qO- http://127.0.0.1:8080/internal/actuator/health' 2>/dev/null || true)"
+if printf '%s' "$HEALTH_JSON" | grep -q '"status":"UP"'; then
+  echo "  [OK] 后端健康：$HEALTH_JSON"
+else
+  echo "  [WARN] 后端健康检查未通过（拿到的响应：${HEALTH_JSON:-<空>}），请查看日志: docker logs fsd-backend" >&2
+  exit 1
+fi
 
 # ---------- 8. 完成 ----------
 echo "[8/8] 部署完成"

@@ -1,6 +1,7 @@
 # DispatchFlow 演示与配置优化任务路线图（2026-09-25）
 
-> 状态：**待本人裁 5 项（§6）后开工**；本文件是唯一的执行清单，替代并吸收同日上午的《演示与配置优化方案》。
+> 状态：**M0–M5 已全部完成并上生产**（§6 五项已于 2026-09-25 裁定，见 §6.1；逐项验收见 §10，部署取证见 §11）。
+> 本文件仍是唯一的执行清单：完成项只留"一行结论 + 指回本文档内的证据节"，未做项才展开写。
 > 纪律：每项任务给"证据出处 → 改动点 → 验收闸门（可执行命令/可观察断言）→ 范围外"。闸门未过不许勾。
 > 常数口径标注：**[业务]**=本人提供的车辆事实、**[库]**=仓库实测现值、**[模型]**=均匀需求模型值不是实测。
 
@@ -291,16 +292,44 @@ M3 ──┘   M4 独立，可插队
 | T1-b | ✅ | 2026-09-25 | Q1 裁"对齐 RMS"。yml:394 与 `FleetEnergyProperties.returnToChargeThreshold` 20→30，`lowSocThreshold` 同步 20→30；`grep FSD_FLEET_ENERGY application.yml` 三条能量线现值 30/30/30，无第二份 20 残留。该字段不进 DB 档案 ⇒ yml 改动确实生效（§3.1） |
 | T1-c | ✅ | 2026-09-25 | 注释钉死在两处：`FleetEnergyProperties` 类 javadoc（"口径纪律：对外物理值 ≠ 运行时仿真值"）+ `zjf_swap_cabinets.sql` 头【T1-c 口径终审】。`grep -rn avg_service_seconds back/` 消费方仍为 0（ScenarioBench:1000 是报告文本、IntegrationTestSchema:83 是建表列，均非消费） |
 | T1-d | ✅ | 2026-09-25 | 结论进 §3.1：仿真侧两个电量键是死键；能量侧 `minAssignableSoc` 受 Redis + DB 档案双层覆盖（生产档案=30 且 EXPERIMENT 已停用；本机 EXPERIMENT 仍 active=1/35，本机≠生产）；Redis 无 `fsd:config:energy:*` 键（本机与生产各核一次） |
-| T2-a | ☐ | | |
-| T2-b | ☐ | | |
-| T2-c | ☐ | | |
-| T2-d | ☐ | | |
-| T2-e | ☐ | | |
-| T2-f | ☐ | | |
+| T2-a | ✅ | 2026-09-25 | 渲染层缺口补上（数据一直在拉）：`buildVehicleGeoMarkers(modeVehicles, {selectedId})` + 被追单 OD 连线（`includeOrderLines` 由 false 翻过来）。**浏览器实测真后端真数据：`vehicleMarkers=20`、`positionUnknown=0`**、selected 恰 1 台、只有被追那台显示标签。坐标只消费 `vehicleGeoPosition()` 现成返回值，无像素↔GCJ 换算（§7.5） |
+| T2-b | ✅ | 2026-09-25 | Q4 裁"移动端隐藏"。`buildGeofencePolygons` 加可选参数 + `MOBILE_SERVICE_FENCE_PREFIX='ZJF-ZONE-'`，**默认行为不动**（e2e 有"PC 工作台包络照旧画、DISABLED 照旧不画"断言）；移动端只剩 1 条边界，青色虚线包络不再同屏 |
+| T2-c | ✅ | 2026-09-25 | 新 `mobileEnergyFacilityStations()` 只喂追踪地图。**实测 `swapMarkers=35`**（= 接口 `SWAP_CABINET` 数）、`chargingMarkers=0` 是**设计如此**：6 根基地桩与柜同坐标，收进柜徽标以免叠成墨点（e2e 专测这条）。不变量有零泄漏断言：下单下拉里柜/桩/`GEO-` 自动落点全为 0；整页 57 marker 仍在 `MARKER_BUDGET` 内 |
+| T2-d | ✅ | 2026-09-25 | `constants/vehicleSpec.ts` 单一文案源，页面 `[data-testid=vehicle-spec]` 实测渲染 `新石器 L4 · X3 满载续航 180 km · 30 s 快速换电 · 35 柜`；闸门：文案里不出现标称最长续航那档数字，`git diff` 不含新增库列 |
+| T2-e | ✅ | 2026-09-25 | 基准间隔具名 `TRACKING_POLL_BASE_MS = 1500`，退避封顶 30 s 未动（e2e 断言两点）。代价按 §4 原文记账：匿名路径不过限流、QPS×2，仅演示时长内可接受 |
+| T2-f | ✅ | 2026-09-25 | `ORDER_REJECT_SERVICE_AREA_GUIDANCE='请在高亮的服务范围内选点'` 只挂在吸附失败/围栏外两类码上（其余原因码不给，e2e 断言）；围栏描边闪一次走 `flashOutline`，**只改样式**：e2e 比对闪前/闪后的围栏集合与几何完全相同。`[data-testid=order-rejection]` 仍是常驻元素，没改成 toast |
+| 前端总闸门 | ✅ | 2026-09-25 | `vue-tsc --noEmit` 干净；`npm run build` 成功；**全量 e2e+perf 66 passed / 0 failed**（`--workers=2`）。注：并行首跑曾因 vite 冷启动误报一条 v13 超时，单跑与串行均绿 ⇒ 判为抢资源不是回归 |
+| 彩排目视（§9 步 2） | ✅（非像素级） | 2026-09-25 | 真浏览器驱动真页面下单后读 DOM 计数器取证（见 T2-a/T2-c 行）；**PNG 截图没拿到**——沙箱内浏览器不可见、直连 playwright 的浏览器未安装，故这条是结构取证而非目视，演示前建议人工再扫一眼 |
 | T3-a | ✅（零改动） | 2026-09-25 | 裁定"不补洞"，且**现网文案本就没有**过度声明：`覆盖 100%`/`100% 覆盖` 全仓 0 命中；`全覆盖`/`55 km` 命中处都是闸门自述或"洞不描、洞内拒单"的反向陈述 ⇒ 闸门通过，无需改文案。见 §5 T3-a 与下方巡检表 |
 | T3-b | ✅ | 2026-09-25 | 六个旧数全仓逐处定性（70 处命中 / 28 文件）：`front/` 与 `README.md` **0 命中**；唯一把旧面积写成现值的活文案 = `ParkPilotProperties.java:126`"服务范围因此定成 32.2 km²" ⇒ 已改为历史量 + 现值 47.18 km²。其余 历史/无关 或 落在禁改区：`V64__order_arbitrary_points.sql:13`（**不能改**，改注释会破已应用迁移的 Flyway 校验和）、`ScenarioBench.java:984` 的 17.84 出处陈述（要干净修只能重跑 bench，§7.7 禁）、`scripts/geo/amap_route_diff.py:49,52`（第二份产能算式，§7.7 禁）。明细见 §5.1 |
 | M5 彩排 | ✅ | 2026-09-25 | §9.2 表：步骤 0/1/5 PASS（接单 1.555 s），步骤 3 达成但**按证据强度重新表述**（空闲补能是混淆项），步骤 4 只验了坐标兜底那半 |
-| 部署 | ☐ | | |
+| 部署 | ✅ | 2026-09-25 | 见 §11 部署记录：容器内 `FSD_PARK_SIMULATION_TICK_INTERVAL_MS=500` 已生效、能量三档无覆盖键⇒吃 yml 的 30/30/30、线上 `ParkOrder-CYslWLZ3.js` 里查到 `tracking-map-legend`／"满载续航 180 km"／"请在高亮的服务范围内选点"三个 M2 痕迹、生产真单 orderId=28 走完 `DISPATCHED→IN_PROGRESS→COMPLETED` 约 180 s |
+
+## §11 部署记录（2026-09-25，本轮 M0–M5 上生产）
+
+**前置**：本轮**无迁移变更**（本机迁移最高 V65 == 生产 flyway_schema_history 现值 65）、**无 seed 导入**、
+**无围栏几何变更**（T3-a 裁"不补洞"）⇒ 不触发"灌 seed 前必须停后端"那条铁律，生产地图内容不动。
+
+| 步骤 | 动作 | 实测 |
+| --- | --- | --- |
+| 1 | `scripts/pack-deploy-tree.sh` 按清单打包 | 1247 文件 / 2.0 MB；反证 grep 命中 **0** 条禁入路径（`.env*`、`data/backup`、`tmp`、`node_modules`、`target`、`*.sql.gz`） |
+| 2 | scp 上传 + 两端 sha256 比对 | 本地=远端=`3542f451452134aa…` |
+| 3 | **build 之前**先打回滚 tag | `dispatchflow-{backend,frontend}:rollback-20260925-102311` 两条都在 |
+| 4 | 生产库备份 | 首次拿到 **20 字节**——mysqldump 漏了 `-uroot -p` 且 `2>/dev/null` 把报错吞了，gzip 了个空文件。补凭据后重做：14.9 MB SQL ⇒ 1.6 MB gz、50 张 `CREATE TABLE`、46 段 `INSERT`、尾部 `Dump completed` 在，与上一份已知可用备份（1.53 MB）同量级 |
+| 5 | 解包 | 先解到 `/tmp/x` 空跑一遍，确认 `TICK_INTERVAL` 命中 2、yml 回补线 30、Java 默认 30、M2 helper 命中 2，再 `cp -a` 落位（`.env` 不在包里 ⇒ mtime 仍是 Sep 24 22:13，未被覆盖） |
+| 6 | `bash scripts/deploy.sh` | 两镜像重建成功、`[6/8] 后端已就绪`、`docker ps` 里 fsd-backend `Up (healthy)`、后端日志 `Started FsdCoreApplication in 28.611 s` 无 ERROR/Exception |
+| 7 | 落地取证 | 容器 env：`FSD_PARK_SIMULATION_TICK_INTERVAL_MS=500`；无任何 `FSD_FLEET_ENERGY_*` ⇒ 新 yml 默认值生效；`/internal/actuator/health` 从容器内取到 `{"status":"UP"}`；线上 bundle `ParkOrder-CYslWLZ3.js` 含三个 M2 痕迹；`https://aplicity.online` 与 `/mobile/order` 均 200 |
+| 8 | 真单端到端 | 匿名 `POST /api/admin/park/orders`（坐标入口）⇒ orderId=28 立即 `ASSIGNED / Auto assign success`，15 s 时 `HEADING_TO_PICKUP`、105 s 起 `HEADING_TO_DROPOFF`、**180 s `COMPLETED`**（与本机 500 ms 档实测 157 s 同量级） |
+
+**顺手修掉的一个假警报**：`deploy.sh` 第 7 步的健康探针 curl 宿主机 `127.0.0.1:8080`，
+而 prod compose 从不给 backend 发布宿主端口 ⇒ 这句**每次部署都必然失败**、喷"[WARN] 后端健康检查未通过"，
+而同一屏 `docker ps` 写着 healthy。探针改为容器内取 `/internal/actuator/health`（打 `/actuator/health` 会 404），
+并在拿不到 `"status":"UP"` 时 `exit 1`——让"红"真的意味着红。
+
+**没测的那条，别当成测过**：生产的 tick 实际周期我**没有**独立量过。15 s 密集采样只看到首车电量变化 1 次
+（那台车在充电接近上限，步长会被 cap 吃掉），这个仪表不足以判周期。节拍数字来自**本机同代码同配置**的三档实测。
+
+**留了一条**：orderId=28 这单留在生产库里当部署证据，没删（生产本来就是演示夹具）。
 
 > **本轮同步修掉的死链**（《已完成工作记录》《调度算法与地理收敛任务路线图》《部署整改任务路线图》三份文档已退场后遗留）：`README.md` 四处（徽章、"文档只剩三份"导语、生产部署段、文档表三行）与 `scripts/dev/reset-demo-dispatchable.sh:6` 一处改指现存文档；守卫 `node scripts/check-doc-links.mjs` 复跑 `[OK] 检查 21 条引用`。已删文档**未恢复**，其内容按路径可在 `git log --diff-filter=D -- docs/` 查到。
 
