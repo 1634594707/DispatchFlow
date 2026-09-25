@@ -468,8 +468,10 @@ CI 在 `93e0b6b` 三项全 success。本轮**无迁移、无 seed、无围栏几
    默认改成 **false**（Java 与 `application.yml` 两处一起）。这恰好才是 RMS 对外的说法：
    "电量低于 30% 时自动调度车辆返回母港补能"，而不是"没单就全体去充电"。
 
-**复测（本机，tick=500 ms，开机 2 分钟）**：占位车辆 **35/35**、IDLE 无位 **0**、
-35 台落在 **35 个不同坐标**、SOC 全部 ≥30。闸门：`fsd-dispatch` + `fsd-admin-api` 全绿、`spotbugs:check` 干净。
+**复测（tick=500 ms，开机 2 分钟）—— 本机与生产同结果**：占位车辆 **35/35**、IDLE 无位 **0**、
+35 台落在 **35 个不同坐标**、SOC 全部 ≥30、后端 ERROR 0 行。生产 = 第 11 轮（`225d7b5`，
+回滚 tag `rollback-20260926-002654`，落位前逐条断言三处改动都在包里、`.env` mtime 未动）。
+闸门：`fsd-dispatch` + `fsd-admin-api` 测试与 `spotbugs:check` 全绿。
 
 > 中途我先假设"释放车位后留着旧 `standbyPoint` 引用"是原因，加了 `standbyPoint = null`
 > （`ec863f0`）——那条改动本身是对的（旧引用指向一个已被自己放掉、随时被别人占走的位），
