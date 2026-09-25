@@ -402,6 +402,8 @@ def render_fence_sql(payload: dict, args) -> str:
     换个名字围栏就是死数据（图上看得见、受理不认）。
     旧的停用而不是删除：`swap`/回退时还要靠它们复原。
     """
+    ring_count = len(payload["rings_gcj02"])
+    codes_in = ", ".join(f"'ZJF-ZONE-SVC-{i:02d}'" for i in range(1, max(ring_count, 1) + 1))
     lines = [
         "-- 由 scripts/geo/service_area_from_snapping.py 生成（W3-a 的可吸附并集围栏）",
         "-- 判据：围栏内 + R 米内吸得到最大强连通分量节点。R=%g m，栅格 %g m，简化容差 %g m。"
@@ -409,11 +411,20 @@ def render_fence_sql(payload: dict, args) -> str:
         "-- 实测可下单面积 %.2f km²；外沿多边形 %.2f km²（差值是区内未覆盖的洞，"
         % (payload["measured_area_km2"], payload["polygon_area_km2"]),
         "--   洞内的点会被第二道吸附判据以 ORDER_ENDPOINT_SNAP_FAILED 拒掉，故围栏不描洞）",
+        "-- 发布 %d 片；丢弃 %d 个退化碎片（去重后 <4 顶点或面积 < %g km² 的简化碎片，"
+        % (payload["ring_count"], payload.get("dropped_fragments", 0), getattr(args, "min_piece_km2", 0.25)),
+        "--   它们在图上只是色斑、在受理上永远不含点)。",
         "-- ⚠ 这是演示口径的几何产物，不是行政边界；换图或改半径后要重新生成，不要手改。",
         "",
         "-- W3-b：停用旧的手描小区块与两片商圈（新围栏已完全覆盖其可下单区，实测 0 格落在外面）",
         "UPDATE t_park_geofence SET status='DISABLED'",
         " WHERE fence_code LIKE 'ZJF-ZONE-%' AND fence_code NOT LIKE 'ZJF-ZONE-SVC-%' AND deleted=0;",
+        "",
+        # 本工具只 upsert 自己发布的片；上一版发布过、这一版不再发布的 SVC 片必须收掉，
+        # 否则它会作为 ACTIVE 围栏一直留在库里参与受理（实测：扩界第一版漏出一块 0.055 km² 的
+        # 退化三角，加守卫重生成后那条三角仍在库里 —— 光改 seed 内容不会让它消失）。
+        "DELETE FROM t_park_geofence",
+        f" WHERE fence_code LIKE 'ZJF-ZONE-SVC-%' AND fence_code NOT IN ({codes_in}) AND deleted=0;",
         "",
     ]
     for i, ring in enumerate(payload["rings_gcj02"], start=1):
@@ -450,6 +461,8 @@ def main() -> int:
                          "到底贡献了多少面积 —— 停用它们对服务范围有没有影响）")
     ap.add_argument("--simplify-m", type=float, default=120.0,
                     help="边界道格拉斯-普克容差（米）。台阶步长就是 --step，容差小于它等于没简化")
+    ap.add_argument("--min-piece-km2", type=float, default=0.25,
+                    help="独立片的最小面积（km²）：低于它的简化碎片不发布（退化三角既难看又不含点）")
     ap.add_argument("--emit-sql", default=None,
                     help="把外沿环写成 t_park_geofence 的 upsert（W3-c 的围栏 seed），"
                          "并顺带把非 SVC 的旧 ZJF-ZONE-* 置 DISABLED（W3-b）")
@@ -550,7 +563,18 @@ def main() -> int:
             # ⚠ 丢掉退化碎片。简化到只剩 2–3 点的小环，在地图上是"看得见的多余区块"，
             #   在受理上又永远不含任何点（多边形退化）—— 纯噪音。第一版没过滤，
             #   9 片里有 8 片是 0.00 km² 的碎片，等于亲手造出新的"区块划分乱"。
-            kept = [(r, a) for r, a in zip(outer, ring_areas) if len(r) >= 4 and a >= 0.05]
+            #   判"退化"要用**去重后的顶点数**：环是闭合存储的（首点会在末尾再出现一次），
+            #   直接数 len(r) 会把 3 顶点细条算成 4 点而放过（实测东侧就漏出一块 0.055 km² 的三角）。
+            #   面积下限从 0.05 提到 `--min-piece-km2`（默认 0.25 ≈ 500 m 见方）：
+            #   比一个吸附盘（π·250² ≈ 0.196 km²）还小的独立片，在演示图上只是多出来的一块色斑。
+            def _distinct(ring):
+                pts = [tuple(p) for p in ring]
+                if len(pts) > 1 and pts[0] == pts[-1]:
+                    pts.pop()
+                return pts
+
+            kept = [(r, a) for r, a in zip(outer, ring_areas)
+                    if len(_distinct(r)) >= 4 and a >= args.min_piece_km2]
             row["dropped_fragments"] = len(outer) - len(kept)
             outer = [r for r, _ in kept]
             ring_areas = [a for _, a in kept]
@@ -561,6 +585,7 @@ def main() -> int:
                        "polygon_area_km2": round(covered_km2, 2),
                        "simplify_m": args.simplify_m,
                        "ring_count": len(outer), "dropped_hole_count": len(holes),
+                       "dropped_fragments": row.get("dropped_fragments", 0),
                        "rings_gcj02": outer}
             if args.out_json:
                 Path(args.out_json).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
