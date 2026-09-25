@@ -298,10 +298,10 @@ M3 ──┘   M4 独立，可插队
 | T2-d | ✅ | 2026-09-25 | `constants/vehicleSpec.ts` 单一文案源，页面 `[data-testid=vehicle-spec]` 实测渲染 `新石器 L4 · X3 满载续航 180 km · 30 s 快速换电 · 35 柜`；闸门：文案里不出现标称最长续航那档数字，`git diff` 不含新增库列 |
 | T2-e | ✅ | 2026-09-25 | 基准间隔具名 `TRACKING_POLL_BASE_MS = 1500`，退避封顶 30 s 未动（e2e 断言两点）。代价按 §4 原文记账：匿名路径不过限流、QPS×2，仅演示时长内可接受 |
 | T2-f | ✅ | 2026-09-25 | `ORDER_REJECT_SERVICE_AREA_GUIDANCE='请在高亮的服务范围内选点'` 只挂在吸附失败/围栏外两类码上（其余原因码不给，e2e 断言）；围栏描边闪一次走 `flashOutline`，**只改样式**：e2e 比对闪前/闪后的围栏集合与几何完全相同。`[data-testid=order-rejection]` 仍是常驻元素，没改成 toast |
-| 前端总闸门 | ✅ | 2026-09-25 | `vue-tsc --noEmit` 干净；`npm run build` 成功；**全量 e2e+perf 66 passed / 0 failed**（`--workers=2`）。注：并行首跑曾因 vite 冷启动误报一条 v13 超时，单跑与串行均绿 ⇒ 判为抢资源不是回归 |
-| 彩排目视（§9 步 2） | ✅（非像素级） | 2026-09-25 | 真浏览器驱动真页面下单后读 DOM 计数器取证（见 T2-a/T2-c 行）；**PNG 截图没拿到**——沙箱内浏览器不可见、直连 playwright 的浏览器未安装，故这条是结构取证而非目视，演示前建议人工再扫一眼 |
+| 前端总闸门 | ✅ | 2026-09-25 | `vue-tsc --noEmit` 干净；`npm run build` 成功；`npx playwright test scripts/e2e` **63 passed / 0 failed**（`--workers=2`，与 CI 同范围）。⚠ 本行原先写"66 passed"是**假绿**：那次跑的是整个 playwright 配置（含 `scripts/perf`）且带着 `.env.local` 与真后端代理 ⇒ 掩盖了三个环境依赖缺陷，详见 §11.1 |
+| 彩排目视（§9 步 2） | ✅ | 2026-09-25 | 截图已落档 `docs/assets/demo-tracking-map-500ms.png`（430×1080，tick=500 档，同屏 `vehicleMarkers=20 / swapMarkers=35 / positionUnknown=0`）。⚠ 图里那排黑药丸是 §12.2 的标签缺陷，不是地图坏了 |
 | T3-a | ✅（零改动） | 2026-09-25 | 裁定"不补洞"，且**现网文案本就没有**过度声明：`覆盖 100%`/`100% 覆盖` 全仓 0 命中；`全覆盖`/`55 km` 命中处都是闸门自述或"洞不描、洞内拒单"的反向陈述 ⇒ 闸门通过，无需改文案。见 §5 T3-a 与下方巡检表 |
-| T3-b | ✅ | 2026-09-25 | 六个旧数全仓逐处定性（70 处命中 / 28 文件）：`front/` 与 `README.md` **0 命中**；唯一把旧面积写成现值的活文案 = `ParkPilotProperties.java:126`"服务范围因此定成 32.2 km²" ⇒ 已改为历史量 + 现值 47.18 km²。其余 历史/无关 或 落在禁改区：`V64__order_arbitrary_points.sql:13`（**不能改**，改注释会破已应用迁移的 Flyway 校验和）、`ScenarioBench.java:984` 的 17.84 出处陈述（要干净修只能重跑 bench，§7.7 禁）、`scripts/geo/amap_route_diff.py:49,52`（第二份产能算式，§7.7 禁）。明细见 §5.1 |
+| T3-b | ✅ | 2026-09-25 | 六个旧数全仓逐处定性（70 处命中 / 28 文件）：`front/` 与 `README.md` **0 命中**；唯一把旧面积写成现值的活文案 = `ParkPilotProperties.java:126`"服务范围因此定成 32.2 km²" ⇒ 已改为历史量 + 现值 47.18 km²。其余 历史/无关 或 落在禁改区：`V64__order_arbitrary_points.sql:13`（**不能改**，改注释会破已应用迁移的 Flyway 校验和）、`ScenarioBench.java:984` 的 17.84 出处陈述（要干净修只能重跑 bench，§7.7 禁）、`scripts/geo/amap_route_diff.py:49,52`（第二份产能算式，§7.7 禁）。明细见 §10.1 |
 | M5 彩排 | ✅ | 2026-09-25 | §9.2 表：步骤 0/1/5 PASS（接单 1.555 s），步骤 3 达成但**按证据强度重新表述**（空闲补能是混淆项），步骤 4 只验了坐标兜底那半 |
 | 部署 | ✅ | 2026-09-25 | 见 §11 部署记录：容器内 `FSD_PARK_SIMULATION_TICK_INTERVAL_MS=500` 已生效、能量三档无覆盖键⇒吃 yml 的 30/30/30、线上 `ParkOrder-CYslWLZ3.js` 里查到 `tracking-map-legend`／"满载续航 180 km"／"请在高亮的服务范围内选点"三个 M2 痕迹、生产真单 orderId=28 走完 `DISPATCHED→IN_PROGRESS→COMPLETED` 约 180 s |
 
@@ -415,4 +415,60 @@ CI 在 `bcfa1a4` 三项全绿；第三轮部署后容器内 `find / -name park-m
 | `17.84` | `scripts/geo/amap_route_diff.py:49,52` 及其产物 `reports/amap-route-diff.md` 的产能表 | 违规候选：**第二份产能算式**，与 §0.4 指定现行口径（sampler：18.73 + 14,595 m / 1.10 / 2.51×）不同源。对外只引 sampler；建议在该表抬头标"旧算式对照，非现行值"⇒ 记为待裁 |
 | `0.727` | `tmp/roadmap-orig.md:33,175`、`tmp/rmap-p1.md`（gitignored 草稿，存的是已删旧路线图副本；旧义=提取框面积） | 历史（不在流通） |
 
-> 完成后按仓库惯例：`[x]` 只留一行结论 + 指向《已完成工作记录》对应 §13.x 的指针，执行细节写进记录文档。服务器侧部署（env 变量进 `.env`、任何 seed/迁移上生产）由本人执行或个案授权后执行。
+## §13 异常任务队列清理（2026-09-25，本人追加指令"还有很多异常任务清理一下"）
+
+### 13.1 先查原因再动数据：33 条里 19 条是**还在流血的 bug**
+
+生产 `t_dispatch_exception_record` 33 行全 OPEN（`GEOFENCE_EXIT` 19 / `TASK_TIMEOUT` 7 / `UNREACHABLE` 6 / `ZONE_PAUSED` 1），
+最老 2026-08-28、最新 **2026-09-25 12:41** ⇒ 当天仍在产生，不是纯历史包袱。逐类归因：
+
+| 类型 | 根因 | 状态 |
+| --- | --- | --- |
+| `GEOFENCE_EXIT` ×19 | `GeofenceBreachServiceImpl` 取"**所有 ACTIVE 围栏**"逐条判越界，而 `DEFAULT-BOUNDARY` 也是 ACTIVE+BOUNDARY。展示包络只有 **4.74 km²**、受理范围 **47.18 km²** ⇒ 车在合法服务区内正常跑也被记"驶出围栏"。且与受理判据自相矛盾（`OrderEndpointResolver` 明确不吃这层） | **已修并上线**（`872f820`，第四轮部署 13:30） |
+| `UNREACHABLE` ×6 + `ZONE_PAUSED` ×1 | 09-23~24 有人框选过"管制区"，把取货点评成不可达。现已解除：`t_traffic_pause_zone` 空表、Redis `fsd:traffic:pause:1` 现值 `[]`（TTL 710 s），当时那批多边形只剩在 `/opt/backups/redis_fsd:traffic:pause:1-20260924.json` | 原因已消失，只剩陈旧行 |
+| `TASK_TIMEOUT` ×7 | 09-23~24 卡在 `MANUAL_PENDING` 超 30 min 的历史任务 | 陈旧行 |
+
+本机那 3 条 OPEN 更是**本轮测量自己造的**：`#563` 内容正是"车驶出围栏「展示包络（不参与受理判据）」(DEFAULT-BOUNDARY)"
+—— 上面那条 bug 的实物证据；`#564 LOW_SOC`（All idle vehicles are below minimum assignable SOC）是 T1-a 边界实验
+（20 台车全压 29% ⇒ 判无可派车）的预期产物；`#565` 是该实验里那单超时。**都不是缺陷**。
+
+### 13.2 处置方式：关闭而非删除
+
+表本身有完整生命周期字段（`exception_status / resolved_time / resolver_id / resolve_action / resolve_remark`），
+删行会毁掉审计链，所以按 `markResolved()` 的列语义**置为 RESOLVED**，`resolve_remark` 里逐条写清"为什么这不是当前故障"。
+生产 33 条 + 本机 3 条 ⇒ 两边 `remaining_open=0`。
+清理前单独备份了异常表：`/opt/backups/exceptions-pre-clean-20260925-132816.sql.gz`（整库备份同时做了一份）。
+
+> **没走 HTTP 批量接口**（`POST /api/admin/dispatch/exceptions/batch-resolve`）的原因：那需要生产管理员口令，
+> 而 `.env` 里的 `FSD_ADMIN_USER/PASSWORD` 后端**根本不读**（`AdminAuthServiceImpl` 只认 `t_admin_user.password_hash`）。
+> 代价要说清：这样关闭的行**不产生** `t_dispatch_task_operate_log` 与 `EXCEPTION_RESOLVED` 事件。
+> 行数据与人工点"处理"一致，但运营审计事件缺失。
+>
+> 另外记一次自己踩的坑：第一次 UPDATE 我照旧把 stderr 丢进 `/dev/null`，`exit=1` 被埋掉、
+> 表面像执行了其实一行没改（与 §11 那次 20 字节空备份同源）。改成"SQL 落文件 + 不吞 stderr + 回读计数"才确认。
+
+### 13.3 顺带修掉的显示缺陷
+
+异常页每条都渲染成"未知异常类型(TASK_TIMEOUT)"。根因是**两套枚举对不上**：
+前端 `exceptionTypeMap` 只有 `TASK_EXECUTE_FAILED/VEHICLE_OFFLINE/EXECUTE_TIMEOUT/STATUS_REPORT_ERROR` 四项，
+而后端 `exception_type` 是**裸字符串、没有 Java 枚举**，实际写库 8 类（从 `recordException` 调用点收齐）。
+已补齐 8 项中文标签；`Record<ExceptionType, …>` 的类型约束会强制以后新增成员必须配标签，漏写在 `vue-tsc` 就报错。
+
+### 13.4 验证与**未验证**
+
+- 已验：`GeofenceBreachServiceImplTest` 9/9（含新增两条回归：包络必须零异常；`RESTRICTED` 即使编码不带 `ZJF-ZONE-` 前缀也仍告警）；
+  后端全量 **541 tests** 全绿；`mvn -o -fae compile spotbugs:check` 七模块 SUCCESS；`vue-tsc` 干净、build 成功、e2e **63 passed**；
+  CI 在 `872f820` 三项全绿；**上线后复查**：13:00 之后生产再无新异常行，后端日志唯一一条越界是
+  `GEOFENCE_EXIT suppressed … fence=ZJF-ZONE-SVC-01`（真服务围栏、IDLE 无任务被正确抑制），
+  `DEFAULT-BOUNDARY` 不再出现 ⇒ 修复确实生效，而不是"没触发"。
+- **未验**：异常页渲染后的中文标签**没在浏览器里看到**。本机 `/api/admin/auth/login` 返 **HTTP 500**
+  （独立于本次改动的本地环境问题，未追），生产管理员口令我没有。
+  静态层面已确认新标签进了构建产物（`statusMap-*.js`）、映射覆盖全部 8 类；**页面实际渲染请你登录后扫一眼**。
+- 夹具纠正：`GeofenceBreachServiceImplTest` 原用 `fenceCode="TEST-FENCE"`，而按既有 `resolveScopeCode` 推导它本来就被归成展示包络 ⇒ 改为 `ZJF-ZONE-TEST`。
+
+---
+
+> **本文件的记录惯例（2026-09-25 更新）**：《已完成工作记录》已退场，执行细节**就地写进本文档的 §10–§13**，
+> 不再往外部记录文档迁；`[x]` 行只留"一行结论 + 指回本文档内的证据节"。
+> 已删文档不恢复，内容按路径可查：`git log --diff-filter=D -- docs/`。死链守卫：`node scripts/check-doc-links.mjs`。
+> 服务器侧动作（env 进 `.env`、seed/迁移上生产、生产库写操作）由本人执行或个案授权后执行。
