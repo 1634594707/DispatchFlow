@@ -181,6 +181,10 @@ def load_coords() -> dict[tuple[str, str], tuple[float, float]]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--components-only", action="store_true",
+                    help="只刷新 t_road_node_component，不动任何 anchor_node_code。"
+                         "路网 seed 新增节点后必须跑一次：这张表是派生物，落后于图就会让"
+                         "新节点在 is_largest 过滤里凭空消失（AMWL/AMCJ 16 个节点踩过）。")
     ap.add_argument("--max-snap-meters", type=float, default=250.0)
     ap.add_argument("--park-id", type=int, default=1)
     args = ap.parse_args()
@@ -188,6 +192,9 @@ def main() -> int:
     pts, keep, rest = largest_component()
     print(f"ACTIVE 且带 GPS 的节点={len(pts)}，最大连通分量={len(keep)}，其余分量大小={rest}")
     record_components(args.park_id, args.dry_run)
+    if args.components_only:
+        print("--components-only：只重算分量归属，未触碰 anchor/entry/exit/access 列")
+        return 0
     geo = load_coords()
 
     changed = skipped = unchanged = 0

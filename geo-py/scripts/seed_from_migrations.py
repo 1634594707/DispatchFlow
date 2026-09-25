@@ -1,9 +1,12 @@
-"""从 Flyway 迁移脚本导入地理数据到 PostGIS。
+"""从 Flyway 迁移脚本与 back/sql/seed 导入地理数据到 PostGIS。
 
-为什么解析迁移而不是直连 MySQL：
-  迁移脚本是这套 schema 的**唯一真相源**，且离线可重放；
+为什么解析 SQL 而不是直连 MySQL：
+  这些脚本是这套 schema 的**唯一真相源**，且离线可重放；
   开发机不一定有跑得起来的 MySQL（本次就是这样），而对照实验需要的是
-  「与线上一致的坐标数据」，迁移里的种子数据正是它。
+  「与线上一致的坐标数据」，迁移与 seed 里的种子数据正是它。
+
+  来源分两层：迁移给历史脉络，`back/sql/seed/*.sql` 给当前真相（§7.5 之后
+  地理内容只进 seed，不再进迁移），seed 后解析所以同 code 行按它覆盖。
 
 解析策略：按列名映射，不按位置——16 处 `t_station` INSERT 的列顺序并不统一，
 位置解析会在下一次加列时静默错位。无法解析的语句**跳过并计数上报**，不猜。
@@ -23,6 +26,9 @@ from fsd_geo import db  # noqa: E402
 from fsd_geo.config import DbConfig  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "back" / "sql" / "migrations"
+# 路线图 §7.5 之后，地理内容不再写进 Flyway 迁移（V43→V59 一条 t_station/t_park_geofence/t_road_node
+# 的 INSERT 都没有），当前真相在 back/sql/seed/。只扫迁移会静默灌进 V42 之前的陈旧坐标。
+SEED_DIR = Path(__file__).resolve().parents[2] / "back" / "sql" / "seed"
 
 # 充电类站点编码特征（V26/V28 用 ZJF-CHG-*，V04 用 CHARGE 类型）
 CHARGING_CODE_RE = re.compile(r"CHG|CHARGE", re.IGNORECASE)
@@ -97,6 +103,22 @@ def _num(token: str) -> float | None:
 
 def _strip_comments(sql: str) -> str:
     return re.sub(r"--[^\n]*", "", sql)
+
+
+def _polygon_from_literal(raw: str | None) -> list[list[float]] | None:
+    """seed 的 `polygon_json` 是 JSON 字符串面量 `'[[lng, lat], ...]'`，迁移里是 `JSON_ARRAY(...)` 函数。
+
+    两种写法都得认：只认后者的话，§13.31 新描的三个片区与 §13.34 重画后的展示包络
+    会在解析阶段静默消失，PostGIS 里留下 V37 之前的旧圈 —— 而脚本自己会报"灌成功了"。
+    """
+    text = _literal(raw or "")
+    if not text:
+        return None
+    try:
+        ring = [[float(point[0]), float(point[1])] for point in json.loads(text)]
+    except (ValueError, TypeError, IndexError):
+        return None
+    return ring if len(ring) >= 3 else None
 
 
 def _extract_polygon(tail: str) -> list[list[float]] | None:
@@ -185,30 +207,78 @@ def _rows_from_values(tail: str) -> list[list[str]]:
     return rows
 
 
-def _rows_from_select(tail: str, columns: dict[str, int]) -> list[list[str]]:
-    """解析 `SELECT p.id, 'X', ... FROM t_park p WHERE p.park_code = 'DEFAULT'` 形态。
+def _select_list(tail: str) -> str | None:
+    """取最外层 `SELECT ... FROM` 之间的列表文本。
 
-    这类种子用 `p.id` 作为 park_id，需要靠 WHERE 里的 park_code 反查真实 id。
+    seed 的行形如 `SELECT (select id from t_park where park_code='DEFAULT'), 'ZJF-PICK-01', ... FROM DUAL` ——
+    子查询里也有一个 `from`，用非贪婪正则会在那里就截断，于是整行被当成列数不齐跳过
+    （实测 6 围栏 / 17 站点全部静默丢失，只剩"看起来跑成功"）。所以按括号深度找边界。
     """
-    m = re.search(r"\bSELECT\b(.*?)\bFROM\b", tail, re.IGNORECASE | re.DOTALL)
-    if not m:
+    match = re.match(r"\s*SELECT\b", tail, re.IGNORECASE)
+    if not match:
+        return None
+    depth = 0
+    in_str = False
+    i = match.end()
+    while i < len(tail):
+        ch = tail[i]
+        if in_str:
+            if ch == "'":
+                if tail[i + 1:i + 2] == "'":
+                    i += 2
+                    continue
+                in_str = False
+        elif ch == "'":
+            in_str = True
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif depth == 0 and ch in {"f", "F"} and re.match(r"FROM\b", tail[i:], re.IGNORECASE):
+            return tail[match.end():i]
+        i += 1
+    return None
+
+
+def _rows_from_select(tail: str, columns: dict[str, int]) -> list[list[str]]:
+    """解析 `SELECT p.id, 'X', ... FROM t_park p WHERE p.park_code = 'DEFAULT'` 与 seed 的 `(select id from t_park ...)` 形态。
+
+    两类种子都用"park 的间接引用"当 park_id，需要靠 park_code 反查真实 id。
+    """
+    body = _select_list(tail)
+    if body is None:
         return []
-    tokens = _split_tokens(m.group(1))
+    tokens = _split_tokens(body)
     park = _PARK_CODE_RE.search(tail)
-    if "park_id" in columns and tokens[columns["park_id"]].strip().lower() in {"p.id", "park_id"}:
-        if not park:
-            return []
-        tokens[columns["park_id"]] = f"'{park.group(1)}'"
+    if "park_id" in columns and len(tokens) > columns["park_id"]:
+        reference = tokens[columns["park_id"]].strip().lower()
+        if reference in {"p.id", "park_id"} or reference.startswith("(select"):
+            if not park:
+                return []
+            tokens[columns["park_id"]] = f"'{park.group(1)}'"
     return [tokens]
 
 
-def parse_migrations(path: Path = MIGRATIONS_DIR) -> dict[str, list[dict[str, object]]]:
+def _source_files(path: Path, seed_dir: Path) -> list[Path]:
+    """迁移给历史脉络，seed 给当前真相；seed 排最后解析，同 code 的行按后写覆盖。
+
+    seed 目录不存在（例如只签出迁移的子集）时退化为纯迁移来源，行为与引入 seed 之前一致。
+    """
+    migrations = sorted(path.glob("V*.sql"))
+    if not seed_dir.is_dir():
+        return migrations
+    return migrations + sorted(seed_dir.glob("*.sql"))
+
+
+def parse_migrations(
+    path: Path = MIGRATIONS_DIR, seed_dir: Path = SEED_DIR
+) -> dict[str, list[dict[str, object]]]:
     stations: list[dict[str, object]] = []
     fences: list[dict[str, object]] = []
     nodes: list[dict[str, object]] = []
     skipped = 0
 
-    for sql_file in sorted(path.glob("V*.sql")):
+    for sql_file in _source_files(path, seed_dir):
         text = _strip_comments(sql_file.read_text(encoding="utf-8"))
         for m in _INSERT_RE.finditer(text):
             table, header, tail = m.group(1).lower(), m.group(2), m.group(3)
@@ -273,7 +343,7 @@ def _station_record(vals: dict[str, str], source: str) -> dict[str, object] | No
 
 def _fence_record(vals: dict[str, str], tail: str, source: str) -> dict[str, object] | None:
     code = _literal(vals.get("fence_code", ""))
-    ring = _extract_polygon(tail)
+    ring = _polygon_from_literal(vals.get("polygon_json")) or _extract_polygon(tail)
     if not code or ring is None:
         return None
     return {

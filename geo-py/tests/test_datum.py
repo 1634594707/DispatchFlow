@@ -41,5 +41,6 @@ def test_out_of_range_rejected(lng: float, lat: float) -> None:
 
 
 def test_real_zjf_point_passes_range_check() -> None:
-    """叠石桥主市场 GCJ-02 坐标（docs/坐标基准-叠石桥家纺城.md §2）。"""
+    """叠石桥主市场 GCJ-02 坐标（原 docs/坐标基准-叠石桥家纺城.md §2，该文档已删除；
+    现由本模块 STORED_DATUM 与本用例共同钉住）。"""
     validate_lng_lat(121.076301, 31.966722)

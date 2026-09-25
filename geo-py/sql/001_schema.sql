@@ -6,7 +6,8 @@
 --   同一坐标系内两点间的距离/包含关系是自洽的（GCJ-02 在园区尺度上的偏移梯度很小），
 --   但**绝对位置**与 WGS-84 相差约 300~700m。任何混用都必须走 datum.py 的显式声明。
 --
--- 见 docs/坐标基准-叠石桥家纺城.md §1：项目已统一 GCJ-02 存储 + 高德底图，显示零漂移。
+-- 判据现由 `fsd_geo/datum.py` 的 STORED_DATUM 承担（原 docs/坐标基准-叠石桥家纺城.md 已删除）：
+-- 项目统一 GCJ-02 存储 + 高德底图，显示零漂移。
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 
