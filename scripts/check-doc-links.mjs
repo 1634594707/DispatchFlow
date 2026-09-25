@@ -5,10 +5,10 @@
  *   node scripts/check-doc-links.mjs            # 全仓扫描
  *   node scripts/check-doc-links.mjs -v         # 连白名单命中一起打印
  *
- * 为什么要这么一道门（2026-09-22）：本仓的文档会被阶段性收敛删除（`docs/` 现在只剩 4 个文件），
- * 而**代码注释与发布脚本里的文件名不会跟着改**。实测代价已经发生了一次：
- * `.github/workflows/release.yml` 有一行 `cp docs/DEPLOYMENT.md "${OUT}/"`，
- * 该文件已不存在，且这一行**没有** `|| true`（同一块里 RELEASE_NOTES 那行就有）⇒
+ * 为什么要这么一道门（2026-09-22）：本仓的文档会被阶段性收敛删除（`docs/` 下的活文档会少，
+ * 现存清单以 `ls docs/` 为准），而**代码注释与发布脚本里的文件名不会跟着改**。实测代价已经发生了一次：
+ * `.github/workflows/release.yml` 有一行 `cp docs/DEPLOYMENT.md "${OUT}/"` —— 该文档已删除、文件不存在，
+ * 且这一行**没有** `|| true`（同一块里 RELEASE_NOTES 那行就有）⇒
  * 发布打包会直接失败。这类断裂靠人眼 grep 是守不住的。
  *
  * 白名单（允许指向不存在的文件，因为**不可改**或**是历史记录**）：
@@ -16,7 +16,7 @@
  *   - `back/sql/migrations/**`：已应用的迁移不可编辑（改一个字节就破坏 Flyway 校验和）。
  */
 import { execFileSync } from 'node:child_process'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -97,6 +97,6 @@ if (!problems.length) {
 
 console.error(`[FAIL] ${problems.length} 条文档引用指向不存在的文件：`)
 for (const p of problems) console.error(`  ${p.file}:${p.line}  ->  docs/${p.name}`)
-console.error('处置：改指向仍然存在的文档（docs/ 下现存 4 份），或把内容并进来后删掉引用。')
+console.error(`处置：改指向仍然存在的文档（docs/ 下现存 ${readdirSync(path.join(ROOT, 'docs')).filter(f => f.endsWith('.md')).length} 份：${readdirSync(path.join(ROOT, 'docs')).filter(f => f.endsWith('.md')).join('、')}），或把内容并进来后删掉引用。`)
 console.error('     不要恢复已被删除的中间文档。')
 process.exit(1)

@@ -20,8 +20,9 @@ import org.springframework.stereotype.Service;
  * 空间查询统一入口（GEO-PG）：PostGIS 优先，任何不可用都降级回 Java 手算。
  *
  * <p><b>接线点</b>：本服务是独立可用的新路径，尚未替换 {@code GeofenceBreachServiceImpl}
- * 第 98 行与 {@code StationMapper} 侧的既有调用。切换方式与风险见
- * {@code docs/实施记录-PostGIS地理服务-2026-09-20.md}。
+ * 第 98 行与 {@code StationMapper} 侧的既有调用。当初的切换步骤与风险记录在
+ * {@code docs/实施记录-PostGIS地理服务-2026-09-20.md}，该文档已删除，按路径取回原文用
+ * {@code git log --diff-filter=D -- 'docs/实施记录-PostGIS*'}。
  *
  * <p>{@code fsd.geo-service.enabled=false}（默认）时，本类的行为与直接调用
  * {@code GeoPolygonUtils} 完全一致——不产生任何 HTTP 请求。
