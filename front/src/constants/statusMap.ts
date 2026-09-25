@@ -84,6 +84,16 @@ export const exceptionTypeMap: Record<ExceptionType, ExceptionTypeConfig> = {
   [ExceptionType.VEHICLE_OFFLINE]: { label: '车辆离线', icon: 'DisconnectOutlined' },
   [ExceptionType.EXECUTE_TIMEOUT]: { label: '执行超时', icon: 'ClockCircleOutlined' },
   [ExceptionType.STATUS_REPORT_ERROR]: { label: '状态回传异常', icon: 'ExclamationCircleOutlined' },
+  // 后端实际写库的 8 类。`Record<ExceptionType, …>` 会强制每个枚举成员都得配标签，
+  // 所以以后再加类型漏写标签，vue-tsc 直接报错而不是线上显示"未知异常类型"。
+  [ExceptionType.GEOFENCE_EXIT]: { label: '驶出服务范围', icon: 'WarningOutlined' },
+  [ExceptionType.GEOFENCE_ENTER]: { label: '误入管制区', icon: 'WarningOutlined' },
+  [ExceptionType.LOW_SOC]: { label: '电量不足', icon: 'DashOutlined' },
+  [ExceptionType.NO_VEHICLE]: { label: '无可用车', icon: 'DisconnectOutlined' },
+  [ExceptionType.NO_MATCHING_VEHICLE]: { label: '无满足条件的车', icon: 'DisconnectOutlined' },
+  [ExceptionType.UNREACHABLE]: { label: '取货点不可达', icon: 'StopOutlined' },
+  [ExceptionType.TASK_TIMEOUT]: { label: '任务超时未推进', icon: 'ClockCircleOutlined' },
+  [ExceptionType.ZONE_PAUSED]: { label: '区域已暂停派单', icon: 'PauseCircleOutlined' },
 }
 
 export const exceptionStatusMap: Record<ExceptionStatus, StatusConfig> = {

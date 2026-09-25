@@ -61,6 +61,9 @@ class GeofenceBreachServiceImplTest {
     /** 围栏外的点（触发 BOUNDARY → GEOFENCE_EXIT）。 */
     private static final BigDecimal OUTSIDE_LNG = new BigDecimal("121.090000");
     private static final BigDecimal OUTSIDE_LAT = new BigDecimal("31.910000");
+    /** 围栏内的点（触发 RESTRICTED → GEOFENCE_ENTER）。 */
+    private static final BigDecimal INSIDE_LNG = new BigDecimal("121.060000");
+    private static final BigDecimal INSIDE_LAT = new BigDecimal("31.910000");
 
     @BeforeEach
     void setUp() {
@@ -96,7 +99,7 @@ class GeofenceBreachServiceImplTest {
         geofenceBreachService.evaluateVehiclePosition(1L, buildBusyVehicle(), OUTSIDE_LNG, OUTSIDE_LAT);
 
         verify(dispatchExceptionService).recordException(eq(5001L), eq(null), eq(9001L), eq("GEOFENCE_EXIT"), anyString());
-        verify(automationRuleService).evaluateGeofenceBreach(eq(1L), any(VehicleEntity.class), eq("TEST-FENCE"), eq("GEOFENCE_EXIT"));
+        verify(automationRuleService).evaluateGeofenceBreach(eq(1L), any(VehicleEntity.class), eq("ZJF-ZONE-TEST"), eq("GEOFENCE_EXIT"));
         verify(vehicleService, never()).markUnavailable(anyLong());
     }
 
@@ -112,8 +115,46 @@ class GeofenceBreachServiceImplTest {
         geofenceBreachService.evaluateVehiclePosition(1L, buildBusyVehicle(), OUTSIDE_LNG, OUTSIDE_LAT);
 
         verify(dispatchExceptionService).recordException(eq(5001L), eq(null), eq(9001L), eq("GEOFENCE_EXIT"), anyString());
-        verify(automationRuleService).evaluateGeofenceBreach(eq(1L), any(VehicleEntity.class), eq("TEST-FENCE"), eq("GEOFENCE_EXIT"));
+        verify(automationRuleService).evaluateGeofenceBreach(eq(1L), any(VehicleEntity.class), eq("ZJF-ZONE-TEST"), eq("GEOFENCE_EXIT"));
         verify(vehicleService).markUnavailable(eq(9001L));
+    }
+
+    /**
+     * 回归闸门：展示包络 {@code DEFAULT-BOUNDARY} 不参与越界告警。
+     *
+     * <p>生产 2026-09-25 仍在产生 GEOFENCE_EXIT 异常，内容就是"车辆驶出围栏「展示包络」" ——
+     * 包络只有 4.74 km² 而受理范围 47.18 km²，车在合法服务区内跑也会被记异常，
+     * 且与受理判据（{@code OrderEndpointResolver} 明确不吃这层）自相矛盾。
+     */
+    @Test
+    void displayEnvelopeFenceMustNotProduceBreachExceptions() {
+        ParkGeofenceEntity envelope = buildFence("WARN", null);
+        envelope.setFenceCode("DEFAULT-BOUNDARY");
+        envelope.setFenceName("展示包络（不参与受理判据）");
+        setupFenceQuery(envelope);
+        // 故意不 stub 首次越界判定与"车有在途任务"：围栏在入口就被跳过，
+        // 这两个桩一次都不会被调用（Mockito 严格桩会因"未使用"直接报错，等于反向证明屏蔽生效）。
+
+        geofenceBreachService.evaluateVehiclePosition(1L, buildBusyVehicle(), OUTSIDE_LNG, OUTSIDE_LAT);
+
+        verify(dispatchExceptionService, never()).recordException(anyLong(), any(), anyLong(), anyString(), anyString());
+        verify(automationRuleService, never()).evaluateGeofenceBreach(anyLong(), any(), anyString(), anyString());
+        verify(vehicleService, never()).markUnavailable(anyLong());
+    }
+
+    /** 管制区（RESTRICTED）即使编码不是 ZJF-ZONE-* 也要继续监控 —— 它判的是"误入"，不能一并屏蔽掉。 */
+    @Test
+    void restrictedFenceStaysMonitoredRegardlessOfCodePrefix() {
+        ParkGeofenceEntity restricted = buildFence("WARN", null);
+        restricted.setFenceCode("RST-FACTORY-A");
+        restricted.setFenceType("RESTRICTED");
+        setupFenceQuery(restricted);
+        setupFirstBreach(true);
+        setupBusyVehicleWithTask();
+
+        geofenceBreachService.evaluateVehiclePosition(1L, buildBusyVehicle(), INSIDE_LNG, INSIDE_LAT);
+
+        verify(dispatchExceptionService).recordException(eq(5001L), eq(null), eq(9001L), eq("GEOFENCE_ENTER"), anyString());
     }
 
     @Test
@@ -176,7 +217,7 @@ class GeofenceBreachServiceImplTest {
         geofenceBreachService.evaluateVehiclePosition(1L, buildBusyVehicle(), justOutsideLng, edgeLat);
 
         verify(dispatchExceptionService).recordException(eq(5001L), eq(null), eq(9001L), eq("GEOFENCE_EXIT"), anyString());
-        verify(automationRuleService).evaluateGeofenceBreach(eq(1L), any(VehicleEntity.class), eq("TEST-FENCE"), eq("GEOFENCE_EXIT"));
+        verify(automationRuleService).evaluateGeofenceBreach(eq(1L), any(VehicleEntity.class), eq("ZJF-ZONE-TEST"), eq("GEOFENCE_EXIT"));
     }
 
     /**
@@ -204,7 +245,7 @@ class GeofenceBreachServiceImplTest {
         ParkGeofenceEntity fence = new ParkGeofenceEntity();
         fence.setId(100L);
         fence.setParkId(1L);
-        fence.setFenceCode("TEST-FENCE");
+        fence.setFenceCode("ZJF-ZONE-TEST");
         fence.setFenceName("测试围栏");
         fence.setFenceType("BOUNDARY");
         fence.setResponseLevel(responseLevel);

@@ -207,22 +207,15 @@ public class ParkGeofenceServiceImpl implements ParkGeofenceService {
     }
 
     private static String resolveScopeCode(ParkGeofenceEntity entity) {
-        String code = entity.getFenceCode() == null ? "" : entity.getFenceCode();
-        if (code.startsWith("ZJF-ZONE-")) {
-            return "L1_CORE";
-        }
-        if ("RESTRICTED".equals(entity.getFenceType())) {
-            return "SAFETY_RESTRICTED";
-        }
-        return "L1_CANDIDATE_ENVELOPE";
+        // 推导规则已上移到 ParkGeofenceEntity.scopeCode()：越界监控与受理判据要吃同一套分档。
+        return ParkGeofenceEntity.scopeCode(entity);
     }
 
     private static boolean isDispatchable(ParkGeofenceEntity entity) {
-        // 只看编码前缀会把停用的围栏也报成可派单：库里 ZJF-ZONE-SXZ/WLG/CJ 三片末端场站
-        // 2026-09-23 已置 DISABLED，但接口 VO 上一直仍写着 dispatchable=true。
-        // 受理判据（OrderEndpointResolver）直接吃这个字段，所以这里必须连状态一起判。
-        return "ACTIVE".equalsIgnoreCase(entity.getStatus())
-                && entity.getFenceCode() != null && entity.getFenceCode().startsWith("ZJF-ZONE-");
+        // 判定规则已收敛到 ParkGeofenceEntity.isServiceDispatchable()：
+        // 越界监控（GeofenceBreachServiceImpl）与受理判据（OrderEndpointResolver）必须吃同一个谓词，
+        // 否则会出现"能下单却被监控判成驶出围栏"这类自相矛盾。
+        return ParkGeofenceEntity.isServiceDispatchable(entity);
     }
 
     private List<List<BigDecimal>> readPolygon(String polygonJson) {

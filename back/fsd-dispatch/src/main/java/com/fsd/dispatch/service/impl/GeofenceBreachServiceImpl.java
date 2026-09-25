@@ -71,8 +71,27 @@ public class GeofenceBreachServiceImpl implements GeofenceBreachService {
                         .eq(ParkGeofenceEntity::getStatus, "ACTIVE")
                         .eq(ParkGeofenceEntity::getDeleted, 0));
         for (ParkGeofenceEntity fence : fences) {
+            // 只监控"真判据围栏"：可派单服务区（ZJF-ZONE-*）与管制区（RESTRICTED）。
+            // DEFAULT-BOUNDARY 那层展示包络必须排除 —— 它只有 4.74 km²，而受理范围 47.18 km²，
+            // 拿它判"驶出"会把合法运营的车源源不断写成 GEOFENCE_EXIT 异常（生产 09-25 仍在产生）。
+            if (!monitoredForBreach(fence)) {
+                continue;
+            }
             evaluateFence(vehicle, fence, longitude, latitude);
         }
+    }
+
+    /**
+     * 只监控"真判据围栏"：可派单服务区（L1_CORE）与管制区（SAFETY_RESTRICTED）。
+     *
+     * <p>展示包络（{@code DEFAULT-BOUNDARY}，实测 4.74 km²）必须排除 —— 受理范围是 47.18 km²，
+     * 拿包络判"驶出"会把在合法服务区内正常跑的车源源不断写成 GEOFENCE_EXIT 异常
+     * （生产 2026-09-25 仍在产生，且与受理判据自相矛盾：那边明确不吃这层）。
+     */
+    private static boolean monitoredForBreach(ParkGeofenceEntity fence) {
+        String scope = ParkGeofenceEntity.scopeCode(fence);
+        return ParkGeofenceEntity.SCOPE_L1_CORE.equals(scope)
+                || ParkGeofenceEntity.SCOPE_RESTRICTED.equals(scope);
     }
 
     @Override

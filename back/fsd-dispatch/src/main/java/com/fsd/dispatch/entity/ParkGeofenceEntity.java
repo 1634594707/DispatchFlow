@@ -49,4 +49,41 @@ public class ParkGeofenceEntity {
 
 
     private Integer deleted;
+
+    /**
+     * 围栏语义分档 —— 全仓**唯一**出处（原先只有 {@code ParkGeofenceServiceImpl} 里有一份 private 推导，
+     * 越界监控要复用就得再抄一遍前缀判断，那就成了两套真相）。
+     *
+     * <p>注意兜底档是"展示包络"：既不是 {@code ZJF-ZONE-*} 也不是 {@code RESTRICTED} 的围栏，
+     * 一律按"给人看的框"处理，不参与受理与越界告警。
+     */
+    public static final String SCOPE_L1_CORE = "L1_CORE";
+    public static final String SCOPE_RESTRICTED = "SAFETY_RESTRICTED";
+    public static final String SCOPE_DISPLAY_ENVELOPE = "L1_CANDIDATE_ENVELOPE";
+
+    public static String scopeCode(ParkGeofenceEntity entity) {
+        if (entity == null) {
+            return SCOPE_DISPLAY_ENVELOPE;
+        }
+        String code = entity.getFenceCode() == null ? "" : entity.getFenceCode();
+        if (code.startsWith("ZJF-ZONE-")) {
+            return SCOPE_L1_CORE;
+        }
+        if ("RESTRICTED".equals(entity.getFenceType())) {
+            return SCOPE_RESTRICTED;
+        }
+        return SCOPE_DISPLAY_ENVELOPE;
+    }
+
+    /**
+     * 「这条围栏参与受理判据吗」—— 与越界监控共用 {@link #scopeCode}，别再各写一份前缀判断。
+     *
+     * <p>状态必须一起判：只看编码会把停用的围栏也算成可派单 —— 库里 {@code ZJF-ZONE-SXZ/WLG/CJ}
+     * 三片末端场站 2026-09-23 已置 DISABLED。
+     */
+    public static boolean isServiceDispatchable(ParkGeofenceEntity entity) {
+        return entity != null
+                && "ACTIVE".equalsIgnoreCase(entity.getStatus())
+                && SCOPE_L1_CORE.equals(scopeCode(entity));
+    }
 }
