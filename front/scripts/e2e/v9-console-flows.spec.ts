@@ -218,7 +218,9 @@ test('vehicles without real coordinates are counted as unknown instead of drawn 
   await page.goto('/vehicle-tracking?mode=geo')
   // 场景（园区调度 / 短驳地理）是持久化的独立开关，?mode=geo 只切渲染层；
   // 地理图层用的是 ZJF-AV-* 的 SIM 车，必须先把场景切过去。
-  await page.getByText('短驳地理').click()
+  // 必须限定在场景分段控件上：地图未配置时页面会出现"短驳地理图未加载"这块兜底面板，
+  // 裸 getByText('短驳地理') 在 CI（没有 front/.env.local ⇒ provider 回落 PARK_DIAGRAM）会命中两个节点而撞死 strict mode。
+  await page.locator('.ant-segmented-item', { hasText: '短驳地理' }).first().click()
 
   await expect(page.getByText('位置未知 1 台')).toBeVisible()
   await expect(page.getByText('未回传真实经纬度，已从地理图层剔除')).toBeVisible()

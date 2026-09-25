@@ -11,19 +11,25 @@
       :circles="geoCircles"
       @marker-click="selectMapMarker"
     />
-    <div v-if="geoMapAvailable && routeWarning" class="route-anomaly-banner">
-      {{ routeWarning }}
-    </div>
-    <div v-else class="overview-fallback">
+    <!-- 两件事分开判：`v-if="geoMapAvailable && routeWarning"` 配 `v-else` 会让"地图正常但当前无告警"
+         落进 else 分支，于是健康页面上挂着一条"高德 Key 未配置，已回退为列表视图"的假陈述。 -->
+    <div v-if="!geoMapAvailable" class="overview-fallback">
       <p>高德 Key 未配置，已回退为列表视图。</p>
       <p class="hint">配置 <code>front/.env.local</code> 后可查看 L1 试点地图与道路轨迹。</p>
     </div>
+    <div v-else-if="routeWarning" class="route-anomaly-banner">
+      {{ routeWarning }}
+    </div>
 
-    <div v-if="geoMapAvailable" class="map-status-bar">
-      <span>GCJ-02</span>
-      <span>地图版本 {{ mapVersionCode }}</span>
-      <span>L1 核心分区 {{ coreGeofences.length }}</span>
-      <span>站点 {{ operationalStations.length }}</span>
+    <!-- 数据新鲜度与瓦片无关：地图没配恰恰是最需要看到"更新 / 数据已停止更新"的时候，
+         所以状态条不能整块挂在 geoMapAvailable 下（§6.3：不许退成"等待数据"或假装正常）。 -->
+    <div class="map-status-bar">
+      <template v-if="geoMapAvailable">
+        <span>GCJ-02</span>
+        <span>地图版本 {{ mapVersionCode }}</span>
+        <span>L1 核心分区 {{ coreGeofences.length }}</span>
+        <span>站点 {{ operationalStations.length }}</span>
+      </template>
       <span :class="{ 'status-stale': !!refreshError }">{{ mapUpdatedLabel }}</span>
     </div>
 
