@@ -644,8 +644,9 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                 reduceBattery(vehicle, false, state);
             }
             default -> {
+                // 同上：补能入口统一按 `energy_recovery_mode` 分流（换电/充电），不在这里写死充电
                 if (shouldPreferCharging()) {
-                    routeToCharging(vehicle, state);
+                    routeToEnergyRecovery(vehicle, state);
                 } else {
                     routeToStandby(vehicle, state);
                 }
@@ -687,7 +688,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.busyMoveTicks = 0;
         state.pluggedIn = false;
         parkingFacilityService.releaseByVehicle(vehicle.getId());
-        BatterySwapCabinetEntity cabinet = findSwapCabinet(defaultParkId());
+        BatterySwapCabinetEntity cabinet = findSwapCabinet(defaultParkId(), state);
         if (cabinet == null) {
             routeToCharging(vehicle, state);
             return;
@@ -706,11 +707,60 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         }
     }
 
-    private BatterySwapCabinetEntity findSwapCabinet(Long parkId) {
-        Page<BatterySwapCabinetEntity> page = batterySwapCabinetMapper.selectPage(new Page<>(1, 1, false), new LambdaQueryWrapper<BatterySwapCabinetEntity>()
-                .eq(BatterySwapCabinetEntity::getDeleted, 0)
-                .eq(BatterySwapCabinetEntity::getStatus, "ACTIVE")
-                .eq(BatterySwapCabinetEntity::getParkId, parkId));
+    /**
+     * 选一台**还吃得下这台车**的柜，按像素距离取最近。
+     *
+     * <p>原来这里是 `selectPage(1,1)` 取"第一条 ACTIVE 柜"—— 只有一台柜时看不出来，
+     * 补能网络铺开（母港 + 卫星点各带柜）之后，全部车队会被导到同一台柜上排队。
+     * 容量按点位算：一台柜的 {@code slot_count} 就是它同时能服务几台车，
+     * 所以候选要先用"当前 IN_PROGRESS 会话数 &lt; slot_count"筛一遍。
+     */
+    private BatterySwapCabinetEntity findSwapCabinet(Long parkId, SimulationMotionState state) {
+        List<BatterySwapCabinetEntity> cabinets = batterySwapCabinetMapper.selectList(
+                new LambdaQueryWrapper<BatterySwapCabinetEntity>()
+                        .eq(BatterySwapCabinetEntity::getDeleted, 0)
+                        .eq(BatterySwapCabinetEntity::getStatus, "ACTIVE")
+                        .eq(BatterySwapCabinetEntity::getParkId, parkId));
+        if (cabinets.isEmpty()) {
+            return null;
+        }
+        BatterySwapCabinetEntity best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (BatterySwapCabinetEntity cabinet : cabinets) {
+            int capacity = cabinet.getSlotCount() == null || cabinet.getSlotCount() < 1 ? 1 : cabinet.getSlotCount();
+            if (batterySwapSessionService.countActiveAtCabinet(cabinet.getId()) >= capacity) {
+                continue;
+            }
+            double distance = pixelDistance(state, cabinet.getCoordX(), cabinet.getCoordY());
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = cabinet;
+            }
+        }
+        // 全满时退回"最近的满柜"：让车开过去排队，而不是原地不动（这正是"车停在路边"的成因）
+        return best != null ? best : cabinets.stream()
+                .min(java.util.Comparator.comparingDouble(c -> pixelDistance(state, c.getCoordX(), c.getCoordY())))
+                .orElse(null);
+    }
+
+    private double pixelDistance(SimulationMotionState state, java.math.BigDecimal x, java.math.BigDecimal y) {
+        if (state == null || state.lastX == null || state.lastY == null || x == null || y == null) {
+            return 0D;
+        }
+        double dx = state.lastX.subtract(x).doubleValue();
+        double dy = state.lastY.subtract(y).doubleValue();
+        return dx * dx + dy * dy;
+    }
+
+    private BatterySwapCabinetEntity findSwapCabinetByCode(Long parkId, String cabinetCode) {
+        if (cabinetCode == null || cabinetCode.isBlank()) {
+            return null;
+        }
+        Page<BatterySwapCabinetEntity> page = batterySwapCabinetMapper.selectPage(new Page<>(1, 1, false),
+                new LambdaQueryWrapper<BatterySwapCabinetEntity>()
+                        .eq(BatterySwapCabinetEntity::getDeleted, 0)
+                        .eq(BatterySwapCabinetEntity::getParkId, parkId)
+                        .eq(BatterySwapCabinetEntity::getCabinetCode, cabinetCode));
         List<BatterySwapCabinetEntity> records = page.getRecords();
         return records.isEmpty() ? null : records.get(0);
     }
@@ -719,7 +769,9 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         if (state.swapPoint == null) {
             return;
         }
-        BatterySwapCabinetEntity cabinet = findSwapCabinet(defaultParkId());
+        // 绑定到"这台车被派去的那台柜"，而不是再选一次 —— 两次选择之间可能已被别的车占满，
+        // 那会让会话记在 B 柜、车停在 A 柜。
+        BatterySwapCabinetEntity cabinet = findSwapCabinetByCode(defaultParkId(), state.swapPoint.getCode());
         if (cabinet == null) {
             return;
         }
@@ -1252,7 +1304,10 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     private void routeToStandby(VehicleEntity vehicle, SimulationMotionState state) {
         if (shouldPreferCharging() && !state.pluggedIn) {
-            routeToCharging(vehicle, state);
+            // 走 `routeToEnergyRecovery` 而不是直接 `routeToCharging`：这里是"空闲车去补能"的入口，
+            // 直接调充电会让 `energy_recovery_mode` 形同虚设 —— 实测 AUTO 档下 4 台低电车全部
+            // 走充电恢复、`t_battery_swap_session` 至今 0 行，"30 s 快速换电"只是文案。
+            routeToEnergyRecovery(vehicle, state);
             return;
         }
         ensureStandbyLocation(vehicle, state);

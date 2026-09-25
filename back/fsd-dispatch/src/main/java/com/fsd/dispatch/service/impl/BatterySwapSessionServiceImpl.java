@@ -60,4 +60,15 @@ public class BatterySwapSessionServiceImpl implements BatterySwapSessionService 
         List<BatterySwapSessionEntity> records = page.getRecords();
         return Optional.ofNullable(records.isEmpty() ? null : records.get(0));
     }
+
+    @Override
+    public long countActiveAtCabinet(Long cabinetId) {
+        if (cabinetId == null) {
+            return 0L;
+        }
+        Long count = swapSessionMapper.selectCount(new QueryWrapper<BatterySwapSessionEntity>()
+                .eq("cabinet_id", cabinetId)
+                .eq("status", "IN_PROGRESS"));
+        return count == null ? 0L : count;
+    }
 }
