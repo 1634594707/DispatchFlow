@@ -74,9 +74,10 @@ async function mountMap() {
       version: '2.0',
       plugins: ['AMap.Scale'],
     })
-    const center = props.center ?? props.modelValue
-      ? ([props.modelValue!.lng, props.modelValue!.lat] as [number, number])
-      : defaultCenter
+    const center: [number, number] = props.center
+      ?? (props.modelValue
+        ? ([props.modelValue.lng, props.modelValue.lat] as [number, number])
+        : defaultCenter)
     map = new AMapNs.Map(hostRef.value, {
       zoom: props.zoom ?? defaultZoom,
       center,

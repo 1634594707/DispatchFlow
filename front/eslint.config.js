@@ -10,7 +10,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   eslintConfigPrettier,
   {
-    ignores: ['dist/**', 'node_modules/**', 'scripts/**', 'test-results/**'],
+    ignores: ['dist/**', 'node_modules/**', 'scripts/**', 'test-results/**', 'src/types/api.gen.ts'],
   },
   {
     files: ['**/*.vue'],

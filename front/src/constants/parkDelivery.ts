@@ -1,5 +1,10 @@
+import { enumLabel } from './statusMap'
+
 export const parkDeliveryStageLabelMap: Record<string, string> = {
   PENDING_ASSIGNMENT: '待分配',
+  PENDING: '待接单',
+  ASSIGNED: '已派单',
+  RETURNING: '返程中',
   WAITING_DISPATCH: '已受理',
   ASSIGNING: '派车中',
   DISPATCHED: '已派车',
@@ -19,24 +24,11 @@ export const parkDeliveryStageLabelMap: Record<string, string> = {
   CHARGING: '充电中',
 }
 
-export const parkDeliveryDemoRoutes = [
-  { label: '门市 A → 代发仓', pickupCode: 'ZJF-PICK-01', dropoffCode: 'ZJF-DROP-01' },
-  { label: '门市 B → 代发仓', pickupCode: 'ZJF-PICK-02', dropoffCode: 'ZJF-DROP-01' },
-  { label: '代拿仓 → 代发仓', pickupCode: 'ZJF-DROP-02', dropoffCode: 'ZJF-DROP-01' },
-  { label: '代发仓 → 快递接驳', pickupCode: 'ZJF-DROP-01', dropoffCode: 'ZJF-EXPRESS-01' },
-  { label: '门市 A → 西排北仓', pickupCode: 'ZJF-PICK-01', dropoffCode: 'ZJF-DROP-03' },
-  { label: '门市 A → 东排集散仓', pickupCode: 'ZJF-PICK-01', dropoffCode: 'ZJF-DROP-04' },
-  { label: '西排北仓 → 代发仓', pickupCode: 'ZJF-DROP-03', dropoffCode: 'ZJF-DROP-01' },
-] as const
-
-export const parkSchematicDemoRoutes = [
-  { label: 'A1 → B1', pickupCode: 'A1', dropoffCode: 'B1' },
-  { label: 'A2 → B2', pickupCode: 'A2', dropoffCode: 'B2' },
-  { label: 'A3 → B3', pickupCode: 'A3', dropoffCode: 'B3' },
-  { label: 'A4 → B4', pickupCode: 'A4', dropoffCode: 'B4' },
-  { label: 'A1 → B4', pickupCode: 'A1', dropoffCode: 'B4' },
-  { label: 'A4 → B1', pickupCode: 'A4', dropoffCode: 'B1' },
-] as const
+// ⛔ 设施形态 v2 之后，"常用/典型线路"这类**写死的站点对**全部失效：
+//   `ZJF-PICK-*` / `ZJF-DROP-*` / `ZJF-EXPRESS-*` 已整批 INACTIVE，`A1..B4` 在 `t_station` 里
+//   压根不存在（实测 0 行）⇒ 这些预设点了只会撞上"演示站点尚未加载"。
+//   现在货的起点唯一是总仓库 `FSD-HUB-01`，终点是用户在地图上选的坐标 ⇒ 没有"固定线路"可言。
+//   数据驱动的默认填充留在 `syncDefaultOrderStations()`（读活站表，不读常数）。
 
 export type MobileOrderMode = 'geo' | 'schematic'
 
@@ -52,8 +44,7 @@ export function persistMobileOrderMode(mode: MobileOrderMode) {
 }
 
 export function parkDeliveryStageLabel(stage?: string | null) {
-  if (!stage) return '--'
-  return parkDeliveryStageLabelMap[stage] || stage
+  return enumLabel(parkDeliveryStageLabelMap, stage, '阶段')
 }
 
 export function buildGeoTrackingLink(orderId?: number | null, vehicleId?: number | null) {

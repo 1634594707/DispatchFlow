@@ -24,7 +24,7 @@
       <span>地图版本 {{ mapVersionCode }}</span>
       <span>L1 核心分区 {{ coreGeofences.length }}</span>
       <span>站点 {{ operationalStations.length }}</span>
-      <span>{{ mapUpdatedLabel }}</span>
+      <span :class="{ 'status-stale': !!refreshError }">{{ mapUpdatedLabel }}</span>
     </div>
 
     <aside class="overview-panel">
@@ -36,13 +36,23 @@
         <span class="live-indicator"><i />实时</span>
       </div>
       <div class="fleet-stats">
-        <span>全网 {{ ZJF_FLEET_STATS.fleetSize }} 辆</span>
+        <span>全网 {{ networkFleetSize }} 辆</span>
         <span>试点 {{ geoVehicles.length }} 辆</span>
       </div>
       <div class="map-legend" aria-label="地图图例">
         <span><i class="legend-dot pickup" />取货</span>
         <span><i class="legend-dot dropoff" />送货</span>
         <span><i class="legend-dot charging" />充电</span>
+        <!-- §6.3 图层语义 / §1.6 的 L0 标注：围栏分"能派"与"只是展示"两档，靠颜色与虚线区分必须写成看得见的文字 -->
+        <span>
+          <i style="display: inline-block; width: 14px; border-top: 2px solid #2de08a; margin-right: 6px" />
+          可派单围栏
+        </span>
+        <span>
+          <i style="display: inline-block; width: 14px; border-top: 2px dashed #13c2c2; margin-right: 6px" />
+          展示范围 · 不参与派单
+        </span>
+        <span>L0 产业带 20 km：仅统计口径，切到 L0 层级才绘制</span>
         <span><i class="legend-dot idle" />待命</span>
       </div>
       <section v-if="selectedStation" class="selection-card">
@@ -122,18 +132,19 @@ import {
 import {
   buildGeofencePolygons,
   buildGeoPolylines,
-  buildL0CoverageCircles,
+  L0_COVERAGE_CIRCLES,
   buildOperationalStationMarkers,
   buildVehicleGeoMarkers,
   filterWorkbenchSituationStations,
   isAmapConfigured,
   pilotMapCenter,
-  ZJF_FLEET_STATS,
   ZJF_PILOT_GEO,
 } from '@/maps'
 import { routeAnomalyWarning } from '@/maps/routeValidation'
 import { filterGeoDeliverySimVehicles, workbenchStationRole } from '@/maps/stationLayers'
 import { useParkMetadata } from '@/composables/useParkMetadata'
+import { useRealtimeStore } from '@/stores/realtime'
+import { PARK_OVERVIEW_MIN_REFRESH_GAP_MS, PARK_OVERVIEW_POLL_MS } from '@/config'
 import type { GeoMapMarker } from '@/maps'
 import type {
   ParkGeofence,
@@ -153,11 +164,24 @@ const parkGeofences = ref<ParkGeofence[]>([])
 const stations = ref<ParkStation[]>([])
 const selectedMarkerId = ref<string | null>(null)
 const mapUpdatedAt = ref<Date | null>(null)
+/** §6.3/§6.5：取数失败必须可见 —— 停更的地图看起来和正常一模一样，是最容易骗人的一种失效。 */
+const refreshError = ref<string | null>(null)
 const mapVersionCode = ref<string>('--')
 const geoMapAvailable = isAmapConfigured()
 const mapLevel = ref<MapLevel>('L1')
 const { metadata: parkMetadata, anchor: parkAnchor } = useParkMetadata()
+const realtime = useRealtimeStore()
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let unsubscribeRefresh: (() => void) | null = null
+
+/**
+ * 全网车辆数：/admin 园区总览逐园 `vehicleCount` 之和。
+ * 这里原本是 `zjfPilotGeo.ts` 里写死的 `fleetSize: 264`（§6.4 点名的硬编码之一，
+ * 而仓库真实车队是 M 档 20 台）—— 显示一个查不到来源的数，比显示 0 更糟。
+ */
+const networkFleetSize = computed(() =>
+  overview.value.reduce((total, park) => total + (park.vehicleCount || 0), 0),
+)
 
 const mapCenter = computed((): [number, number] => {
   // 阶段七 7.3：优先使用后端元数据锚点，其次园区列表 center，最后回退 ZJF_PILOT_GEO
@@ -221,7 +245,7 @@ const geoPolylines = computed(() =>
   }),
 )
 
-const geoCircles = computed(() => buildL0CoverageCircles())
+const geoCircles = L0_COVERAGE_CIRCLES
 
 const routeWarning = computed(() => routeAnomalyWarning(geoVehicles.value))
 
@@ -243,6 +267,8 @@ const selectedStationRoleLabel = computed(() => {
       dropoff: '送货服务位',
       express: '快递接驳',
       charging: '充电中心',
+      swap: '换电柜',
+      warehouse: '总发货仓库',
       idle: '车辆待命',
     } as const
   )[workbenchStationRole(selectedStation.value)]
@@ -269,11 +295,17 @@ const selectedVehicleTelemetryLabel = computed(() => {
   return vehicle?.telemetryStale ? `${time}${ageText} · 数据陈旧，不可派车` : `${time}${ageText}`
 })
 
-const mapUpdatedLabel = computed(() =>
-  mapUpdatedAt.value
+const mapUpdatedLabel = computed(() => {
+  if (refreshError.value) {
+    const last = mapUpdatedAt.value
+      ? `，最后成功 ${mapUpdatedAt.value.toLocaleTimeString('zh-CN', { hour12: false })}`
+      : '，尚未取到数据'
+    return `数据已停止更新${last} · ${refreshError.value}`
+  }
+  return mapUpdatedAt.value
     ? `更新 ${mapUpdatedAt.value.toLocaleTimeString('zh-CN', { hour12: false })}`
-    : '等待数据',
-)
+    : '等待数据'
+})
 
 function selectMapMarker(marker: GeoMapMarker) {
   selectedMarkerId.value = marker.id
@@ -308,8 +340,42 @@ async function refreshMapData() {
   }
 }
 
+/**
+ * 同一时刻只允许一趟取数在飞。
+ *
+ * 首屏实测会因为"onMounted 主动取 + SSE 连不上时 store 立刻降级广播一次刷新"而把
+ * 5 个端点打两遍（12 次数据请求）。事件驱动与手动驱动都可能撞车，去重放在这里比放在
+ * 调用方稳妥 —— SSE 突发时同理（一次刷新没回来就不开第二趟）。
+ */
+let inFlight: Promise<void> | null = null
+
 async function refreshAll() {
-  await Promise.all([refreshOverviewPanel(), refreshMapData()])
+  if (inFlight) return inFlight
+  inFlight = (async () => {
+    try {
+      await Promise.all([refreshOverviewPanel(), refreshMapData()])
+      refreshError.value = null
+    } catch (err) {
+      // 失败时**不动** mapUpdatedAt：让"最后一次成功"成为可见事实，而不是被刷新时间掩盖
+      refreshError.value = err instanceof Error ? err.message : String(err)
+    } finally {
+      inFlight = null
+    }
+  })()
+  return inFlight
+}
+
+/** 距最后一次成功取数是否还不够久（事件突发与首屏双驱动都靠它吃掉）。 */
+function refreshedRecently() {
+  const last = mapUpdatedAt.value
+  return last !== null && Date.now() - last.getTime() < PARK_OVERVIEW_MIN_REFRESH_GAP_MS
+}
+
+/** SSE 连着时由事件驱动刷新；这个定时器只在流没连上时兜底，且页面切到后台就停。 */
+async function pollIfDegraded() {
+  if (realtime.connected && !realtime.degraded) return
+  if (!realtime.pageVisible || refreshedRecently()) return
+  await refreshAll()
 }
 
 onMounted(async () => {
@@ -327,13 +393,17 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-  pollTimer = setInterval(() => {
-    void refreshAll()
-  }, 3000)
+  unsubscribeRefresh = realtime.subscribeRefresh(() => {
+    if (realtime.pageVisible && !refreshedRecently()) void refreshAll()
+  })
+  pollTimer = setInterval(() => { void pollIfDegraded() }, PARK_OVERVIEW_POLL_MS)
 })
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
+  pollTimer = null
+  unsubscribeRefresh?.()
+  unsubscribeRefresh = null
 })
 </script>
 
@@ -563,6 +633,11 @@ onUnmounted(() => {
   color: var(--fsd-text-secondary);
   font-family: 'Geist Mono', monospace;
   font-size: 10px;
+}
+
+.status-stale {
+  color: var(--fsd-error);
+  font-weight: 600;
 }
 
 .park-card {

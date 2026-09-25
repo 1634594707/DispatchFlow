@@ -17,6 +17,15 @@ export type WorkbenchTaskFilter = 'ALL' | 'PENDING' | 'MANUAL_PENDING'
 export const useWorkbenchStore = defineStore('workbench', () => {
   const parkScope = useParkScopeStore()
   const loading = ref(false)
+  /**
+   * §6.3：取数失败要能被人看见。
+   *
+   * 原来两处 catch 只 `console.error`，页面上的 KPI 于是**停在上一轮的值**上继续显示 ——
+   * "待派 0"既可能是真的没有单，也可能是后端已经挂了 5 分钟。
+   */
+  const queueError = ref<string | null>(null)
+  const poolError = ref<string | null>(null)
+  const lastQueueAt = ref<Date | null>(null)
   const poolTasks = ref<TaskAdminListItem[]>([])
   const poolTotal = ref(0)
   const poolPageNo = ref(1)
@@ -105,14 +114,32 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       poolTasks.value = options?.append
         ? [...poolTasks.value, ...data.records]
         : data.records
+      poolError.value = null
     } catch (e) {
       console.error('Failed to fetch task pool', e)
+      poolError.value = e instanceof Error ? e.message : String(e)
     } finally {
       poolLoading.value = false
     }
   }
 
-  async function fetchQueue(options?: { silent?: boolean }) {
+  /**
+   * §6.5：布局角标和页面首屏会在同一帧各要一次同样的队列数据，SSE 降级兜底也会再要一次。
+   * 并发调用合并成一次请求；`force` 留给"刚改完状态，必须看到新值"的调用方。
+   */
+  let queueInFlight: Promise<void> | null = null
+
+  function fetchQueue(options?: { silent?: boolean; force?: boolean }) {
+    if (!options?.force && queueInFlight) return queueInFlight
+    const run = loadQueue(options)
+    queueInFlight = run
+    void run.finally(() => {
+      if (queueInFlight === run) queueInFlight = null
+    })
+    return run
+  }
+
+  async function loadQueue(options?: { silent?: boolean }) {
     if (!options?.silent) {
       loading.value = true
     }
@@ -131,9 +158,12 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       parkLayout.value = data.parkLayout ?? null
       parkVehicles.value = data.vehicles ?? []
       poolPageNo.value = 1
+      lastQueueAt.value = new Date()
+      queueError.value = null
       await fetchTaskPool({ silent: true })
     } catch (e) {
       console.error('Failed to fetch intervention queue', e)
+      queueError.value = e instanceof Error ? e.message : String(e)
     } finally {
       if (!options?.silent) {
         loading.value = false
@@ -148,19 +178,19 @@ export const useWorkbenchStore = defineStore('workbench', () => {
 
   async function dispatchAuto(taskId: number) {
     const res = await autoAssignTask(taskId, parkScope.selectedParkId)
-    await fetchQueue()
+    await fetchQueue({ force: true })
     return res.data
   }
 
   async function dispatchManual(taskId: number, vehicleId: number, remark?: string) {
     const res = await manualAssignTask(taskId, { vehicleId, remark }, parkScope.selectedParkId)
-    await fetchQueue()
+    await fetchQueue({ force: true })
     return res.data
   }
 
   async function resolveOpenException(exceptionId: number, payload: ResolveExceptionRequest) {
     await resolveException(exceptionId, payload)
-    await fetchQueue()
+    await fetchQueue({ force: true })
   }
 
   function selectTask(taskId: number | null) {
@@ -188,6 +218,9 @@ export const useWorkbenchStore = defineStore('workbench', () => {
   }
 
   return {
+    queueError,
+    poolError,
+    lastQueueAt,
     loading,
     poolTasks,
     poolTotal,

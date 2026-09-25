@@ -71,7 +71,6 @@ export function useDemoMode(resolveParkId: () => number | undefined) {
         dropoffStationId: route.dropoffStationId,
         priority: 'P1',
         orderPriority: 'NORMAL',
-        deliveryZone: 'GEO_DELIVERY',
         remark: '[演示] 自动生成',
       })
       orderIndex.value += 1

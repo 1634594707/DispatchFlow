@@ -48,6 +48,31 @@
       </template>
     </QueryToolbar>
 
+    <!-- §6.4：批量撤销/改派/取消三个端点此前零 UI 入口（只有 e2e 里裸 fetch 用过），这里补真按钮 -->
+    <div
+      v-if="selectedTaskIds.length > 0"
+      class="batch-bar"
+      role="group"
+      aria-label="批量操作"
+      style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap"
+    >
+      <span class="mono-text">已选 {{ selectedTaskIds.length }} 项</span>
+      <a-button size="small" :disabled="!authStore.canWrite" :loading="batchLoading" @click="runBatch('auto')">
+        批量自动派车
+      </a-button>
+      <a-popconfirm title="确认批量撤销？将释放车辆并退回待派队列。" ok-text="确认" cancel-text="取消" @confirm="runBatch('unassign')">
+        <a-button size="small" :disabled="!authStore.canWrite" :loading="batchLoading">批量撤销</a-button>
+      </a-popconfirm>
+      <a-button size="small" :disabled="!authStore.canWrite" :loading="batchLoading" @click="openBatchReassign">
+        批量改派
+      </a-button>
+      <a-popconfirm title="确认批量取消所选任务？" ok-text="确认" cancel-text="取消" @confirm="runBatch('cancel')">
+        <a-button size="small" danger :disabled="!authStore.canWrite" :loading="batchLoading">批量取消</a-button>
+      </a-popconfirm>
+      <a-button type="link" size="small" @click="clearSelection">清空选择</a-button>
+      <span v-if="batchError" style="color: var(--fsd-error)">{{ batchError }}</span>
+    </div>
+
     <!-- V9-UI3: Skeleton screen for initial load -->
     <SkeletonLoader v-if="store.loading && store.list.length === 0" variant="table" :rows="6" />
     <a-table
@@ -57,6 +82,7 @@
       :loading="store.loading"
       :pagination="pagination"
       row-key="taskId"
+      :row-selection="rowSelection"
       size="middle"
       :scroll="{ x: 'max-content' }"
       @change="handleTableChange"
@@ -166,6 +192,9 @@
           <a-input v-model:value="dispatchForm.remark" placeholder="选填" />
         </a-form-item>
       </a-form>
+      <p v-if="assignableVehiclesError" class="mono-text" style="color: var(--fsd-error)">
+        {{ assignableVehiclesError }}
+      </p>
     </a-modal>
 
     <a-modal
@@ -212,6 +241,47 @@
         </a-form-item>
       </a-form>
     </a-modal>
+    <a-modal
+      v-model:open="batchReassignVisible"
+      title="批量改派"
+      :confirm-loading="batchLoading"
+      :ok-button-props="{ disabled: batchReassignForm.vehicleId == null }"
+      @ok="runBatch('reassign')"
+    >
+      <a-alert
+        message="批量改派会把所选任务全部指向同一台车，已派出的走改派、未派的直接指派。"
+        type="warning"
+        show-icon
+        style="margin-bottom: 16px"
+      />
+      <a-form layout="vertical">
+        <a-form-item label="目标车辆" required>
+          <a-select
+            v-model:value="batchReassignForm.vehicleId"
+            placeholder="请选择在线空闲车辆"
+            show-search
+            :filter-option="filterOption"
+            :loading="assignableVehiclesLoading"
+            :not-found-content="assignableVehiclesLoading ? '加载中...' : '暂无在线空闲车辆'"
+          >
+            <a-select-option
+              v-for="vehicle in assignableVehicles"
+              :key="vehicle.vehicleId"
+              :value="vehicle.vehicleId"
+            >
+              {{ formatVehicleOption(vehicle) }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="备注">
+          <a-input v-model:value="batchReassignForm.remark" placeholder="选填" />
+        </a-form-item>
+      </a-form>
+      <p class="mono-text">本次将提交 {{ selectedTaskIds.length }} 个任务。</p>
+      <p v-if="assignableVehiclesError" class="mono-text" style="color: var(--fsd-error)">
+        {{ assignableVehiclesError }}
+      </p>
+    </a-modal>
   </PageContainer>
 </template>
 
@@ -231,10 +301,11 @@ import { downloadAnalyticsFile, getAnalyticsExportUrl } from '@/api/analytics'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useAuthStore } from '@/stores/auth'
 import { useRealtimeStore } from '@/stores/realtime'
-import { taskStatusMap } from '@/constants/statusMap'
+import { taskStatusMap, enumLabel } from '@/constants/statusMap'
 import { TaskStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
-import { manualAssignTask, reassignTask, cancelTask } from '@/api/task'
+import { manualAssignTask, reassignTask, cancelTask, batchAutoAssign, batchCancelTasks, batchReassignTasks, batchUnassignTasks } from '@/api/task'
+import type { BatchTaskResult } from '@/types/operateLog'
 import { getDispatchWorkbench } from '@/api/dispatch'
 import dayjs from 'dayjs'
 import type { TaskAdminListItem } from '@/types/task'
@@ -283,7 +354,7 @@ const activeFilterChips = computed((): FilterChip[] => {
   if (queryForm.status) {
     chips.push({
       key: 'status',
-      label: `状态：${taskStatusMap[queryForm.status]?.label || queryForm.status}`,
+      label: `状态：${enumLabel(taskStatusMap, queryForm.status, '任务状态')}`,
     })
   }
   if (queryForm.taskNo.trim()) {
@@ -376,9 +447,110 @@ function handleTableChange(pag: any) {
   fetchData()
 }
 
+type BatchKind = 'auto' | 'unassign' | 'cancel' | 'reassign'
+
+const BATCH_LABELS: Record<BatchKind, string> = {
+  auto: '批量自动派车',
+  unassign: '批量撤销',
+  cancel: '批量取消',
+  reassign: '批量改派',
+}
+
+const selectedTaskIds = ref<number[]>([])
+const batchLoading = ref(false)
+const batchError = ref<string | null>(null)
+const batchReassignVisible = ref(false)
+const batchReassignForm = reactive({ vehicleId: undefined as number | undefined, remark: '' })
+
+const rowSelection = computed(() => ({
+  selectedRowKeys: selectedTaskIds.value,
+  onChange: (keys: (string | number)[]) => {
+    selectedTaskIds.value = keys.map(Number)
+  },
+}))
+
+/**
+ * 翻页或刷新后，不在当前页的行必须从选择里剔除：批量端点按 id 集合执行，
+ * 留着一行"看不见的选中项"就是误操作面。
+ */
+watch(
+  () => store.list,
+  (rows) => {
+    const visible = new Set(rows.map((row) => row.taskId))
+    selectedTaskIds.value = selectedTaskIds.value.filter((taskId) => visible.has(taskId))
+  },
+)
+
+function clearSelection() {
+  selectedTaskIds.value = []
+  batchError.value = null
+}
+
+async function runBatch(kind: BatchKind) {
+  const taskIds = [...selectedTaskIds.value]
+  if (taskIds.length === 0 || batchLoading.value) {
+    return
+  }
+  const parkId = parkScope.selectedParkId ?? undefined
+  batchLoading.value = true
+  batchError.value = null
+  try {
+    const response =
+      kind === 'auto'
+        ? await batchAutoAssign(taskIds, parkId)
+        : kind === 'unassign'
+          ? await batchUnassignTasks(taskIds, undefined, parkId)
+          : kind === 'cancel'
+            ? await batchCancelTasks(taskIds, undefined, parkId)
+            : await batchReassignTasks(taskIds, batchReassignForm.vehicleId as number, batchReassignForm.remark || undefined, parkId)
+    reportBatchResult(kind, response.data)
+    fetchData()
+  } catch (err) {
+    // 失败必须可见：这里不能退成"什么都没发生"，也不能退成空列表
+    batchError.value = `${BATCH_LABELS[kind]}失败：${err instanceof Error ? err.message : String(err)}`
+  } finally {
+    batchLoading.value = false
+    if (kind === 'reassign') {
+      batchReassignVisible.value = false
+    }
+  }
+}
+
+/** 部分成功是批量操作的常态：整批结果与逐条失败原因都要露出来，不能只报"成功"。 */
+function reportBatchResult(kind: BatchKind, result?: BatchTaskResult) {
+  if (!result) {
+    batchError.value = `${BATCH_LABELS[kind]}未返回结果，请在刷新后核对任务状态`
+    return
+  }
+  const retryable = result.retryableTaskIds?.length ? `，${result.retryableTaskIds.length} 项可重试` : ''
+  if (result.failureCount > 0) {
+    message.warning(`${BATCH_LABELS[kind]}：成功 ${result.successCount} / 失败 ${result.failureCount}${retryable}`)
+  } else {
+    message.success(`${BATCH_LABELS[kind]}：${result.successCount} 项已完成`)
+  }
+  const failures = (result.results || []).filter((item) => !item.success && item.reasonCode).slice(0, 3)
+  batchError.value = failures.length
+    ? `未完成：${failures.map((item) => `${item.taskNo || item.taskId} · ${item.reasonMessage || item.reasonCode}`).join('；')}`
+    : null
+  selectedTaskIds.value = (result.results || [])
+    .filter((item) => !item.success)
+    .map((item) => item.taskId)
+    .filter((taskId) => selectedTaskIds.value.includes(taskId))
+}
+
+function openBatchReassign() {
+  batchReassignForm.vehicleId = undefined
+  batchReassignForm.remark = ''
+  batchError.value = null
+  loadAssignableVehicles()
+  batchReassignVisible.value = true
+}
+
 const dispatchModalVisible = ref(false)
 const dispatchLoading = ref(false)
 const assignableVehiclesLoading = ref(false)
+/** 取数失败要可见（§6.4）：把"接口挂了"显示成"暂无在线空闲车辆"会误导调度员再等一会儿。 */
+const assignableVehiclesError = ref<string | null>(null)
 /** 进行中的单条操作任务 ID（路线图 3.2：处理中禁用重复操作） */
 const actionTaskIds = ref<Set<number>>(new Set())
 
@@ -403,11 +575,16 @@ function formatVehicleOption(vehicle: ParkVehicleSnapshot) {
 
 async function loadAssignableVehicles() {
   assignableVehiclesLoading.value = true
+  assignableVehiclesError.value = null
   try {
     const res = await getDispatchWorkbench(parkScope.selectedParkId)
     assignableVehicles.value = (res.data.vehicles || []).filter(isAssignableVehicle)
-  } catch {
+    if (assignableVehicles.value.length === 0) {
+      assignableVehiclesError.value = '当前无在线空闲车辆可派'
+    }
+  } catch (err) {
     assignableVehicles.value = []
+    assignableVehiclesError.value = `车辆列表读取失败：${err instanceof Error ? err.message : String(err)}`
   } finally {
     assignableVehiclesLoading.value = false
   }

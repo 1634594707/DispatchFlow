@@ -1,14 +1,10 @@
 import type { OrderStatus } from '@/constants/enums'
 
-/** 订单配送区域：地理配送 / 园区内部 */
-export type OrderDeliveryZone = 'GEO_DELIVERY' | 'SCHEMATIC'
-
 export interface OrderQueryRequest {
   orderNo?: string
   externalOrderNo?: string
   status?: OrderStatus
   priority?: string
-  deliveryZone?: OrderDeliveryZone
   parkId?: number
   pageNo: number
   pageSize: number
@@ -20,7 +16,6 @@ export interface OrderAdminListItem {
   externalOrderNo: string
   status: OrderStatus
   priority: string
-  deliveryZone?: OrderDeliveryZone
   weight?: number | null
   dispatchTaskId: number | null
   createdAt: string
@@ -44,7 +39,6 @@ export interface OrderDetailResponse {
   runtimeStage?: string | null
   priority: string
   status: OrderStatus
-  deliveryZone?: OrderDeliveryZone
   weight?: number | null
   estimatedArrivalTime?: string | null
   dispatchTaskId: number | null
@@ -59,7 +53,6 @@ export interface CreateOrderForm {
   pickupPointId: number
   dropoffPointId: number
   priority: string
-  deliveryZone?: OrderDeliveryZone
   weight?: number
   remark?: string
 }

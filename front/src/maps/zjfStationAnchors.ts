@@ -1,65 +1,22 @@
 /**
- * 叠石桥 L1 试点站点锚点（GCJ-02）
- * 与 V37 迁移、pilot_osm_geo.json 一致；选点需距 OSM 道路 ≤30m 且不在禁行建筑块内。
- * V37 新增：serviceHours 营业时间、avgServiceSeconds 平均服务时长、capacityLimit 承载上限
+ * 叠石桥 L1 试点的**非几何**呈现配置（分区配色）。
+ *
+ * §6.4：这里原来还有两份"地图内容的副本"，都已删除：
+ *   - `ZJF_STATION_ANCHORS`（9 个站点经纬度）—— 库里 `t_station` 已有 17 个未删除站点（其中 13 个 ACTIVE），
+ *     副本少 `ZJF-PICK-03 / DROP-05 / DROP-06 / EXPRESS-02 / CHG-02…05`，且共有的 7 个点
+ *     与库逐位相同 ⇒ 它既没提供新信息，又在把运营台路线**静默截断**（`anchorPosition()` 查不到
+ *     就跳过该点）。站点几何的唯一来源改成 `getParkStations()`（`/admin/park/stations`）。
+ *   - `ZJF_BASE_ANCHOR` + `isInsideZjfBase()` —— "在不在基地"改由
+ *     `parkGeoMapLayers.splitVehiclesByBasePresence(vehicles, basePosition)` 承担，
+ *     而基地点必须用 `basePositionFromStations()` 取 `ZJF-IDLE-01` 的坐标。
+ *     **不要**改用 `t_park.anchor_lng/lat`：那是 schematic 画布锚点，与基地点差约 273 m，
+ *     用它当基地会让"在场数"静默归零（§13.68 有断言钉住这一点）。
  */
-export type ZjfStationRole = 'pickup' | 'dropoff' | 'express' | 'idle' | 'charging'
-
-export interface ZjfStationAnchor {
-  code: string
-  name: string
-  role: ZjfStationRole
-  lng: number
-  lat: number
-  serviceHours?: string
-  avgServiceSeconds?: number
-  capacityLimit?: number
-  remark?: string
-}
-
-export const ZJF_BASE_ANCHOR = {
-  code: 'ZJF-BASE-01',
-  name: '找家纺网基地',
-  lng: 121.080681,
-  lat: 31.960337,
-} as const
-
-/** Vehicles stay aggregated into the base marker until they reach the RN27 exit corridor. */
+/**
+ * 基地在场判定的半径（米）。这是**前端渲染阈值**，后端没有同源字段，别顺手统一它
+ * （§13.33 的休眠常数教训）。
+ */
 export const ZJF_BASE_GEO_RADIUS_METERS = 75
-
-export function isInsideZjfBase(
-  position: [number, number],
-  radiusMeters = ZJF_BASE_GEO_RADIUS_METERS,
-): boolean {
-  return haversineMeters(position, [ZJF_BASE_ANCHOR.lng, ZJF_BASE_ANCHOR.lat]) <= radiusMeters
-}
-
-export const ZJF_STATION_ANCHORS: ZjfStationAnchor[] = [
-  // 取货站点（门市 · 南排核心区）
-  { code: 'ZJF-PICK-01', name: '南通家纺城门市', role: 'pickup', lng: 121.074453, lat: 31.960396, serviceHours: '06:00-22:00', avgServiceSeconds: 180, capacityLimit: 50 },
-  { code: 'ZJF-PICK-02', name: '成品展示中心门市', role: 'pickup', lng: 121.072610, lat: 31.960726, serviceHours: '08:00-20:00', avgServiceSeconds: 240, capacityLimit: 30 },
-  // 送货站点（仓库）
-  { code: 'ZJF-DROP-01', name: '找家纺代发仓', role: 'dropoff', lng: 121.079762, lat: 31.963627, serviceHours: '06:00-23:00', avgServiceSeconds: 300, capacityLimit: 200 },
-  { code: 'ZJF-DROP-02', name: '找家纺代拿仓', role: 'dropoff', lng: 121.087005, lat: 31.961780, serviceHours: '07:00-22:00', avgServiceSeconds: 360, capacityLimit: 150 },
-  { code: 'ZJF-DROP-03', name: '西排北仓', role: 'dropoff', lng: 121.074367, lat: 31.963548, serviceHours: '08:00-20:00', avgServiceSeconds: 240, capacityLimit: 80 },
-  { code: 'ZJF-DROP-04', name: '东排集散仓', role: 'dropoff', lng: 121.083893, lat: 31.962833, serviceHours: '07:00-22:00', avgServiceSeconds: 300, capacityLimit: 120 },
-  // 快递接驳点（西北角 · V37 校准）
-  { code: 'ZJF-EXPRESS-01', name: '快递接驳点', role: 'express', lng: 121.073200, lat: 31.963800, serviceHours: '08:00-22:00', avgServiceSeconds: 120, capacityLimit: 500 },
-  // 找家纺网基地：一个物理原点，同时承担发货、调度待命与充电。
-  { code: 'ZJF-IDLE-01', name: '找家纺网基地', role: 'idle', lng: ZJF_BASE_ANCHOR.lng, lat: ZJF_BASE_ANCHOR.lat, serviceHours: '24h', avgServiceSeconds: 0, capacityLimit: 20 },
-  { code: 'ZJF-CHG-01', name: '找家纺网基地', role: 'charging', lng: ZJF_BASE_ANCHOR.lng, lat: ZJF_BASE_ANCHOR.lat, serviceHours: '24h', avgServiceSeconds: 1800, capacityLimit: 6 },
-]
-
-/** 道路走廊参考线（选点时优先落在此附近） */
-export const ZJF_ROAD_CORRIDORS = {
-  southRowLat: 31.960646,
-  midRowLat: 31.961977,
-  northRowLat: 31.963523,
-  westColLng: 121.072682,
-  midColLng: 121.07516,
-  eastColLng: 121.079152,
-  farEastLng: 121.088022,
-} as const
 
 /**
  * V37 五大配送分区（GCJ-02 多边形）
@@ -69,7 +26,6 @@ export interface ZjfDeliveryZone {
   code: string
   name: string
   description: string
-  polygon: [number, number][] // [lng, lat][]
   color: string
 }
 
@@ -78,90 +34,30 @@ export const ZJF_DELIVERY_ZONES: ZjfDeliveryZone[] = [
     code: 'ZJF-ZONE-CORE-SOUTH',
     name: '家纺城核心南排区',
     description: '门市取货 · 沿南排门市街',
-    polygon: [
-      [121.071812, 31.960126],
-      [121.073405, 31.959762],
-      [121.075820, 31.959683],
-      [121.079400, 31.959720],
-      [121.081250, 31.959920],
-      [121.081250, 31.960760],
-      [121.080650, 31.961220],
-      [121.079152, 31.961698],
-      [121.077213, 31.961912],
-      [121.074893, 31.961856],
-      [121.072610, 31.961624],
-    ],
     color: '#1677ff',
   },
   {
     code: 'ZJF-ZONE-CORE-NORTH',
     name: '家纺城核心北排区',
     description: '仓库 · 沿北排仓库街',
-    polygon: [
-      [121.072051, 31.962157],
-      [121.074521, 31.962051],
-      [121.076852, 31.962214],
-      [121.078765, 31.962471],
-      [121.079352, 31.962968],
-      [121.079028, 31.963734],
-      [121.077156, 31.964025],
-      [121.074621, 31.964078],
-      [121.072862, 31.963921],
-      [121.071812, 31.963486],
-    ],
     color: '#52c41a',
   },
   {
     code: 'ZJF-ZONE-HUB',
     name: '代发仓集散区',
     description: '代发仓主枢纽 · 沿志远路',
-    polygon: [
-      [121.079428, 31.961823],
-      [121.081125, 31.961642],
-      [121.082765, 31.961882],
-      [121.083872, 31.962356],
-      [121.084291, 31.963112],
-      [121.084052, 31.963792],
-      [121.082831, 31.964061],
-      [121.081012, 31.964103],
-      [121.079612, 31.963847],
-      [121.079152, 31.963246],
-    ],
     color: '#fa8c16',
   },
   {
     code: 'ZJF-ZONE-EAST',
     name: '东排代拿仓区',
     description: '代拿仓 · 志浩面料方向',
-    polygon: [
-      [121.084052, 31.960156],
-      [121.085621, 31.959885],
-      [121.087342, 31.959912],
-      [121.088673, 31.960345],
-      [121.088891, 31.961228],
-      [121.088432, 31.962156],
-      [121.087612, 31.963112],
-      [121.086125, 31.963834],
-      [121.084521, 31.964078],
-      [121.084052, 31.963446],
-    ],
     color: '#722ed1',
   },
   {
     code: 'ZJF-ZONE-EXPRESS',
     name: '快递接驳物流区',
     description: '快递网点接驳 · 沿纺都大道',
-    polygon: [
-      [121.071812, 31.963343],
-      [121.072682, 31.963215],
-      [121.073612, 31.963312],
-      [121.074521, 31.963586],
-      [121.075340, 31.963952],
-      [121.075621, 31.964101],
-      [121.074821, 31.964201],
-      [121.073405, 31.964155],
-      [121.072152, 31.963921],
-    ],
     color: '#eb2f96',
   },
 ]
@@ -169,10 +65,16 @@ export const ZJF_DELIVERY_ZONES: ZjfDeliveryZone[] = [
 /**
  * V-COORD-AUDIT：真实世界权威基准锚点（GCJ-02，与公开地理数据交叉验证）
  * 来源：腾讯地图(主市场/物流港)、poi86 同点四系统实测(步行街)、
- *       Nominatim/OSM(三星镇质心)。详见 docs/坐标基准-叠石桥家纺城.md。
+ *       Nominatim/OSM(三星镇质心)。基准判据的现行载体：`geo-py/fsd_geo/datum.py` 的
+ *       `STORED_DATUM = "GCJ02"` 与 Java 侧 `com.fsd.common.geo.Wgs84Gcj02Converter`；
+ *       决策过程见《DispatchFlow_已完成工作记录_2026-09-22》§13.40/§13.49
+ *       （原 `docs/坐标基准-叠石桥家纺城.md` 已随 2026-09-22 文档收敛删除）。
  * 约束：ZJF 全部站点坐标必须落在上述 GCJ-02 框架内；禁止混入 WGS-84
  *       实测点后直接做欧氏/Haversine 距离比较（见路线审查 4.6）。
  *       新增/导入坐标须先用 scripts/coord_benchmark.py 转 GCJ-02。
+ *
+ * <p>这份表**没有代码消费者**，是有意保留的基准审计台账（6 个点的出处）：它不参与渲染，
+ * 所以删掉 §6.4 那两份几何副本之后仍然留着。要改几何请改库，别往这里加。
  */
 export const ZJF_REAL_WORLD_REFERENCE = {
   mainMarket:      { name: '叠石桥国际家纺城(主市场·大岛路88号)', lng: 121.076301, lat: 31.966722, src: '腾讯地图 GCJ-02' },
@@ -182,4 +84,3 @@ export const ZJF_REAL_WORLD_REFERENCE = {
   townCenter:      { name: '三星镇(海门区)镇中心',             lng: 121.115222, lat: 31.966141, src: 'Nominatim WGS-84→GCJ-02' },
   chuanjiang:      { name: '川姜/志浩面料市场(双中心西南)',     lng: 121.062280, lat: 31.912450, src: '既有 ZJF_L0_COVERAGE' },
 } as const
-import { haversineMeters } from './geoDistance'

@@ -10,7 +10,20 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const loading = ref(false)
   const lastUpdated = ref<string>('')
 
-  async function fetchSummary(options?: { silent?: boolean }) {
+  /** §6.5：与 workbench 队列同理 —— 布局角标、页面首屏、降级兜底会同时各要一次。 */
+  let summaryInFlight: Promise<void> | null = null
+
+  function fetchSummary(options?: { silent?: boolean; force?: boolean }) {
+    if (!options?.force && summaryInFlight) return summaryInFlight
+    const run = loadSummary(options)
+    summaryInFlight = run
+    void run.finally(() => {
+      if (summaryInFlight === run) summaryInFlight = null
+    })
+    return run
+  }
+
+  async function loadSummary(options?: { silent?: boolean }) {
     if (!options?.silent) {
       loading.value = true
     }

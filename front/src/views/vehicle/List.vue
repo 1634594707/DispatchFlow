@@ -36,16 +36,6 @@
           {{ cfg.label }}
         </a-select-option>
       </a-select>
-      <a-select
-        v-model:value="queryForm.deliveryZone"
-        placeholder="配送区域"
-        allow-clear
-        style="width: 140px"
-      >
-        <a-select-option value="GEO_DELIVERY">地理配送</a-select-option>
-        <a-select-option value="SCHEMATIC">园区内部</a-select-option>
-        <a-select-option value="BOTH">通用</a-select-option>
-      </a-select>
       <a-input
         v-model:value="queryForm.vehicleCode"
         placeholder="车辆编号"
@@ -81,13 +71,6 @@
         </template>
         <template v-else-if="column.dataIndex === 'dispatchStatus'">
           <StatusBadge :status="record.dispatchStatus" type="dispatch" />
-        </template>
-        <template v-else-if="column.dataIndex === 'deliveryZone'">
-          <a-tag v-if="record.deliveryZone === 'GEO_DELIVERY'" class="metadata-tag">地理配送</a-tag>
-          <a-tag v-else-if="record.deliveryZone === 'SCHEMATIC'" class="metadata-tag"
-            >园区内部</a-tag
-          >
-          <a-tag v-else class="metadata-tag">通用</a-tag>
         </template>
         <template v-else-if="column.key === 'dimensions'">
           <span v-if="record.widthCm != null || record.lengthCm != null" class="mono-text">
@@ -214,14 +197,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useRealtimeStore } from '@/stores/realtime'
 import { createVehicle, updateVehicle, getVehicleDetail } from '@/api/vehicle'
-import { onlineStatusMap, dispatchStatusMap } from '@/constants/statusMap'
+import { onlineStatusMap, dispatchStatusMap, enumLabel } from '@/constants/statusMap'
 import { DispatchStatus } from '@/constants/enums'
 import type { OnlineStatus } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
-import type { VehicleAdminListItem, VehicleDeliveryZone } from '@/types/vehicle'
+import type { VehicleAdminListItem } from '@/types/vehicle'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
@@ -257,7 +240,6 @@ const linkModeOptions = [
 const queryForm = reactive({
   onlineStatus: undefined as OnlineStatus | undefined,
   dispatchStatus: undefined as DispatchStatus | undefined,
-  deliveryZone: undefined as VehicleDeliveryZone | undefined,
   vehicleCode: '',
 })
 
@@ -266,24 +248,13 @@ const activeFilterChips = computed((): FilterChip[] => {
   if (queryForm.onlineStatus) {
     chips.push({
       key: 'onlineStatus',
-      label: `在线：${onlineStatusMap[queryForm.onlineStatus]?.label || queryForm.onlineStatus}`,
+      label: `在线：${enumLabel(onlineStatusMap, queryForm.onlineStatus, '在线状态')}`,
     })
   }
   if (queryForm.dispatchStatus) {
     chips.push({
       key: 'dispatchStatus',
-      label: `调度：${dispatchStatusMap[queryForm.dispatchStatus]?.label || queryForm.dispatchStatus}`,
-    })
-  }
-  if (queryForm.deliveryZone) {
-    const deliveryZoneLabels: Record<VehicleDeliveryZone, string> = {
-      GEO_DELIVERY: '地理配送',
-      SCHEMATIC: '园区内部',
-      BOTH: '通用',
-    }
-    chips.push({
-      key: 'deliveryZone',
-      label: `区域：${deliveryZoneLabels[queryForm.deliveryZone]}`,
+      label: `调度：${enumLabel(dispatchStatusMap, queryForm.dispatchStatus, '调度状态')}`,
     })
   }
   if (queryForm.vehicleCode.trim()) {
@@ -301,7 +272,6 @@ const columns = [
   { title: '车辆名称', dataIndex: 'vehicleName', width: 140 },
   { title: '在线状态', dataIndex: 'onlineStatus', width: 100 },
   { title: '调度状态', dataIndex: 'dispatchStatus', width: 100 },
-  { title: '配送区域', dataIndex: 'deliveryZone', width: 110 },
   { title: '尺寸(宽×长 cm)', key: 'dimensions', width: 140 },
   { title: '转弯半径(m)', key: 'turningRadiusM', width: 110 },
   { title: '允许道路等级', key: 'allowedRoadClasses', width: 180 },
@@ -350,7 +320,6 @@ function fetchData() {
 function removeFilterChip(key: string) {
   if (key === 'onlineStatus') queryForm.onlineStatus = undefined
   if (key === 'dispatchStatus') queryForm.dispatchStatus = undefined
-  if (key === 'deliveryZone') queryForm.deliveryZone = undefined
   if (key === 'vehicleCode') queryForm.vehicleCode = ''
   handleSearch()
 }
@@ -363,7 +332,6 @@ function handleSearch() {
 function handleReset() {
   queryForm.onlineStatus = undefined
   queryForm.dispatchStatus = undefined
-  queryForm.deliveryZone = undefined
   queryForm.vehicleCode = ''
   pageNo.value = 1
   fetchData()

@@ -24,8 +24,8 @@ export function getMapConfig() {
   const amapKey = readConfigValue('VITE_AMAP_KEY')
   const amapSecurityCode = readConfigValue('VITE_AMAP_SECURITY_CODE')
   // AMap is opt-in when no provider or keys are supplied. This keeps the
-  // local-graph/schematic fallback healthy instead of showing a false outage.
-  const provider = (configuredProvider || (amapKey && amapSecurityCode ? 'AMAP' : 'SCHEMATIC')) as MapProviderId
+  // local-graph/park-diagram fallback healthy instead of showing a false outage.
+  const provider = (configuredProvider || (amapKey && amapSecurityCode ? 'AMAP' : 'PARK_DIAGRAM')) as MapProviderId
   return {
     provider,
     amapKey,

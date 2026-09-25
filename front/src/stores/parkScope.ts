@@ -61,7 +61,20 @@ export const useParkScopeStore = defineStore('parkScope', () => {
     }
   }
 
-  async function loadParks() {
+  /** §6.5：布局与页面（Tracking/数字孪生）会在同一帧各拉一次同一份园区列表，合并成一次。 */
+  let parksInFlight: Promise<void> | null = null
+
+  function loadParks() {
+    if (parksInFlight) return parksInFlight
+    const run = fetchParks()
+    parksInFlight = run
+    void run.finally(() => {
+      if (parksInFlight === run) parksInFlight = null
+    })
+    return run
+  }
+
+  async function fetchParks() {
     loading.value = true
     try {
       parks.value = (await listParks()).data

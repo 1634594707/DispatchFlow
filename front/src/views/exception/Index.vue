@@ -233,7 +233,7 @@ import { getVehicleList } from '@/api/vehicle'
 import { downloadAnalyticsFile, getAnalyticsExportUrl } from '@/api/analytics'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useAuthStore } from '@/stores/auth'
-import { exceptionTypeMap, exceptionStatusMap } from '@/constants/statusMap'
+import { exceptionTypeMap, exceptionStatusMap, enumLabel } from '@/constants/statusMap'
 import { DispatchStatus, OnlineStatus } from '@/constants/enums'
 import type { ExceptionStatus, ExceptionType } from '@/constants/enums'
 import { DEFAULT_PAGE_SIZE } from '@/config'
@@ -265,7 +265,7 @@ const activeFilterChips = computed((): FilterChip[] => {
   if (queryForm.exceptionStatus) {
     chips.push({
       key: 'exceptionStatus',
-      label: `状态：${exceptionStatusMap[queryForm.exceptionStatus]?.label || queryForm.exceptionStatus}`,
+      label: `状态：${enumLabel(exceptionStatusMap, queryForm.exceptionStatus, '异常状态')}`,
     })
   }
   if (queryForm.orderId) chips.push({ key: 'orderId', label: `订单：${queryForm.orderId}` })
@@ -299,7 +299,7 @@ const pagination = computed(() => ({
 }))
 
 function getExceptionLabel(type: string) {
-  return exceptionTypeMap[type as keyof typeof exceptionTypeMap]?.label || type
+  return enumLabel(exceptionTypeMap, type, '异常类型')
 }
 
 function formatTime(t: string) {

@@ -12,7 +12,7 @@ export function useParkMetadata(parkId?: number) {
   const loading = ref(false)
   const error = ref<string>('')
 
-  async function refresh() {
+  async function load() {
     loading.value = true
     error.value = ''
     try {
@@ -27,6 +27,19 @@ export function useParkMetadata(parkId?: number) {
     } finally {
       loading.value = false
     }
+  }
+
+  /** §6.5：composable 自带的 onMounted 与页面 refresh() 会在同一帧各拉一次，合并成一次。 */
+  let inFlight: Promise<void> | null = null
+
+  function refresh() {
+    if (inFlight) return inFlight
+    const run = load()
+    inFlight = run
+    void run.finally(() => {
+      if (inFlight === run) inFlight = null
+    })
+    return run
   }
 
   onMounted(() => {

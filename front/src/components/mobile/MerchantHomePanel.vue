@@ -84,6 +84,7 @@
 
 <script setup lang="ts">
 import type { ParkOrderSnapshot } from '@/types/park'
+import { enumLabel } from '@/constants/statusMap'
 
 export interface FavoriteRoute {
   key: string
@@ -120,7 +121,7 @@ function stageLabel(stage: string) {
     COMPLETED: '已完成',
     FAILED: '失败',
   }
-  return map[stage] || stage
+  return enumLabel(map, stage, '订单状态')
 }
 
 function stageClass(stage: string) {

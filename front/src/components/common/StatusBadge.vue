@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
+  enumLabel,
   orderStatusMap,
   taskStatusMap,
   onlineStatusMap,
@@ -72,7 +73,8 @@ const statusMaps: Record<string, Record<string, { label: string; color: string }
 
 const config = computed(() => {
   const map = statusMaps[props.type]
-  return map?.[props.status] || { label: props.status, color: 'default' }
+  // 未登记的枚举不再原样印英文（§6.4）：中文领头、原值留在括号里给对接方查日志。
+  return { label: enumLabel(map, props.status), color: map?.[props.status]?.color ?? 'default' }
 })
 
 const label = computed(() => config.value.label)

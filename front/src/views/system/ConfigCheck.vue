@@ -73,7 +73,7 @@ const mapConfig = getMapConfig()
 const mobileKey = (import.meta.env.VITE_MOBILE_API_KEY as string | undefined)?.trim() || ''
 
 const whitelistHosts = getAmapWhitelistHosts()
-const schematicMode = mapConfig.provider === 'SCHEMATIC'
+const schematicMode = mapConfig.provider !== 'AMAP'
 
 const checks = computed<ConfigCheckItem[]>(() => {
   const jsKeyOk = !!mapConfig.amapKey

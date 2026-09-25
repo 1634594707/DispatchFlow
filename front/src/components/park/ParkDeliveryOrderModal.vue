@@ -12,38 +12,42 @@
     @cancel="emit('update:open', false)"
   >
     <a-form layout="vertical">
-      <a-form-item label="取货站点" required>
-        <a-select
-          v-model:value="form.pickupStationId"
-          placeholder="选择取货站点"
-          show-search
-          option-filter-prop="label"
-          :loading="loadingStations"
-          :options="pickupOptions"
+      <a-form-item label="取货位置" required>
+        <OrderEndpointInput
+          v-model="pickupEndpoint"
+          :groups="pickupGroups"
+          title="取货点"
+          test-id="admin-pickup"
+          size="middle"
+          :disabled="submitting"
+          :loading-stations="loadingStations"
+          station-placeholder="选择取货站点，或在地图上点一个坐标"
         />
       </a-form-item>
-      <a-form-item label="送货站点" required>
-        <a-select
-          v-model:value="form.dropoffStationId"
-          placeholder="选择送货站点"
-          show-search
-          option-filter-prop="label"
-          :loading="loadingStations"
-          :options="dropoffOptions"
+      <a-form-item label="送货位置" required>
+        <OrderEndpointInput
+          v-model="dropoffEndpoint"
+          :groups="dropoffGroups"
+          title="送货点"
+          test-id="admin-dropoff"
+          size="middle"
+          default-mode="coord"
+          :disabled="submitting"
+          :loading-stations="loadingStations"
+          station-placeholder="选择送货站点，或在地图上点一个坐标"
         />
       </a-form-item>
-      <a-form-item label="典型线路（一键填充）">
-        <a-space wrap>
-          <a-button
-            v-for="preset in parkDeliveryDemoRoutes"
-            :key="preset.label"
-            size="small"
-            @click="applyDemoRoute(preset.pickupCode, preset.dropoffCode)"
-          >
-            {{ preset.label }}
-          </a-button>
-        </a-space>
-      </a-form-item>
+      <div
+        v-if="rejection"
+        class="reject-note"
+        role="alert"
+        data-testid="admin-order-rejection"
+        :data-code="rejection.code"
+      >
+        <strong>{{ rejection.headline }}</strong>
+        <div>{{ rejection.detail }}</div>
+        <em>不会自动改成最近站点，请改位置或改用服务点。</em>
+      </div>
       <a-form-item label="优先级">
         <a-select v-model:value="form.priority" :options="priorityOptions" />
       </a-form-item>
@@ -60,6 +64,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import OrderEndpointInput from '@/components/order/OrderEndpointInput.vue'
 import { createParkOrder, getParkStations } from '@/api/park'
 import {
   buildGroupedMobileStationOptions,
@@ -67,9 +72,14 @@ import {
   findMobileOrderStation,
   syncDefaultOrderStations,
 } from '@/maps/stationLayers'
-import { parkDeliveryDemoRoutes } from '@/constants/parkDelivery'
+import {
+  describeOrderRejection,
+  endpointPayload,
+  isCompleteEndpoint,
+} from '@/constants/orderEndpoints'
+import type { OrderRejection } from '@/constants/orderEndpoints'
 import { createIdempotencyKey } from '@/composables/useMobileOrderForm'
-import type { ParkOrderCreateRequest, ParkStation } from '@/types/park'
+import type { ParkOrderCreateRequest, ParkOrderEndpoint, ParkStation } from '@/types/park'
 
 const props = defineProps<{
   open: boolean
@@ -85,13 +95,14 @@ const emit = defineEmits<{
 const submitting = ref(false)
 const loadingStations = ref(false)
 const stations = ref<ParkStation[]>([])
+const pickupEndpoint = ref<ParkOrderEndpoint | null>(null)
+const dropoffEndpoint = ref<ParkOrderEndpoint | null>(null)
+const rejection = ref<OrderRejection | null>(null)
 
-const form = reactive<ParkOrderCreateRequest>({
+const form = reactive<Omit<ParkOrderCreateRequest, 'pickupStationId' | 'dropoffStationId'>>({
   idempotencyKey: createIdempotencyKey(),
   parkId: undefined,
   externalOrderNo: '',
-  pickupStationId: undefined as unknown as number,
-  dropoffStationId: undefined as unknown as number,
   priority: 'P1',
   remark: '',
 })
@@ -100,8 +111,8 @@ watch(
   () => props.open,
   (opening) => {
     if (opening && props.prefill) {
-      form.pickupStationId = props.prefill.pickupStationId
-      form.dropoffStationId = props.prefill.dropoffStationId
+      pickupEndpoint.value = { kind: 'station', stationId: props.prefill.pickupStationId }
+      dropoffEndpoint.value = { kind: 'station', stationId: props.prefill.dropoffStationId }
     } else if (!opening) {
       // 关闭时重置表单，但不重置 prefill
     }
@@ -117,33 +128,26 @@ const priorityOptions = [
 
 const orderableStations = computed(() => filterMobileOrderStations(stations.value))
 
-const pickupOptions = computed(() =>
-  buildGroupedMobileStationOptions(orderableStations.value).flatMap((group) =>
-    group.options.map((option) => ({
-      value: option.value,
-      label: `${group.label} · ${option.label}`,
-    })),
-  ),
-)
+const pickupGroups = computed(() => buildGroupedMobileStationOptions(orderableStations.value))
 
-const dropoffOptions = computed(() =>
+const dropoffGroups = computed(() =>
   buildGroupedMobileStationOptions(orderableStations.value, {
-    excludeStationId: form.pickupStationId ?? null,
-  }).flatMap((group) =>
-    group.options.map((option) => ({
-      value: option.value,
-      label: `${group.label} · ${option.label}`,
-    })),
-  ),
+    excludeStationId: pickupEndpoint.value?.kind === 'station' ? pickupEndpoint.value.stationId : null,
+  }),
 )
 
 function applyDefaultStations() {
   const synced = syncDefaultOrderStations(stations.value, 'geo', {
-    pickupStationId: form.pickupStationId,
-    dropoffStationId: form.dropoffStationId,
+    pickupStationId: pickupEndpoint.value?.kind === 'station' ? pickupEndpoint.value.stationId : undefined,
+    dropoffStationId: dropoffEndpoint.value?.kind === 'station' ? dropoffEndpoint.value.stationId : undefined,
   })
-  if (synced.pickupStationId) form.pickupStationId = synced.pickupStationId
-  if (synced.dropoffStationId) form.dropoffStationId = synced.dropoffStationId
+  if (!synced.pickupStationId || !synced.dropoffStationId) return
+  if (pickupEndpoint.value == null || pickupEndpoint.value.kind === 'station') {
+    pickupEndpoint.value = { kind: 'station', stationId: synced.pickupStationId }
+  }
+  if (dropoffEndpoint.value == null || dropoffEndpoint.value.kind === 'station') {
+    dropoffEndpoint.value = { kind: 'station', stationId: synced.dropoffStationId }
+  }
 }
 
 async function loadStations() {
@@ -160,31 +164,31 @@ async function loadStations() {
   }
 }
 
-function applyDemoRoute(pickupCode: string, dropoffCode: string) {
-  const pickup = findMobileOrderStation(stations.value, { stationCode: pickupCode })
-  const dropoff = findMobileOrderStation(stations.value, { stationCode: dropoffCode })
-  if (!pickup || !dropoff) {
-    message.warning('演示站点尚未加载，请稍后重试')
-    return
-  }
-  form.pickupStationId = pickup.stationId
-  form.dropoffStationId = dropoff.stationId
-}
-
 async function handleSubmit() {
-  if (!form.pickupStationId || !form.dropoffStationId) {
-    message.warning('请选择取货与送货站点')
+  rejection.value = null
+  if (!isCompleteEndpoint(pickupEndpoint.value)) {
+    message.warning('请选一个取货位置（服务点或地图坐标）')
     return
   }
-  const pickup = findMobileOrderStation(stations.value, { stationId: form.pickupStationId })
-  const dropoff = findMobileOrderStation(stations.value, { stationId: form.dropoffStationId })
-  if (!pickup || !dropoff) {
-    message.warning('站点已失效，请刷新站点列表后重新选择')
+  if (!isCompleteEndpoint(dropoffEndpoint.value)) {
+    message.warning('请选一个送货位置（服务点或地图坐标）')
+    return
+  }
+  if (
+    pickupEndpoint.value?.kind === 'station' &&
+    dropoffEndpoint.value?.kind === 'station' &&
+    pickupEndpoint.value.stationId === dropoffEndpoint.value.stationId
+  ) {
+    message.warning('取货点和送货点不能相同')
     return
   }
   submitting.value = true
   try {
-    const res = await createParkOrder({ ...form })
+    const res = await createParkOrder({
+      ...form,
+      ...endpointPayload('pickup', pickupEndpoint.value),
+      ...endpointPayload('dropoff', dropoffEndpoint.value),
+    })
     if (res.data?.replayed) {
       message.success('重复提交已拦截：返回原订单 ' + (res.data?.orderNo || ''))
     } else {
@@ -194,7 +198,7 @@ async function handleSubmit() {
     emit('created')
     emit('update:open', false)
   } catch (e: unknown) {
-    message.error(e instanceof Error ? e.message : '创建失败')
+    rejection.value = describeOrderRejection(e)
   } finally {
     submitting.value = false
   }
@@ -204,8 +208,9 @@ watch(
   () => props.open,
   (open) => {
     if (open) {
-      form.pickupStationId = undefined as unknown as number
-      form.dropoffStationId = undefined as unknown as number
+      pickupEndpoint.value = null
+      dropoffEndpoint.value = null
+      rejection.value = null
       loadStations()
     }
   },
@@ -213,6 +218,30 @@ watch(
 </script>
 
 <style scoped>
+.reject-note {
+  margin-bottom: 16px;
+  padding: 8px 10px;
+  border: 1px solid #ffccc7;
+  border-left: 3px solid #cf1322;
+  border-radius: 4px;
+  background: #fff2f0;
+}
+.reject-note strong {
+  color: #cf1322;
+  font-size: 13px;
+}
+.reject-note div {
+  margin-top: 2px;
+  color: rgb(0 0 0 / 65%);
+  font-size: 12px;
+  word-break: break-all;
+}
+.reject-note em {
+  color: rgb(0 0 0 / 45%);
+  font-size: 11px;
+  font-style: normal;
+}
+
 /* V5-M3: 移动端下单弹窗自适应 — 底部抽屉可拖拽 */
 @media (max-width: 768px) {
   .park-delivery-modal :deep(.ant-modal) {

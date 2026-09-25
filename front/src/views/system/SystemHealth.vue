@@ -218,6 +218,7 @@ const metricsError = ref('')
 const timelineError = ref('')
 const autoRefresh = ref(true)
 let refreshTimer: ReturnType<typeof setInterval> | null = null
+let visibilityHandler: (() => void) | null = null
 
 const labelMap: Record<string, string> = {
   mysql: 'MySQL 数据库',
@@ -383,13 +384,25 @@ async function load() {
 /* 自动刷新 */
 function startAutoRefresh() {
   stopAutoRefresh()
-  refreshTimer = setInterval(load, 30_000)
+  // 后台标签页不打服务端：健康页被放在后台几小时是常态，而它与 realtime store 一样没有事件源，
+  // 只能靠定时器 —— 那就至少别在看不见的时候烧请求。回到前台时立刻补一次。
+  refreshTimer = setInterval(() => {
+    if (!document.hidden) void load()
+  }, 30_000)
+  visibilityHandler = () => {
+    if (!document.hidden) void load()
+  }
+  document.addEventListener('visibilitychange', visibilityHandler)
 }
 
 function stopAutoRefresh() {
   if (refreshTimer) {
     clearInterval(refreshTimer)
     refreshTimer = null
+  }
+  if (visibilityHandler) {
+    document.removeEventListener('visibilitychange', visibilityHandler)
+    visibilityHandler = null
   }
 }
 

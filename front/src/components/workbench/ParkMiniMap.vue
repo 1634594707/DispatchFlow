@@ -6,6 +6,8 @@
       <span class="legend-item"><i class="dot pickup" />取货</span>
       <span class="legend-item"><i class="dot dropoff" />送货</span>
       <span class="legend-item"><i class="dot express" />接驳</span>
+      <span class="legend-item"><i class="dot warehouse" />发货仓库</span>
+      <span class="legend-item"><i class="dot swap" />换电柜</span>
       <span class="legend-item"><i class="dot vehicle" />车辆</span>
       <label v-if="hasChargingStations" class="legend-toggle">
         <input v-model="showCharging" type="checkbox" />
@@ -14,7 +16,7 @@
     </div>
     <div class="map-overlay">
       <span class="map-stat"
-        >{{ ZJF_ORDERABLE_STATION_COUNT }} 个运营站点 · {{ vehicles.length }} 车在线</span
+        >{{ orderableCount }} 个发货/作业站点 · {{ swapCount }} 座换电柜 · {{ vehicles.length }} 车在线</span
       >
       <router-link to="/vehicle-tracking" class="map-link">全屏监控 →</router-link>
     </div>
@@ -26,9 +28,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { ParkLayout, ParkVehicleSnapshot } from '@/types/park'
 import {
   filterWorkbenchSituationStations,
+  filterMobileOrderStations,
   filterSchematicParkVehicles,
   workbenchStationColor,
-  ZJF_ORDERABLE_STATION_COUNT,
 } from '@/maps/stationLayers'
 
 const props = defineProps<{
@@ -49,10 +51,17 @@ const visibleStations = computed(() => {
   })
 })
 
+/** 站点数一律**从数据算**，不再用写死的 `ZJF_ORDERABLE_STATION_COUNT=8`：
+ *  设施模型 v2 把发货点收敛成一个总仓库后，那个常数会在屏幕上直接说谎。 */
+const orderableCount = computed(() =>
+  filterMobileOrderStations(props.layout?.stations ?? []).length,
+)
+const swapCount = computed(
+  () => (props.layout?.stations ?? []).filter((s) => s.stationType === 'SWAP_CABINET').length,
+)
+
 const hasChargingStations = computed(() =>
-  (props.layout?.stations ?? []).some((station) =>
-    (station.stationCode ?? '').startsWith('ZJF-CHG-'),
-  ),
+  (props.layout?.stations ?? []).some((station) => station.stationType === 'CHARGING_STATION'),
 )
 
 function draw() {
@@ -234,6 +243,13 @@ onUnmounted(() => {
   }
   &.express {
     background: var(--fsd-success);
+  }
+  /* 与 WORKBENCH_STATION_COLORS 同色：图例点和小地图上的圆点必须一眼对得上 */
+  &.warehouse {
+    background: #4cc9f0;
+  }
+  &.swap {
+    background: #ff6b35;
   }
   &.vehicle {
     width: 0;

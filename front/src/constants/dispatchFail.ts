@@ -11,7 +11,11 @@ export const DISPATCH_FAIL_REASON: Record<string, string> = {
   LOW_BATTERY: '电量不足',
   NO_MATCHING_VEHICLE: '车辆约束不满足（非电量）',
   UNREACHABLE: '取货点不可达',
+  // 运营态与拓扑态分开：这一条要去的是交通态势页，不是路网页。
+  // 生产上曾因两者共用 UNREACHABLE，把一次"缓存里残留管制区"排查带向图/缓存/锚点三条错路。
+  ZONE_PAUSED: '取货点所在区域已暂停派单（交通管制）',
   ROUTE_BLOCKED: '路网不可达或路段管制',
+  TELEMETRY_STALE: '车辆遥测过期，禁派',
   HUB_CAPACITY_FULL: '枢纽容量已满',
   ROUTE_OCCUPANCY_FULL: '线路并发已满',
   CONFLICT: '占车/占桩冲突',
@@ -34,6 +38,12 @@ export const DISPATCH_FAIL_LINKS: Record<string, { label: string; path: string }
     { label: '路网管理', path: '/infrastructure/road-network' },
     { label: '交通态势', path: '/infrastructure/traffic' },
   ],
+  // 运营态（有人挂了这块区域）与拓扑态（图上到不了）必须分开：两者处置页面不同，
+  // 合成一个码时读者会去查路网，而真因在交通管制页。
+  ZONE_PAUSED: [
+    { label: '交通态势', path: '/infrastructure/traffic' },
+    { label: '异常队列', path: '/exceptions?status=OPEN' },
+  ],
   HUB_CAPACITY_FULL: [{ label: '母港分流', path: '/vertical/hub' }],
   ROUTE_OCCUPANCY_FULL: [{ label: '线路管理', path: '/vertical/routes' }],
   CONFLICT: [{ label: '异常队列', path: '/exceptions?status=OPEN' }],
@@ -47,7 +57,6 @@ export function normalizeFailCode(code?: string | null): string {
     case 'LOW_SOC':
       return 'LOW_BATTERY'
     case 'UNREACHABLE':
-    case 'ZONE_PAUSED':
       return 'ROUTE_BLOCKED'
     default:
       return code.toUpperCase()

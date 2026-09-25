@@ -26,8 +26,18 @@
       </a-space>
     </div>
 
+    <a-alert
+      v-if="loadError"
+      class="analytics-error"
+      type="error"
+      show-icon
+      message="分析数据读取失败"
+      role="status"
+      :description="`下方面板已清空，避免把上一轮的旧数据当实时数据。${loadError}${lastSuccessLabel ? ` · 最后成功 ${lastSuccessLabel}` : ''}`"
+    />
+
     <a-spin :spinning="loading">
-      <div class="analytics-grid">
+      <div v-if="!loadError" class="analytics-grid">
         <section class="panel">
           <h3>订单完成率趋势</h3>
           <TrendBarChart
@@ -202,6 +212,13 @@ const dailySummary = ref<AnalyticsDailySummary | null>(null)
 const parkCompare = ref<AnalyticsParkCompareItem[]>([])
 const chainKpi = ref<AnalyticsChainKpi | null>(null)
 const peakCompare = ref<AnalyticsPeakCompare | null>(null)
+const loadError = ref('')
+const lastSuccessAt = ref<number | null>(null)
+const lastSuccessLabel = computed(() =>
+  lastSuccessAt.value == null
+    ? ''
+    : new Date(lastSuccessAt.value).toLocaleTimeString('zh-CN', { hour12: false }),
+)
 
 const parkCompareColumns = [
   { title: '园区', dataIndex: 'parkName' },
@@ -322,6 +339,18 @@ async function loadAll() {
       peakCompare.value = peakRes.data
       parkCompare.value = []
     }
+    loadError.value = ''
+    lastSuccessAt.value = Date.now()
+  } catch (err) {
+    // §6.3：Promise.all 一 reject，六个 ref 会**停在上一轮的旧值上**并照常渲染成实时数据；
+    // 而这里原先只有 finally、没有 catch ⇒ 异常直接逃成未处理 rejection，页面上看不出来。
+    efficiency.value = null
+    exceptionAnalysis.value = null
+    dailySummary.value = null
+    chainKpi.value = null
+    peakCompare.value = null
+    parkCompare.value = []
+    loadError.value = err instanceof Error ? err.message : String(err)
   } finally {
     loading.value = false
   }
@@ -380,6 +409,10 @@ watch(
 </script>
 
 <style scoped lang="less">
+.analytics-error {
+  margin-bottom: 12px;
+}
+
 .analytics-toolbar {
   display: flex;
   align-items: center;

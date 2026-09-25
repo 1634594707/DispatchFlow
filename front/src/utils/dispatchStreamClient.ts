@@ -14,7 +14,7 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers, par
   /** 阶段八 8.2：destroy 后永久不可用 */
   let destroyed = false
   let unregister: (() => void) | null = null
-  const maxRetries = 10
+  let onVisibility: (() => void) | null = null
   const baseDelay = 1000
   const maxDelay = 30000
 
@@ -53,11 +53,13 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers, par
   }
 
   function scheduleReconnect() {
-    if (stopped || retryCount >= maxRetries) {
-      handlers.onClose?.()
+    if (stopped) {
       return
     }
-    const delay = Math.min(baseDelay * Math.pow(2, retryCount), maxDelay)
+    // §6.3：不再"重连 10 次即永久放弃"——持续以指数退避重连（延迟封顶 maxDelay），
+    // 断线由界面通过 handlers.onError/onClose 呈现为"数据已停止更新"，而非静默失联。
+    const exp = Math.min(retryCount, 15)
+    const delay = Math.min(baseDelay * Math.pow(2, exp), maxDelay)
     retryTimer = setTimeout(() => {
       retryCount++
       void connect()
@@ -100,6 +102,20 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers, par
     retryCount = 0
     unregister?.()
     unregister = registerSSEConnection(stop)
+    // §6.3：后台标签页会被浏览器节流/断开 SSE；回到前台时若已断开则立即重连（重置退避）。
+    if (typeof document !== 'undefined' && !onVisibility) {
+      onVisibility = () => {
+        if (document.visibilityState === 'visible' && !stopped && !isConnected()) {
+          if (retryTimer) {
+            clearTimeout(retryTimer)
+            retryTimer = null
+          }
+          retryCount = 0
+          void connect()
+        }
+      }
+      document.addEventListener('visibilitychange', onVisibility)
+    }
     void connect()
   }
 
@@ -107,6 +123,10 @@ export function createDispatchStreamClient(handlers: DispatchStreamHandlers, par
     stopped = true
     unregister?.()
     unregister = null
+    if (onVisibility && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibility)
+      onVisibility = null
+    }
     if (retryTimer) {
       clearTimeout(retryTimer)
       retryTimer = null

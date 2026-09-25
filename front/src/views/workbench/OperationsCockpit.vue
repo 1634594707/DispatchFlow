@@ -50,6 +50,32 @@
           </div>
         </div>
 
+        <p
+          v-if="unknownPositionVehicles.length"
+          class="scope-hint"
+          style="margin: 0 0 8px; color: var(--fsd-text-secondary, inherit)"
+        >
+          {{ unknownPositionVehicles.length }} 台车未回传真实经纬度，已不画在地理图上（旧版会按园区像素换算出一个假位置）
+        </p>
+
+        <p
+          v-if="stationsError"
+          class="scope-hint status-stale"
+          role="status"
+          style="margin: 0 0 8px"
+        >
+          站点图层读取失败，环线与服务点已停止绘制（不退回模块内置副本）：{{ stationsError }}
+        </p>
+
+        <p
+          v-if="!stationsError && missingPlanCodes.length"
+          class="scope-hint"
+          role="status"
+          style="margin: 0 0 8px"
+        >
+          场景引用的站点在接口里找不到：{{ missingPlanCodes.join('、') }}（该环线已跳过，不画假连线）
+        </p>
+
         <div class="map-stage">
           <AmapGeoMap
             v-model:map-level="mapLevel"
@@ -247,21 +273,27 @@ import ParkDeliveryOrderModal from '@/components/park/ParkDeliveryOrderModal.vue
 import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useWorkbenchStore } from '@/stores/workbench'
-import { getParkGeofences } from '@/api/park'
-import { L0_COVERAGE_CIRCLES, vehicleToGeoPosition } from '@/composables/useDeliveryGeo'
-import { buildGeofencePolygons, buildVehicleGeoMarkers } from '@/maps/parkGeoMapLayers'
+import { getParkGeofences, getParkStations } from '@/api/park'
+import { useParkMetadata } from '@/composables/useParkMetadata'
+import {
+  basePositionFromStations,
+  buildGeofencePolygons,
+  buildVehicleGeoMarkers,
+  splitVehiclesByBasePresence,
+  vehicleGeoPosition,
+  L0_COVERAGE_CIRCLES,
+} from '@/maps/parkGeoMapLayers'
 import { filterGeoDeliverySimVehicles } from '@/maps/stationLayers'
 import {
   DELIVERY_SCENE_PLANS,
   buildOperationsPlanPolylines,
   buildOperationsStationMarkers,
+  unresolvedPlanCodes,
   type DeliverySceneId,
 } from '@/maps/deliveryOperationsPlan'
-import { ZJF_PILOT_GEO } from '@/maps/zjfPilotGeo'
-import { isInsideZjfBase } from '@/maps/zjfStationAnchors'
 import type { TaskStatus } from '@/constants/enums'
 import type { GeoMapMarker } from '@/maps'
-import type { ParkGeofence } from '@/types/park'
+import type { ParkGeofence, ParkStation } from '@/types/park'
 
 type SceneMode = 'delivery' | 'charging' | 'all'
 type MapLevel = 'L0' | 'L1' | 'L2'
@@ -279,9 +311,15 @@ const createOrderOpen = ref(false)
 const lastUpdatedAt = ref<Date | null>(null)
 const mapLevel = ref<MapLevel>('L1')
 const parkGeofences = ref<ParkGeofence[]>([])
+const parkStations = ref<ParkStation[]>([])
+const stationsError = ref('')
 const selectedMapMarkerId = ref<string | null>('operations-base')
 
-const mapCenter: [number, number] = [ZJF_PILOT_GEO.anchorLng, ZJF_PILOT_GEO.anchorLat]
+const parkMeta = useParkMetadata()
+/** 地图中心用 `t_park.anchor_lng/lat`（画布锚点，§13.30 fit_canvas 的产物） */
+const mapCenter = computed<[number, number]>(() => parkMeta.anchor())
+/** 基地点必须用 `ZJF-IDLE-01` 的坐标：画布锚点与它相差约 273 m，混用会让"在场"静默归零 */
+const basePosition = computed(() => basePositionFromStations(parkStations.value))
 const sceneModes: Array<{ label: string; value: SceneMode }> = [
   { label: '全部', value: 'all' },
   { label: '配送', value: 'delivery' },
@@ -295,13 +333,23 @@ const visibleScenes = computed(() =>
 )
 
 const operationalVehicles = computed(() => filterGeoDeliverySimVehicles(store.parkVehicles))
-const baseVehicles = computed(() =>
-  operationalVehicles.value.filter((vehicle) => isInsideZjfBase(vehicleToGeoPosition(vehicle))),
+const operationalSplit = computed(() =>
+  splitVehiclesByBasePresence(operationalVehicles.value, basePosition.value),
 )
-const roadVehicles = computed(() =>
-  operationalVehicles.value.filter((vehicle) => !isInsideZjfBase(vehicleToGeoPosition(vehicle))),
+const baseVehicles = computed(() => operationalSplit.value.atBase)
+const roadVehicles = computed(() => operationalSplit.value.onRoad)
+/** 没有真实经纬度的车不再画到地理图上（旧代码会用园区像素换算出一个假位置，§7.2②/§7.6） */
+const unknownPositionVehicles = computed(() => operationalSplit.value.unknown)
+const stationMarkers = computed(() =>
+  buildOperationsStationMarkers(parkStations.value, {
+    basePosition: basePosition.value,
+    baseVehicleCount: baseVehicles.value.length,
+  }),
 )
-const stationMarkers = computed(() => buildOperationsStationMarkers(baseVehicles.value.length))
+/** 场景引用的站点在接口里查不到（接口少点 / 点没坐标）时要说出来，不能再静默画短线 */
+const missingPlanCodes = computed(() =>
+  unresolvedPlanCodes(parkStations.value, selectedPlanId.value ?? undefined),
+)
 const selectedVehicleId = computed(() => {
   if (!selectedMapMarkerId.value || selectedMapMarkerId.value.startsWith('operations-station-')) {
     return null
@@ -318,8 +366,10 @@ const mapMarkers = computed(() => [
 ])
 const mapPolygons = computed(() => buildGeofencePolygons(parkGeofences.value))
 const mapPolylines = computed(() => {
-  if (selectedPlanId.value) return buildOperationsPlanPolylines(selectedPlanId.value)
-  return visibleScenes.value.flatMap((scene) => buildOperationsPlanPolylines(scene.id))
+  if (selectedPlanId.value) return buildOperationsPlanPolylines(parkStations.value, selectedPlanId.value)
+  return visibleScenes.value.flatMap((scene) =>
+    buildOperationsPlanPolylines(parkStations.value, scene.id),
+  )
 })
 const fitViewPoints = computed<[number, number][]>(() => {
   if (selectedPlanId.value) return mapPolylines.value.flatMap((line) => line.path)
@@ -331,7 +381,10 @@ const fitViewPoints = computed<[number, number][]>(() => {
   if (servicePolygon.length >= 3) {
     return servicePolygon.map((point) => [Number(point[0]), Number(point[1])])
   }
-  const vehiclePoints = operationalVehicles.value.slice(0, 10).map(vehicleToGeoPosition)
+  const vehiclePoints = operationalVehicles.value
+    .slice(0, 10)
+    .map((vehicle) => vehicleGeoPosition(vehicle))
+    .filter((position): position is [number, number] => position !== null)
   return vehiclePoints.length > 1 ? vehiclePoints : []
 })
 
@@ -359,6 +412,15 @@ const energyStats = computed(() => {
   }
 })
 const lastUpdatedLabel = computed(() => {
+  // §6.3：KPI 停在上一轮的值上继续显示，是调度台上最危险的一种"看着正常"。
+  // 取数失败时必须把它抢过来，并保留最后一次成功的时间供判断新鲜度。
+  const failure = store.queueError || store.poolError
+  if (failure) {
+    const last = store.lastQueueAt
+      ? `，最后成功 ${store.lastQueueAt.toLocaleTimeString('zh-CN', { hour12: false })}`
+      : '，尚未取到数据'
+    return `数据已停止更新${last} · ${failure}`
+  }
   if (!lastUpdatedAt.value) return '等待首次同步'
   return `态势更新于 ${lastUpdatedAt.value.toLocaleTimeString('zh-CN', { hour12: false })}`
 })
@@ -384,11 +446,26 @@ function exceptionSeverity(type: string) {
 }
 
 async function refresh() {
-  const [fenceResponse] = await Promise.all([
+  const [fenceResponse, stationResponse] = await Promise.all([
     getParkGeofences(parkScope.selectedParkId),
+    getParkStations(parkScope.selectedParkId).catch((err: unknown) => {
+      stationsError.value = err instanceof Error ? err.message : String(err)
+      return null
+    }),
     store.fetchQueue(),
+    parkMeta.refresh(),
   ])
   parkGeofences.value = fenceResponse.data || []
+  if (stationResponse) {
+    if (stationResponse.success && stationResponse.data?.length) {
+      parkStations.value = stationResponse.data
+      stationsError.value = ''
+    } else {
+      // 读失败或空都不能退回模块副本（那会让图层悄悄少点），必须说出来（§6.3）。
+      parkStations.value = []
+      stationsError.value = stationResponse.message || '站点接口返回空，图层无站点可画'
+    }
+  }
   lastUpdatedAt.value = new Date()
 }
 

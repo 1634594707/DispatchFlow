@@ -73,10 +73,9 @@
           <a-textarea v-model:value="form.polygonJson" :rows="5" placeholder="[[121.052,31.902],[121.072,31.902],...]" />
         </a-form-item>
         <a-space style="margin-bottom: 8px">
-          <a-button size="small" type="primary" @click="fillPilotRectangle">填充叠石桥试点（1570m×470m）</a-button>
-          <a-button size="small" @click="fillLegacyRectangle">旧版 2km 矩形</a-button>
-          <a-button size="small" @click="fillZoneSouth">填充南排分区</a-button>
-          <a-button size="small" @click="fillZoneHub">填充代发仓分区</a-button>
+          <a-button size="small" type="primary" @click="fillDisplayEnvelope">以展示包络为模板</a-button>
+          <a-button size="small" @click="fillZoneSouth">以南排分区为模板</a-button>
+          <a-button size="small" @click="fillZoneHub">以代发仓分区为模板</a-button>
         </a-space>
         <!-- Phase 3：围栏可视化预览地图 -->
         <a-form-item label="围栏预览地图">
@@ -106,7 +105,8 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
 import { createGeofence, deleteGeofence, fetchGeofences, fetchParks, updateGeofence } from '@/api/infrastructure'
 import type { AdminGeofence } from '@/types/infrastructure'
-import { ZJF_PILOT_GEO, PILOT_ZONE_POLYGONS } from '@/maps/zjfPilotGeo'
+// 只剩地图中心兜底用得到试点锚点；围栏几何一律以接口为准（§6.4）
+import { ZJF_PILOT_GEO } from '@/maps/zjfPilotGeo'
 import type { GeoMapPolygon } from '@/maps'
 
 const loading = ref(false)
@@ -180,7 +180,6 @@ function resetForm() {
 function openCreate() {
   editing.value = null
   resetForm()
-  fillPilotRectangle()
   modalOpen.value = true
 }
 
@@ -195,36 +194,35 @@ function openEdit(record: AdminGeofence) {
   modalOpen.value = true
 }
 
-function fillPilotRectangle() {
-  form.fenceName = form.fenceName || '找家纺网送货区（叠石桥试点）'
-  form.polygonJson = JSON.stringify(ZJF_PILOT_GEO.pilotPolygon)
+/**
+ * 预填 = 从**本页已加载的围栏列表**（`fetchGeofences`，即库里的事实）取一条做模板。
+ *
+ * 原来这三枚按钮读的是 `maps/zjfPilotGeo.ts` 的前端副本：那份只有 5 片，库里已 8 片，
+ * 且 `pilotPolygon` 是 V44 之前那个 17 km² 假包络时代的矩形 —— 用副本预填会把漂移继续繁殖。
+ */
+function fillFromExistingFence(fenceCode: string) {
+  const source = geofences.value.find((fence) => fence.fenceCode === fenceCode)
+  if (!source) {
+    message.warning(`当前园区里没有 ${fenceCode}，请先在列表中确认围栏已加载`)
+    return
+  }
+  form.fenceCode = ''
+  form.fenceName = form.fenceName || source.fenceName
+  form.fenceType = source.fenceType || 'BOUNDARY'
+  form.polygonJson = JSON.stringify(source.polygon)
+  modalOpen.value = true
 }
 
-function fillLegacyRectangle() {
-  form.polygonJson = JSON.stringify([
-    [121.05228, 31.90245],
-    [121.07228, 31.90245],
-    [121.07228, 31.92245],
-    [121.05228, 31.92245],
-  ])
-}
-
-/** Phase 3：填充南排分区多边形 */
 function fillZoneSouth() {
-  const zone = PILOT_ZONE_POLYGONS.find((z) => z.id === 'ZJF-ZONE-CORE-SOUTH')
-  if (zone) {
-    form.polygonJson = JSON.stringify(zone.path)
-    form.fenceName = form.fenceName || '家纺城核心南排区'
-  }
+  fillFromExistingFence('ZJF-ZONE-CORE-SOUTH')
 }
 
-/** Phase 3：填充代发仓分区多边形 */
 function fillZoneHub() {
-  const zone = PILOT_ZONE_POLYGONS.find((z) => z.id === 'ZJF-ZONE-HUB')
-  if (zone) {
-    form.polygonJson = JSON.stringify(zone.path)
-    form.fenceName = form.fenceName || '代发仓集散区'
-  }
+  fillFromExistingFence('ZJF-ZONE-HUB')
+}
+
+function fillDisplayEnvelope() {
+  fillFromExistingFence('DEFAULT-BOUNDARY')
 }
 
 /** Phase 3：围栏预览地图多边形 */

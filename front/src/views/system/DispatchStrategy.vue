@@ -5,6 +5,53 @@
       <a-button :loading="loading" @click="loadAll">刷新</a-button>
     </template>
 
+    <a-card title="紧急暂停派单" size="small" class="pause-card">
+      <a-space direction="vertical" size="middle" style="width: 100%">
+        <a-space wrap>
+          <a-radio-group v-model:value="pauseScopeMode" button-style="solid">
+            <a-radio-button value="GLOBAL">全局（所有园区）</a-radio-button>
+            <a-radio-button value="PARK">指定园区</a-radio-button>
+          </a-radio-group>
+          <a-select
+            v-if="pauseScopeMode === 'PARK'"
+            v-model:value="pauseParkId"
+            :options="parkOptions"
+            placeholder="选择园区"
+            style="width: 180px"
+          />
+          <a-input
+            v-model:value="pauseReason"
+            placeholder="暂停原因（暂停时必填）"
+            :maxlength="128"
+            :disabled="!canOperatePause"
+            style="width: 260px"
+          />
+          <a-button danger :disabled="!canOperatePause" :loading="pausing" @click="applyPause(true)">
+            暂停派单
+          </a-button>
+          <a-button :disabled="!canOperatePause" :loading="pausing" @click="applyPause(false)">
+            恢复派单
+          </a-button>
+        </a-space>
+
+        <!-- 读不到状态时不许说"正常进行中"：把故障显示成绿勾，比没有面板更危险 -->
+        <a-alert
+          v-if="pauseError"
+          type="warning"
+          show-icon
+          :message="`暂停状态读取失败：${pauseError}`"
+        />
+        <a-alert
+          v-else-if="isPaused"
+          type="error"
+          show-icon
+          :message="`${pauseScopeLabel}：派单已暂停`"
+          :description="`原因：${pauseState?.pauseReason || '未记录'} · 操作人：${pauseState?.pausedBy || '未知'} · 时间：${pauseState?.pausedAt || '未知'}`"
+        />
+        <a-alert v-else type="success" show-icon :message="`${pauseScopeLabel}：派单正常进行中`" />
+      </a-space>
+    </a-card>
+
     <a-spin :spinning="loading">
       <a-table
         row-key="id"
@@ -127,12 +174,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import PageContainer from '@/components/common/PageContainer.vue'
 import { useParkOptions } from '@/composables/useParkOptions'
 import { useParkScopeStore } from '@/stores/parkScope'
 import * as strategyApi from '@/api/dispatchStrategy'
+import * as pauseApi from '@/api/dispatchPause'
+import type { DispatchPauseStatus } from '@/api/dispatchPause'
 import type {
   DispatchStrategyProfile,
   DispatchStrategyUpsertPayload,
@@ -140,6 +189,63 @@ import type {
 } from '@/types/dispatchStrategy'
 
 const { parkOptions } = useParkOptions()
+
+const pauseScopeMode = ref<'GLOBAL' | 'PARK'>('GLOBAL')
+const pauseParkId = ref<number | undefined>(undefined)
+const pauseReason = ref('')
+const pausing = ref(false)
+const pauseState = ref<DispatchPauseStatus | null>(null)
+const pauseError = ref('')
+
+/** 「指定园区」还没选园时 parkId 会是 undefined ⇒ 落到后端就是**全局档**，所以此时禁止操作。 */
+const canOperatePause = computed(() => pauseScopeMode.value === 'GLOBAL' || pauseParkId.value != null)
+const pauseScope = computed<number | null>(() =>
+  pauseScopeMode.value === 'GLOBAL' ? null : pauseParkId.value ?? null,
+)
+const pauseScopeLabel = computed(() => {
+  if (pauseScopeMode.value === 'GLOBAL') return '全局'
+  const park = parkOptions.value.find((option) => option.value === pauseParkId.value)
+  return park ? `园区「${park.label}」` : '未选园区'
+})
+const isPaused = computed(() => !!pauseState.value && (pauseState.value.globalPaused || pauseState.value.parkPaused))
+
+async function loadPauseState() {
+  pauseError.value = ''
+  try {
+    const res = await pauseApi.fetchDispatchPauseStatus(pauseScope.value ?? undefined)
+    pauseState.value = res.data
+  } catch (err) {
+    pauseState.value = null
+    pauseError.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+async function applyPause(paused: boolean) {
+  if (paused && !pauseReason.value.trim()) {
+    message.warning('暂停派单必须填写原因')
+    return
+  }
+  pausing.value = true
+  try {
+    const res = await pauseApi.setDispatchPause(
+      pauseScope.value,
+      paused,
+      pauseReason.value.trim() || undefined,
+    )
+    pauseState.value = res.data
+    message.success(paused ? '已暂停派单' : '已恢复派单')
+    if (!paused) pauseReason.value = ''
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : '操作失败')
+  } finally {
+    pausing.value = false
+  }
+}
+
+watch(pauseScope, () => {
+  void loadPauseState()
+})
+
 const loading = ref(false)
 const saving = ref(false)
 const profiles = ref<DispatchStrategyProfile[]>([])
@@ -261,7 +367,10 @@ async function handleActivate(id: number) {
   await loadAll()
 }
 
-onMounted(loadAll)
+onMounted(() => {
+  void loadAll()
+  void loadPauseState()
+})
 </script>
 
 <style scoped lang="less">

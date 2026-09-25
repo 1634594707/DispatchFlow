@@ -107,6 +107,11 @@
                 <span class="pilot-badge">当前：找家纺本地运营范围</span>
                 实际服务边界 · L1 自动派单分区 · 贴路轨迹
               </p>
+              <!-- §7.6/§7.2②：没有真实经纬度的车不再用园区像素换算成假坐标画在图上，而是明说数量 -->
+              <p v-if="geoVehiclesUnknown.length" class="map-scope-hint geo">
+                <span class="pilot-badge">位置未知 {{ geoVehiclesUnknown.length }} 台</span>
+                未回传真实经纬度，已从地理图层剔除
+              </p>
               <span class="mode-toggle">
                 大屏：
                 <a-segmented v-model:value="screenMode" size="small" :options="screenModeOptions" />
@@ -612,6 +617,7 @@ import {
 } from '@/api/park'
 import type { RoadRouteHealth } from '@/api/park'
 import {
+  basePositionFromStations,
   collectRouteFitPoints,
   defaultMapCenter,
   isAmapConfigured,
@@ -619,7 +625,14 @@ import {
   buildGeoPolylines,
   buildGeofencePolygons,
   buildOperationalStationMarkers,
-  isInsideZjfBase,
+  splitVehiclesByBasePresence,
+  vehicleGeoPosition,
+  markerColor,
+  orderColor,
+  shortVehicleCode,
+  L0_COVERAGE_CIRCLES,
+  ZJF_BASE_STATION_CODE,
+  ZJF_BASE_CHARGE_STATION_CODE,
 } from '@/maps'
 import {
   filterGeoDeliveryOrders,
@@ -633,8 +646,7 @@ import {
   isSchematicParkVehicle,
 } from '@/maps/stationLayers'
 import type { GeoMapMarker, GeoMapPolygon, GeoMapPolyline, GeoMapCircle } from '@/maps'
-// V5-D3: Uses shared vehicleToGeoPosition from @/composables/useDeliveryGeo
-import { L0_COVERAGE_CIRCLES, vehicleToGeoPosition } from '@/composables/useDeliveryGeo'
+// 位置解析、三分法与"车/单状态色"统一走 @/maps 一份实现（§7.2② 像素兜底已删；§6.3 图层收敛）。
 import { routeAnomalyWarning } from '@/maps/routeValidation'
 import { getFleetTelemetryStreamUrl } from '@/api/dispatch'
 import { fetchPeakMode, updatePeakMode, fetchOpsSnapshot, type OpsSnapshot } from '@/api/vertical'
@@ -727,14 +739,26 @@ const schematicOrdersOnMap = computed(() => filterSchematicOrders(parkOrders.val
 const schematicVehiclesOnMap = computed(() => filterSchematicParkVehicles(filteredVehicles.value))
 
 const geoVehiclesOnMap = computed(() => filterGeoDeliverySimVehicles(filteredVehicles.value))
-const geoVehiclesAtBase = computed(() =>
-  filterGeoDeliverySimVehicles(vehicles.value).filter((vehicle) =>
-    isInsideZjfBase(vehicleToGeoPosition(vehicle)),
-  ),
+/**
+ * 基地点从接口站点里取（`ZJF-IDLE-01` 的坐标）。§6.4 之前它写死在 `zjfStationAnchors.ts`，
+ * 而 `t_park.anchor_lng/lat` 是**画布锚点**（相差约 273 m），不能拿来当基地用。
+ */
+const geoBasePosition = computed(() =>
+  basePositionFromStations(parkLayout.value?.stations ?? []),
 )
-const geoVehiclesOnRoad = computed(() =>
-  geoVehiclesOnMap.value.filter((vehicle) => !isInsideZjfBase(vehicleToGeoPosition(vehicle))),
+const geoOnMapSplit = computed(() =>
+  splitVehiclesByBasePresence(geoVehiclesOnMap.value, geoBasePosition.value),
 )
+// 基地在场数沿用旧口径：按未筛选的全量地理车统计（标记 tooltip 用），在路上/未知按当前筛选结果
+const geoVehiclesAtBase = computed(
+  () =>
+    splitVehiclesByBasePresence(
+      filterGeoDeliverySimVehicles(vehicles.value),
+      geoBasePosition.value,
+    ).atBase,
+)
+const geoVehiclesOnRoad = computed(() => geoOnMapSplit.value.onRoad)
+const geoVehiclesUnknown = computed(() => geoOnMapSplit.value.unknown)
 
 const mapContainer = ref<HTMLElement>()
 const panelCollapsed = ref(false)
@@ -950,22 +974,24 @@ const geoMapCenter = computed((): [number, number] => {
   return defaultMapCenter()
 })
 
-/** @deprecated Use vehicleToGeoPosition from @/composables/useDeliveryGeo instead */
-function vehicleGeoPosition(vehicle: ParkVehicleSnapshot): [number, number] {
-  return vehicleToGeoPosition(vehicle)
-}
-
 const geoMarkers = computed((): GeoMapMarker[] => {
+  // 画"可服务的点"：按启停状态筛，不再按站点编码前缀筛（§6.4）。
+  // 实测等价：库里 CHG-02…05 全是 INACTIVE，所以 `status !== 'INACTIVE'` 与旧的
+  // `!startsWith('ZJF-CHG-') || code === 'ZJF-CHG-01'` 给出同一批 12 个点；
+  // 用 `!== 'INACTIVE'` 而不是 `=== 'ACTIVE'` 是为了容忍不带 status 的旧后端/mock（缺字段就照旧画出来，
+  // 而不是把整层点悄悄藏掉）。基地那一侧由下面 CHG-01 的"N 辆车在场"徽标代表，IDLE-01 不重复画。
   const visibleStations = (parkLayout.value?.stations ?? []).filter(
     (station) =>
       isGeoDeliveryStation(station) &&
-      station.stationCode !== 'ZJF-IDLE-01' &&
-      (!station.stationCode.startsWith('ZJF-CHG-') || station.stationCode === 'ZJF-CHG-01'),
+      station.status !== 'INACTIVE' &&
+      station.stationCode !== ZJF_BASE_STATION_CODE,
   )
   const stationMarkers = buildOperationalStationMarkers(visibleStations, {
     selectedId: selectedGeoMarkerId.value,
   }).map((marker) => {
-    const baseStation = visibleStations.find((station) => station.stationCode === 'ZJF-CHG-01')
+    const baseStation = visibleStations.find(
+      (station) => station.stationCode === ZJF_BASE_CHARGE_STATION_CODE,
+    )
     if (!baseStation || marker.id !== `station-${baseStation.stationId}`) return marker
     return {
       ...marker,
@@ -977,8 +1003,10 @@ const geoMarkers = computed((): GeoMapMarker[] => {
 
   return [
     ...stationMarkers,
-    ...geoVehiclesOnRoad.value.map((vehicle) => {
-      const marker = toAvGeoMarker(String(vehicle.vehicleId), vehicleGeoPosition(vehicle), {
+    ...geoVehiclesOnRoad.value.flatMap((vehicle) => {
+      const position = vehicleGeoPosition(vehicle)
+      if (!position) return []
+      const marker = toAvGeoMarker(String(vehicle.vehicleId), position, {
         onlineStatus: vehicle.onlineStatus,
         dispatchStatus: vehicle.dispatchStatus,
         charging: vehicle.charging,
@@ -989,7 +1017,7 @@ const geoMarkers = computed((): GeoMapMarker[] => {
       })
       const selected =
         selectedId.value === vehicle.vehicleId || selectedGeoMarkerId.value === marker.id
-      return { ...marker, selected, showLabel: selected }
+      return [{ ...marker, selected, showLabel: selected }]
     }),
   ]
 })
@@ -1018,6 +1046,21 @@ const geoFitViewPoints = computed((): [number, number][] => {
     focusVehicleId: selectedId.value,
   })
   if (routePoints.length >= 2) return routePoints
+  // §6.3 视野策略：无在途路径可跟时，初始视野按**可派单围栏（ZJF-ZONE-*）并集**，
+  // 不再按 `DEFAULT-BOUNDARY` —— 那是 §13.34 重画后的 4.74 km² 展示包络，按它定视野
+  // 等于用"看得见的范围"决定"看得清的范围"，车仍会被压到一小撮。
+  const dispatchablePoints = parkGeofences.value
+    .filter(
+      (fence) =>
+        fence.status === 'ACTIVE' &&
+        fence.fenceCode?.startsWith('ZJF-ZONE-') &&
+        (fence.polygon?.length ?? 0) >= 3,
+    )
+    .flatMap((fence) =>
+      (fence.polygon ?? []).map((point) => [Number(point[0]), Number(point[1])] as [number, number]),
+    )
+  if (dispatchablePoints.length >= 3) return dispatchablePoints
+  // 兜底才回到展示包络：可派单围栏尚未加载时，宁可给一个宽视野也不要停在默认缩放
   const serviceEnvelope = parkGeofences.value.find(
     (fence) =>
       fence.scopeCode === 'L1_CANDIDATE_ENVELOPE' && fence.fenceCode === 'DEFAULT-BOUNDARY',
@@ -1146,27 +1189,6 @@ function toggleChargeLayer() {
 function toggleL0Circles() {
   showL0Circles.value = !showL0Circles.value
   localStorage.setItem('fsd_tracking_l0_circles', String(showL0Circles.value))
-}
-
-function markerColor(vehicle: ParkVehicleSnapshot) {
-  if (vehicle.onlineStatus === 'OFFLINE') return '#FF5C7C'
-  if (vehicle.charging) return '#FFC04D'
-  if (vehicle.lowBattery) return '#FF5C7C'
-  if (vehicle.dispatchStatus === 'BUSY') return '#22C7E6'
-  return '#2DE08A'
-}
-
-function orderColor(stage: string) {
-  if (stage === 'COMPLETED') return '#2DE08A'
-  if (stage === 'FAILED' || stage === 'MANUAL_PENDING') return '#FF5C7C'
-  if (stage === 'LOADING' || stage === 'UNLOADING' || stage === 'CHARGING') return '#FFC04D'
-  return '#22C7E6'
-}
-
-function shortVehicleCode(code: string) {
-  const parts = code.split('-')
-  if (parts.length >= 2) return `${parts[0]}-${parts[1]}`
-  return code.length > 10 ? `${code.slice(0, 10)}…` : code
 }
 
 const LABEL_SLOTS = [

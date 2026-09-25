@@ -46,26 +46,28 @@ export interface NavItem {
 const STAFF_ROLES: NavRole[] = ['ADMIN', 'OPERATOR', 'VIEWER']
 const ADMIN_ROLES: NavRole[] = ['ADMIN']
 
+/**
+ * 一级导航收敛到 4 项（路线图 §6.2 闸门：一级 ≤5）。
+ *
+ * <p>口径来自 §6.2 的信息架构表：原来 8 个一级项是按**后端模块**切的（调度运营 / 分析监控 /
+ * 车队资源 / 基础设施 / 产业运营 / 数字孪生 / 系统管理 / 工作台），调度员要找"异常"得先决定它属于
+ * 哪个模块。现在按**任务流**切：看着地图处理现场 = 监控台，一单从进来到派出去 = 处置台，
+ * 事后复盘 = 分析台，其余低频配置统一收进二级区。
+ *
+ * <p>只动入口层级，**没有删任何路由**：`/digital-twin`、`/field-ops/tickets`、`/vertical/*`
+ * 全部保留可达（§6.2 的"保留功能，不保留一级入口"）。三态清单见《已完成工作记录》§13.51。
+ */
 export const NAVIGATION_TREE: NavItem[] = [
   {
-    key: 'workbench',
-    label: '调度工作台',
-    icon: 'workbench',
-    path: '/workbench',
+    key: 'monitor',
+    label: '监控台',
+    icon: 'monitor',
     roles: STAFF_ROLES,
-    badge: 'workbench',
-    commandGroup: '导航',
-  },
-  {
-    key: 'dispatch-ops',
-    label: '调度运营',
-    icon: 'dispatchOps',
-    roles: STAFF_ROLES,
-    commandGroup: '调度运营',
+    commandGroup: '监控台',
     children: [
-      { key: 'dashboard', label: '调度看板', path: '/dashboard', icon: 'dashboard' },
-      { key: 'orders', label: '订单管理', path: '/orders', icon: 'orders' },
-      { key: 'tasks', label: '调度任务', path: '/tasks', icon: 'tasks' },
+      { key: 'vehicle-tracking', label: '车辆监控大屏', path: '/vehicle-tracking', icon: 'tracking' },
+      { key: 'park-overview', label: '多园区总览', path: '/gis/park-overview', icon: 'tracking' },
+      { key: 'vehicles', label: '车辆管理', path: '/vehicles', icon: 'vehicles' },
       {
         key: 'exceptions',
         label: '异常任务',
@@ -73,71 +75,20 @@ export const NAVIGATION_TREE: NavItem[] = [
         icon: 'exceptions',
         badge: 'exceptions',
       },
+      // 数字孪生由一级入口降级为监控台二级项：同一份回放能力，少一个主导航位（§6.2）
+      { key: 'digital-twin', label: '轨迹回放（数字孪生）', path: '/digital-twin', icon: 'digitalTwin' },
     ],
   },
   {
-    key: 'analytics-monitor',
-    label: '分析监控',
-    icon: 'monitor',
+    key: 'handle',
+    label: '处置台',
+    icon: 'workbench',
     roles: STAFF_ROLES,
-    commandGroup: '分析监控',
+    commandGroup: '处置台',
     children: [
-      { key: 'analytics', label: '运营分析', path: '/analytics', icon: 'analytics' },
-      { key: 'analytics-charging', label: '充电报表', path: '/analytics/charging', icon: 'charging' },
-      { key: 'vehicle-tracking', label: '车辆监控大屏', path: '/vehicle-tracking', icon: 'tracking' },
-      { key: 'park-overview', label: '多园区总览', path: '/gis/park-overview', icon: 'tracking' },
-    ],
-  },
-  {
-    key: 'fleet',
-    label: '车队资源',
-    icon: 'fleet',
-    roles: STAFF_ROLES,
-    commandGroup: '车队资源',
-    children: [
-      { key: 'vehicles', label: '车辆管理', path: '/vehicles', icon: 'vehicles' },
-    ],
-  },
-  {
-    key: 'infrastructure',
-    label: '基础设施',
-    icon: 'infrastructure',
-    roles: ADMIN_ROLES,
-    commandGroup: '基础设施',
-    children: [
-      { key: 'infra-parks', label: '园区管理', path: '/infrastructure/parks' },
-      { key: 'infra-stations', label: '站点管理', path: '/infrastructure/stations' },
-      { key: 'infra-parking-slots', label: '停车位管理', path: '/infrastructure/parking-slots' },
-      { key: 'infra-charging-piles', label: '充电桩管理', path: '/infrastructure/charging-piles' },
-      { key: 'infra-swap-cabinets', label: '换电柜管理', path: '/infrastructure/swap-cabinets' },
-      { key: 'infra-road-network', label: '路网管理', path: '/infrastructure/road-network' },
-      { key: 'infra-traffic', label: '交通态势', path: '/infrastructure/traffic' },
-      { key: 'infra-geofences', label: '地理围栏', path: '/infrastructure/geofences' },
-    ],
-  },
-  {
-    key: 'vertical-ops',
-    label: '产业运营',
-    icon: 'vertical',
-    roles: ['ADMIN', 'FIELD_OPS'],
-    promoteSingleChild: true,
-    commandGroup: '产业运营',
-    children: [
-      {
-        key: 'vertical-routes',
-        label: '线路管理',
-        path: '/vertical/routes',
-        roles: ADMIN_ROLES,
-      },
-      { key: 'vertical-hub', label: '母港分流', path: '/vertical/hub', roles: ADMIN_ROLES },
-      { key: 'vertical-peak', label: '高峰预案', path: '/vertical/peak-mode', roles: ADMIN_ROLES },
-      {
-        key: 'vertical-rules',
-        label: '自动化规则',
-        path: '/vertical/automation-rules',
-        roles: ADMIN_ROLES,
-      },
-      { key: 'vertical-ops', label: '运维快照', path: '/vertical/ops-snapshot', roles: ADMIN_ROLES },
+      { key: 'workbench', label: '调度工作台', path: '/workbench', icon: 'workbench', badge: 'workbench' },
+      { key: 'tasks', label: '调度任务', path: '/tasks', icon: 'tasks' },
+      { key: 'orders', label: '订单管理', path: '/orders', icon: 'orders' },
       {
         key: 'field-ops-tickets',
         label: '现场工单',
@@ -148,44 +99,74 @@ export const NAVIGATION_TREE: NavItem[] = [
     ],
   },
   {
-    key: 'digital-twin',
-    label: '数字孪生',
-    icon: 'digitalTwin',
-    path: '/digital-twin',
+    key: 'analytics',
+    label: '分析台',
+    icon: 'analytics',
     roles: STAFF_ROLES,
-    commandGroup: '导航',
+    commandGroup: '分析台',
+    children: [
+      { key: 'dashboard', label: '调度看板', path: '/dashboard', icon: 'dashboard' },
+      { key: 'analytics-index', label: '运营分析', path: '/analytics', icon: 'analytics' },
+      { key: 'analytics-charging', label: '充电报表', path: '/analytics/charging', icon: 'charging' },
+      { key: 'analytics-custom-report', label: '自定义报表', path: '/analytics/custom-report', icon: 'report' },
+      { key: 'analytics-report-history', label: '报表历史', path: '/analytics/report-history', icon: 'logs' },
+      { key: 'vertical-ops', label: '运维快照', path: '/vertical/ops-snapshot', icon: 'monitor' },
+    ],
   },
   {
-    key: 'system',
-    label: '系统管理',
-    icon: 'system',
+    key: 'config',
+    label: '配置',
+    icon: 'infrastructure',
     roles: ADMIN_ROLES,
-    commandGroup: '系统管理',
+    commandGroup: '配置',
     children: [
-      { key: 'system-users', label: '用户管理', path: '/system/users', icon: 'users' },
-      { key: 'system-operate-logs', label: '操作日志', path: '/system/operate-logs', icon: 'logs' },
       {
-        key: 'system-dispatch-strategy',
-        label: '调度策略',
-        path: '/system/dispatch-strategy',
+        key: 'config-infrastructure',
+        label: '基础设施',
+        icon: 'infrastructure',
+        children: [
+          { key: 'infra-parks', label: '园区管理', path: '/infrastructure/parks' },
+          { key: 'infra-stations', label: '站点管理', path: '/infrastructure/stations' },
+          { key: 'infra-parking-slots', label: '停车位管理', path: '/infrastructure/parking-slots' },
+          { key: 'infra-charging-piles', label: '充电桩管理', path: '/infrastructure/charging-piles' },
+          { key: 'infra-swap-cabinets', label: '换电柜管理', path: '/infrastructure/swap-cabinets' },
+          { key: 'infra-road-network', label: '路网管理', path: '/infrastructure/road-network' },
+          { key: 'infra-traffic', label: '交通态势', path: '/infrastructure/traffic' },
+          { key: 'infra-geofences', label: '地理围栏', path: '/infrastructure/geofences' },
+        ],
+      },
+      {
+        key: 'config-operations',
+        label: '运营策略',
         icon: 'strategy',
+        children: [
+          { key: 'system-dispatch-strategy', label: '调度策略', path: '/system/dispatch-strategy', icon: 'strategy' },
+          { key: 'vertical-rules', label: '自动化规则', path: '/vertical/automation-rules' },
+          { key: 'vertical-peak', label: '高峰预案', path: '/vertical/peak-mode' },
+          { key: 'vertical-routes', label: '线路管理', path: '/vertical/routes' },
+          { key: 'vertical-hub', label: '母港分流', path: '/vertical/hub' },
+        ],
       },
       {
-        key: 'system-integration',
-        label: '外部集成',
-        path: '/system/integration',
-        icon: 'integration',
+        key: 'config-system',
+        label: '系统管理',
+        icon: 'system',
+        children: [
+          { key: 'system-users', label: '用户管理', path: '/system/users', icon: 'users' },
+          { key: 'system-operate-logs', label: '操作日志', path: '/system/operate-logs', icon: 'logs' },
+          { key: 'system-integration', label: '外部集成', path: '/system/integration', icon: 'integration' },
+          { key: 'system-report-schedule', label: '定时报表', path: '/system/report-schedule', icon: 'report' },
+          { key: 'system-security', label: '安全设置', path: '/system/security', icon: 'security' },
+          {
+            key: 'system-alert-settings',
+            label: '告警设置',
+            path: '/system/alert-settings',
+            icon: 'alert',
+          },
+          { key: 'system-config-check', label: '试点配置自检', path: '/system/config-check', icon: 'health' },
+          { key: 'system-health', label: '系统健康', path: '/system/health', icon: 'health' },
+        ],
       },
-      { key: 'system-report-schedule', label: '定时报表', path: '/system/report-schedule', icon: 'report' },
-      { key: 'system-security', label: '安全设置', path: '/system/security', icon: 'security' },
-      {
-        key: 'system-alert-settings',
-        label: '告警设置',
-        path: '/system/alert-settings',
-        icon: 'alert',
-      },
-      { key: 'system-config-check', label: '试点配置自检', path: '/system/config-check', icon: 'health' },
-      { key: 'system-health', label: '系统健康', path: '/system/health', icon: 'health' },
     ],
   },
 ]

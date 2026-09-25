@@ -74,8 +74,11 @@
           <TrendBarChart v-if="trendPoints.length > 0" :points="trendPoints" />
           <div v-else class="trend-placeholder">
             <BarChartOutlined class="trend-icon" />
-            <p class="trend-text-primary">暂无趋势数据</p>
-            <p class="trend-text-secondary">运营数据将在系统运行后自动生成</p>
+            <!-- §6.3：读失败不能说成"暂无数据"。前者要人去查，后者看着像系统刚上线、一切正常。 -->
+            <p class="trend-text-primary">{{ trendError ? '趋势数据读取失败' : '暂无趋势数据' }}</p>
+            <p class="trend-text-secondary">
+              {{ trendError || '运营数据将在系统运行后自动生成' }}
+            </p>
           </div>
         </template>
       </div>
@@ -150,14 +153,17 @@ const store = useDashboardStore()
 const resp = useResponsive()
 const trendLoading = ref(false)
 const trendPoints = ref<AnalyticsTrendPoint[]>([])
+const trendError = ref('')
 
 async function loadTrend() {
   trendLoading.value = true
   try {
     const res = await getAnalyticsEfficiency('week')
     trendPoints.value = res.data.orderCompletionTrend || []
-  } catch {
+    trendError.value = ''
+  } catch (err) {
     trendPoints.value = []
+    trendError.value = err instanceof Error ? err.message : String(err)
   } finally {
     trendLoading.value = false
   }

@@ -5,6 +5,9 @@
   "version": "0.6.0",
   "type": "module",
   "scripts": {
+    "api:fetch": "node scripts/check-api-contract.mjs --update",
+    "api:gen": "openapi-typescript openapi/api-docs.json -o src/types/api.gen.ts",
+    "api:check": "node scripts/check-api-contract.mjs",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "build:analyze": "vue-tsc --noEmit && vite build --mode analyze",
@@ -50,6 +53,7 @@
     "eslint-plugin-vue": "^9.32.0",
     "less": "^4.2.1",
     "lighthouse": "^12.6.0",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.4.2",
     "puppeteer-core": "^24.8.2",
     "rollup-plugin-visualizer": "^5.14.0",

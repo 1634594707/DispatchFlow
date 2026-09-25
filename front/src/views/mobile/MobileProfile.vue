@@ -55,7 +55,6 @@
           >
             <span class="mode-icon">🏭</span>
             <span class="mode-name">园区示意</span>
-            <span class="mode-desc">仿真园区内部</span>
           </button>
         </div>
       </section>
@@ -63,13 +62,17 @@
       <section class="menu-section">
         <h3 class="section-title">服务区域</h3>
         <div class="zone-list">
-          <div v-for="zone in deliveryZones" :key="zone.code" class="zone-item">
-            <span class="zone-color" :style="{ background: zone.color }" />
-            <div class="zone-text">
-              <span class="zone-name">{{ zone.name }}</span>
-              <span class="zone-desc">{{ zone.description }}</span>
+          <p v-if="loadError" class="zone-desc">{{ '分区清单读取失败：' + loadError }}</p>
+          <template v-else>
+            <div v-for="zone in serviceZones" :key="zone.code" class="zone-item">
+              <span class="zone-color" :style="{ background: zone.color }" />
+              <div class="zone-text">
+                <span class="zone-name">{{ zone.name }}</span>
+                <span class="zone-desc">{{ zone.description }}</span>
+              </div>
             </div>
-          </div>
+            <p v-if="serviceZones.length === 0" class="zone-desc">暂无可派单分区</p>
+          </template>
         </div>
       </section>
 
@@ -168,7 +171,7 @@
           </div>
           <div class="about-item">
             <span class="about-label">配送分区</span>
-            <span class="about-value">{{ deliveryZones.length }} 个</span>
+            <span class="about-value">{{ serviceZones.length }} 个</span>
           </div>
         </div>
       </section>
@@ -181,7 +184,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import MobileTabBar from '@/components/mobile/MobileTabBar.vue'
-import { getParkOrders, getParkStations, listParks } from '@/api/park'
+import { getParkGeofences, getParkOrders, getParkStations, listParks } from '@/api/park'
 import {
   filterGeoDeliveryOrders,
   filterSchematicOrders,
@@ -201,8 +204,22 @@ const orders = ref<ParkOrderSnapshot[]>([])
 const stations = ref<ParkStation[]>([])
 const mobileApiKey = ref('')
 const showApiKeySettings = import.meta.env.DEV
+const loadError = ref('')
 
-const deliveryZones = ZJF_DELIVERY_ZONES
+/** 分区清单来自 `/admin/park/geofences`；这里只留"哪片用什么颜色"这一层呈现信息。 */
+const ZONE_COLORS: Record<string, string> = Object.fromEntries(
+  ZJF_DELIVERY_ZONES.map((zone) => [zone.code, zone.color]),
+)
+const DEFAULT_ZONE_COLOR = '#22C7E6'
+
+interface ServiceZoneRow {
+  code: string
+  name: string
+  description: string
+  color: string
+}
+
+const serviceZones = ref<ServiceZoneRow[]>([])
 
 const stats = computed(() => {
   const visible =
@@ -249,15 +266,26 @@ onMounted(async () => {
     const parkResp = await listParks()
     const parkId = parkResp.data?.find((p) => p.defaultPark)?.parkId || parkResp.data?.[0]?.parkId
     if (parkId) {
-      const [orderResp, stationResp] = await Promise.all([
+      const [orderResp, stationResp, fenceResp] = await Promise.all([
         getParkOrders({}),
         getParkStations(parkId),
+        getParkGeofences(parkId),
       ])
       orders.value = orderResp.data || []
       stations.value = stationResp.data || []
+      // 分区清单以接口为准：前端副本只有 5 片而库里 8 片，页面上那个"N 个"因此一直在少报
+      serviceZones.value = (fenceResp.data || [])
+        .filter((fence) => fence.status === 'ACTIVE' && fence.fenceCode?.startsWith('ZJF-ZONE-'))
+        .map((fence) => ({
+          code: fence.fenceCode,
+          name: fence.fenceName,
+          description: fence.remark || fence.fenceType || '配送分区',
+          color: ZONE_COLORS[fence.fenceCode] || DEFAULT_ZONE_COLOR,
+        }))
     }
-  } catch {
-    // 忽略错误，页面仍可显示
+  } catch (err) {
+    // §6.3：读不到要说出来，不能静默留一张"看着正常"的空页
+    loadError.value = err instanceof Error ? err.message : String(err)
   }
 })
 </script>

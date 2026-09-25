@@ -5,6 +5,28 @@ interface StatusConfig {
   color: string
 }
 
+/**
+ * 枚举 → 中文的**唯一兜底口径**（§6.4「中英文混排兜底统一」）。
+ *
+ * <p>此前有 10 处各写一份 `map[value] || value`：后端给出一个字典里没有的枚举，就直接把
+ * 英文印在中文界面上，同一屏出现「配送中 · MANUAL_PENDING」这种混排；而各页字典还不一致
+ * （`FAILED` 在移动端卡片叫「配送失败」、在中心字典叫「失败」）。
+ *
+ * <p>未知值**必须仍然可见**（藏起来等于让对接方以为后端没问题），但改成中文领头、原值留在括号里，
+ * 支持同学还能照着它查日志。
+ */
+export function enumLabel(
+  map: Record<string, string | { label?: string }> | undefined,
+  value: string | null | undefined,
+  domain = '状态',
+): string {
+  if (!value) return '--'
+  const hit = map?.[value]
+  if (typeof hit === 'string') return hit
+  if (hit && hit.label) return hit.label
+  return `未知${domain}(${value})`
+}
+
 /** Maps legacy color keys to unified risk semantics for UI components. */
 export type StatusSemantic = 'critical' | 'warning' | 'active' | 'normal' | 'muted'
 

@@ -52,20 +52,76 @@ test('SSE stream failure drives header into degraded mode', async ({ page }) => 
   await expect(status).toContainText('降级')
 })
 
-/** 路线图 8.2：SSE 恢复后自动回到实时模式。 */
+/**
+ * 路线图 8.2：流开 ⇒ 实时态；流挂 ⇒ 降级态（两个方向都断言）。
+ *
+ * 这里必须换一个可控的 EventSource 双替身：`page.route` 的 `fulfill` 会把响应头、响应体
+ * 一次性交给浏览器，EventSource 只能"开一下就立刻关闭"，在线窗口是毫秒级 —— 原来那条
+ * 用例其实是靠 store 里多余的拆线抖动蹭到在线态的，一旦拆线次数收敛就再也抓不住。
+ * 真实浏览器里的 SSE 行为由上一条用例（abort 真实请求）与 v12 的建连次数闸门负责。
+ */
 test('SSE stream success returns header to live mode', async ({ page }) => {
   await seedAdminSession(page)
   await installCatchAll(page)
   await page.route(api('/admin/sse-ticket'), route =>
     route.fulfill({ json: ok({ ticket: 'e2e-ticket' }) }))
-  // 以 text/event-stream 放行连接：EventSource 触发 onopen → markConnected
-  await page.route('**/api/admin/dispatch/stream**', route =>
-    route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'data: {}\n\n' }))
+  await page.addInitScript(() => {
+    interface Openable {
+      emitOpen(): void
+      emitFail(): void
+    }
+    const instances: Openable[] = []
+    class ControllableEventSource {
+      static CONNECTING = 0
+      static OPEN = 1
+      static CLOSED = 2
+      readyState = 0
+      onopen: ((ev: unknown) => void) | null = null
+      onerror: ((ev: unknown) => void) | null = null
+      constructor() {
+        instances.push(this)
+      }
+      addEventListener() {}
+      removeEventListener() {}
+      close() { this.readyState = 2 }
+      emitOpen() {
+        this.readyState = 1
+        this.onopen?.({ type: 'open' })
+      }
+      emitFail() {
+        this.readyState = 2
+        this.onerror?.({ type: 'error' })
+      }
+    }
+    Object.defineProperty(window, 'EventSource', { configurable: true, value: ControllableEventSource })
+    Object.defineProperty(window, '__fsdEs', {
+      configurable: true,
+      get: () => instances[instances.length - 1] ?? null,
+    })
+  })
 
   await page.goto('/workbench')
 
   const status = page.getByTestId('realtime-status')
   await expect(status).toBeVisible()
-  await expect(status.locator('.stream-indicator.online')).toHaveCount(1, { timeout: 15_000 })
   await expect(status).not.toContainText('降级')
+
+  const emit = (method: 'emitOpen' | 'emitFail') => page.evaluate((name) => {
+    const es = (window as unknown as { __fsdEs?: Record<string, () => void> }).__fsdEs
+    if (!es) throw new Error('EventSource 尚未被创建')
+    es[name]()
+  }, method)
+
+  // 换票请求回来之后客户端才会建流，先等替身就位再驱动状态
+  await expect
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __fsdEs?: unknown }).__fsdEs)))
+    .toBe(true)
+
+  await emit('emitOpen')
+  await expect(status.locator('.stream-indicator.online')).toHaveCount(1)
+  await expect(status).not.toContainText('降级')
+
+  await emit('emitFail')
+  await expect(status).toContainText('降级')
+  await expect(status.locator('.stream-indicator.online')).toHaveCount(0)
 })

@@ -1,15 +1,18 @@
 /**
 
- * 找家纺叠石桥短驳试点（L1）— 与 ROADMAP-V3 §1.3 / V27 迁移一致
+ * 找家纺叠石桥短驳试点 — 示意画布参数（**前端只是兜底副本**）
  *
- * 锚点校准（V38）：使用 3 个已知站点真实 GPS 反算最优锚点：
- *   ZJF-PICK-01 (121.074453, 31.960396)、ZJF-DROP-01 (121.079762, 31.963627)、
- *   ZJF-DROP-02 (121.087005, 31.961780)
- * 反算结果 anchorLng=121.080354, anchorLat=31.961977，与 V27 一致。
- * 全部 13 个已知站点转换误差 < 20 米（验收通过）。
+ * 真相顺序：`useParkMetadata` 优先读后端园区元数据，读不到才用下面这组常量。
+ * 数值出处：`scripts/geo/osm_to_road_graph.py --params-out`（对 `data/map.corridor.osm`
+ * 在走廊框内做 fit_canvas 反解），与 `application.yml` 的 `fsd.park.geo.*`、
+ * `back/sql/seed/zjf_road_network.sql` 的 `coord_x/coord_y`、`t_park` 行**同源同值**。
+ * 产物记录见 `docs/park_transform_params_2026-09-23.txt`。
+ *
+ * ⚠ 改画布必须五处一起改（装载器 / application.yml / 本文件 / t_park / 回归夹具），
+ *   少改一处 = 像素与经纬度两套映射并存，站点吸附与 schematic 渲染会各自失真。
+ *   历史教训：V27/V38 时代这里曾长期挂着旧锚点 121.080354/31.961977。
  */
 
-import { ZJF_DELIVERY_ZONES } from './zjfStationAnchors'
 
 export const ZJF_PILOT_GEO = {
 
@@ -17,17 +20,17 @@ export const ZJF_PILOT_GEO = {
 
   label: '找家纺网 · 叠石桥短驳试点',
 
-  anchorLng: 121.080354,
+  anchorLng: 121.0932364,
 
-  anchorLat: 31.961977,
+  anchorLat: 31.9373442,
 
-  parkWidthPx: 1200,
+  parkWidthPx: 1600,
 
-  parkHeightPx: 800,
+  parkHeightPx: 1854,
 
-  parkWidthMeters: 1570,
+  parkWidthMeters: 7957.7,
 
-  parkHeightMeters: 470,
+  parkHeightMeters: 9221.0,
 
   /**
    * @deprecated Phase 3：单一大矩形已弃用，改用 pilotZonePolygons（5 个分区多边形）。
@@ -47,26 +50,6 @@ export const ZJF_PILOT_GEO = {
 
 } as const
 
-/**
- * Phase 3：5 个配送分区多边形（替换单一大矩形）。
- * 与后端 t_park_geofence 中 ZJF-ZONE-* 记录一致（V37 迁移）。
- * 每个分区有不同的颜色，站点按所属分区着色。
- */
-export const PILOT_ZONE_POLYGONS = ZJF_DELIVERY_ZONES.map((zone) => ({
-
-  id: zone.code,
-
-  name: zone.name,
-
-  path: zone.polygon,
-
-  strokeColor: zone.color,
-
-  fillColor: zone.color + '20', // 12.5% opacity hex suffix
-
-  zIndex: 10,
-
-}))
 
 
 
@@ -77,22 +60,6 @@ export const ZJF_L0_COVERAGE = {
   chuanjiang: { center: [121.06228, 31.91245] as [number, number], radiusMeters: 20_000 },
 
   dieshiqiao: { center: [121.080354, 31.961977] as [number, number], radiusMeters: 20_000 },
-
-} as const
-
-
-
-export const ZJF_FLEET_STATS = {
-
-  fleetSize: 264,
-
-  servicePoints: 3485,
-
-  routes: 3066,
-
-  avgTripsPerDay: 7.9,
-
-  hubDailyThroughput: 200_000,
 
 } as const
 

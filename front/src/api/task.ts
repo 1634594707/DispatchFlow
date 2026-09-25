@@ -25,6 +25,63 @@ export function getTaskList(parkId?: number) {
   return request.get<any, ApiResponse<TaskAdminListItem[]>>('/admin/tasks', { params: { parkId } })
 }
 
+/** 一次派单决策的候选分项（总分越小越优）。 */
+export interface DecisionCandidate {
+  rank?: number
+  vehicleId?: number | null
+  vehicleCode?: string | null
+  distance?: number
+  socMargin?: number
+  pluggedBonus?: number
+  idleBonus?: number
+  priorityFactor?: number
+  forecastPenalty?: number
+  total?: number
+}
+
+/** 决策快照（§7.3 读侧）：候选漏斗、分项分数、分差与影子对照，全部来自 t_dispatch_decision_snapshot。 */
+export interface DecisionExplain {
+  snapshotId: number
+  taskId?: number | null
+  orderId?: number | null
+  orderNo?: string | null
+  policyId: string
+  policyVersion: string
+  matchAlgorithm?: string | null
+  roadGraphVersion?: string | null
+  generatedAt?: string | null
+  durationMicros?: number | null
+  failReason?: string | null
+  remark?: string | null
+  funnel?: {
+    candidateTotal?: number | null
+    freshTelemetry?: number | null
+    socEligible?: number | null
+    socChainEligible?: number | null
+    reachable?: number | null
+    evaluated?: number | null
+  } | null
+  winner?: DecisionCandidate | null
+  runnerUpScore?: number | null
+  scoreGap?: number | null
+  tieCount?: number | null
+  candidates: DecisionCandidate[]
+  shadow?: {
+    policyId: string
+    policyVersion?: string | null
+    winnerCode?: string | null
+    agreed?: boolean | null
+    regret?: number | null
+  } | null
+}
+
+/** 按任务读最近的决策快照（含失败那次），用于"当时为什么选这台车、差多少分"。 */
+export function getTaskDecisions(taskId: number, limit = 3) {
+  return request.get<any, ApiResponse<DecisionExplain[]>>('/admin/dispatch/decisions', {
+    params: { taskId, limit },
+  })
+}
+
 export function queryTasks(data: TaskQueryRequest) {
   return request.post<any, ApiResponse<PageResponse<TaskAdminListItem>>>('/admin/tasks/query', data)
 }

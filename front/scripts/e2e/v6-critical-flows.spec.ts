@@ -323,7 +323,6 @@ test('tracking demo submits current station IDs from the active park', async ({ 
       dropoffStationId: 506,
       priority: 'P1',
       orderPriority: 'NORMAL',
-      deliveryZone: 'GEO_DELIVERY',
     }),
   ])
 })

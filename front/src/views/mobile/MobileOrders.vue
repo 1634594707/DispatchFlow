@@ -82,10 +82,6 @@
           <div class="order-card-head">
             <div class="order-id">
               <span class="order-no">#{{ order.orderId }}</span>
-              <span v-if="order.deliveryZone === 'GEO_DELIVERY'" class="zone-tag zone-geo"
-                >地理配送</span
-              >
-              <span v-else class="zone-tag zone-schematic">园区内部</span>
             </div>
             <span class="order-stage" :class="`stage-${stageClass(order.runtimeStage)}`">
               {{ stageLabel(order.runtimeStage) }}
@@ -135,7 +131,7 @@ import { useRouter } from 'vue-router'
 import MobileTabBar from '@/components/mobile/MobileTabBar.vue'
 import { getParkOrders } from '@/api/park'
 import { filterGeoDeliveryOrders, filterSchematicOrders } from '@/maps'
-import { loadMobileOrderMode } from '@/constants/parkDelivery'
+import { loadMobileOrderMode, parkDeliveryStageLabel as stageLabel } from '@/constants/parkDelivery'
 import type { MobileOrderMode } from '@/constants/parkDelivery'
 import type { ParkOrderSnapshot } from '@/types/park'
 
@@ -182,21 +178,6 @@ const filteredOrders = computed(() => {
       return visibleOrders.value
   }
 })
-
-function stageLabel(stage: string): string {
-  const labels: Record<string, string> = {
-    PENDING: '待接单',
-    ASSIGNED: '已派单',
-    HEADING_TO_PICKUP: '前往取货',
-    LOADING: '装货中',
-    HEADING_TO_DROPOFF: '配送中',
-    UNLOADING: '卸货中',
-    RETURNING: '返程中',
-    COMPLETED: '已完成',
-    FAILED: '配送失败',
-  }
-  return labels[stage] || stage
-}
 
 function stageClass(stage: string): string {
   const classes: Record<string, string> = {
@@ -478,24 +459,6 @@ onMounted(() => {
   font-weight: var(--fsd-font-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.zone-tag {
-  flex: 0 0 auto;
-  padding: 2px 6px;
-  border-radius: var(--fsd-radius-sm);
-  font-size: 10px;
-  font-weight: var(--fsd-font-medium);
-  letter-spacing: 0.03em;
-}
-
-.zone-geo {
-  background: var(--fsd-neutral-bg);
-  color: var(--mobile-secondary);
-}
-.zone-schematic {
-  background: var(--fsd-neutral-bg);
-  color: var(--mobile-secondary);
 }
 
 .order-stage {

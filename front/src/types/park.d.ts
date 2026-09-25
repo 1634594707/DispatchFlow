@@ -20,9 +20,6 @@ export interface ParkSummary {
   defaultPark: boolean
 }
 
-/** 站点配送区域：地理配送 / 园区内部 / 通用 */
-export type StationDeliveryZone = 'GEO_DELIVERY' | 'SCHEMATIC' | 'GENERAL'
-
 export interface ParkStation {
   parkId: number
   parkCode: string
@@ -35,7 +32,8 @@ export interface ParkStation {
   coordLng?: number | null
   coordLat?: number | null
   area: string
-  deliveryZone?: StationDeliveryZone
+  /** 站点启停状态（`ACTIVE`/`INACTIVE`）。旧版后端或未 mock 的响应可能不带 ⇒ 判定要容忍 undefined。 */
+  status?: string
 }
 
 export interface ParkRoadNode {
@@ -98,7 +96,6 @@ export interface ParkVehicleSnapshot {
   charging: boolean
   lowBattery: boolean
   linkMode: 'SIM' | 'REAL' | 'VDA5050'
-  deliveryZone?: 'GEO_DELIVERY' | 'SCHEMATIC' | 'BOTH'
   maxLoadCapacity?: number | null
   currentLoad?: number | null
   trajectory: ParkPoint[]
@@ -156,7 +153,6 @@ export interface ParkOrderSnapshot {
   runtimeStage: string
   pickupStation: ParkStation
   dropoffStation: ParkStation
-  deliveryZone?: 'GEO_DELIVERY' | 'SCHEMATIC'
   weight?: number | null
   estimatedArrivalTime?: string | null
   assignTime: string | null
@@ -165,17 +161,26 @@ export interface ParkOrderSnapshot {
   updatedAt: string | null
 }
 
+/** 下单端点：登记站点与"地图上点的任意坐标"二选一，不能同时给。 */
+export type ParkOrderEndpoint =
+  | { kind: 'station'; stationId: number }
+  | { kind: 'coord'; lng: number; lat: number }
+
 export interface ParkOrderCreateRequest {
   /** 幂等键：每次下单意图生成一次；重复提交后端返回原订单 */
   idempotencyKey: string
   parkId?: number
   routeId?: number
   externalOrderNo?: string
-  pickupStationId: number
-  dropoffStationId: number
+  pickupStationId?: number
+  dropoffStationId?: number
+  /** 快递式任意点下单：GCJ-02 坐标。给了它就不给对应的 stationId。 */
+  pickupLng?: number
+  pickupLat?: number
+  dropoffLng?: number
+  dropoffLat?: number
   priority?: string
   orderPriority?: 'HIGH' | 'NORMAL' | 'LOW'
-  deliveryZone?: 'GEO_DELIVERY' | 'SCHEMATIC'
   weight?: number
   remark?: string
 }

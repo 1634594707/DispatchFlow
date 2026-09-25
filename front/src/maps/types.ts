@@ -1,4 +1,4 @@
-export type MapProviderId = 'AMAP' | 'SCHEMATIC'
+export type MapProviderId = 'AMAP' | 'PARK_DIAGRAM'
 
 export type GeoMapMarkerStatus = 'idle' | 'busy' | 'charging' | 'offline' | 'lowBattery'
 
@@ -11,9 +11,12 @@ export interface GeoMapMarker {
   iconUrl?: string
   heading?: number
   status?: GeoMapMarkerStatus | string
-  markerType?: 'vehicle' | 'pickup' | 'dropoff' | 'express' | 'charging' | 'idle' | 'target'
+  markerType?: 'vehicle' | 'pickup' | 'dropoff' | 'express' | 'charging' | 'idle' | 'target' | 'swap' | 'warehouse'
   selected?: boolean
   showLabel?: boolean
+  /** 由 `aggregateMarkersByPosition` 合并出来的计数徽标（§7.5「14 对象叠一点」）。 */
+  aggregatedCount?: number
+  aggregatedLabels?: string[]
 }
 
 export interface GeoMapPolygon {

@@ -32,6 +32,18 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[2]) : null
 }
 
+/**
+ * 顾客端（`/mobile/*`）是**匿名可下单**的页面：一次 401 不该把它弹回管理端登录页，
+ * 也不该在页面上留一条"未授权，请重新登录"—— 那句话对一个没有账号可登的访客是误导。
+ * 陈旧 token 仍然要清掉（留着只会一直 401），但**提示与跳转只留给管理端**。
+ * 其余错误（例如任意点下单的三条受理判据）照旧显示，顾客端必须看得见拒因。
+ */
+function isCustomerRoute(): boolean {
+  return router.currentRoute.value.path.startsWith('/mobile/')
+}
+
+const AUTH_FAILURE_CODES = new Set(['ADMIN_AUTH_REQUIRED', 'ADMIN_AUTH_FAILED'])
+
 instance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = sessionStorage.getItem(TOKEN_KEY)
@@ -87,21 +99,29 @@ instance.interceptors.response.use(
     if (data.code === 'ADMIN_AUTH_REQUIRED' || data.code === 'ADMIN_AUTH_FAILED') {
       sessionStorage.removeItem(TOKEN_KEY)
       sessionStorage.removeItem('fsd_admin_user')
-      if (!router.currentRoute.value.path.startsWith('/login')) {
+      if (!isCustomerRoute() && !router.currentRoute.value.path.startsWith('/login')) {
         router.replace('/login')
       }
     }
-    if (!response.config.skipErrorToast) {
+    const silentOnCustomerPage = isCustomerRoute() && AUTH_FAILURE_CODES.has(data.code || '')
+    if (!response.config.skipErrorToast && !silentOnCustomerPage) {
       message.error(errMsg)
     }
-    return Promise.reject(new Error(errMsg))
+    // 拒单原因码要能被调用方拿到并展示（任意点下单的三条受理判据靠 code 区分），
+    // 只抛 Error 会把 code 丢掉，所以挂在 Error 上而不是换掉 reject 类型。
+    const apiError = new Error(errMsg) as Error & { code?: string; rawMessage?: string }
+    apiError.code = data.code
+    apiError.rawMessage = data.message
+    return Promise.reject(apiError)
   },
   (error) => {
     const skipToast = error.config?.skipErrorToast
     if (error.response) {
       const { status, data } = error.response
       const httpFriendlyMsg = friendlyHttpErrorMessage(status, data)
-      if (!skipToast) {
+      // 401/403 在顾客端同样是"你没有登录这回事"，不该弹红条；管理端保持原样。
+      const authHttpOnCustomerPage = isCustomerRoute() && (status === 401 || status === 403)
+      if (!skipToast && !authHttpOnCustomerPage) {
         message.error(httpFriendlyMsg)
       }
       const pinia = getActivePinia()

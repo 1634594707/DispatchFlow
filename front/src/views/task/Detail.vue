@@ -144,6 +144,64 @@
             <a-spin v-else size="small" />
           </section>
 
+          <section class="detail-section" aria-labelledby="task-decision-heading">
+            <div class="detail-section-heading">
+              <div>
+                <h2 id="task-decision-heading">决策依据</h2>
+                <p>最近几次选车决策的候选对比，来自决策快照表</p>
+              </div>
+              <span v-if="latestDecision" class="mono text-secondary">
+                {{ latestDecision.policyId }} ·
+                {{ latestDecision.matchAlgorithm === 'HUNGARIAN' ? '批量撮合' : '逐单贪心' }} ·
+                {{ formatTime(latestDecision.generatedAt) }}
+              </span>
+            </div>
+            <p v-if="decisionError" class="fail-reason">{{ decisionError }}</p>
+            <template v-else-if="latestDecision">
+              <a-descriptions :column="3" size="small" bordered>
+                <a-descriptions-item label="选中车辆">
+                  {{ latestDecision.winner?.vehicleCode || '-' }}
+                </a-descriptions-item>
+                <a-descriptions-item label="与次优分差">
+                  {{ latestDecision.scoreGap ?? '-' }}
+                </a-descriptions-item>
+                <a-descriptions-item label="同分候选">
+                  {{ latestDecision.tieCount ?? '-' }}
+                </a-descriptions-item>
+                <a-descriptions-item label="候选漏斗" :span="2">
+                  在线空闲 {{ latestDecision.funnel?.candidateTotal ?? '-' }} → 遥测新鲜
+                  {{ latestDecision.funnel?.freshTelemetry ?? '-' }} → SOC 达标
+                  {{ latestDecision.funnel?.socEligible ?? '-' }} → 全链路达标
+                  {{ latestDecision.funnel?.socChainEligible ?? '-' }} → 可达
+                  {{ latestDecision.funnel?.reachable ?? '-' }}
+                </a-descriptions-item>
+                <a-descriptions-item label="选车耗时">
+                  {{ latestDecision.durationMicros != null ? latestDecision.durationMicros + ' µs' : '-' }}
+                </a-descriptions-item>
+              </a-descriptions>
+              <a-table
+                class="decision-table"
+                :data-source="latestDecision.candidates"
+                :columns="decisionColumns"
+                :pagination="false"
+                size="small"
+                row-key="rank"
+              />
+              <p v-if="latestDecision.failReason" class="fail-reason">
+                失败原因：{{ latestDecision.failReason }}
+                <span v-if="latestDecision.remark"> · {{ latestDecision.remark }}</span>
+              </p>
+              <p v-if="latestDecision.shadow" class="text-secondary">
+                影子对照 {{ latestDecision.shadow.policyId }}：
+                {{ latestDecision.shadow.agreed ? '与在位策略同选一台车' : '改选 ' + (latestDecision.shadow.winnerCode || '-') }}
+                <span v-if="latestDecision.shadow.regret != null">
+                  ，按在位策略标尺差 {{ latestDecision.shadow.regret }} 分
+                </span>
+              </p>
+            </template>
+            <a-empty v-else description="暂无决策快照（该单未经自动派车链路）" />
+          </section>
+
           <section class="detail-section" aria-labelledby="task-actions-heading">
             <div class="detail-section-heading">
               <div>
@@ -288,7 +346,8 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import { useTaskStore } from '@/stores/task'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { getVehicleDetail, queryVehicles } from '@/api/vehicle'
-import { autoAssignTask, manualAssignTask, cancelTask, reassignTask } from '@/api/task'
+import { autoAssignTask, manualAssignTask, cancelTask, reassignTask, getTaskDecisions } from '@/api/task'
+import type { DecisionExplain } from '@/api/task'
 import { fetchTaskOperateLogs } from '@/api/operateLog'
 import { TaskStatus, DispatchStatus } from '@/constants/enums'
 import { buildGeoTrackingLink } from '@/constants/parkDelivery'
@@ -309,6 +368,23 @@ const assignModalOpen = ref(false)
 const assignMode = ref<'manual' | 'reassign'>('manual')
 const assignForm = reactive({ vehicleId: undefined as number | undefined, remark: '' })
 const vehicleOptions = ref<{ label: string; value: number }[]>([])
+const decisions = ref<DecisionExplain[]>([])
+const decisionError = ref<string | null>(null)
+
+/** 最近一次决策：一次任务可能先自动派单失败再改派成功，倒序展示所以取第一条为主。 */
+const latestDecision = computed<DecisionExplain | null>(() => decisions.value[0] ?? null)
+
+const decisionColumns = [
+  { title: '排名', dataIndex: 'rank', width: 64 },
+  { title: '车辆', dataIndex: 'vehicleCode', width: 140 },
+  { title: '距离分', dataIndex: 'distance' },
+  { title: 'SOC 余量', dataIndex: 'socMargin' },
+  { title: '插电待命', dataIndex: 'pluggedBonus' },
+  { title: '空闲加分', dataIndex: 'idleBonus' },
+  { title: '优先级系数', dataIndex: 'priorityFactor' },
+  { title: '错峰惩罚', dataIndex: 'forecastPenalty' },
+  { title: '总分', dataIndex: 'total' },
+]
 
 const geoTrackingLink = computed(() =>
   buildGeoTrackingLink(store.detail?.orderId, store.detail?.vehicleId ?? undefined),
@@ -525,13 +601,31 @@ async function fetchData() {
   if (!store.detail) {
     operateLogs.value = []
     vehicleDetail.value = null
+    decisions.value = []
+    decisionError.value = null
     return
   }
   await loadOperateLogs(id)
+  await loadDecisions(id)
   if (store.detail?.vehicleId) {
     await loadVehicle(store.detail.vehicleId)
   } else {
     vehicleDetail.value = null
+  }
+}
+
+/**
+ * 取数失败必须产生用户可见状态（§6.4）：catch 成空数组会把"接口挂了"显示成
+ * "这单没有决策快照"，那是把故障说成空数据。
+ */
+async function loadDecisions(taskId: number) {
+  decisions.value = []
+  decisionError.value = null
+  try {
+    const response = await getTaskDecisions(taskId, 3)
+    decisions.value = response.data ?? []
+  } catch (error) {
+    decisionError.value = `决策快照读取失败：${error instanceof Error ? error.message : String(error)}`
   }
 }
 
@@ -542,6 +636,10 @@ watch(() => parkScope.selectedParkId, fetchData)
 
 <style scoped lang="less">
 @mobile-break: 767px;
+
+.decision-table {
+  margin-top: 12px;
+}
 
 .detail-summary {
   display: flex;
