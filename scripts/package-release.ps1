@@ -38,7 +38,7 @@ Copy-Item -Recurse (Join-Path $Root "back\sql\migrations\*") (Join-Path $OutDir 
 Copy-Item (Join-Path $Root "back\docker-compose.yml") (Join-Path $OutDir "deploy\docker-compose.yml")
 Copy-Item (Join-Path $Root "back\Dockerfile") (Join-Path $OutDir "deploy\")
 Copy-Item (Join-Path $Root ".env.example") (Join-Path $OutDir "deploy\")
-Copy-Item (Join-Path $Root "docs\DEPLOYMENT.md") (Join-Path $OutDir "DEPLOYMENT.md")
+Copy-Item -Recurse (Join-Path $Root "docs") (Join-Path $OutDir "docs")
 Copy-Item (Join-Path $Root "docs\releases\$Version.md") (Join-Path $OutDir "RELEASE_NOTES.md") -ErrorAction SilentlyContinue
 
 @(
@@ -53,11 +53,11 @@ Copy-Item (Join-Path $Root "docs\releases\$Version.md") (Join-Path $OutDir "RELE
 "## Quick start (Docker)",
 "  cd deploy",
 "  docker compose up -d --build",
-"  # Apply missing SQL manually if upgrading an existing DB (see DEPLOYMENT.md)",
+"  # Apply missing SQL manually if upgrading an existing DB (see the docs\ folder and README 生产部署 section)",
 "",
 "## Run JAR without Docker image rebuild",
 "  java -jar backend/fsd-core-server.jar",
-"  # Requires MySQL, Redis, RabbitMQ per DEPLOYMENT.md",
+"  # Requires MySQL, Redis, RabbitMQ per docs\ and the repo README",
 ""
 ) | Set-Content -Encoding UTF8 (Join-Path $OutDir "PACKAGE_README.txt")
 

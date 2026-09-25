@@ -50,7 +50,7 @@ jobs:
           cp back/sql/migrations/*.sql "${OUT}/sql/migrations/"
           cp back/docker-compose.yml "${OUT}/deploy/docker-compose.yml"
           cp back/Dockerfile .env.example "${OUT}/deploy/"
-          cp docs/DEPLOYMENT.md "${OUT}/"
+          cp -r docs "${OUT}/docs"
           cp "docs/releases/${VERSION}.md" "${OUT}/RELEASE_NOTES.md" 2>/dev/null || true
           cat > "${OUT}/PACKAGE_README.txt" <<EOF
           DispatchFlow ${VERSION}
@@ -58,7 +58,7 @@ jobs:
           - frontend/ (static)
           - sql/migrations/
           - deploy/
-          See DEPLOYMENT.md
+          See docs/ (部署整改任务路线图 与 已完成工作记录) 与仓库根 README 的「生产部署」段
           EOF
           cd dist/release
           zip -r "DispatchFlow-${VERSION}-bundle.zip" "${VERSION}"

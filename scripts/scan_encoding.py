@@ -1,6 +1,6 @@
 """Scan project files for UTF-8 encoding issues and mojibake patterns.
 
-Per docs/地图与交互问题清单.md §2.2:
+Originally §2.2 of docs/地图与交互问题清单.md (deleted in the 2026-09-22 docs consolidation):
 - Detect files that are not valid UTF-8.
 - Detect Chinese mojibake patterns (GB18030/GBK content shown as Latin-1).
 - Detect files with mismatched quote / tag boundaries that may indicate mojibake-induced template corruption.

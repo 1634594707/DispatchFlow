@@ -149,6 +149,11 @@ services:
       # 实测均为明文且无密钥，显式关闭以免将来只配 KEY 就静默变成混合态。
       FSD_FIELD_ENCRYPTION_ENABLED: ${FSD_FIELD_ENCRYPTION_ENABLED:-false}
       FLYWAY_ENABLED: "true"
+      # M0/T0-b 演示倍速定档：行驶/充电/换电/扣电全部按 tick 计数（不是墙钟 dt），
+      # 所以 tick 是唯一的等比加速旋钮。三档同路线实测 1000→367s / 500→157s / 250→202s，
+      # 定 500 ms（2×）；250 ms 实测更快配置下并不更快、且调度线程跟不上（实际节拍中位 874 ms）。
+      # 想在演示现场临时改节奏：服务器 .env 里写 FSD_PARK_SIMULATION_TICK_INTERVAL_MS=1000 即可回到原速。
+      FSD_PARK_SIMULATION_TICK_INTERVAL_MS: ${FSD_PARK_SIMULATION_TICK_INTERVAL_MS:-500}
       # 生产关闭 Swagger 外部访问（仅通过 Nginx 内网白名单放行）
       SPRINGDOC_API_DOCS_ENABLED: "false"
       SPRINGDOC_SWAGGER_UI_ENABLED: "false"
@@ -164,6 +169,11 @@ services:
       FSD_ADMIN_PASSWORD: ${FSD_ADMIN_PASSWORD}
       FSD_AMAP_WEB_SERVICE_KEY: ${FSD_AMAP_WEB_SERVICE_KEY}
       FSD_CORS_ALLOWED_ORIGINS: ${FSD_CORS_ALLOWED_ORIGINS}
+      # 移动端下单的匿名开关。两把钥匙必须**同时**拧掉才放行（`!require-api-key && unsafe-no-auth`），
+      # 只设一把时后端照旧返回 MOBILE_ORDER_KEY_REQUIRED —— 这里把两把都接线，是因为以前只有第一把。
+      # 默认值仍是"要密钥"：演示环境在服务器 .env 里显式写两行才关掉，后端启动日志会留一条 WARN。
+      MOBILE_ORDER_REQUIRE_KEY: ${MOBILE_ORDER_REQUIRE_KEY:-true}
+      FSD_MOBILE_ORDER_UNSAFE_NO_AUTH: ${FSD_MOBILE_ORDER_UNSAFE_NO_AUTH:-false}
       # P1-1 SSE 超时适配 Cloudflare 90s
       FSD_ADMIN_SSE_TIMEOUT_MS: "90000"
       # P1-6 优雅停机

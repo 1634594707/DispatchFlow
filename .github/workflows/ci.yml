@@ -7,6 +7,22 @@ on:
     branches: [main]
 
 jobs:
+  docs:
+    name: Doc Links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 文档会被阶段性收敛删除，但代码注释与发布脚本里的文件名不会跟着改。
+      # 实测代价：release.yml 曾 cp 一个已删除的 docs/DEPLOYMENT.md 且没有 || true ⇒ 打包会失败。
+      - name: Check documentation links
+        run: node scripts/check-doc-links.mjs
+
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
