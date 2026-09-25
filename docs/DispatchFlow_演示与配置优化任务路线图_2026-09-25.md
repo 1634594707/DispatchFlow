@@ -331,6 +331,31 @@ M3 ──┘   M4 独立，可插队
 
 **留了一条**：orderId=28 这单留在生产库里当部署证据，没删（生产本来就是演示夹具）。
 
+### 11.1 第二轮部署（同日，因为第一次推上去 CI 是红的）
+
+第一版部署**确实成功**（镜像起来了、真单跑完了），但推上去之后 CI 三条红：
+
+| 红在 | 真因 | 处置 |
+| --- | --- | --- |
+| Frontend `v9` ×3 | `ParkOverview.vue` 把"地图瓦片不可用"和"数据不可用"混成一件事：① `map-status-bar` 整块挂在 `v-if="geoMapAvailable"` 下 ⇒ 没有 Key 时连"数据已停止更新"都看不到；② `v-if="geoMapAvailable && routeWarning"` 配 `v-else` ⇒ 地图健康且无告警时也显示"高德 Key 未配置"；③ 测试用裸 `getByText('短驳地理')`，与兜底面板标题"短驳地理图未加载"撞串（CI 无 `front/.env.local` ⇒ provider 回落 `PARK_DIAGRAM` ⇒ 那块面板才出现） | 新鲜度条改为无条件渲染、两支 v-if 分明、选择器限定到 `.ant-segmented-item` |
+| Backend `spotbugs:check` ×10（Low） | 前序在制代码从没进过 CI，一提交就被 analyzer 抓到 | 逐条改：4 处 `Locale.ROOT`（其中 `AdminDecisionPolicyController` 那处是**真 bug**：比对 `registeredPolicyIds()` 的两端归一化不同源）、`parsePolygon` 收窄捕获且保持"整片作废"语义、`TrafficZone` 两处（读收窄 / 写留痕）、`ScenarioBench` 溢出与重复条件 |
+
+**我这边为什么没提前发现（记着，下次别再犯）**：本机 e2e 是在 **`.env.local` 在场 + vite 代理指向真后端** 下跑的，
+所以那三个环境依赖问题一个都露不出来；本地报"66 passed"是**假绿**。
+后来用"把 `front/.env.local` 移走再跑"复现了 CI 的文件状态才对齐。⇒ 本机绿 ≠ CI 绿，判"前端没问题"之前必须按 CI 的 env 跑一遍。
+
+**复验**（本机）：`mvn -o -fae compile spotbugs:check` 七模块全 SUCCESS；`fsd-dispatch`+`fsd-admin-api` 测试全绿；
+`npm run lint`（0 error / 48 warning，上限 50）+ `npm run build` + `npx playwright test scripts/e2e` **63 passed**；
+`.env.local` 移走后 v9 **12 passed**，跑完 `cmp` 确认还原逐字节相同。
+**CI 复验**：sha `d36e0c8` ⇒ Doc Links / Backend Tests / Frontend Build **三项全 success**。
+
+**第二轮部署取证**：包 `fsd-tree-20260925-105945`（两端 sha `68c27cba42ded24c`）、
+回滚 tag `rollback-20260925-110016`×2、库备份 50 张表 / 1.62 MB gz；
+**落位前先在暂存目录 grep 断言两处修复都在包里**才 `cp -a`（避免"部署了个没修的版本"）；
+`.env` mtime 仍是 2026-09-24 22:13（未被覆盖）；`deploy.sh` 新探针输出 `[OK] 后端健康：{"status":"UP"}`；
+线上产物 `ParkOrder-DjWaQXKs.js` 含 `tracking-map-legend`＋规格文案、`ParkOverview-B3BVd-JK.js` 含"数据已停止更新"；
+容器 `FSD_PARK_SIMULATION_TICK_INTERVAL_MS=500`、重启后后端日志 ERROR/Exception **0 行**、站点与移动页均 200。
+
 > **本轮同步修掉的死链**（《已完成工作记录》《调度算法与地理收敛任务路线图》《部署整改任务路线图》三份文档已退场后遗留）：`README.md` 四处（徽章、"文档只剩三份"导语、生产部署段、文档表三行）与 `scripts/dev/reset-demo-dispatchable.sh:6` 一处改指现存文档；守卫 `node scripts/check-doc-links.mjs` 复跑 `[OK] 检查 21 条引用`。已删文档**未恢复**，其内容按路径可在 `git log --diff-filter=D -- docs/` 查到。
 
 ### 10.1 T3-b 旧口径巡检明细（每条：出现处 → 定性）
