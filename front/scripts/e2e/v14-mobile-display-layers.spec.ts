@@ -273,7 +273,9 @@ test.describe('T2-c 追踪图是乘客视角：设施层不画进移动端', () 
 
 test.describe('T2-d/T2-e/T2-f 文案、轮询基准与拒单引导', () => {
   test('对外规格只说 X3 满载那档，且不许出现标称最长续航数字', () => {
-    expect(PILOT_VEHICLE_SPEC).toBe('新石器 L4 · X3 满载续航 180 km · 30 s 快速换电 · 35 柜')
+    expect(PILOT_VEHICLE_SPEC).toBe(
+      '新石器 L4 · X3 满载续航 180 km · 约 2 h 充满 · 30 s 快速换电 · 35 台 · 母港 + 2 个补能点',
+    )
     expect(PILOT_VEHICLE_SPEC).not.toMatch(/200/)
   })
 
@@ -388,8 +390,12 @@ test.describe('移动端追踪地图页面门（乘客视角：只画本单车 +
     await expect(legend).toHaveAttribute('data-swap-markers', '0')
     await expect(legend).toHaveAttribute('data-charging-markers', '0')
     await expect(legend).toHaveAttribute('data-facility-points', '0')
-    await expect(legend).not.toContainText('补能点')
-    await expect(legend).not.toContainText('车队')
+    // 图例里不再出现车队规模与补能点数量。⚠ 只查 `.legend-item` 那些片，
+    // 不查整块 .map-shell —— 计数钩子挂在 shell 上，而 shell 里还有规格文案那一行
+    // （它合法地包含"补能点"三个字，第一版把断言写在 shell 上就被自己撞红了）。
+    const chips = legend.locator('.legend-item')
+    await expect(chips.filter({ hasText: '补能点' })).toHaveCount(0)
+    await expect(chips.filter({ hasText: '车队' })).toHaveCount(0)
     // T2-d：对外规格文案就在地图下面那行，演示时不用翻页
     await expect(page.getByTestId('vehicle-spec')).toContainText('X3 满载续航 180 km')
   })
