@@ -44,6 +44,12 @@
   --fsd-text-on-overlay-secondary: #a3adba;
   --fsd-text-on-overlay-tertiary: #7f8a98;
   --fsd-text-on-overlay-muted: #687482;
+  /* 同一条规则也罩强调色与语义色：ParkOrder.vue 把 accent/accent-strong/error 改成了
+     深色调（#438f9b/#326f78/#c45868），落在深色浮层上分别只剩 4.69 / 2.30 / 4.11:1。
+     下面三个是深色档的原值，给"永远落在深色浮层上"的元素用。 */
+  --fsd-accent-on-overlay: #56b9c8;
+  --fsd-accent-strong-on-overlay: #7fd1dd;
+  --fsd-error-on-overlay: #eb7474;
   --fsd-text-secondary: #a3adba;
   --fsd-text-tertiary: #7f8a98;
   --fsd-text-heading: #f5f7fa;
