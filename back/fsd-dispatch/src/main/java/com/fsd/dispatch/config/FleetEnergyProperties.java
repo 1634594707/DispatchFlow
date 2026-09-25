@@ -70,7 +70,15 @@ public class FleetEnergyProperties {
 
     private boolean pluggedStandbyNoDrain = true;
 
-    private boolean idleChargeWhenNoDemand = true;
+    /**
+     * 空闲时是否"没单就去充电"。默认 **false**（2026-09-25 改）。
+     *
+     * <p>true 的实际后果不是"更真实"而是：全部空闲车同时涌向有限的桩位，抢到位的车放掉待命位
+     * 开过去、抢不到的在原地等，于是母港车位长期只有个位数被占、地图上看着像"一排车停在路边"。
+     * 关掉后空闲车回母港待命，只有真的低于 `return-to-charge-threshold`（现役 30%）才去补能 ——
+     * 这也正是 RMS 对外说法："电量低于 30% 时自动调度车辆返回母港补能"。
+     */
+    private boolean idleChargeWhenNoDemand = false;
 
     /** CHARGE, SWAP, or AUTO */
     private String energyRecoveryMode = "CHARGE";

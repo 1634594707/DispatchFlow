@@ -401,7 +401,7 @@ fsd:
       busy-drain-meters-per-percent: ${FSD_FLEET_ENERGY_BUSY_DRAIN_METERS_PER_PERCENT:1800}
       idle-drain-probability: ${FSD_FLEET_ENERGY_IDLE_DRAIN_PROBABILITY:0.06}
       plugged-standby-no-drain: ${FSD_FLEET_ENERGY_PLUGGED_STANDBY_NO_DRAIN:true}
-      idle-charge-when-no-demand: ${FSD_FLEET_ENERGY_IDLE_CHARGE_WHEN_NO_DEMAND:true}
+      idle-charge-when-no-demand: ${FSD_FLEET_ENERGY_IDLE_CHARGE_WHEN_NO_DEMAND:false}
   # GEO-PG：PostGIS 地理服务接入。默认关闭 —— 关闭时所有空间判断走原有 GeoPolygonUtils
   # Java 手算路径，生产行为与接入前完全一致；开启后走 PostGIS，失败自动降级回手算。
   # 等价性证据见 geo-py/tests/test_java_parity.py（每张真实围栏 60x60 网格逐点比对）。

@@ -1149,6 +1149,16 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             state.geoLongitude = state.standbyPoint.getLongitude();
             state.geoLatitude = state.standbyPoint.getLatitude();
         }
+        // 开机即归位：`recordPoint()` 会把车的位置读成"上一轮停在哪儿就是哪儿"，
+        // 于是重启后 35 台里有 29 台散在路上慢慢爬回母港（实测截图就是"一排车停在路边"）。
+        // 这里直接把本进程**第一次见到**这台车时的位置摆到它的待命位上；
+        // 运行中完成任务的车走 stage 迁移、不会再经过 `createIdleState`，所以不会出现"送完货瞬移"。
+        if (state.standbyPoint.getX() != null && state.standbyPoint.getY() != null) {
+            state.lastX = state.standbyPoint.getX();
+            state.lastY = state.standbyPoint.getY();
+            vehicle.setCurrentLongitude(state.lastX);
+            vehicle.setCurrentLatitude(state.lastY);
+        }
         state.route = List.of();
         state.routeIndex = 0;
         recordPoint(state, vehicle);
