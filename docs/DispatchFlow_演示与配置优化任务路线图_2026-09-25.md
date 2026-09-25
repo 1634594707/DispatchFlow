@@ -356,6 +356,34 @@ M3 ──┘   M4 独立，可插队
 线上产物 `ParkOrder-DjWaQXKs.js` 含 `tracking-map-legend`＋规格文案、`ParkOverview-B3BVd-JK.js` 含"数据已停止更新"；
 容器 `FSD_PARK_SIMULATION_TICK_INTERVAL_MS=500`、重启后后端日志 ERROR/Exception **0 行**、站点与移动页均 200。
 
+### 11.2 第 3–6 轮（同一天的增量上线，逐轮只记差异）
+
+| 轮 | 时间 | 上的是什么 | 取证 |
+| --- | --- | --- | --- |
+| 3 | 12:29 | 「园区调度」示意场景连根拔（§12.1） | 容器内 `find / -name park-map.svg` 为空、产物无 `park-map` 引用 |
+| 4 | 13:30 | 越界监控不再吃展示包络 + 异常类型中文标签（§13） | 后端 `Started FsdCoreApplication`、异常队列不再新增 `GEOFENCE_EXIT` |
+| 5 | 14:58 | 深色浮层文字钉 `--fsd-text-on-overlay*`（§12.2 第一轮） | 线上 `AmapGeoMap-C-DOnqkU.css` 含新 token |
+| 6 | 15:17–15:22 | 同一族的**强调色/语义色**补钉（§12.2 第二轮） | 见下 |
+
+**第 6 轮明细**：包 `fsd-tree-20260925-151736.tgz`（1247 文件 / 2.0 MB，两端 sha `e7b648d353b72555`）；
+反证 grep 命中 **0**（`.env.example` 两份是纯注释模板，已逐行看过，不算泄漏面）；
+回滚 tag `rollback-20260925-151809`×2 在 build **之前**打好；
+库备份 `fsd_core-20260925_151834.sql.gz` 1.6 MB / 50 表 / `dump_completed=yes`（脚本按 `MAX_BACKUPS=7` 轮转掉了 5 份旧的，含 `preV64` 与 `pregeoexpand`——这是脚本设计行为，但意味着**再往前的手工安全副本已经没了**）；
+落位前在 `/tmp/fsd6` 断言包里三个新 on-overlay token、组件根 9 条钉、v15 四条测试齐备才 `cp -a`；
+`.env` mtime 仍是 2026-09-24 22:13（未被覆盖）；`deploy.sh` `[OK] 后端健康：{"status":"UP"}`；
+容器内产物换成 `AmapGeoMap-D31rW2QX.css` / `index-BaiUrKs9.css` 且含 `accent-strong-on-overlay`；
+**生产页真机复量**（38 个标签 + 三支层级按钮，按 alpha 逐层合成后算 WCAG）：
+标签 **15.54**、未选中 **7.69**、**选中档 7.56**（修前 2.30）、L2 **7.69** ⇒ 与本机逐项一致。
+CI 在 `93e0b6b` 三项全 success。本轮**无迁移、无 seed、无围栏几何变更**；后端容器未被重建（只动前端，`docker ps` 显示 Up 2 hours 属正常）。
+
+> **⚠ 部署侧有一条必须在演示前知道**：`front/src/sw.ts` 用 `NavigationRoute` 把 **HTML 本身**也放进了
+> workbox precache（`precacheAndRoute(self.__WB_MANIFEST)` + `cleanupOutdatedCaches()`），
+> 所以**上线后的第一次导航仍会拿到旧壳**——我第 6 轮复量时先撞上的就是这个：URL 加了 cache-buster 也没用
+> （SW 直接答了自己的 precache，根本没走网络），量到的是旧 hash 的 CSS 和 2.30:1。
+> 注销 SW + 清空 CacheStorage 后重新导航，才拿到 `AmapGeoMap-D31rW2QX.css` 与 7.56。
+> `sw.js` 自己是 `Cache-Control: no-store`、`cf-cache-status: BYPASS`（边缘不缓存，新 SW 一次导航就能装上下一个接管），
+> 所以代价固定是**"老访客慢一次"**：演示前请先开页面 → 刷新一次 → 再刷新一次，确认层级按钮是亮青色再开始。
+
 ## §12 本轮追加的两件事（不在原 M0–M5 清单内）
 
 ### 12.1 「园区调度」示意场景连根拔（本人 2026-09-25 追加指令）
