@@ -499,6 +499,10 @@ PC 深色页同样只用它们做次要标注，移动端与 PC 表现一致，�
 
 ### 13.2 处置方式：关闭而非删除
 
+> ⚠ **本节的做法已被本人 2026-09-25 16:00 的后续指令推翻**："以前的记录都删一下" ⇒ 队列改为**直接删除**，
+> 见 §14.4。下面保留的是"当时为什么选关闭"的判断与代价分析，不是当前状态。
+
+
 表本身有完整生命周期字段（`exception_status / resolved_time / resolver_id / resolve_action / resolve_remark`），
 删行会毁掉审计链，所以按 `markResolved()` 的列语义**置为 RESOLVED**，`resolve_remark` 里逐条写清"为什么这不是当前故障"。
 生产 33 条 + 本机 3 条 ⇒ 两边 `remaining_open=0`。
@@ -530,6 +534,92 @@ PC 深色页同样只用它们做次要标注，移动端与 PC 表现一致，�
   （独立于本次改动的本地环境问题，未追），生产管理员口令我没有。
   静态层面已确认新标签进了构建产物（`statusMap-*.js`）、映射覆盖全部 8 类；**页面实际渲染请你登录后扫一眼**。
 - 夹具纠正：`GeofenceBreachServiceImplTest` 原用 `fenceCode="TEST-FENCE"`，而按既有 `resolveScopeCode` 推导它本来就被归成展示包络 ⇒ 改为 `ZJF-ZONE-TEST`。
+
+
+## §14 第二批：演示可用性（本人 2026-09-25 16:00 追加四条指令）
+
+四条指令：① 以前的记录都删（=§14.4）；② "怎么很多充电桩在外面"；③ "我还是不能看演示，车还是随便在停"；
+④ "手机下单界面得优化，参考美团或顺风，用户只需要知道车到哪里"。
+
+### 14.1 先取证：②③ 各是什么性质
+
+| 指令 | 取证 | 定性 |
+| --- | --- | --- |
+| ② 桩在外面 | 服务围栏 `ZJF-ZONE-SVC-01`（60 顶点、东界 121.128887）与 41 个 ACTIVE 设施做包含判定，**MySQL `ST_Contains` 与独立射线法两套实现同结论**：35 柜里 30 在内 5 在外、6 桩里 4 在内 2 在外，7 个全挤在东界外 300–400 m 一条窄带（`FSD-SWAP-02/04/12/14/35`、`FSD-CHG-02/04`）。生产与本机逐字一致 | **真数据**，不是渲染 bug。且这 7 个的锚点节点（OSM0397/0342/0203/0399/OSMS0263）实测**都在最大强连通分量（685 节点）里** ⇒ 那片地方"250 m 内吸得到、能派单"，是围栏画小了 |
+| ② 附带发现 | 从浏览器读**真正传给地图图层**的 props 再算：38 个标签、`swap IN 30 / swap OUT 5`、`vehicle IN 17 / vehicle OUT 3`，而 3 台越界车**叠在同一个坐标** [121.05533, 31.947486] | 与③同源，见 14.3 |
+| ③ 演示点不动 | `useDemoMode.ts` 按**编码前缀** `ZJF-PICK-/ZJF-DROP-` 分组，而 `zjf_facility_v2.sql:26-31` 把所有 `PICKUP/DROPOFF/GENERAL` 置了 INACTIVE、接口只返 ACTIVE ⇒ `pickups.length===0` → `resolveDemoRoute` 返回 null → 报错并立刻 `stopDemo()`。后端**没有**任何 demo 专用端点（`back/**/*.java` grep `demo/startDemo/DemoStation` 零命中） | 与③的另一半同源 |
+| ③ 车乱停 | `getGeoStandbySpot()` 先找 `ZJF-IDLE-01`（**它也是 GENERAL 站点，被同一条 UPDATE 顺手置灰**）→ 找不到就回退 `application.yml:146-164` 的 `parking-spots P1..P6`，那是**老示意图像素坐标**（x=80..200 / y=700..740，对现役 1600×1854 画布无意义）。`t_parking_slot` 里真车位只有 6 个 STANDBY，且**六个坐标完全相同** | 有实现但数据源被打掉；`repositioning` 那套 M 档只活在离线 `ScenarioBench`，热路径零引用 |
+
+> 仪表在这一步错过两次，都记下来：① 拿 `t_vehicle.current_longitude` 去比经纬度围栏 ⇒ 报"24/24 台越界"，
+> 而 SIM 行那一列存的是**像素**（逐行契约 §7.5），这个数毫无意义，车辆越界只能以浏览器实测为准；
+> ② 一条 SQL 里把临时表开两次触发 `Can't reopen table`、以及把 WKT 字符串留在聚合表达式里重复解析触发
+> `Invalid GIS data`（正解：先 `SET @poly := ST_GeomFromText(...)` 物化一次）。
+
+### 14.2 ④ 移动端追踪图改成乘客视角
+
+- 删掉设施层：`ParkOrder.vue` 不再把 35 柜 + 6 桩喂给追踪地图，`mobileEnergyFacilityStations()` 随之**整体删除**
+  （它只有这一个消费方，留着就是死出口）。这张图现在只有：本单取点 + 本单送点 + **被指派那台车** + 路线。
+- `OrderTrackingPanel.vue` 传 `:show-level-switcher="false" :show-layer-switcher="false"` 关掉 L0/L1/L2 与图层面板；
+  四个 PC 调用点不传 ⇒ 大屏/工作台照旧全开（运营叙事留在 PC）。
+- 图例撤掉"车队 20 台 / 补能点 35 处"两片，只保留"位置未知"那片（§7.5 的诚实要求：不画点必须说出来）。
+- **判据是翻转不是删除**：`data-swap-markers / data-charging-markers / data-facility-points` 三个字段留在
+  DOM 上，v14 钉它们**恒为 0** —— 谁把设施层接回来，CI 立刻红。
+  另加一条新页面门：被指派那台车没有真经纬度时，`data-vehicle-markers=0` 且必须显示"1 台位置未知"。
+- ⚠ 这片读数原来挂在 `div.map-legend` 上；两片 chip 都撤掉后它变成零高度，`toBeVisible()` 当场把
+  "为了测试留一个隐形 div"这件事照出来了 ⇒ 现在挂在常驻可见的 `.map-shell` 上，
+  且**不能**挂进 `v-if="geoMapAvailable"` 的地图容器（CI 没配高德 Key，那种钩子会整个消失）。
+
+### 14.3 ③ 空闲车回真车位 + 演示单改坐标下单
+
+- **车位 seed 扩到 20 个真位**：新增 `back/sql/seed/zjf_standby_slots.sql`（P1..P20）。选点规则写在文件头：
+  以 `OSM0017`（现役基地锚点）为圆心，取**在最大强连通分量里**的 ACTIVE 路网节点按距离升序前 20 个，
+  像素与经纬度**成对取自同一个节点**（不在脚本里重算 GCJ↔像素互转，那份实现只该有 `ParkGeoTransformService` 一处）。
+  实测：20 个车位、20 个互不相同的坐标、**20/20 全部在服务围栏内**（越界 0）。
+  已登记进 `verify-geo-init-paths.sh` 的 `GEO_SEEDS`（现 9 份）与 `pack-deploy-tree.sh` 的 seed 反证清单。
+- **仿真器待命点三级顺序**改为：① `ParkingFacilityService.reserveStandbySlot()` 原子占 `STANDBY` 位
+  （幂等：已经占着就续用，否则空闲态每 tick 问一次会让车在车位之间来回跳）→ ② `ZJF-IDLE-01`（若仍 ACTIVE）
+  → ③ yml 那组假坐标降为最后兜底。车行还不存在的首次铺队（`ensurePilotFleet`）走 `listStandbySlots()` 按序号轮转。
+  释放沿用既有生命周期（`releaseByVehicle/releaseReservation`，派单时已经会调）。
+- **演示单改走 V64 坐标入口**：`useDemoMode.ts` 的取送货点改成后端自己发布的路网落点 `GEO_POINT` 的坐标
+  （`pickupLng/Lat`、`dropoffLng/Lat`），不再吃 `stationId`；凑不满 2 个落点时报**带原因**的话
+  （"需要 ≥2 个路网落点 GEO_POINT"）而不是静默自停。
+  `v6-critical-flows` 两条：一条钉 POST 体是坐标且 `pickupStationId` 必须 undefined，
+  一条用**现网真实站点形态**（只有总仓库）钉"报错可见且一单没下"。
+
+### 14.4 异常队列：从"关闭"改成"删除"（本人 2026-09-25 追加指令"以前的记录都删一下"）
+
+| 项 | 实测 |
+| --- | --- |
+| 删除范围 | `exception_status='RESOLVED'` 的全部行（谓词写成状态而不是"id < X"，OPEN/ESCALATED 结构性不会被误删） |
+| 生产 | 33 行（2026-08-28 14:56 → 09-25 12:41；GEOFENCE_EXIT 19 / TASK_TIMEOUT 7 / UNREACHABLE 6 / ZONE_PAUSED 1）⇒ 删后 `COUNT(*)=0` |
+| 本机 | 504 行（09-21 → 09-25；GEOFENCE_EXIT 247 / LOW_SOC 136 / NO_VEHICLE 70 / UNREACHABLE 34 / TASK_TIMEOUT 16 / NO_MATCHING_VEHICLE 1）⇒ 删后 `COUNT(*)=0` |
+| 删除前备份 | `/opt/backups/fsd_core-20260925_155828.sql.gz`（1.63 MB、`gzip -t` 通过、50 张 `CREATE TABLE`、尾部 `Dump completed` 在） |
+| 为什么 UI 只显示 14 条而库里有 33 条 | 异常页列的是**挂了订单**的行：生产 `SUM(order_id IS NOT NULL)=14`、`with_task=31`、`orphan=2`。截图里"共 14 条"与库里的 33 不矛盾，是两套口径 |
+
+**代价（与 §13.2 同一条，现在更彻底）**：删除连审计痕迹一起抹掉——被删行上的 `resolver_id='system-cleanup'`、
+`resolve_remark`、`agg_count` 聚合次数都不再可查；历史原因只能在本文档 §13 里读到。
+生产演示夹具本来就要重置，本人明确要"删"，故按指令执行并在此记账。
+
+### 14.5 ② 的处置：已生成新围栏，但**停在待裁**
+
+`zjf_service_area.sql` 抬头明写"由 `service_area_from_snapping.py` 生成…不要手改"，所以"扩东界"只能走重跑。
+重跑又撞上一个工具缺陷：`load_fences()` 把所有 `UPDATE … status='DISABLED'` **全局**套用，
+于是任何排在 `zjf_service_area.sql` 之后的输入片都会被自己那条 UPDATE 误杀 ⇒ 已把它改成
+**按 seed 先后顺序重放**（=MySQL 的执行语义），回归干净：默认两份 seed 仍是 1 片 / 47.16 km²。
+新增输入 `back/sql/seed/zjf_zone_east_input.sql`（东侧 121.128887–121.1345 的窄带，运行时被 UPDATE 停用、
+只参与生成）后实测：
+
+| 口径 | 现值 | 扩东界后 |
+| --- | --- | --- |
+| 可下单面积（R=250） | 47.16 km²（文档现记 47.18） | **50.08 km²**（+2.92） |
+| 外沿多边形 | 55.05 km²（seed 抬头旧记 55.42） | 57.32 km² |
+| 设施越界 | 5 柜 2 桩 | **0**（46/46 全在内，`ST_IsValid=1`、68 顶点、环闭合） |
+
+**为什么没直接落库**：`trip_mileage_sampler.py` 与生成器**共用同一份围栏加载器**，
+面积是产能口径的输入 ⇒ 扩围栏会连带改动对外的 `12,998 m/单`、`2.51×` 那一组数字，
+而 §7.7 禁止重跑 bench。这一改的爆炸半径远超"7 个图标进框"，留给本人裁：
+① 认账重跑（面积 + 产能口径一起换）；② 回退成"把 7 个设施坐标挪进围栏"（47.18 不动）；
+③ 维持现状（对外只说"围栏 = 可下单范围，补能网络是基础设施、不必在其中"）。
 
 ---
 
