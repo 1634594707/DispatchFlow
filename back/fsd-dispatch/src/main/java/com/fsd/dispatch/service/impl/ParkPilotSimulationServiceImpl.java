@@ -688,6 +688,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.busyMoveTicks = 0;
         state.pluggedIn = false;
         parkingFacilityService.releaseByVehicle(vehicle.getId());
+        state.standbyPoint = null;   // 同上：放掉位就要重新取位
         BatterySwapCabinetEntity cabinet = findSwapCabinet(defaultParkId(), state);
         if (cabinet == null) {
             routeToCharging(vehicle, state);
@@ -1340,6 +1341,10 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             return;
         }
         parkingFacilityService.releaseByVehicle(vehicle.getId());
+        // 释放车位后必须把 standbyPoint 一起清空：`ensureStandbyLocation()` 只在它为 null 时才重新取位，
+        // 留着旧值 = 这台车永远指着一个已经被自己放掉、随时会被别人占走的位。
+        // 实测就是这个原因让绑定数从 20/20 一路衰减到 6/35（生产与本机同现象）。
+        state.standbyPoint = null;
         state.chargingPoint = reserved.get();
         state.stage = "TO_CHARGING";
         routeToTarget(vehicle, state, state.chargingPoint, "CHARGING");
