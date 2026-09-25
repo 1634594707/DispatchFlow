@@ -93,7 +93,6 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
         if (parkId == null || vehicleId == null || slotCode == null || slotCode.isBlank()) {
             return false;
         }
-        releaseReservation(vehicleId);
         Page<ParkingSlotEntity> slotPage = parkingSlotMapper.selectPage(new Page<>(1, 1, false), new QueryWrapper<ParkingSlotEntity>()
                 .eq("park_id", parkId)
                 .eq("slot_code", slotCode)
@@ -111,8 +110,13 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
                 .set("occupied_vehicle_id", vehicleId)
                 .set("status", ParkingSlotStatus.RESERVED.name()));
         if (slotUpdated != 1) {
+            // 抢位失败时**一行都不该动**。原来 `releaseReservation(vehicleId)` 写在方法开头，
+            // 于是"试着去充电"这个动作本身就会把该车已经占着的待命位释放掉，
+            // 而调用方只在 standbyPoint 为 null 时才重新取位 ⇒ 位丢了也不会再补，
+            // 实测生产 20 台里只有 6 台占得到位。
             return false;
         }
+        releaseOtherReservations(vehicleId, slot.getId());
         chargingPileMapper.update(null, new UpdateWrapper<ChargingPileEntity>()
                 .eq("parking_slot_id", slot.getId())
                 .eq("status", ParkingSlotStatus.FREE.name())
@@ -121,6 +125,24 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
                 .set("occupied_vehicle_id", vehicleId)
                 .set("status", ParkingSlotStatus.RESERVED.name()));
         return true;
+    }
+
+    /** 释放这台车在**其它**位上的 RESERVED 绑定（保留刚占下的 `keepSlotId`）。 */
+    private void releaseOtherReservations(Long vehicleId, Long keepSlotId) {
+        parkingSlotMapper.update(null, new UpdateWrapper<ParkingSlotEntity>()
+                .eq("occupied_vehicle_id", vehicleId)
+                .ne("id", keepSlotId)
+                .eq("status", ParkingSlotStatus.RESERVED.name())
+                .eq("deleted", 0)
+                .set("occupied_vehicle_id", null)
+                .set("status", ParkingSlotStatus.FREE.name()));
+        chargingPileMapper.update(null, new UpdateWrapper<ChargingPileEntity>()
+                .eq("occupied_vehicle_id", vehicleId)
+                .ne("parking_slot_id", keepSlotId)
+                .eq("status", ParkingSlotStatus.RESERVED.name())
+                .eq("deleted", 0)
+                .set("occupied_vehicle_id", null)
+                .set("status", ParkingSlotStatus.FREE.name()));
     }
 
     @Override

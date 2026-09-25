@@ -230,4 +230,34 @@ class ParkingFacilityServiceImplTest {
 
         assertTrue(parkingFacilityService.reserveStandbySlot(1L, 46L).isEmpty());
     }
+
+    @Test
+    void failedReserveMustNotReleaseTheSlotsTheVehicleAlreadyHolds() {
+        // 回归钉：`reserveSlot` 原来在方法开头无条件 releaseReservation(vehicleId)，
+        // 于是"试着去抢一个桩位"这个动作本身就会把该车已经占着的待命位释放掉
+        // （实测生产 20 台里只有 6 台占得到位）。抢位失败必须一行都不动。
+        ParkingSlotEntity taken = standbySlot("P9", 121.081, 31.961);
+        taken.setStatus(ParkingSlotStatus.OCCUPIED.name());
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class)))
+                .thenReturn(pageOf(java.util.List.of(taken)));
+        when(parkingSlotMapper.update(any(), any())).thenReturn(0);
+
+        assertFalse(parkingFacilityService.reserveSlot(1L, 47L, "P9"));
+
+        verify(parkingSlotMapper, org.mockito.Mockito.times(1)).update(any(), any());
+        verify(chargingPileMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void successfulReserveReleasesOnlyTheOtherReservedSlots() {
+        ParkingSlotEntity free = standbySlot("P10", 121.082, 31.962);
+        when(parkingSlotMapper.selectPage(any(Page.class), any(Wrapper.class)))
+                .thenReturn(pageOf(java.util.List.of(free)));
+        when(parkingSlotMapper.update(any(), any())).thenReturn(1);
+
+        assertTrue(parkingFacilityService.reserveSlot(1L, 48L, "P10"));
+
+        // 一次绑定自身 + 一次"释放该车的其它 RESERVED 位"（不是开头那次无条件释放）
+        verify(parkingSlotMapper, org.mockito.Mockito.times(2)).update(any(), any());
+    }
 }
