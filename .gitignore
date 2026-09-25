@@ -38,6 +38,13 @@ front/.env.local
 front/public/runtime-config.js
 front/scripts/perf/.auth/
 front/test-results/
+# 根目录这份是 `npx playwright test` 在仓库根跑时的落点（error-context.md 等），同样只是产物
+/test-results/
+/playwright-report/
+# 改图/改围栏前拍的快照。它们和 `road_network_v44_grid.sql` 那种"被文档引用的基线"不是一类东西：
+# 只用于当场回滚，`scripts/pack-deploy-tree.sh` 的反证清单也排除了它们 —— 别进版本库。
+data/backup/*.pre-*.sql
+data/backup/*.sql.gz
 
 # Backend
 back/.m2/
