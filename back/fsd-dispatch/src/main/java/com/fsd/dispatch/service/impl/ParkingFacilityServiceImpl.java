@@ -127,6 +127,21 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
         return true;
     }
 
+    @Override
+    @Transactional
+    public void releaseSlotReservation(Long vehicleId, String slotCode) {
+        if (vehicleId == null || slotCode == null || slotCode.isBlank()) {
+            return;
+        }
+        parkingSlotMapper.update(null, new UpdateWrapper<ParkingSlotEntity>()
+                .eq("occupied_vehicle_id", vehicleId)
+                .eq("slot_code", slotCode)
+                .eq("status", ParkingSlotStatus.RESERVED.name())
+                .eq("deleted", 0)
+                .set("occupied_vehicle_id", null)
+                .set("status", ParkingSlotStatus.FREE.name()));
+    }
+
     /** 释放这台车在**其它**位上的 RESERVED 绑定（保留刚占下的 `keepSlotId`）。 */
     private void releaseOtherReservations(Long vehicleId, Long keepSlotId) {
         parkingSlotMapper.update(null, new UpdateWrapper<ParkingSlotEntity>()

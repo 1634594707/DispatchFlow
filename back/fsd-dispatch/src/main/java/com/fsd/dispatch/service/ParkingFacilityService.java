@@ -31,6 +31,19 @@ public interface ParkingFacilityService {
     void releaseReservation(Long vehicleId);
 
     /**
+     * 只释放这台车**预留中的 STANDBY 位**（不动充电位、不动桩位、不结束任何会话）。
+     *
+     * <p>为什么要有这一条而不用 {@link #releaseByVehicle(Long)}：去充电的车应该把待命位让给别的车，
+     * 但它此刻已经抢到的**桩位**不能被一起解绑 —— 用整量释放就会把自己刚 RESERVED 的桩位放回 FREE，
+     * 下一辆车立刻占走，等这台车开到桩前 `markCharging` 必然抛
+     * `PARKING_SLOT_CONFLICT`（生产实测 6 分钟 13 次，仿真定时任务被中断）。
+     *
+     * <p>判据只能是**车位编码**，不能是 `slot_type`：母港那 6 根桩本来就绑在 STANDBY 型车位
+     * （P1..P6）上，按类型筛会把刚抢到的桩位一起放掉。
+     */
+    void releaseSlotReservation(Long vehicleId, String slotCode);
+
+    /**
      * Reserve preferred charging slot, or the next free charging bay in the park.
      */
     Optional<ParkPointResponse> reserveChargingSlot(Long parkId, Long vehicleId, String preferredSlotCode);

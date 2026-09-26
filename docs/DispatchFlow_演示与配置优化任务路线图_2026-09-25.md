@@ -453,6 +453,27 @@ CI 在 `93e0b6b` 三项全 success。本轮**无迁移、无 seed、无围栏几
 > 这条要如实说：演示文案里的"30 s 快速换电"目前是**厂商能力 + 已建模的柜**，
 > 仿真里还没有真实发生的换电记录。
 
+### 15.7 ⚠ 我上一轮引入的生产缺陷：`PARKING_SLOT_CONFLICT` 刷屏（已修，第 13 轮上线）
+
+第 12 轮灌完收密 seed 后复查生产日志：**6 分钟内 18 条 ERROR**，全是
+`BusinessException: Slot P1 / E1B3 / E1B7 is occupied by another vehicle`，
+栈顶是 `processIdleStage → bindCharging → markCharging → bindVehicleToSlot`（定时任务里抛出，仿真那一轮被打断）。
+
+**根因是我在 §15.5 里那次"把释放挪到抢到桩之后"**：`releaseByVehicle(vehicleId)` 是整量释放，
+放在 `reserveChargingSlot` **之后**执行 ⇒ 把自己刚 RESERVED 的那个桩位一起放回 FREE，
+下一辆车立刻占走，等这台车开到桩前绑定必然冲突。我当时为了修"待命位被顺手放掉"，
+把顺序反过来，制造了一个更糟的问题。
+
+**正确解法是精准释放**：新增 `ParkingFacilityService.releaseSlotReservation(vehicleId, slotCode)`，
+去充电时只让出**自己那一个待命位**。判据只能是车位编码，不能是 `slot_type` ——
+母港那 6 根桩本来就绑在 STANDBY 型车位（P1..P6）上，按类型筛会连刚抢到的桩位一起放掉。
+两条回归钉：释放条件必须含 `slot_code`；`slotCode` 为空时**一个都不许动**（防止退化成整量释放）。
+
+**复测（本机，tick=500 ms，跑约 4 分钟）**：`PARKING_SLOT_CONFLICT` **0 次**、ERROR 行 **0 条**、
+35 台车全部有位（母港 6 OCCUPIED + 13 RESERVED，卫星充电位 16/16 占满 —— 因为我压了 13 台低电做实验）。
+
+> 记一条方法论：**"修 A 引入 B"要靠上线后回读日志发现，不能靠本机跑绿就算完**。
+> 这次如果不是第 12 轮灌完 seed 后顺手 `grep ERROR`，这条会一直留在生产里。
 ### 15.6 补能网络收密：柜 35 → 12（本人 2026-09-25 23:5x 裁"充电桩有些太多了"）
 
 上一轮铺完卫星点后，大屏一屏有 **43 个补能图标**（35 柜 + 8 充电站），把"车在哪"压掉了。

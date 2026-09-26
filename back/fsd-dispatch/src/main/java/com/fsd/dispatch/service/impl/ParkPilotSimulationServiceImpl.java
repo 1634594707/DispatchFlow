@@ -687,8 +687,10 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         ensureStandbyLocation(vehicle, state);
         state.busyMoveTicks = 0;
         state.pluggedIn = false;
+        // 换电不占车位（占的是柜的 slot_count），所以这里可以整量释放；
+        // 但位一放掉就要清空引用，否则之后永远不会重新取位。
         parkingFacilityService.releaseByVehicle(vehicle.getId());
-        state.standbyPoint = null;   // 同上：放掉位就要重新取位
+        state.standbyPoint = null;
         BatterySwapCabinetEntity cabinet = findSwapCabinet(defaultParkId(), state);
         if (cabinet == null) {
             routeToCharging(vehicle, state);
@@ -1350,10 +1352,12 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             }
             return;
         }
-        parkingFacilityService.releaseByVehicle(vehicle.getId());
-        // 释放车位后必须把 standbyPoint 一起清空：`ensureStandbyLocation()` 只在它为 null 时才重新取位，
-        // 留着旧值 = 这台车永远指着一个已经被自己放掉、随时会被别人占走的位。
-        // 实测就是这个原因让绑定数从 20/20 一路衰减到 6/35（生产与本机同现象）。
+        // 抢到桩之后，只让出**自己那一个待命位**（按编码精准释放），不能整量 releaseByVehicle：
+        // 那会把自己刚 RESERVED 的桩位一起放回 FREE，下一辆车立刻占走，等这台车到桩前
+        // `markCharging` 必然抛 PARKING_SLOT_CONFLICT（生产实测 6 分钟 13 次）。
+        String heldStandbyCode = state.standbyPoint != null ? state.standbyPoint.getCode() : null;
+        parkingFacilityService.releaseSlotReservation(vehicle.getId(), heldStandbyCode);
+        // 位已让出 ⇒ 引用一起清空，`ensureStandbyLocation()` 之后才会重新取位
         state.standbyPoint = null;
         state.chargingPoint = reserved.get();
         state.stage = "TO_CHARGING";

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.ParkingSlotStatus;
 import com.fsd.common.exception.BusinessException;
@@ -259,5 +260,28 @@ class ParkingFacilityServiceImplTest {
 
         // 一次绑定自身 + 一次"释放该车的其它 RESERVED 位"（不是开头那次无条件释放）
         verify(parkingSlotMapper, org.mockito.Mockito.times(2)).update(any(), any());
+    }
+
+    @Test
+    void releaseSlotReservationTargetsOneSlotOnly() {
+        // 回归钉（生产 6 分钟 13 次 PARKING_SLOT_CONFLICT 的根因）：去充电时要让出待命位，
+        // 但**不能**用整量 releaseByVehicle —— 那会把自己刚 RESERVED 的桩位一起放回 FREE，
+        // 下一辆车立刻占走，等这台车到桩前 markCharging 就抛冲突。所以必须按车位编码精准释放。
+        parkingFacilityService.releaseSlotReservation(50L, "P7");
+
+        var captor = org.mockito.ArgumentCaptor.forClass(UpdateWrapper.class);
+        verify(parkingSlotMapper).update(org.mockito.ArgumentMatchers.isNull(), captor.capture());
+        String sql = captor.getValue().getSqlSegment();
+        assertTrue(sql.contains("slot_code"), "释放条件必须带车位编码，否则会连刚抢到的桩位一起放掉");
+        assertTrue(sql.contains("occupied_vehicle_id"));
+        assertTrue(sql.contains("status"));
+    }
+
+    @Test
+    void releaseSlotReservationIgnoresBlankSlotCode() {
+        // 还没取到待命位的车（standbyPoint 为 null）不能让"精准释放"退化成整量释放
+        parkingFacilityService.releaseSlotReservation(51L, null);
+        parkingFacilityService.releaseSlotReservation(51L, "  ");
+        verify(parkingSlotMapper, org.mockito.Mockito.never()).update(any(), any());
     }
 }
