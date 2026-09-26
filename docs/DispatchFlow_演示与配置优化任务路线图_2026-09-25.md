@@ -853,15 +853,14 @@ L0/L1/L2 与图层面板均不在 DOM 里，图上只剩三个标签：`取 FSD-
 对照轮（同一个场景，只是库里压着上一轮留下的 968 条待派单）：`tracking_poll` p95 **1.07 s**（本轮 155 ms）。
 同一份代码、同一套硬件，读侧延迟差 7 倍 —— 差别只在**积压条数**。
 
-### 16.3 结论：先修读侧的快照体积，再谈加副本
+### 16.3 结论：先修读侧的快照体积，再谈加副本（**已按此修完，见 §16.8**）
 
 1. **瓶颈不在写侧。** 313 ms 的下单 p95 与 6.45% 的 500 是两回事：前者是路径长，后者是缺陷（§16.4）。
    读侧在冷库存下 155 ms 很稳，但**延迟与积压成正比**、**每次轮询固定 209 KB**，因为它返回的是
    整园 orders + 整园 vehicles，而手机页每 1.5 s 打一次。加 Pod 副本不会改变"每个观看者每 1.5 s 下载 209 KB"。
-2. **要动的地方是接口形状**：追踪面板只需要"我这单 + 我这辆车"，`GET /api/admin/park/orders?parkId=1`
-   与 `/park/vehicles` 给它的是全园。收窄成 `orderNo`/`vehicleId` 维度（或加 `updatedSince` 增量 + 字段裁剪）
-   是这轮唯一值得马上做的性能改动，收益直接写在数字上：积压轮 1.07 s vs 冷轮 155 ms。
-3. **演示侧的可执行结论**：不要在积压上开演示。§15.5 修的是"车归位"，这条修不了"单堆着"——
+2. 这一条原本的措辞是"要动的地方是接口形状，收窄成 orderNo/vehicleId 维度"——**已作废**：
+   本人 2026-09-26 裁的是"新增一个 `/park/track` 聚合端点"，落地与实测见 §16.8。
+3. **演示侧的可执行结论**（仍然有效）：不要在积压上开演示。§15.5 修的是"车归位"，这条修不了"单堆着"——
    演示前清一次未派发的历史单（`scripts/dev/reset-demo-dispatchable.sh`），否则手机上"位置未知/等待派单"会变多。
 
 ### 16.4 压测照出的三个写路径缺陷（两个已修并复验，一个待裁）
@@ -952,6 +951,44 @@ vehicleService.occupyVehicle(...)   // @Transactional：抢不到车 ⇒ throw V
 - 压测集群的前端只是可访问（`runtime-config.js` 为空 ⇒ 高德 JS key 没有，地图区是空的），**不要拿它当演示环境**。
 - 匿名下单没有速率闸门：限流只在带 key 的路径上，而那条被 `Math.min(rateLimitPerMinute, 30)` 硬顶在 30/min
   （§15 的既有事实）。带不带限流上线是本人 2026-09-25 已定的演示口径，这里只把测量口径记清楚：**压的是没限流的形态**。
+### 16.8 读侧修复：`/park/track` 聚合端点（本人裁"新增一个聚合端点"）
+
+**做了什么**：`GET /api/admin/park/track?parkId&orderId&recentLimit` 一次返回
+"这一单的完整快照 + 派给这一单的那台车 + 最近 ≤`recentLimit` 单的精简行 + 全园区在途单计数"。
+移动页的 1.5 s 轮询从**两条整园读**换成**这一条**；`/park/orders`、`/park/vehicles` 一个字没改，
+大屏与工作台继续用它们。
+
+| 同一台后端、同一份数据、同样 20 VU 并排跑 | 整园两条读 | `/park/track` 一条 |
+| --- | --- | --- |
+| 每次轮询字节（avg） | **211,404 / 214,586** | **4,503 / 3,061** |
+| p95 | 132.84 ms | **9.09 ms** |
+
+差 50–70 倍字节、约 14 倍时延。字节的来源也顺带量清楚了：209 KB 里大头不是订单，
+是 **35 台车各带三条折线**（`trajectory` / `geoTrajectory` / `plannedRouteGeo`）。
+
+**过程中修掉的两个自伤**：
+
+1. 精简行原来按行 `requireStation`（8 单 = 16 次回查），改成用同一次读回来的园区站点表
+   （`Map<stationId, ParkStationResponse>`）——顺手把"缺站让整次轮询 500"变成"标签留空"。
+2. 聚合读不复用 `listVehicleSnapshots(parkId)`：那个函数除了装配 35 台车，还会先调
+   `initializeVehiclesIfNeeded()` 并对每台车 `publishTelemetry` —— **一个被 1.5 s 轮一次的只读接口
+   不该每次重铺车队并写遥测**。这里走 `buildSnapshots(List.of(vehicle))`，只构建一辆。
+
+**一条刻意的口径变宽**：整园读法只给 `ZJF-AV-*` 的 SIM 车，聚合读按 `isMonitorVehicle`
+（含 `REAL-*` / `VDA5050-*`）。理由：乘客关心"派给我这单的那台车"，若哪天派的是真车，
+旧口径会让这一单永远显示"没有车"。
+
+**新钉下的三道门**：
+
+| 门 | 断言 | 位置 |
+| --- | --- | --- |
+| 匿名端点跨不了园区 | 拿别园区的 `orderId` 必须 `PARK_SCOPE_DENIED`，且不得构建任何车快照 | `ParkPilotServiceImplTrackTest`（4 例全绿） |
+| 移动页不再轮询整园 | 6 s 窗口内 `/park/orders`+`/park/vehicles` 命中数必须为 0，且 `/park/track` ≥2 次 | `v12-request-budget.spec.ts` |
+| 聚合读的预算不反弹 | `aggregate_bytes avg<16 KB`（实测 3.1–4.5 KB）、`whole_park_bytes avg>16 KB`（反向证据：基线没被我偷偷改小） | `deploy/k8s/k6/track-compare.js` |
+
+e2e 侧跟着改了 4 个 spec 的 mock（v6/v8 把"部分接口挂掉"的注入从 `/park/vehicles` 挪到 `/park/track`，
+v13/v14 补了聚合响应的 fixture）；`vue-tsc`、ESLint、e2e 与后端 435+96 个测试、spotbugs 全绿。
+
 ---
 
 > **本文件的记录惯例（2026-09-25 更新）**：《已完成工作记录》已退场，执行细节**就地写进本文档的 §10–§13**，
