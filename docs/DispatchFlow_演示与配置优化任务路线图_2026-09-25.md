@@ -811,6 +811,112 @@ L0/L1/L2 与图层面板均不在 DOM 里，图上只剩三个标签：`取 FSD-
 > ⚠ 第一次量仍拿到旧壳（`swap=35`、面板在）—— 就是 §11.2 记的那条：`sw.ts` 的 `NavigationRoute`
 > 把 HTML 也放进了 precache，**老访客固定慢一次导航**。演示前务必刷两次。
 
+## §16 第四批：k8s 压测流水线与本机预压实测（本人 2026-09-26 追加"做完后进行压测用k8s吧"，裁"本机 k8s 单节点 + k6"）
+
+### 16.1 交付物与执行顺序（一条命令，跳步会得到一个"Pod 全绿但地图是空的"环境）
+
+| 文件 | 作用 |
+| --- | --- |
+| `scripts/k8s/run-perf.sh` | 编排：建一次性凭据 → 起依赖 → 基线 → 起应用 → 灌 seed → 开仿真 → k6 → 现场读数。`--smoke/--no-k6/--fresh/--skip-build/--down` |
+| `deploy/k8s/00,10,20-*.yaml` | 命名空间、mysql/redis/rabbitmq、后端+前端。后端 env **逐条抄 `docker-compose.prod.yml`**，只有三处刻意不同并在文件里写了原因（`DB_USE_SSL=false`、`FSD_AMAP_DRIVING_ENABLED=false`、仿真起跑为 false） |
+| `deploy/k8s/15-db-baseline.yaml` + `run-baseline.sh` | 空库裸跑 V01–V20（§7.5 路径 A 的前半段），复用 `back/sql/init/00-run-migrations.sh` 本体不改它，用 PATH 前置 shim 注入 `-h/-P` |
+| `deploy/k8s/30-db-seed.yaml` + `load-seeds.sh` | 11 份 seed（§7.5 路径 A 的后半段）。顺序**只有一个事实来源**：`scripts/dev/verify-geo-init-paths.sh` 的 `GEO_SEEDS` 数组，由脚本抽出来塞 ConfigMap |
+| `deploy/k8s/Dockerfile.sql` | seed 2.6 MB > ConfigMap 默认 1 MiB 上限，所以灌库内容走镜像不走挂载 |
+| `deploy/k8s/k6/order-load.js` + `40-k6-job.yaml` | k6 场景与 Job。档位（VU/时长/parkId/模式）全在 ConfigMap `k6-run-config` 里 —— Job 的 `spec.template` 建完不可变，数字必须能不碰清单地换 |
+
+顺序为什么不能动：`空库 → V01–V20 裸基线 → 后端 Flyway V21→V65 → seed → 才打开仿真`。
+后端 `baseline-version: 20` + `baseline-on-migrate: true` ⇒ 空库起来 Flyway **只跑 V21+**，V01–V20 永远不被重放，表都不存在；
+反过来，仿真先于 seed 起来时 35 台车会落在 yml 兜底位而不是 STANDBY 泊位，而 seed 里引用 V64 坐标列时会撞 1054。
+口令：压测集群用一次性随机凭据（`tmp/perf/perf-secret-*`，已 gitignore），**不把生产口令复制进另一个上下文**。
+
+> **⚠ 集群那一轮还欠着**：Docker Desktop 的 Kubernetes 只有 GUI 开关（`docker desktop kubernetes` 只有
+> `images/reset-cluster/status`，CLI 没有 enable；settings-store.json 里也没有对应键，不猜）。
+> 所以本节数字来自**本机预压**：同一份 k6 场景、同一套 seed、同一份 env、同一个 Java 21 fat jar，
+> 只是不经 nginx、后端是宿主机单进程。**它是给阈值找刻度的，不是集群容量结论。**
+
+### 16.2 本机预压实测（20 写手 + 40 读手，爬坡 60 s / 平台 120 s，追踪轮询 3 次×1.5 s）
+
+| 指标 | 值 | 读法 |
+| --- | --- | --- |
+| 请求数 / 吞吐 | 8,146 次、33.8 req/s | 60 VUs 在本机跑得起来，没有连接层塌陷 |
+| 下单量 | 387 单（1.61 单/s） | 每单一次 POST |
+| `order_create` p95 | **313 ms**（max 680 ms） | 写路径不快，但没崩 |
+| `tracking_poll` p95 | **155 ms**（min 63 / max 194） | 冷车队的读侧很稳 |
+| `order_accepted` | 93.54%（362/387） | ⚠ 这个口径只到"受理"，见 §16.4/§16.5 |
+| 拒单分类 | geo 0、capacity 0、**other 25（6.45%）** | 25 次全是 HTTP 500 —— 不是容量、不是坐标，是缺陷 |
+| `task_assigned` | **24.54%**（95/387） | 冷车队只能即时接住 1/4 的输入 |
+| 收尾库存 | COMPLETED 65 / DISPATCHED 11 / IN_PROGRESS 19 / **WAITING_DISPATCH 267** | 车队 idle 11、busy 24、无一辆 ≤30% |
+| `tracking_poll_bytes` | **avg 209 KB**（196–214 KB） | 一次轮询 = orders+vehicles 两个整园快照 |
+| 下行流量 | 818 MB / 3.4 MB/s | 60 个"看单人"就把带宽吃掉 3.4 MB/s |
+| 阈值判定 | ✗ `order_other_reject rate<0.02` → k6 rc=99 | **这轮是红的**，红得对 |
+
+对照轮（同一个场景，只是库里压着上一轮留下的 968 条待派单）：`tracking_poll` p95 **1.07 s**（本轮 155 ms）。
+同一份代码、同一套硬件，读侧延迟差 7 倍 —— 差别只在**积压条数**。
+
+### 16.3 结论：先修读侧的快照体积，再谈加副本
+
+1. **瓶颈不在写侧。** 313 ms 的下单 p95 与 6.45% 的 500 是两回事：前者是路径长，后者是缺陷（§16.4）。
+   读侧在冷库存下 155 ms 很稳，但**延迟与积压成正比**、**每次轮询固定 209 KB**，因为它返回的是
+   整园 orders + 整园 vehicles，而手机页每 1.5 s 打一次。加 Pod 副本不会改变"每个观看者每 1.5 s 下载 209 KB"。
+2. **要动的地方是接口形状**：追踪面板只需要"我这单 + 我这辆车"，`GET /api/admin/park/orders?parkId=1`
+   与 `/park/vehicles` 给它的是全园。收窄成 `orderNo`/`vehicleId` 维度（或加 `updatedSince` 增量 + 字段裁剪）
+   是这轮唯一值得马上做的性能改动，收益直接写在数字上：积压轮 1.07 s vs 冷轮 155 ms。
+3. **演示侧的可执行结论**：不要在积压上开演示。§15.5 修的是"车归位"，这条修不了"单堆着"——
+   演示前清一次未派发的历史单（`scripts/dev/reset-demo-dispatchable.sh`），否则手机上"位置未知/等待派单"会变多。
+
+### 16.4 ⛔ 压测抓到的真缺陷：约每 15 单有一次 HTTP 500，且**这一单实际丢了**（新开待办 #16）
+
+`GlobalExceptionHandler - Unhandled exception` ⇒ `UnexpectedRollbackException: Transaction rolled back because
+it has been marked as rollback-only`，栈顶是 `ParkPilotCommandServiceImpl.createParkOrder`（该类 line 61 的 `@Transactional`）。
+实测计数：k6 侧 25 次 HTTP 500（25/387=6.45%），后端日志 `UnexpectedRollbackException` 24 条 —— 两边对得上。
+
+机制（不是猜，候选点已定位）：外层 `createParkOrder` 调 `DispatchTaskServiceImpl.autoAssignTask`（line 221 `@Transactional`），
+里面有两条**捕获 BusinessException 后正常返回**的路径 —— line 231–237 捕获 `DISPATCH_TASK_LOCKED` 后
+`buildAssignFailureResponse` 返回，line 268–278 捕获 `selectBestVehicle` 的异常后 `moveToManualPending` 再返回。
+内层方法一旦抛过异常，共享事务已被标成 rollback-only；外层照常 commit 就变成 500，
+**订单和任务一起回滚**。客户端看到的是"服务器内部错误"，而不是"没派到车"。
+
+低并发（1–4 VU）复现不出来，只在争用下出现，所以 §14/§15 那几轮回归都没照到它。
+**修法要本人裁**：给派单尝试开 `REQUIRES_NEW`（订单保住、派单失败以业务态可见）还是让异常向外传播
+（订单=失败，受理即不成功）。这是热写路径的事务语义变更，不属于可以自己选边的改动；
+新加的 `http_req_failed{name:order_create} rate<0.02` 门槛会一直红到它修完。
+
+### 16.5 受理 ≠ 运力：24.54% 的即时命中率意味着什么
+
+冷车队（35 台、SOC 80–100、无积压）在 1.61 单/s 输入下只能即时接住 1/4，其余进 `WAITING_DISPATCH`。
+这**不是 bug**：35 台车 × 单程几十分钟的物理运力，本来就接不住 5,800 单/小时的输入。
+它给的是两条对外口径：
+- 平台侧能承接（接口不塌、p95 不爆），**运力侧不能承接** —— 报"每秒可下 X 单"必须同时报"其中 Y% 需要排队"。
+- `order_accepted` 这类**只看 HTTP/业务成功位**的指标不能单独当容量结论用；本轮它就是 93.54%，而真派到车只有 24.54%。
+  所以 k6 场景里加了 `task_assigned`，并明确**不设门槛**（它是车队规模的函数，不是平台的函数）。
+
+### 16.6 仪表本身修的坑（每一条都是实跑撞出来的，不是读文档得来的）
+
+| 坑 | 现象 | 处置 |
+| --- | --- | --- |
+| k6 没有 `k6/util` 内置模块 | `unknown dependency : k6/util`，脚本连 archive 都过不了 | 自己写三行 `randomIntBetween` |
+| `__iteration` 不是 k6 全局（是 `__ITER`） | order_flow 每次迭代抛 ReferenceError，**一次 POST 都没发**，而所有阈值 ✓、退出码 0 | 改 `__ITER`；加 `orders_posted: count>=1` 反证闸门 |
+| **Rate 型阈值在 0 样本时判通过** | 上一条能假绿的根因 | Counter 型阈值 `count>=1`（实测 0 样本时退 99，会咬人） |
+| 拒单分类只在拒单时 `add` | 分母变成"被拒的那些"⇒ `rate=100%`，真实是 2/488=0.4% | 三类都改成每次下单 `add(bool)` |
+| `new Trend(name, true)` 第二参是 isTime | 字节数被按毫秒排版成 `avg=3m29s`，看着像时间指标坏了 | 显式 `false` |
+| MySQL 8.4 删了 `default-authentication-plugin` | `unknown variable` ⇒ mysqld 初始化 abort，Pod 起不来还容易被误读成 PVC/镜像问题 | 参数与 `back/docker-compose.yml` 对齐（只留 utf8mb4 两条） |
+| exec 探针里 `$(VAR)` **不被 kubelet 展开** | mysql readiness 会拿字面量当密码 ⇒ 永远 NotReady，整条流水线卡死 | 探针走 `/bin/sh -c` 让容器自己展开 |
+| `00-run-migrations.sh` 用 `ls ... 2>/dev/null` 取文件 | `/migrations` 空时**一个文件都不跑还退 0**（本机实测就是这样空跑了一轮） | 跑前先数文件数（≥20），跑后再数表数（≥20）双向守卫 |
+| Git Bash 把 `/scripts/x.sh` 重写成 `C:/.../git/scripts/...` | `docker exec` 报"No such file or directory" | 调用前要先 `MSYS_NO_PATHCONV=1` |
+| 桩与柜**同址**（§15.2 的既成事实） | 取送被配成同一个坐标 ⇒ 后端按"路网上连不通 0 m/0 m"拒 400，污染 `order_geo_reject` | OD 池用 `UNION` 去重；`pickPair()` 按坐标值再校验；`pair_degenerate: count==0` 断言夹具自己 |
+| `db_scalar` 写了 `2>/dev/null` | 列名打错时表现为"返回空"，断言把仪表故障读成"数量 0" | 不再吞 stderr（`t_order` 的列就叫 `status`，不叫 `order_status`） |
+| kind 模式下本机 build 的镜像不在集群里 | Pod 只会 ImagePullBackOff，`IfNotPresent` 不会告诉你原因 | `docker save \| ctr --namespace=k8s.io images import` + 导入后回查 |
+| 本地 `target/` 里的 jar 藏着**没提交的 V66** | 干跑时 Flyway 一路跑到 v66（`energy_recovery_mode=AUTO`），而仓库里根本没有这个文件 | 重跑 `mvn clean package` 后 jar 里最新只到 V65。**另：本机演示库 `flyway_schema_history` 里有 V66 行（2026-09-25 21:41 装的），文件已不存在 ⇒ 干净构建的后端连它会 validate 失败**，待本人定：补回 V66 还是删那一行并回 CHARGE |
+
+### 16.7 这一节明确没做完的
+
+- **集群那一轮没跑**：等 Docker Desktop 的 Kubernetes GUI 开关。清单与脚本已在本机同序列实跑通过，
+  但 `kubectl apply`/Job 编排/镜像导入这三段仍是**未执行代码**，第一次跑必按要求逐段验。
+- 阈值刻度来自本机单进程后端；集群里后端有 `limits: memory 2Gi`、且多一层 nginx，数字会变。
+- 单节点 ≠ 生产容量：这里出的是**形状结论**（读侧先于写侧劣化、积压驱动延迟），不是"能扛 N 人"。
+- 压测集群的前端只是可访问（`runtime-config.js` 为空 ⇒ 高德 JS key 没有，地图区是空的），**不要拿它当演示环境**。
+- 匿名下单没有速率闸门：限流只在带 key 的路径上，而那条被 `Math.min(rateLimitPerMinute, 30)` 硬顶在 30/min
+  （§15 的既有事实）。带不带限流上线是本人 2026-09-25 已定的演示口径，这里只把测量口径记清楚：**压的是没限流的形态**。
 ---
 
 > **本文件的记录惯例（2026-09-25 更新）**：《已完成工作记录》已退场，执行细节**就地写进本文档的 §10–§13**，
