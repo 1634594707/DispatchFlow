@@ -161,12 +161,13 @@ class Phase1AcceptanceTest {
             when(dispatchVehicleAssignService.selectBestVehicle(order))
                     .thenReturn(DispatchAssignResult.success(vehicle, "ok", 1.0, 1.0, 0.0, 0.0));
             when(dispatchLockService.acquireTaskLock(4001L)).thenReturn("lock");
+            when(vehicleService.tryOccupyVehicle(8001L, 4001L, 5001L)).thenReturn(true);
 
             var response = service.autoAssignTask(4001L);
 
             assertEquals(DispatchTaskStatus.ASSIGNED.name(), response.getStatus());
             assertEquals(8001L, response.getVehicleId());
-            verify(vehicleService).occupyVehicle(8001L, 4001L, 5001L);
+            verify(vehicleService).tryOccupyVehicle(8001L, 4001L, 5001L);
         }
 
         @Test

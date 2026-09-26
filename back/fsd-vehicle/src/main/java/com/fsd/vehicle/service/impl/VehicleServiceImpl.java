@@ -58,6 +58,15 @@ public class VehicleServiceImpl implements VehicleService {
     @Override
     @Transactional
     public void occupyVehicle(Long vehicleId, Long taskId, Long orderId) {
+        if (!tryOccupyVehicle(vehicleId, taskId, orderId)) {
+            throw new BusinessException("VEHICLE_NOT_ASSIGNABLE", "Vehicle is not assignable");
+        }
+    }
+
+    @Override
+    @Transactional
+    public boolean tryOccupyVehicle(Long vehicleId, Long taskId, Long orderId) {
+        // 条件更新本身就是抢占锁：状态不对/已被别人占走 ⇒ 0 行，属预期结果，不抛。
         int updated = vehicleMapper.update(null, new LambdaUpdateWrapper<VehicleEntity>()
                 .eq(VehicleEntity::getId, vehicleId)
                 .eq(VehicleEntity::getDeleted, 0)
@@ -66,9 +75,7 @@ public class VehicleServiceImpl implements VehicleService {
                 .set(VehicleEntity::getDispatchStatus, VehicleDispatchStatus.BUSY.name())
                 .set(VehicleEntity::getCurrentTaskId, taskId)
                 .set(VehicleEntity::getCurrentOrderId, orderId));
-        if (updated != 1) {
-            throw new BusinessException("VEHICLE_NOT_ASSIGNABLE", "Vehicle is not assignable");
-        }
+        return updated == 1;
     }
 
     @Override

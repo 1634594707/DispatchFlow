@@ -110,6 +110,44 @@ class DispatchTaskServiceImplTest {
                 eq(DispatchTaskStatus.PENDING.name()), eq("SYSTEM"), eq("system"), eq("system"), eq("new task"));
     }
 
+    /**
+     * 回归闸门（压测实测）：两台并发订单抢同一台车时，自动派单**不能**走会抛异常的那条 occupyVehicle ——
+     * 异常一跨过 @Transactional 边界就把下单事务标成 rollback-only，客户端拿到 500、订单连带回滚。
+     * 抢不到车只能是"转人工"这一条正常出口。
+     */
+    @Test
+    void autoAssignMustNotThrowWhenVehicleIsTakenBySomeoneElse() {
+        DispatchTaskEntity taskEntity = new DispatchTaskEntity();
+        taskEntity.setId(3002L);
+        taskEntity.setTaskNo("TSK-3002");
+        taskEntity.setOrderId(1002L);
+        taskEntity.setStatus(DispatchTaskStatus.PENDING.name());
+
+        OrderEntity orderEntity = new OrderEntity();
+        orderEntity.setId(1002L);
+
+        VehicleEntity vehicleEntity = new VehicleEntity();
+        vehicleEntity.setId(9002L);
+        vehicleEntity.setVehicleCode("PARK-02");
+        vehicleEntity.setBatteryLevel(75);
+
+        when(dispatchTaskStateService.getTask(3002L)).thenReturn(taskEntity);
+        doNothing().when(dispatchTaskStateService).assertCanAutoAssign(taskEntity);
+        when(orderStateService.getOrder(1002L)).thenReturn(orderEntity);
+        when(dispatchVehicleAssignService.selectBestVehicle(orderEntity))
+                .thenReturn(DispatchAssignResult.success(vehicleEntity, "scored", 120.0, 100.0, 3.0, 75.0));
+        when(dispatchLockService.acquireTaskLock(3002L)).thenReturn("lock-2");
+        when(vehicleService.tryOccupyVehicle(9002L, 3002L, 1002L)).thenReturn(false);
+
+        DispatchTaskAssignResponse response = dispatchTaskService.autoAssignTask(3002L);
+
+        assertEquals(DispatchTaskStatus.MANUAL_PENDING.name(), response.getStatus());
+        assertEquals("CONFLICT", response.getFailReasonCode());
+        verify(vehicleService).tryOccupyVehicle(9002L, 3002L, 1002L);
+        // 会抛异常的那条只许留给"人工指定车辆"的调用方：那里失败本来就该让整个请求回滚。
+        verify(vehicleService, never()).occupyVehicle(any(), any(), any());
+    }
+
     @Test
     void autoAssignShouldAssignScoredVehicle() {
         DispatchTaskEntity taskEntity = new DispatchTaskEntity();
@@ -132,13 +170,14 @@ class DispatchTaskServiceImplTest {
         when(dispatchVehicleAssignService.selectBestVehicle(orderEntity))
                 .thenReturn(DispatchAssignResult.success(vehicleEntity, "scored", 120.0, 100.0, 3.0, 80.0));
         when(dispatchLockService.acquireTaskLock(3001L)).thenReturn("lock-1");
+        when(vehicleService.tryOccupyVehicle(9001L, 3001L, 1001L)).thenReturn(true);
 
         DispatchTaskAssignResponse response = dispatchTaskService.autoAssignTask(3001L);
 
         assertEquals(DispatchTaskStatus.ASSIGNED.name(), response.getStatus());
         assertEquals(9001L, response.getVehicleId());
         assertEquals("PARK-01", response.getSelectedVehicleCode());
-        verify(vehicleService).occupyVehicle(9001L, 3001L, 1001L);
+        verify(vehicleService).tryOccupyVehicle(9001L, 3001L, 1001L);
         verify(parkingFacilityService).releaseByVehicle(9001L);
         verify(dispatchExceptionService, never()).recordException(any(), any(), any(), any(), any());
     }

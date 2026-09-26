@@ -11,6 +11,7 @@ import com.fsd.common.enums.DispatchTaskStatus;
 import com.fsd.common.enums.VehicleDispatchStatus;
 
 import com.fsd.common.exception.BusinessException;
+import com.fsd.common.id.BusinessNo;
 
 import com.fsd.dispatch.dispatch.DispatchAssignResult;
 
@@ -63,14 +64,14 @@ import java.util.LinkedHashMap;
 
 import java.time.LocalDateTime;
 
-import java.time.format.DateTimeFormatter;
 
 import java.util.List;
 
 import java.util.Map;
 
-import java.util.concurrent.ThreadLocalRandom;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -83,7 +84,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
 
 
-    private static final DateTimeFormatter TASK_NO_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final Logger log = LoggerFactory.getLogger(DispatchTaskServiceImpl.class);
 
 
 
@@ -233,6 +234,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
         } catch (BusinessException ex) {
             if ("DISPATCH_TASK_LOCKED".equals(ex.getCode())) {
                 DispatchTaskEntity taskEntity = dispatchTaskStateService.getTask(taskId);
+                log.warn("任务锁被占用，本次自动派单让路 taskId={}（派单将由下一拍重试）", taskEntity.getTaskNo());
                 return buildAssignFailureResponse(taskEntity, "CONFLICT", "任务正在处理中，请稍后重试");
             }
             throw ex;
@@ -278,6 +280,11 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
                 String code = mapBusinessExceptionToFailReason(ex);
 
+                // 派单失败不该让下单失败，但**必须留下一行带栈的日志**：这里原来是静默吞掉，
+                // 于是"共享事务已被内层标成 rollback-only"这件事只能靠压测时客户端收到 500 才发现。
+                log.warn("自动派单尝试失败（订单本身不受影响）taskId={} code={} —— {}",
+                        taskEntity.getTaskNo(), code, ex.getMessage(), ex);
+
                 moveToManualPending(taskEntity, code, ex.getMessage());
 
                 return buildAssignFailureResponse(taskEntity, code);
@@ -304,13 +311,25 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
             var vehicleEntity = assignResult.getVehicle();
 
-            try {
+            // 抢不到车 = 并发下的正常结果，走返回值而不是异常：见 VehicleService#tryOccupyVehicle 的注释。
+            // 这里刻意**不**调 releaseByVehicle —— 车不是我们占的，旧泊位/占用不能由这条失败路径清掉。
+            if (!vehicleService.tryOccupyVehicle(vehicleEntity.getId(), taskEntity.getId(), taskEntity.getOrderId())) {
 
-                vehicleService.occupyVehicle(vehicleEntity.getId(), taskEntity.getId(), taskEntity.getOrderId());
+                String reason = "车辆已被其他任务占用，本次自动派单让路";
+
+                moveToManualPending(taskEntity, DispatchAssignFailReason.CONFLICT.name(), reason);
+
+                return buildAssignFailureResponse(taskEntity, DispatchAssignFailReason.CONFLICT.name(), reason);
+
+            }
+
+            try {
 
                 parkingFacilityService.releaseByVehicle(vehicleEntity.getId());
 
             } catch (BusinessException ex) {
+
+                log.warn("释放车辆旧泊位失败，转人工 taskId={} —— {}", taskEntity.getTaskNo(), ex.getMessage());
 
                 moveToManualPending(taskEntity, DispatchAssignFailReason.CONFLICT.name(), ex.getMessage());
 
@@ -830,8 +849,11 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
         if (vehicleId != null) {
             try {
                 vehicleService.releaseVehicle(vehicleId, VehicleDispatchStatus.IDLE.name());
-            } catch (BusinessException ignored) {
-                // 车辆可能已被释放
+            } catch (BusinessException ex) {
+                // 车辆可能已被释放。但**不能静默**：releaseVehicle 自己是事务方法，它抛出时
+                // 已经把调用方的共享事务标成 rollback-only，这一吞就把"下单 500、订单一起回滚"
+                // 变成了查不到线索的事故（压测实测 6.45% 的下单这样失败）。
+                log.warn("释放车辆失败（按可忽略处理，但事务已被标记回滚）vehicleId={} —— {}", vehicleId, ex.getMessage());
             }
             parkingFacilityService.releaseByVehicle(vehicleId);
         }
@@ -842,8 +864,10 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
         dispatchTaskMapper.updateById(taskEntity);
         try {
             orderStateService.revertToWaitingDispatch(taskEntity.getOrderId());
-        } catch (BusinessException ignored) {
-            // 订单可能已是待派状态
+        } catch (BusinessException ex) {
+            // 订单可能已是待派状态。同样不能静默，理由见上面 releaseVehicle 那条。
+            log.warn("订单回退待派失败（按可忽略处理，但事务已被标记回滚）orderId={} —— {}",
+                    taskEntity.getOrderId(), ex.getMessage());
         }
         operateLogService.record(taskEntity.getId(), "RESET_FOR_AUTO_ASSIGN", status,
                 DispatchTaskStatus.MANUAL_PENDING.name(), "SYSTEM", "system", "system",
@@ -951,11 +975,7 @@ public class DispatchTaskServiceImpl implements DispatchTaskService {
 
 
     private String generateTaskNo() {
-
-        return "TSK" + LocalDateTime.now().format(TASK_NO_TIME_FORMATTER)
-
-                + ThreadLocalRandom.current().nextInt(1000, 9999);
-
+        return BusinessNo.of("TSK");
     }
 
 }

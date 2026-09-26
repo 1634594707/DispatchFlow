@@ -1,22 +1,18 @@
 package com.fsd.order.service.impl;
 import com.fsd.common.enums.OrderStatus;
 import com.fsd.common.exception.BusinessException;
+import com.fsd.common.id.BusinessNo;
 import com.fsd.order.dto.OrderCreateRequest;
 import com.fsd.order.dto.OrderEndpointResolution;
 import com.fsd.order.entity.OrderEntity;
 import com.fsd.order.mapper.OrderMapper;
 import com.fsd.order.service.OrderService;
 import com.fsd.order.vo.OrderCreateResponse;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OrderServiceImpl implements OrderService {
-
-    private static final DateTimeFormatter ORDER_NO_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final OrderMapper orderMapper;
 
@@ -78,7 +74,6 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String generateOrderNo() {
-        return "ORD" + LocalDateTime.now().format(ORDER_NO_TIME_FORMATTER)
-                + ThreadLocalRandom.current().nextInt(1000, 9999);
+        return BusinessNo.of("ORD");
     }
 }
