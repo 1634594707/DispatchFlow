@@ -141,13 +141,15 @@ const HUB = station(501, 'FSD-HUB-01', '找家纺网总仓库', 'HUB', BASE.lng,
 const IDLE = station(502, 'ZJF-IDLE-01', '基地待命位', 'IDLE', BASE.lng, BASE.lat)
 const AUTO_ENDPOINT = station(900, 'GEO-OSM0017', '送货·路网节点 OSM0017', 'GEO_POINT', BASE.lng, BASE.lat)
 
-/** 本机设施形态（2026-09-25 实测活库 `GET /admin/park/stations?parkId=1`）：46 站全 ACTIVE
- *  = 35 个 `FSD-SWAP-*` 柜 + 6 根 `FSD-CHG-*` 桩（**桩与柜 01..06 同坐标**）+ 总仓库/待命位
- *  （MOTHERSHIP）+ 4 个 V64 自动落点。桩的编码是 `FSD-CHG-` 而不是 `ZJF-CHG-` ——
+/** 本机设施形态（2026-09-25 补能网络收密后实测活库 `GET /admin/park/stations?parkId=1`）：
+ *  = **12** 个 `FSD-SWAP-*` 柜（原 35 个，`zjf_retire_extra_swap_cabinets.sql` 退役 23 个）
+ *  + **8** 个 `FSD-CHG-*` 充电站（母港 6 根与柜 01..06 **同坐标** ⇒ 合并成同一个徽标；
+ *    另有 E1/E2 两个卫星补能点各占一个坐标）⇒ 补能图标共 20 行、14 个不同位置
+ *  + 总仓库（MOTHERSHIP）+ V64 自动落点。桩的编码是 `FSD-CHG-` 而不是 `ZJF-CHG-` ——
  *  `isEnergyFacilityStation()` 的前缀白名单里没有它，全靠 stationType 兜住，所以这里照抄真数据。 */
 function localFacilityStations(): ParkStation[] {
   const stations: ParkStation[] = [HUB, IDLE]
-  for (let i = 1; i <= 35; i++) {
+  for (let i = 1; i <= 12; i++) {
     stations.push(
       station(700 + i, `FSD-SWAP-${String(i).padStart(2, '0')}`, `防爆换电柜 ${i}`, 'SWAP_CABINET', 121.06 + i * 0.0004, 31.95 + i * 0.0003),
     )
@@ -158,6 +160,9 @@ function localFacilityStations(): ParkStation[] {
       station(800 + i, `FSD-CHG-0${i}`, `基地充电桩 ${i}`, 'CHARGING_STATION', co.coordLng as number, co.coordLat as number),
     )
   }
+  // 卫星补能点：E1 西南 / E2 东北，各自独立坐标（不跟柜同点，所以不会被合并成同一个徽标）
+  stations.push(station(811, 'FSD-CHG-11', '卫星补能点 1（AMCJ11）', 'CHARGING_STATION', 121.06228, 31.91245))
+  stations.push(station(812, 'FSD-CHG-12', '卫星补能点 2（OSM0301）', 'CHARGING_STATION', 121.117826, 31.964577))
   stations.push(AUTO_ENDPOINT)
   return stations
 }
@@ -259,10 +264,10 @@ test.describe('T2-c 追踪图是乘客视角：设施层不画进移动端', () 
 
   // 判据从"移动端画 35 个柜"翻成"一个都不画"。数据侧没动（PC 大屏/工作台照旧全画），
   // 改的是移动端的消费方，所以这条不能只是删掉——真正钉"0 个"的是下面的页面门
-  // （它把 46 站真形态喂进去，再读 `tracking-map-legend` 的 data-*）。
-  test('设施仍由接口返回 35 柜 6 桩，但绝不进下单站点下拉（柜 / 桩 / GEO- 落点 零泄漏）', () => {
-    expect(stations.filter((station) => station.stationType === 'SWAP_CABINET')).toHaveLength(35)
-    expect(stations.filter((station) => station.stationType === 'CHARGING_STATION')).toHaveLength(6)
+  // （它把收密后的 20 个补能站真形态喂进去，再读 `.map-shell` 上的 data-*）。
+  test('设施仍由接口返回 12 柜 8 充电站，但绝不进下单站点下拉（柜 / 桩 / GEO- 落点 零泄漏）', () => {
+    expect(stations.filter((station) => station.stationType === 'SWAP_CABINET')).toHaveLength(12)
+    expect(stations.filter((station) => station.stationType === 'CHARGING_STATION')).toHaveLength(8)
     const orderable = filterMobileOrderStations(stations)
     expect(orderable.map((item) => item.stationCode)).toEqual(['FSD-HUB-01'])
     const options = buildGroupedMobileStationOptions(orderable).flatMap((group) => group.options)
@@ -376,7 +381,7 @@ async function seedMobilePage(page: Page) {
 }
 
 test.describe('移动端追踪地图页面门（乘客视角：只画本单车 + 本单 OD）', () => {
-  test('46 站设施在场也不画；只画被指派那台车；补能读数恒为 0', async ({ page }) => {
+  test('20 个补能站全在场也不画；只画被指派那台车；补能读数恒为 0', async ({ page }) => {
     await seedMobilePage(page)
     await page.goto('/mobile/order')
 
@@ -385,7 +390,7 @@ test.describe('移动端追踪地图页面门（乘客视角：只画本单车 +
     // 本单指派的是 vehicle 7（fixture 里有真经纬度）⇒ 画 1 台，没有"位置未知"
     await expect(legend).toHaveAttribute('data-vehicle-markers', '1')
     await expect(legend).toHaveAttribute('data-position-unknown', '0')
-    // 设施层已从移动端撤掉：接口照旧返回 35 柜 6 桩（PC 端在用），这张图上必须一个都不画。
+    // 设施层已从移动端撤掉：接口照旧返回 12 柜 + 8 充电站（PC 端在用），这张图上必须一个都不画。
     // 这三个 0 就是 T2-c 判据翻转后的形态 —— 谁把设施层接回来，这里立刻红。
     await expect(legend).toHaveAttribute('data-swap-markers', '0')
     await expect(legend).toHaveAttribute('data-charging-markers', '0')

@@ -65,7 +65,8 @@ fi
 # 少一个 seed 就是"部署成功但地图上什么都没变"。
 for want in back/sql/seed/zjf_facility_v2.sql back/sql/seed/zjf_charging_points.sql \
             back/sql/seed/zjf_swap_cabinets.sql back/sql/seed/zjf_service_area.sql \
-            back/sql/seed/zjf_standby_slots.sql back/sql/seed/zjf_energy_sites.sql; do
+            back/sql/seed/zjf_standby_slots.sql back/sql/seed/zjf_energy_sites.sql \
+            back/sql/seed/zjf_retire_extra_swap_cabinets.sql; do
   if [ -f "$want" ] && ! grep -Fxq "$want" "$MANIFEST"; then
     printf '[ABORT] 期望在包里的 seed 不见了：%s\n' "$want" >&2
     exit 1

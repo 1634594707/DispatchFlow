@@ -22,7 +22,7 @@ NET="${GEO_PROBE_NETWORK:-dispatchflow_default}"
 FLYWAY_IMAGE="${FLYWAY_IMAGE:-flyway/flyway:10.10-alpine}"
 FP_SQL="$(mktemp)"
 # 定义"地图当前态"的全部 seed（顺序即应用顺序）
-GEO_SEEDS=("zjf_geo.sql" "zjf_road_network.sql" "zjf_amap_terminal_links.sql" "zjf_service_area.sql" "zjf_swap_cabinets.sql" "zjf_retire_nearfield_piles.sql" "zjf_facility_v2.sql" "zjf_charging_points.sql" "zjf_standby_slots.sql" "zjf_energy_sites.sql")
+GEO_SEEDS=("zjf_geo.sql" "zjf_road_network.sql" "zjf_amap_terminal_links.sql" "zjf_service_area.sql" "zjf_swap_cabinets.sql" "zjf_retire_nearfield_piles.sql" "zjf_facility_v2.sql" "zjf_retire_extra_swap_cabinets.sql" "zjf_charging_points.sql" "zjf_standby_slots.sql" "zjf_energy_sites.sql")
 # GEO_KEEP_PROBE=1：比对完不删探针容器，留给人进去逐行 diff
 # （只报"DIFF"不给是哪一行时，这个开关就是唯一的出路）
 cleanup() {
