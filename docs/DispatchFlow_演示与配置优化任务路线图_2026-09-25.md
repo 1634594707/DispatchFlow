@@ -989,6 +989,27 @@ vehicleService.occupyVehicle(...)   // @Transactional：抢不到车 ⇒ throw V
 e2e 侧跟着改了 4 个 spec 的 mock（v6/v8 把"部分接口挂掉"的注入从 `/park/vehicles` 挪到 `/park/track`，
 v13/v14 补了聚合响应的 fixture）；`vue-tsc`、ESLint、e2e 与后端 435+96 个测试、spotbugs 全绿。
 
+### 16.9 第 14 轮上线（2026-09-26 22:16–22:22，写路径两项修复 + `/park/track`）
+
+| 步 | 事实 |
+| --- | --- |
+| 包 | `fsd-tree-20260926-221455.tgz`：1266 文件 / 2.1 MB，两端 sha256 同为 `aeeb080718734a06…` |
+| 反证 | 包内 `.env`/`.env.production`/`tmp/`/`*.jar`/`*.sql.gz` 命中 **0**；落位前在 `/tmp/fsd14/x` 逐条断言七处改动都在（`tryOccupyVehicle`×2、`buildTrackSnapshot`×2、`park/track`、`BusinessNo`、`getParkTrack`、`fetchTrack`、回滚守卫用例） |
+| 回滚 | `rollback-20260926-221620` ×2，**在 build 之前**打好 |
+| 数据面 | 本轮**无迁移、无 seed、无几何变更**：后端起来第一句就是 `Schema fsd_core is up to date. No migration necessary.` |
+| 健康 | `[OK] 后端健康：{"status":"UP"}`；`.env` mtime 仍是 2026-09-24 22:13（未被覆盖）；启动后 5 分钟内后端 `ERROR` 行 **0** |
+| 前端真的换了 | 入口 `index-BiRw9jq4.js`（100 KB）内含 `admin/park/track` 一处 |
+| **生产实测读侧** | 匿名 `GET /api/admin/park/track?parkId=1` = **200 / 4,902 B / 0.44 s**；整园两条读 = 10,395 + 63,334 = **73,729 B 且两跳** ⇒ 一次刷新少搬约 15 倍字节、少一次往返。（生产当前积压只有 7 单，所以没到我压测那轮的 209 KB 规模——别把两个数混着引用） |
+| 车队与队列 | `vehicles=35 / standby_bound=35`；订单 `COMPLETED=28 / WAITING_DISPATCH=7` ⇒ 演示可以直接开 |
+
+**我这一轮犯的一条，记下来**：`backup-mysql.sh` 我是**部署之后**才跑的（`fsd_core-20260926_222224.sql.gz`，1.6 MB / 50 表 / `dump_completed=yes`，按 `MAX_BACKUPS=7` 轮转掉一份旧的）。
+本轮确实没有 DDL/内容变更，数据风险为零，但纪律的顺序就是"build 前"。漏它的成因值得写清楚：`deploy.sh` **本身不做备份**，只在结尾提示一行——而那一行指的路径 `/opt/scripts/backup-mysql.sh` 在服务器上根本不存在（真实路径是 `/opt/dispatchflow/scripts/backup-mysql.sh`，本次就是这么找到的），所以"照提示找不到脚本"这件事既坑了我也坑下一个人。已把那行改对。
+
+**这一轮没验的**：写路径的"抢不到车就转人工"要并发才撞得出来，线上单发一单证明不了它；我没在生产下单（不留没人收口的单）。真验证走下一次压测（集群那一轮就会经过这条路径），或本人在手机页连点几单。
+
+> ⚠ 演示前照旧要过 §11.2 那条 SW 尾巴：老访客第一次导航拿到的还是旧壳。开页 → 刷一次 → 再刷一次，
+> 网络面板里看到 `/park/track` 才算换到新前端。
+
 ---
 
 > **本文件的记录惯例（2026-09-25 更新）**：《已完成工作记录》已退场，执行细节**就地写进本文档的 §10–§13**，
