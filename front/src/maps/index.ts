@@ -52,6 +52,7 @@ export {
   filterWorkbenchSituationStations,
   isGeoDeliveryOrder,
   isGeoDeliveryStation,
+  isGeoDeliveryTrackRow,
   isZjfDispatchOnlyStation,
   isAutoGeoEndpointStation,
   isEnergyFacilityStation,

@@ -89,7 +89,12 @@ test('mobile order initializes with mobile key and stale tracking hint', async (
       dropoffStation: { stationId: 2, stationCode: 'ZJF-DROP-01', stationName: '送货点', x: 800, y: 450, coordLng: 121.11, coordLat: 31.91 },
     },
   ]) }))
-  await page.route(api('/admin/park/vehicles**'), route => route.fulfill({ status: 503, json: { success: false, code: 'DOWN', message: 'down' } }))
+  // §16.3 之后这一页只读一条聚合接口，所以"部分接口挂了页面还要在"这条注入改打在 /track 上；
+  // 整园 vehicles 反而给回正常数据（它现在是 PC 页专用的， mobile 页不该再依赖它）。
+  await page.route(api('/admin/park/track**'), route => route.fulfill({ status: 503, json: { success: false, code: 'DOWN', message: 'down' } }))
+  await page.route(api('/admin/park/vehicles**'), route => route.fulfill({ json: ok([
+    { vehicleId: 1, vehicleCode: 'AV-01', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'BUSY', batteryLevel: 70, longitude: 121.105, latitude: 31.905 },
+  ]) }))
 
   await page.goto('/mobile/order')
   await expect(page.getByRole('heading', { name: '叫车送货' })).toBeVisible()

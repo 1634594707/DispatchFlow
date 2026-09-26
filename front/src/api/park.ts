@@ -51,6 +51,29 @@ export function getParkVehicles(options?: { silent?: boolean; parkId?: number })
   })
 }
 
+/**
+ * 追踪聚合读（路线图 §16.3）：一单 + 那台车 + 最近几单的精简行。
+ *
+ * 移动页原来用 `getParkOrders` + `getParkVehicles` 两条整园读拼出同样的信息，实测一次轮询 209 KB、
+ * 且订单侧是全表读后内存排序 —— 积压变多时 p95 从 155 ms 走到 1.07 s。这两个整园接口原样留给大屏。
+ */
+export function getParkTrack(options?: {
+  silent?: boolean
+  parkId?: number
+  orderId?: number | null
+  recentLimit?: number
+}) {
+  const params: Record<string, number> = {}
+  if (options?.parkId != null) params.parkId = options.parkId
+  if (options?.orderId != null) params.orderId = options.orderId
+  if (options?.recentLimit != null) params.recentLimit = options.recentLimit
+  return request.get<any, ApiResponse<import('@/types/park').ParkTrackResponse>>('/admin/park/track', {
+    headers: mobileApiHeaders(),
+    params: Object.keys(params).length > 0 ? params : undefined,
+    skipErrorToast: options?.silent,
+  })
+}
+
 export function getParkGeofences(parkId?: number) {
   return request.get<any, ApiResponse<import('@/types/park').ParkGeofence[]>>('/admin/park/geofences', {
     params: parkId != null ? { parkId } : undefined,

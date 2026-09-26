@@ -161,8 +161,39 @@ export interface ParkOrderSnapshot {
   updatedAt: string | null
 }
 
-/** 下单端点：登记站点与"地图上点的任意坐标"二选一，不能同时给。 */
-export type ParkOrderEndpoint =
+/**
+ * `GET /admin/park/track` 的"最近几单"精简行（路线图 §16.3）。
+ *
+ * 刻意不含站点对象与折线：移动页的订单切换只用 orderNo，"这单还在不在跑"只用 runtimeStage；
+ * 把整园订单连同每台车三条折线一起搬回来，是原来每次轮询 209 KB 的主要来源。
+ */
+export interface ParkOrderTrackRow {
+  orderId: number
+  orderNo: string
+  orderStatus: string
+  /** 由订单与任务推出的阶段，**不带**车队实时阶段（见后端 toRecentOrder 的注释）。 */
+  runtimeStage: string
+  vehicleId: number | null
+  pickupStationCode: string | null
+  pickupStationArea: string | null
+  dropoffStationCode: string | null
+  dropoffStationArea: string | null
+}
+
+export interface ParkTrackResponse {
+  /** 正在追踪的这一单；园区内没有任何单时为 null。 */
+  order: ParkOrderSnapshot | null
+  /** 派给这一单的那台车；未派车或车不可监测时为 null。 */
+  vehicle: ParkVehicleSnapshot | null
+  recentOrders: ParkOrderTrackRow[]
+  /**
+   * 该园区还在进行的订单总数（走 park_id + status 索引的 COUNT）。
+   * 页头"N 单配送中"用它，不用被 recentLimit 截过的 recentOrders.length。
+   */
+  activeCount: number | null
+}
+
+/** 下单端点：登记站点与"地图上点的任意坐标"二选一，不能同时给。 */export type ParkOrderEndpoint =
   | { kind: 'station'; stationId: number }
   | { kind: 'coord'; lng: number; lat: number }
 

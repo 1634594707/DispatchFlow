@@ -133,7 +133,7 @@ import { computed } from 'vue'
 import AmapGeoMap from '@/components/map/AmapGeoMap.vue'
 import { parkDeliveryStageLabel } from '@/constants/parkDelivery'
 import type { GeoMapMarker, GeoMapPolygon, GeoMapPolyline } from '@/maps/types'
-import type { ParkOrderSnapshot, ParkStation, ParkVehicleSnapshot } from '@/types/park'
+import type { ParkOrderSnapshot, ParkOrderTrackRow, ParkStation, ParkVehicleSnapshot } from '@/types/park'
 
 /** 传给地图图层的 marker 计数（§4 T2-a/T2-c）：由页面算好，面板只负责把这行读数画出来。 */
 interface TrackingLayerSummary {
@@ -146,7 +146,8 @@ interface TrackingLayerSummary {
 
 const props = defineProps<{
   order: ParkOrderSnapshot
-  activeOrders: ParkOrderSnapshot[]
+  /** `/admin/park/track` 的精简行（§16.3）：切换芯片只用到 orderId/orderNo，不需要整园快照。 */
+  activeOrders: ParkOrderTrackRow[]
   vehicle: ParkVehicleSnapshot | null
   geoMapAvailable: boolean
   mapCenter: [number, number]

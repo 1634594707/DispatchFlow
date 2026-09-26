@@ -1,5 +1,6 @@
 package com.fsd.dispatch.service.impl;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fsd.common.enums.VehicleLinkMode;
 import com.fsd.dispatch.fleet.PilotFleetSupport;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
@@ -22,6 +23,7 @@ import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkRoadNodeResponse;
 import com.fsd.dispatch.vo.ParkRoadSegmentResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
+import com.fsd.dispatch.vo.ParkTrackResponse;
 import com.fsd.common.exception.BusinessException;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
 import com.fsd.order.mapper.OrderMapper;
@@ -31,6 +33,7 @@ import com.fsd.order.entity.OrderEntity;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -262,6 +265,149 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                 .limit(20)
                 .map(order -> toOrderSnapshot(order, taskById.get(order.getDispatchTaskId()), vehicleByTaskId))
                 .toList();
+    }
+
+    /** "这一单不用再追踪了"的终态集合：自动挑单、activeCount 与精简行的阶段判定共用这一份定义。 */
+    private static final List<String> TERMINAL_ORDER_STATUSES = List.of("COMPLETED", "FAILED", "CANCELLED");
+
+    @Override
+    public ParkTrackResponse buildTrackSnapshot(Long parkId, Long orderId, int recentLimit) {
+        ParkEntity park = parkId == null ? parkStationService.requireDefaultPark() : parkStationService.requirePark(parkId);
+        // 一次读回园区站点表：既是"这一单属不属于本园区"的判据集合，也是精简行的标签来源。
+        // 精简行原来按行 requireStation（8 条单 = 16 次回查），而这张表本来就已经读过了。
+        Map<Long, ParkStationResponse> parkStations = parkStationService.listStations(park.getId()).stream()
+                .collect(Collectors.toMap(ParkStationResponse::getStationId, Function.identity(),
+                        (left, right) -> left, LinkedHashMap::new));
+        Set<Long> parkStationIds = parkStations.keySet();
+        int limit = Math.min(Math.max(recentLimit, 1), 20);
+
+        // 最近列表：按主键倒序取一小撮候选，再按园区归属过滤。
+        // 为什么不像 listOrderSnapshots 那样 selectList(null) 再在内存里排序：那条在读侧是 O(全表)，
+        // 手机页每 1.5 s 打一次 —— 本机预压实测"积压 968 单时 tracking_poll p95 从 155 ms 涨到 1.07 s"
+        // 就是它，体积也只是次要的那一半。
+        // 为什么按 id 不按 updated_at：t_order 实测没有 updated_at 索引（只有 idx_park_id 与
+        // idx_status_created_at），按 updated_at 排会全表 filesort，等于把省下的开销换个地方付；
+        // id 单调递增，"最新的一单"与产品语义一致。
+        // 候选取 limit×3：吸收候选里混着别的园区/站点已删的单被过滤掉的情况。
+        List<OrderEntity> candidates = orderMapper.selectList(Wrappers.<OrderEntity>lambdaQuery()
+                        .eq(OrderEntity::getDeleted, 0)
+                        .orderByDesc(OrderEntity::getId)
+                        .last("LIMIT " + (limit * 3)))
+                .stream()
+                .filter(order -> matchesParkOrder(order, park.getId(), parkStationIds))
+                .limit(limit)
+                .toList();
+
+        Map<Long, DispatchTaskEntity> taskById = loadTasksFor(candidates);
+
+        OrderEntity tracked;
+        if (orderId != null) {
+            OrderEntity byId = orderMapper.selectById(orderId);
+            if (byId == null || (byId.getDeleted() != null && byId.getDeleted() != 0)) {
+                throw new BusinessException("ORDER_NOT_FOUND", "订单不存在或已删除");
+            }
+            if (!matchesParkOrder(byId, park.getId(), parkStationIds)) {
+                throw new BusinessException("PARK_SCOPE_DENIED", "记录不属于当前园区");
+            }
+            tracked = byId;
+        } else {
+            tracked = candidates.stream()
+                    .filter(order -> !isTerminalOrder(order.getStatus()))
+                    .findFirst()
+                    .orElse(candidates.isEmpty() ? null : candidates.get(0));
+        }
+
+        ParkOrderSnapshotResponse orderSnapshot = null;
+        ParkVehicleSnapshotResponse vehicleSnapshot = null;
+        if (tracked != null) {
+            DispatchTaskEntity task = tracked.getDispatchTaskId() == null
+                    ? null
+                    : dispatchTaskMapper.selectById(tracked.getDispatchTaskId());
+            vehicleSnapshot = snapshotOfTrackedVehicle(task);
+            Map<Long, ParkVehicleSnapshotResponse> vehicleByTaskId = task == null || vehicleSnapshot == null
+                    ? Map.of()
+                    : Map.of(task.getId(), vehicleSnapshot);
+            orderSnapshot = toOrderSnapshot(tracked, task, vehicleByTaskId);
+        }
+
+        return ParkTrackResponse.builder()
+                .order(orderSnapshot)
+                .vehicle(vehicleSnapshot)
+                .activeCount(orderMapper.selectCount(Wrappers.<OrderEntity>lambdaQuery()
+                        .eq(OrderEntity::getParkId, park.getId())
+                        .eq(OrderEntity::getDeleted, 0)
+                        .notIn(OrderEntity::getStatus, TERMINAL_ORDER_STATUSES)))
+                .recentOrders(candidates.stream()
+                        .map(order -> toRecentOrder(order, taskById.get(order.getDispatchTaskId()), parkStations))
+                        .toList())
+                .build();
+    }
+
+    /** 一次批量取候选订单对应的任务，避免按行回查（候选最多 20 条）。 */
+    private Map<Long, DispatchTaskEntity> loadTasksFor(List<OrderEntity> orders) {
+        Set<Long> taskIds = orders.stream()
+                .map(OrderEntity::getDispatchTaskId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (taskIds.isEmpty()) {
+            return Map.of();
+        }
+        return dispatchTaskMapper.selectBatchIds(taskIds).stream()
+                .filter(task -> task.getDeleted() == null || task.getDeleted() == 0)
+                .collect(Collectors.toMap(DispatchTaskEntity::getId, Function.identity(), (left, right) -> left));
+    }
+
+    /**
+     * 只构建**这一辆**车的快照。
+     *
+     * <p>不复用 listVehicleSnapshots(parkId)：那函数除了把 35 台车连同三条折线一起装配出来，
+     * 还会先调 initializeVehiclesIfNeeded()，并对每台车 publishTelemetry —— 一个被 1.5 s 轮询一次的
+     * 只读接口不该每次重铺车队并写遥测。这里 SIM 行走 buildSnapshots(List.of(vehicle))（与整园读法
+     * 逐字一致，只是只有一台），真行走 fleetSnapshotAssembler。
+     */
+    private ParkVehicleSnapshotResponse snapshotOfTrackedVehicle(DispatchTaskEntity task) {
+        if (task == null || task.getVehicleId() == null) {
+            return null;
+        }
+        VehicleEntity vehicle = vehicleMapper.selectById(task.getVehicleId());
+        if (vehicle == null
+                || (vehicle.getDeleted() != null && vehicle.getDeleted() != 0)
+                || !isMonitorVehicle(vehicle.getVehicleCode())) {
+            return null;
+        }
+        if (isSimulationVehicle(vehicle)) {
+            List<ParkVehicleSnapshotResponse> one = parkPilotSimulationService.buildSnapshots(List.of(vehicle));
+            return one.isEmpty() ? null : one.get(0);
+        }
+        FleetRuntime runtime = fleetRuntimeService.get(vehicle.getId()).orElse(null);
+        return fleetSnapshotAssembler.assemble(vehicle, runtime);
+    }
+
+    /**
+     * 切换芯片用的精简行。runtimeStage 刻意**不**带车队实时阶段（那是 resolveRuntimeStage 收到
+     * vehicleSnapshot 时才有的口径）：这里只需要"这单还在不在跑"，为此把 N 台车快照读回来
+     * 就把这个接口的意义抵消了。精确阶段由 order/vehicle 两个完整快照提供。
+     */
+    private ParkTrackResponse.RecentOrder toRecentOrder(OrderEntity order, DispatchTaskEntity task,
+                                                        Map<Long, ParkStationResponse> parkStations) {
+        // 站点在这份响应里只是标签来源：拿不到就留 null，绝不让一次轮询因为一个孤儿站点引用而 500
+        ParkStationResponse pickup = parkStations.get(order.getPickupPointId());
+        ParkStationResponse dropoff = parkStations.get(order.getDropoffPointId());
+        return ParkTrackResponse.RecentOrder.builder()
+                .orderId(order.getId())
+                .orderNo(order.getOrderNo())
+                .orderStatus(order.getStatus())
+                .runtimeStage(resolveRuntimeStage(order, task, null))
+                .vehicleId(task == null ? null : task.getVehicleId())
+                .pickupStationCode(pickup == null ? null : pickup.getStationCode())
+                .pickupStationArea(pickup == null ? null : pickup.getArea())
+                .dropoffStationCode(dropoff == null ? null : dropoff.getStationCode())
+                .dropoffStationArea(dropoff == null ? null : dropoff.getArea())
+                .build();
+    }
+
+    private boolean isTerminalOrder(String status) {
+        return TERMINAL_ORDER_STATUSES.contains(status);
     }
 
     private double calculateRouteDistance(VehicleEntity vehicle, ParkStationResponse station) {

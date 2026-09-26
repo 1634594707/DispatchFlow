@@ -368,16 +368,52 @@ async function seedMobilePage(page: Page) {
       ]),
     })
   })
+  /** 追踪页要展示的那一单（§16.3 之后这一页只读 /track，整园 orders/vehicles 留给 PC 页）。 */
+  const trackedOrder = {
+    orderId: 9001,
+    orderNo: 'SO-9001',
+    orderStatus: 'EXECUTING',
+    taskId: 9501,
+    taskNo: 'T-9501',
+    taskStatus: 'ASSIGNED',
+    vehicleId: 7,
+    vehicleCode: 'ZJF-AV-07',
+    vehicleName: '无人车 07',
+    runtimeStage: 'HEADING_TO_PICKUP',
+    pickupStation: HUB,
+    dropoffStation: AUTO_ENDPOINT,
+  }
+  const trackOf = (list: unknown[]) =>
+    ok({
+      order: trackedOrder,
+      vehicle: (list as { vehicleId: number }[]).find((item) => item.vehicleId === trackedOrder.vehicleId) ?? null,
+      recentOrders: [
+        {
+          orderId: trackedOrder.orderId,
+          orderNo: trackedOrder.orderNo,
+          orderStatus: trackedOrder.orderStatus,
+          runtimeStage: trackedOrder.runtimeStage,
+          vehicleId: trackedOrder.vehicleId,
+          pickupStationCode: HUB.stationCode,
+          pickupStationArea: HUB.area ?? null,
+          dropoffStationCode: AUTO_ENDPOINT.stationCode,
+          dropoffStationArea: AUTO_ENDPOINT.area ?? null,
+        },
+      ],
+      activeCount: 1,
+    })
   // 12 台有真经纬度 + 1 台没有：后者必须画不出、但要报出来
   const vehicles = [
     ...Array.from({ length: 12 }, (_, index) => vehicle(index + 1, true)),
     vehicle(13, false),
   ]
   await page.route(api('/admin/park/vehicles**'), (route) => route.fulfill({ json: ok(vehicles) }))
+  // 移动追踪页的唯一数据源（§16.3）：车辆从上面那份 vehicles 里按 vehicleId 反查，两处不会各说各话
+  await page.route(api('/admin/park/track**'), (route) => route.fulfill({ json: trackOf(vehicles) }))
   await page.route(api('/admin/park/geo/transform**'), (route) =>
     route.fulfill({ json: ok({ parkX: 668, parkY: 624, longitude: BASE.lng, latitude: BASE.lat }) }),
   )
-  return vehicles
+  return { vehicles, trackOf }
 }
 
 test.describe('移动端追踪地图页面门（乘客视角：只画本单车 + 本单 OD）', () => {
@@ -408,11 +444,15 @@ test.describe('移动端追踪地图页面门（乘客视角：只画本单车 +
   test('被指派那台车没有真经纬度时，图上不画点但必须报"1 台位置未知"（§7.5 逐行契约）', async ({ page }) => {
     await seedMobilePage(page)
     // 只改一件事：把被指派那台（id 7）的经纬度拿掉，像素 x/y 仍在 —— 这正是 SIM 行的常态
+    const { trackOf } = await seedMobilePage(page)
+    const withoutGeo = [vehicle(7, false), vehicle(2, true)]
     await page.route(api('/admin/park/vehicles**'), (route) =>
       route.fulfill({
-        json: ok([vehicle(7, false), vehicle(2, true)]),
+        json: ok(withoutGeo),
       }),
     )
+    // 这一页现在读 /track，所以同一件事要在它身上再改一遍（车辆由 trackOf 反查，不会出现两份数据打架）
+    await page.route(api('/admin/park/track**'), (route) => route.fulfill({ json: trackOf(withoutGeo) }))
     await page.goto('/mobile/order')
 
     const legend = page.getByTestId('tracking-map-legend')

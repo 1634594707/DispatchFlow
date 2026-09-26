@@ -145,3 +145,41 @@ for (const budget of BUDGETS) {
     expect(hits.length, `静置后新增：${hits.slice(firstPaint.length).join(', ')}`).toBe(firstPaint.length)
   })
 }
+
+/**
+ * 移动追踪页的轮询预算（§16.3）。
+ *
+ * 它不进上面那张表：那一组断言里有"静置 8 s 不许长出新请求"，而这一页是**有意**每 1.5 s 轮一次的。
+ * 所以要钉的是另一件事：这一页每拍只许打 `/park/track` 一条，**不许**再回去读整园快照 ——
+ * 那两条整园接口一次轮询实测搬 209 KB（35 台车各带三条折线 + 全表读出来的订单列表），
+ * 而用户要看的只有"我这一单和派给我的那台车"。
+ */
+test('移动追踪页只轮询 /park/track，不再读整园 orders/vehicles', async ({ page }) => {
+  test.setTimeout(60_000)
+  await seed(page)
+  // seed 的通用 `/admin/**` 兜底回的是对象 `{}`，而这一页把 stations/geofences 当数组过滤 ——
+  // 首屏就会在 onMounted 里抛掉、根本走不到轮询。这一条测的是轮询预算，所以先把这两样给成数组。
+  await page.route(api('/admin/park/stations**'), (route) => route.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/park/geofences**'), (route) => route.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/park/track**'), (route) =>
+    route.fulfill({ json: ok({ order: null, vehicle: null, recentOrders: [], activeCount: 0 }) }),
+  )
+
+  const paths: string[] = []
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    if (url.pathname.startsWith('/api/admin/')) paths.push(url.pathname)
+  })
+
+  await page.goto('/mobile/order', { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(6_000) // 至少走完三拍轮询
+
+  const wholePark = paths.filter(
+    (p) => p === '/api/admin/park/orders' || p === '/api/admin/park/vehicles',
+  )
+  expect(wholePark, `移动页又在轮询整园快照：${[...new Set(wholePark)].join(', ')}`).toEqual([])
+  expect(
+    paths.filter((p) => p === '/api/admin/park/track').length,
+    `移动页没有按节拍轮询 /park/track（聚合读没接上？实际打到的端点：${[...new Set(paths)].join(', ') || '（一个都没有）'}）`,
+  ).toBeGreaterThanOrEqual(2)
+})

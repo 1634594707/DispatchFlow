@@ -136,6 +136,40 @@ async function seedMobileOrderPage(page: Page): Promise<CapturedOrder[]> {
     }),
   )
 
+  /**
+   * 移动追踪页现在只读这一条聚合接口（§16.3），不再轮询整园 orders/vehicles。
+   * 上面的 `/admin/park/orders`（GET 分支）与 `/admin/park/vehicles` 两条 mock 是给 PC 页留的，
+   * 这一页用不上它们 —— 别删，删了这条聚合 mock 就成了"永远返回同一份"的假一致性。
+   * order 取最新受理的那一条，与页面下单后追踪的行为一致；车辆由 vehicleId 反查，
+   * 两处数据因此不可能各说各话。
+   */
+  await page.route(api('/admin/park/track**'), (route) => {
+    const order = accepted[accepted.length - 1] as
+      | (Record<string, unknown> & { vehicleId: number; pickupStation: { stationCode?: string; area?: string }; dropoffStation: { stationCode?: string; area?: string } })
+      | undefined
+    const vehicle = [
+      { vehicleId: 7, vehicleCode: 'ZJF-AV-07', vehicleName: '无人车 07', onlineStatus: 'ONLINE', dispatchStatus: 'BUSY', currentTaskId: 9501, currentOrderId: 9001, batteryLevel: 82, x: 668, y: 624, longitude: BASE.lng, latitude: BASE.lat, runtimeStage: 'HEADING_TO_PICKUP', targetCode: null, targetType: null, charging: false, lowBattery: false, linkMode: 'SIM', trajectory: [], geoTrajectory: [], plannedRouteGeo: [] },
+    ].find((item) => item.vehicleId === order?.vehicleId)
+    const recentOrders = accepted.map((item) => {
+      const row = item as Record<string, unknown> & {
+        pickupStation: { stationCode?: string; area?: string }
+        dropoffStation: { stationCode?: string; area?: string }
+      }
+      return {
+        orderId: row.orderId,
+        orderNo: row.orderNo,
+        orderStatus: row.orderStatus,
+        runtimeStage: row.runtimeStage,
+        vehicleId: row.vehicleId,
+        pickupStationCode: row.pickupStation.stationCode ?? null,
+        pickupStationArea: row.pickupStation.area ?? null,
+        dropoffStationCode: row.dropoffStation.stationCode ?? null,
+        dropoffStationArea: row.dropoffStation.area ?? null,
+      }
+    })
+    return route.fulfill({ json: ok({ order: order ?? null, vehicle: vehicle ?? null, recentOrders, activeCount: recentOrders.length }) })
+  })
+
   return captured
 }
 

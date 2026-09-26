@@ -52,6 +52,7 @@ import com.fsd.dispatch.vo.ParkOrderCreateResponse;
 import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
 import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
+import com.fsd.dispatch.vo.ParkTrackResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
 import com.fsd.admin.auth.AdminAction;
 import com.fsd.admin.auth.AdminPermissionService;
@@ -740,6 +741,26 @@ public class AdminDispatchController {
 
     public ApiResponse<List<ParkOrderSnapshotResponse>> listParkOrders(HttpServletRequest request) {
         return listParkOrders(null, request);
+    }
+
+    /**
+     * 移动端追踪用的聚合读（路线图 §16.3）。
+     *
+     * <p>取代手机页原来每 1.5 s 打一次的 {@code /park/orders} + {@code /park/vehicles}：那两个是整园读
+     * ——实测一次轮询搬 209 KB（35 台车各带三条折线占大头），并且订单侧是全表读后内存排序，
+     * 积压上来 p95 就从 155 ms 走到 1.07 s。这里只回"这一单 + 这辆车 + 最近几单的精简行"。
+     * 整园那两个接口原样留给大屏/工作台。
+     */
+    @GetMapping("/park/track")
+    @Operation(summary = "Tracking aggregate for the mobile order page",
+            description = "Admin token or X-Mobile-Api-Key; one order + its vehicle + compact recent rows")
+    @SecurityRequirement(name = "")
+    public ApiResponse<ParkTrackResponse> getParkTrack(@RequestParam(required = false) Long parkId,
+                                                       @RequestParam(required = false) Long orderId,
+                                                       @RequestParam(required = false, defaultValue = "8") int recentLimit,
+                                                       HttpServletRequest request) {
+        requireAdminOrMobileOrderKey(request);
+        return ApiResponse.success(parkPilotService.buildTrackSnapshot(parkId, orderId, recentLimit));
     }
 
     @PostMapping("/park/orders")

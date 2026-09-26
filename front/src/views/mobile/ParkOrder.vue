@@ -10,7 +10,7 @@
       </div>
       <div class="header-stats">
         <span v-if="orderableStationCount !== null">{{ orderableStationCount }} 个服务点</span>
-        <span>{{ activeOrders.length }} 单配送中</span>
+        <span>{{ activeOrderCount }} 单配送中</span>
         <span class="service-open">今日可下单</span>
       </div>
     </header>
@@ -69,7 +69,7 @@
       />
     </main>
 
-    <MobileTabBar :active-order-count="activeOrders.length" />
+    <MobileTabBar :active-order-count="activeOrderCount" />
   </div>
 </template>
 
@@ -84,9 +84,8 @@ import {
   createParkOrder,
   getParkGeofences,
   getParkLayout,
-  getParkOrders,
   getParkStations,
-  getParkVehicles,
+  getParkTrack,
   listParks,
 } from '@/api/park'
 import {
@@ -96,11 +95,10 @@ import {
   buildVehicleGeoMarkers,
   collectRouteFitPoints,
   countVehiclesWithUnknownPosition,
-  filterGeoDeliveryOrders,
-  filterGeoDeliverySimVehicles,
   findMobileOrderStation,
   filterMobileOrderStations,
   isAmapConfigured,
+  isGeoDeliveryTrackRow,
   MOBILE_SERVICE_FENCE_PREFIX,
   pilotMapCenter,
   syncDefaultOrderStations,
@@ -123,6 +121,7 @@ import type {
   ParkOrderCreateRequest,
   ParkOrderEndpoint,
   ParkOrderSnapshot,
+  ParkOrderTrackRow,
   ParkStation,
   ParkSummary,
   ParkVehicleSnapshot,
@@ -133,8 +132,15 @@ const loadingStations = ref(false)
 const parks = ref<ParkSummary[]>([])
 const submitting = ref(false)
 const stations = ref<ParkStation[]>([])
-const vehicles = ref<ParkVehicleSnapshot[]>([])
-const parkOrders = ref<ParkOrderSnapshot[]>([])
+/**
+ * 追踪页的数据面从"两条整园读"收成一条 `GET /admin/park/track`（§16.3）：
+ * 原来是 `orders`+`vehicles` 两个整园接口，一次轮询实测搬 209 KB，其中 35 台车各带三条折线占大头，
+ * 而用户要看的只有"我这一单 + 派给我这一单的这台车"。整园读法原样保留给大屏与工作台。
+ */
+const trackedOrder = ref<ParkOrderSnapshot | null>(null)
+const trackedVehicle = ref<ParkVehicleSnapshot | null>(null)
+const recentOrders = ref<ParkOrderTrackRow[]>([])
+const activeOrderCount = ref(0)
 const parkLayout = ref<ParkLayout | null>(null)
 const parkGeofences = ref<ParkGeofence[]>([])
 const trackedOrderId = ref<number | null>(null)
@@ -158,6 +164,8 @@ let pollingStopped = false
  * 上生产常开要先看网关日志。
  */
 const TRACKING_POLL_BASE_MS = 1500
+/** 切换芯片最多显示 5 个，取 8 条候选留一点余量；这个数直接决定追踪读的精简行条数。 */
+const RECENT_ORDER_LIMIT = 8
 /** 描边高亮的持续时间：一个"闪一下"的量级，不做循环动画。 */
 const FENCE_FLASH_MS = 900
 
@@ -224,29 +232,15 @@ const orderableStationCount = computed<number | null>(() =>
   orderableStations.value.length > 0 ? orderableStations.value.length : null,
 )
 
-const visibleParkOrders = computed(() => filterGeoDeliveryOrders(parkOrders.value))
+const visibleRecentOrders = computed(() => recentOrders.value.filter(isGeoDeliveryTrackRow))
 
+/**
+ * 切换芯片用的候选。⚠ 它是被 `recentLimit` 截过的列表，**不能**拿来当"配送中数量"——
+ * 那个数走服务端的 `activeOrderCount`（模板里那两处已改），否则单多时页头会少报。
+ */
 const activeOrders = computed(() =>
-  visibleParkOrders.value.filter((order) => !['COMPLETED', 'FAILED'].includes(order.runtimeStage)),
+  visibleRecentOrders.value.filter((row) => !['COMPLETED', 'FAILED'].includes(row.runtimeStage)),
 )
-
-const modeVehicles = computed(() => filterGeoDeliverySimVehicles(vehicles.value))
-
-const trackedOrder = computed(() => {
-  if (trackedOrderId.value) {
-    const matched = visibleParkOrders.value.find((order) => order.orderId === trackedOrderId.value)
-    if (matched) return matched
-  }
-  return activeOrders.value[0] || visibleParkOrders.value[0] || null
-})
-
-const trackedVehicle = computed(() => {
-  if (!trackedOrder.value?.vehicleId) return null
-  return (
-    modeVehicles.value.find((vehicle) => vehicle.vehicleId === trackedOrder.value?.vehicleId) ||
-    null
-  )
-})
 
 const trackingMapCenter = computed((): [number, number] => {
   const vehiclePosition = trackedVehicle.value ? vehicleGeoPosition(trackedVehicle.value) : null
@@ -324,7 +318,12 @@ const trackingGeoPolylines = computed(() => {
   })
 })
 
-const routeAnomalyText = computed(() => routeAnomalyWarning(modeVehicles.value))
+/**
+ * 路线异常提示的范围从"整园车队"收到"派给我这一单的这台车"（§16.3 的连带变化）：
+ * 乘客视角下"另外 3 辆车路线异常"不是他需要的信息，而整园车队读法已经不在这一页了。
+ * 大屏/工作台保留整园口径。
+ */
+const routeAnomalyText = computed(() => routeAnomalyWarning(trackedVehicleList.value))
 
 /**
  * 移动端只画受理围栏 `ZJF-ZONE-*`（§4 T2-b）：展示包络 `DEFAULT-BOUNDARY` 不参与受理，
@@ -526,23 +525,29 @@ async function handleParkIdUpdate(parkId: number) {
   await Promise.all([fetchStations(), fetchLayout(), fetchGeofences()])
 }
 
-async function fetchOrders() {
-  const response = await getParkOrders({ silent: true })
-  parkOrders.value = response.data || []
-  if (
-    trackedOrderId.value &&
-    !visibleParkOrders.value.some((order) => order.orderId === trackedOrderId.value)
-  ) {
-    trackedOrderId.value = null
+/**
+ * 一次追踪读：order + vehicle + 最近几单（§16.3）。失败时如果带着 orderId 去问的，
+ * 就把钉住的单号放开 —— 服务端下一拍会自动改问"最新一条还在跑的"，
+ * 免得一个已经消失的历史单把整页永久钉在错误态。
+ */
+async function fetchTrack() {
+  try {
+    const response = await getParkTrack({
+      silent: true,
+      parkId: form.parkId,
+      orderId: trackedOrderId.value,
+      recentLimit: RECENT_ORDER_LIMIT,
+    })
+    const data = response.data
+    trackedOrder.value = data?.order ?? null
+    trackedVehicle.value = data?.vehicle ?? null
+    recentOrders.value = data?.recentOrders ?? []
+    activeOrderCount.value = data?.activeCount ?? 0
+    if (data?.order) trackedOrderId.value = data.order.orderId
+  } catch (error) {
+    if (trackedOrderId.value != null) trackedOrderId.value = null
+    throw error
   }
-  if (!trackedOrderId.value && visibleParkOrders.value[0]) {
-    trackedOrderId.value = visibleParkOrders.value[0].orderId
-  }
-}
-
-async function fetchVehicles() {
-  const response = await getParkVehicles({ silent: true, parkId: form.parkId })
-  vehicles.value = response.data || []
 }
 
 function scheduleTrackingRefresh() {
@@ -553,7 +558,7 @@ function scheduleTrackingRefresh() {
 
 async function refreshTrackingSnapshot() {
   try {
-    await Promise.all([fetchOrders(), fetchVehicles()])
+    await fetchTrack()
     trackingFailureCount.value = 0
     lastTrackingUpdatedAt.value = new Date()
   } catch {

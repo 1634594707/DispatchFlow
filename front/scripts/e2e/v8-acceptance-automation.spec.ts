@@ -76,7 +76,11 @@ test('order submit carries idempotency key and rotates after success', async ({ 
     { stationId: 506, stationCode: 'ZJF-DROP-01', stationName: '送货点', x: 800, y: 450, coordLng: 121.11, coordLat: 31.91, orderable: true },
   ]) }))
   await page.route(api('/admin/park/orders**'), route => route.fulfill({ json: ok([]) }))
-  await page.route(api('/admin/park/vehicles**'), route => route.fulfill({ status: 503, json: { success: false } }))
+  // §16.3：这一页的追踪读已经合成一条 /track，所以"读侧挂了也不许挡住下单"这条注入跟着换过去
+  await page.route(api('/admin/park/track**'), route => route.fulfill({ status: 503, json: { success: false } }))
+  await page.route(api('/admin/park/vehicles**'), route => route.fulfill({ json: ok([
+    { vehicleId: 1, vehicleCode: 'ZJF-AV-01', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 70, longitude: 121.105, latitude: 31.905 },
+  ]) }))
 
   let orderPosts = 0
   let lastBody = ''

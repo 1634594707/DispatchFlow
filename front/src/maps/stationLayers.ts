@@ -1,11 +1,22 @@
-import type { ParkOrderSnapshot, ParkStation, ParkVehicleSnapshot } from '@/types/park'
+import type { ParkOrderSnapshot, ParkOrderTrackRow, ParkStation, ParkVehicleSnapshot } from '@/types/park'
 
 /** 找家纺 L1 短驳站点：地理图层与移动下单的口径基准。 */
 export const GEO_DELIVERY_AREA = 'ZJF'
 
-export function isGeoDeliveryStation(station: Pick<ParkStation, 'area' | 'stationCode'>): boolean {
+/**
+ * "是不是真实地图那一档站点"的唯一判据。字段可空：`/admin/park/track` 的精简行里站点只是
+ * 标签来源，缺站时后端给 null 而不是让整次轮询失败（{@link isGeoDeliveryStation} 也走这里）。
+ */
+export function isGeoDeliveryStationCode(station: {
+  area?: string | null
+  stationCode?: string | null
+}): boolean {
   if (station.area === GEO_DELIVERY_AREA) return true
   return (station.stationCode ?? '').startsWith('ZJF-')
+}
+
+export function isGeoDeliveryStation(station: Pick<ParkStation, 'area' | 'stationCode'>): boolean {
+  return isGeoDeliveryStationCode(station)
 }
 
 export function isGeoDeliveryOrder(order: Pick<ParkOrderSnapshot, 'pickupStation' | 'dropoffStation'>): boolean {
@@ -27,6 +38,23 @@ export function filterGeoDeliveryStations(stations: ParkStation[]): ParkStation[
 
 export function filterGeoDeliveryOrders(orders: ParkOrderSnapshot[]): ParkOrderSnapshot[] {
   return orders.filter(isGeoDeliveryOrder)
+}
+
+/**
+ * `/admin/park/track` 精简行的同款判据（§16.3）：与 {@link isGeoDeliveryOrder} 逻辑逐字一致，
+ * 只是站点信息在精简行里是扁平的 code/area 而不是整个 ParkStation 对象。
+ * 两条判据必须一起改，否则移动页与大屏对"哪一档订单"的口径会静默分叉。
+ */
+export function isGeoDeliveryTrackRow(
+  row: Pick<
+    ParkOrderTrackRow,
+    'pickupStationArea' | 'pickupStationCode' | 'dropoffStationArea' | 'dropoffStationCode'
+  >,
+): boolean {
+  return (
+    isGeoDeliveryStationCode({ area: row.pickupStationArea, stationCode: row.pickupStationCode })
+    || isGeoDeliveryStationCode({ area: row.dropoffStationArea, stationCode: row.dropoffStationCode })
+  )
 }
 
 /** 仅调度/回充 · 不可移动下单 · 默认不在工作台态势图层 */

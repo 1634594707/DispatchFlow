@@ -103,6 +103,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
                 || "/api/admin/park/layout".equals(path)
                 || "/api/admin/park/geofences".equals(path)
                 || "/api/admin/park/stations".equals(path)
+                || "/api/admin/park/track".equals(path)
                 || "/api/admin/park/vehicles".equals(path))
                 && HttpMethod.GET.matches(request.getMethod())) {
             return true;
