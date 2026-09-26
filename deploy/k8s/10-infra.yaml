@@ -1,0 +1,145 @@
+# 依赖三件套（MySQL / Redis / RabbitMQ）。
+# 口令**不写在这里**：`scripts/k8s/run-perf.sh` 从仓库根 `.env` 生成 Secret 后 apply，
+# 避免把真凭据提交进版本库（与 `pack-deploy-tree.sh` 排除 `.env` 是同一条纪律）。
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data
+  namespace: dispatchflow-perf
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: dispatchflow-perf
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # 单 RWO 卷，滚动更新会两个 pod 抢同一个卷
+  selector:
+    matchLabels: { app: mysql }
+  template:
+    metadata:
+      labels: { app: mysql }
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          # 参数与 back/docker-compose.yml 的 mysql 一致。别加 --default-authentication-plugin：
+          # MySQL 8.4 已经把这个变量删了，加上就是 `unknown variable` ⇒ mysqld 初始化直接 abort
+          # （实测：容器 exited(1)，Pod 一直 Pending/ CrashLoop，报的还不是镜像或 PVC 的问题）。
+          args: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_general_ci"]
+          ports: [{ containerPort: 3306 }]
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: dispatchflow-perf, key: MYSQL_ROOT_PASSWORD }
+            - name: MYSQL_DATABASE
+              value: fsd_core
+          # ⚠ exec 探针里 **`$(VAR)` 不会被 kubelet 展开**（依赖展开只作用于容器的 command/args），
+          # 所以必须交给容器里的 shell 去做，否则密码就是字面量 `$(MYSQL_ROOT_PASSWORD)`，
+          # mysql 永远 NotReady，整条流水线卡在等 mysql 那一步。
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'exec mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD" --silent'
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 40
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { memory: 1Gi }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/mysql }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: mysql-data } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: dispatchflow-perf
+spec:
+  selector: { app: mysql }
+  ports: [{ port: 3306, targetPort: 3306 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: dispatchflow-perf
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: redis }
+  template:
+    metadata:
+      labels: { app: redis }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4
+          args: ["--save", "", "--appendonly", "no"]   # 压测环境不要 RDB：持久化会把 IO 噪声混进结果
+          ports: [{ containerPort: 6379 }]
+          readinessProbe:
+            tcpSocket: { port: 6379 }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: dispatchflow-perf
+spec:
+  selector: { app: redis }
+  ports: [{ port: 6379, targetPort: 6379 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: dispatchflow-perf
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: rabbitmq }
+  template:
+    metadata:
+      labels: { app: rabbitmq }
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.13-management
+          ports: [{ containerPort: 5672 }]
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef: { name: dispatchflow-perf, key: RABBITMQ_USERNAME }
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef: { name: dispatchflow-perf, key: RABBITMQ_PASSWORD }
+          readinessProbe:
+            tcpSocket: { port: 5672 }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: dispatchflow-perf
+spec:
+  selector: { app: rabbitmq }
+  ports: [{ port: 5672, targetPort: 5672 }]

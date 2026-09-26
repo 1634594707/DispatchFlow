@@ -52,6 +52,10 @@ back/**/target/
 back/boot.out.log
 back/boot.err.log
 
+# 压测数据：k6 的 OD 坐标是 run-perf.sh 每次从**当轮那套 seed 灌出来的库**里现取的快照。
+# 进版本库就等于把"某一天的库"当成了夹具，下次换库它反而变成一份看不出来的旧数据。
+deploy/k8s/k6/od-pairs.json
+
 # Python bytecode
 __pycache__/
 *.pyc

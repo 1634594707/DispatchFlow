@@ -1,0 +1,40 @@
+# 新库基线（§7.5 路径 A 的前半段）：裸跑 V01–V20，给后端 Flyway 铺非空基线。
+# 必须跑在 backend 之前、mysql 之后 —— run-perf.sh 按这个顺序 apply 并等它 Succeeded。
+# 脚本不在这里：run-perf.sh 用 `kubectl create configmap db-init-scripts --from-file=...`
+# 把 deploy/k8s/run-baseline.sh 与 deploy/k8s/load-seeds.sh 挂进来（改脚本不用重打镜像）。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-baseline
+  namespace: dispatchflow-perf
+spec:
+  # 失败不无限重试：基线跑歪了多半是脚本或镜像内容不对，重试只会把日志刷成一堵墙
+  backoffLimit: 1
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels: { job: db-baseline }
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: baseline
+          image: dispatchflow-sql:perf
+          imagePullPolicy: IfNotPresent
+          # mysql 主机/端口的注入在脚本里做（见 run-baseline.sh 的 shim 一节）
+          command: ["bash", "/scripts/run-baseline.sh"]
+          env:
+            - { name: DB_HOST, value: mysql }
+            - { name: DB_PORT, value: "3306" }
+            - { name: MYSQL_DATABASE, value: fsd_core }
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: dispatchflow-perf, key: MYSQL_ROOT_PASSWORD } }
+          volumeMounts:
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: scripts
+          configMap:
+            name: db-init-scripts
+            defaultMode: 0755

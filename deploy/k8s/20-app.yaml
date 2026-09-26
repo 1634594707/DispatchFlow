@@ -1,0 +1,137 @@
+# 应用两层：后端（Spring Boot）+ 前端（nginx，NodePort 暴露给本机浏览器）。
+# 镜像 tag 由 `scripts/k8s/run-perf.sh` 用同一个 BUILD_TAG 打，三边保持一致。
+#
+# env 是**逐条抄 `docker-compose.prod.yml` 的 backend.environment**，只有下面三处刻意不同，
+# 每处都写了原因 —— 压测环境一旦与线上口径悄悄分叉，测出来的 p95 就没有对外意义：
+#   1) DB_USE_SSL=false          集群内同 pod 网络，TLS 握手噪声会进 p95（线上走 TLS 是另一条账）
+#   2) FSD_AMAP_DRIVING_ENABLED=false 见 k6 场景文件里的"外部依赖"一节：不关就是把高德的延迟当成我们的
+#   3) FSD_PARK_SIMULATION_ENABLED=false 起跑时序需要它，由 run-perf.sh 灌完 seed 后翻成 true
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: dispatchflow-perf
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend }
+    spec:
+      # 下单→派单→轨迹是一条异步链，容器被 SIGTERM 时正在写的订单要能收尾，否则每轮压测结尾会看到
+      # 一批"莫名消失"的任务；grace 与 compose 的 30s 对齐。
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: backend
+          image: dispatchflow-backend:perf
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 8080 }]
+          env:
+            - { name: TZ, value: Asia/Shanghai }
+            - { name: SERVER_PORT, value: "8080" }
+            - { name: DB_HOST, value: mysql }
+            - { name: DB_PORT, value: "3306" }
+            - { name: DB_NAME, value: fsd_core }
+            - { name: DB_USERNAME, value: root }
+            - { name: DB_TIMEZONE, value: Asia/Shanghai }
+            - { name: DB_USE_SSL, value: "false" }
+            - { name: DB_REQUIRE_SSL, value: "false" }
+            - { name: DB_VERIFY_SERVER_CERT, value: "false" }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: "6379" }
+            - { name: REDIS_DATABASE, value: "0" }
+            - { name: RABBITMQ_HOST, value: rabbitmq }
+            - { name: RABBITMQ_PORT, value: "5672" }
+            - { name: FLYWAY_ENABLED, value: "true" }     # 建表靠迁移（V21→最新）；地理内容走 seed Job
+            - { name: FSD_PARK_SIMULATION_ENABLED, value: "false" }   # ← run-perf.sh 灌完 seed 后置 true
+            - { name: FSD_PARK_SIMULATION_TICK_INTERVAL_MS, value: "500" }  # 与线上 M0 定档一致
+            - { name: FSD_PARK_SIMULATION_GEO_VEHICLE_COUNT, value: "35" }
+            - { name: FSD_FIELD_ENCRYPTION_ENABLED, value: "false" }  # 线上实测这些列都是明文
+            - { name: SPRINGDOC_API_DOCS_ENABLED, value: "false" }
+            - { name: SPRINGDOC_SWAGGER_UI_ENABLED, value: "false" }
+            - { name: FSD_ADMIN_AUTH_ENABLED, value: "true" }
+            - { name: FSD_ADMIN_SSE_TIMEOUT_MS, value: "90000" }
+            - { name: SERVER_SHUTDOWN, value: graceful }
+            - { name: MANAGEMENT_HEALTH_MAIL_ENABLED, value: "false" }
+            # 移动端下单的两把匿名开关（线上服务器 .env 里就是这两把）。压测必须走匿名路径：
+            # 一旦带 X-Mobile-Api-Key，MobileOrderAuthServiceImpl 的限流会生效，而那个上限被
+            # `Math.min(rateLimitPerMinute, 30)` **硬顶在 30 次/分钟** —— 到时候曲线平了不是系统的
+            # 天花板，是那行代码的天花板。
+            - { name: MOBILE_ORDER_REQUIRE_KEY, value: "false" }
+            - { name: FSD_MOBILE_ORDER_UNSAFE_NO_AUTH, value: "true" }
+            # 高德驾车规划：关掉。开着时每次路线规划都可能出网打 restapi.amap.com（4s 超时、1h 缓存），
+            # 那会把第三方延迟和个人 key 的配额烧进"我们的 p95"里。关掉后 ChainedRoadRouteService 走
+            # 本地路网图 —— 这才是被测对象。
+            - { name: FSD_AMAP_DRIVING_ENABLED, value: "false" }
+            - { name: FSD_AMAP_WEB_SERVICE_KEY, value: "" }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: dispatchflow-perf, key: MYSQL_ROOT_PASSWORD } }
+            - name: RABBITMQ_USERNAME
+              valueFrom: { secretKeyRef: { name: dispatchflow-perf, key: RABBITMQ_USERNAME } }
+            - name: RABBITMQ_PASSWORD
+              valueFrom: { secretKeyRef: { name: dispatchflow-perf, key: RABBITMQ_PASSWORD } }
+            # 不配这个则每次重启换一把 per-instance key ⇒ 管理端会话集体掉线，中途开页面看进度会 401
+            - name: FSD_ADMIN_TOKEN_HMAC_KEY
+              valueFrom: { secretKeyRef: { name: dispatchflow-perf, key: FSD_ADMIN_TOKEN_HMAC_KEY } }
+          # 探针必须打 /internal/actuator/health —— 这套配置下 /actuator/health 不存在（404），
+          # 拿它当探针会把"起得来"误判成"起不来"（deploy.sh 里踩过同一条）。
+          readinessProbe:
+            httpGet: { path: /internal/actuator/health, port: 8080 }
+            initialDelaySeconds: 40
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /internal/actuator/health, port: 8080 }
+            initialDelaySeconds: 120
+            periodSeconds: 20
+          resources:
+            # 只限内存、**不限 CPU**：单节点上压测要量的是系统形状，先给容器钉死核数等于自己掐住吞吐。
+            requests: { cpu: 250m, memory: 1Gi }
+            limits: { memory: 2Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: dispatchflow-perf
+spec:
+  selector: { app: backend }
+  ports: [{ port: 8080, targetPort: 8080 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: dispatchflow-perf
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: dispatchflow-frontend:perf
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 80 }]
+          # k6 打的是这个 Service（见 40-k6-job.yaml 的 TARGET_BASE_URL）：走 nginx 反代才和线上一条路径，
+          # 直连 backend:8080 会绕过 /api/ 反代与 /internal/ 404 规则，测出来的是另一个系统。
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: dispatchflow-perf
+spec:
+  type: NodePort
+  selector: { app: frontend }
+  ports: [{ port: 80, targetPort: 80, nodePort: 30080 }]

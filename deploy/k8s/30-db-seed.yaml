@@ -1,0 +1,43 @@
+# 园区地理当前态灌库（§7.5 路径 A 的后半段）：在 backend（Flyway V21→最新）跑完之后灌 11 份 seed。
+#
+# seed 顺序不在这里：run-perf.sh 从 scripts/dev/verify-geo-init-paths.sh 的 GEO_SEEDS 数组
+# 抽出顺序，写成 ConfigMap `seed-order`（key `order`）。只留一个事实来源，避免"清单分叉"。
+#
+# 为什么 seed 不能和基线合并成一个 Job：Flyway 是后端启动时才跑的，而 seed 里的列（V64 的
+# pickup_lng 等）必须已经存在；顺序是 基线 → 后端迁移 → seed → 打开仿真，跳不过去。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-seed
+  namespace: dispatchflow-perf
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels: { job: db-seed }
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: dispatchflow-sql:perf
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "/scripts/load-seeds.sh"]
+          env:
+            - { name: DB_HOST, value: mysql }
+            - { name: DB_PORT, value: "3306" }
+            - { name: MYSQL_DATABASE, value: fsd_core }
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: dispatchflow-perf, key: MYSQL_ROOT_PASSWORD } }
+            - name: SEED_ORDER
+              valueFrom: { configMapKeyRef: { name: seed-order, key: order } }
+          volumeMounts:
+            - { name: scripts, mountPath: /scripts, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: scripts
+          configMap:
+            name: db-init-scripts
+            defaultMode: 0755

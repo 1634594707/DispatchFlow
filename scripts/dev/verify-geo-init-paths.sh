@@ -77,7 +77,7 @@ run_fp() { # $1=container
 seed_to() { # $1=container —— 按依赖顺序应用**全部**地理 seed
   # 顺序不能改：zjf_service_area.sql 里那条 UPDATE 要停用 zjf_geo.sql 刚建的旧 ZJF-ZONE-* 片，
   # 而它自己的围栏又是按拆边后的路网图生成的 ⇒ 必须排在两张图 seed 之后。
-  # ⚠ 以前这里只灌 zjf_geo.sql —— W2-c/W3-c 之后那只是**这九份 seed 里的一份**，
+  # ⚠ 以前这里只灌 zjf_geo.sql —— W2-c/W3-c 之后那只是**这十一份 seed 里的一份**，
   #   于是探针库起来是"430 节点 + 10 片旧围栏"，与活库（723 节点 + 1 片 SVC）必然 DIFF，
   #   报的是仪表的过期，不是两条路径的真不一致。
   local c="$1" f

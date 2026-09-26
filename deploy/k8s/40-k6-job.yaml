@@ -1,0 +1,52 @@
+# 压测执行体：k6 作为一个 Job 跑在集群里，从**前端 Service** 进（不是直连后端）。
+# 理由写在这里以免下次又被"图省事"改掉：k6 → frontend:80 → nginx `location /api/` 反代 → backend，
+# 这条链和线上是同一条；直连 backend:8080 会绕过反代与 `/internal/` 404 规则，测的是另一个系统。
+#
+# 脚本与 OD 数据来自 ConfigMap `k6-assets`（run-perf.sh 用 --from-file 建；od-pairs.json
+# 是每次跑**现从压测库里取**的，不落版本库）。
+# 档位（VU 数、时长、park_id、模式）全部走 ConfigMap `k6-run-config` 而不是写死在这里：
+# Job 的 spec.template 建完就不可变，冒烟档和定档只差几个数字 ⇒ 数字必须能在不改清单的前提下换。
+#
+# k6 阈值不达标 ⇒ 退出码非 0 ⇒ Job 红。"过了"是被断言出来的，不是看一眼绿字就算。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-order-load
+  namespace: dispatchflow-perf
+spec:
+  backoffLimit: 0          # 阈值没过不重试：重试只是把同一份结论重算一遍
+  activeDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels: { job: k6-order-load }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:1.6.1
+          args: ['run', '--quiet', '/scripts/order-load.js']
+          env:
+            - { name: TARGET_BASE_URL, value: 'http://frontend:80' }
+            - name: PARK_ID
+              valueFrom: { configMapKeyRef: { name: k6-run-config, key: park_id } }
+            - name: MODE
+              valueFrom: { configMapKeyRef: { name: k6-run-config, key: mode } }
+            - name: ORDER_VUS
+              valueFrom: { configMapKeyRef: { name: k6-run-config, key: order_vus } }
+            - name: POLL_VUS
+              valueFrom: { configMapKeyRef: { name: k6-run-config, key: poll_vus } }
+            - name: RAMP_S
+              valueFrom: { configMapKeyRef: { name: k6-run-config, key: ramp_s } }
+            - name: HOLD_S
+              valueFrom: { configMapKeyRef: { name: k6-run-config, key: hold_s } }
+            - name: TRACKING_POLLS
+              valueFrom: { configMapKeyRef: { name: k6-run-config, key: tracking_polls } }
+          volumeMounts:
+            - { name: assets, mountPath: /scripts, readOnly: true }
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: assets
+          configMap:
+            name: k6-assets
