@@ -843,7 +843,7 @@ L0/L1/L2 与图层面板均不在 DOM 里，图上只剩三个标签：`取 FSD-
 | `order_create` p95 | **313 ms**（max 680 ms） | 写路径不快，但没崩 |
 | `tracking_poll` p95 | **155 ms**（min 63 / max 194） | 冷车队的读侧很稳 |
 | `order_accepted` | 93.54%（362/387） | ⚠ 这个口径只到"受理"，见 §16.4/§16.5 |
-| 拒单分类 | geo 0、capacity 0、**other 25（6.45%）** | 25 次全是 HTTP 500 —— 不是容量、不是坐标，是缺陷 |
+| 拒单分类 | geo 0、capacity 0、**other 25（6.45%）** | 25 次全是 HTTP 500 —— 不是容量、不是坐标，是缺陷（修后同档复跑：受理 100%，见 §16.4①） |
 | `task_assigned` | **24.54%**（95/387） | 冷车队只能即时接住 1/4 的输入 |
 | 收尾库存 | COMPLETED 65 / DISPATCHED 11 / IN_PROGRESS 19 / **WAITING_DISPATCH 267** | 车队 idle 11、busy 24、无一辆 ≤30% |
 | `tracking_poll_bytes` | **avg 209 KB**（196–214 KB） | 一次轮询 = orders+vehicles 两个整园快照 |
@@ -864,22 +864,55 @@ L0/L1/L2 与图层面板均不在 DOM 里，图上只剩三个标签：`取 FSD-
 3. **演示侧的可执行结论**：不要在积压上开演示。§15.5 修的是"车归位"，这条修不了"单堆着"——
    演示前清一次未派发的历史单（`scripts/dev/reset-demo-dispatchable.sh`），否则手机上"位置未知/等待派单"会变多。
 
-### 16.4 ⛔ 压测抓到的真缺陷：约每 15 单有一次 HTTP 500，且**这一单实际丢了**（新开待办 #16）
+### 16.4 压测照出的三个写路径缺陷（两个已修并复验，一个待裁）
 
-`GlobalExceptionHandler - Unhandled exception` ⇒ `UnexpectedRollbackException: Transaction rolled back because
-it has been marked as rollback-only`，栈顶是 `ParkPilotCommandServiceImpl.createParkOrder`（该类 line 61 的 `@Transactional`）。
-实测计数：k6 侧 25 次 HTTP 500（25/387=6.45%），后端日志 `UnexpectedRollbackException` 24 条 —— 两边对得上。
+**① 下单约每 15 单一次 HTTP 500、订单连带回滚 —— 已修（原待办 #16）**
 
-机制（不是猜，候选点已定位）：外层 `createParkOrder` 调 `DispatchTaskServiceImpl.autoAssignTask`（line 221 `@Transactional`），
-里面有两条**捕获 BusinessException 后正常返回**的路径 —— line 231–237 捕获 `DISPATCH_TASK_LOCKED` 后
-`buildAssignFailureResponse` 返回，line 268–278 捕获 `selectBestVehicle` 的异常后 `moveToManualPending` 再返回。
-内层方法一旦抛过异常，共享事务已被标成 rollback-only；外层照常 commit 就变成 500，
-**订单和任务一起回滚**。客户端看到的是"服务器内部错误"，而不是"没派到车"。
+定位过程本身要先记一条：我最初把抛出点猜在 `autoAssignTask` 前面那两处 `catch (BusinessException)`，
+还专门在那两处加了带栈日志——复跑后 WARN 计数是 **0**，猜错了（这条不是废话：静默 catch 有 5 处，
+只有真正被并发走到的那处才会犯事务污染）。真正的抛出点在它下面一段（原 line 316）：
 
-低并发（1–4 VU）复现不出来，只在争用下出现，所以 §14/§15 那几轮回归都没照到它。
-**修法要本人裁**：给派单尝试开 `REQUIRES_NEW`（订单保住、派单失败以业务态可见）还是让异常向外传播
-（订单=失败，受理即不成功）。这是热写路径的事务语义变更，不属于可以自己选边的改动；
-新加的 `http_req_failed{name:order_create} rate<0.02` 门槛会一直红到它修完。
+```java
+vehicleService.occupyVehicle(...)   // @Transactional：抢不到车 ⇒ throw VEHICLE_NOT_ASSIGNABLE
+```
+
+它跨过自己的事务代理抛异常时，Spring 把**调用方的共享事务**标成 rollback-only；调用方 catch 成 CONFLICT
+之后继续写、正常返回，最后 commit 抛 `UnexpectedRollbackException`。这一个机制解释了全部观测：
+冷车队（有车可抢、抢得激烈）6.45%，车队饱和（根本走不到抢车那一步）0%，1–4 VU 复现不出来。
+
+修法是把"抢不到"从异常改成返回值：新增 `VehicleService#tryOccupyVehicle(...)` 返回 boolean，
+自动派单走它（抢不到=转人工，事务保持干净）；人工指定车辆的两个调用方仍走会抛的 `occupyVehicle`
+—— 那里失败本来就该让整个请求回滚。回归用例：`autoAssignMustNotThrowWhenVehicleIsTakenBySomeoneElse`。
+
+复验（同一份冷库、同一档 20 写手 + 40 读手）：
+
+| | 修复前 | 修复后 |
+| --- | --- | --- |
+| 下单量 / 受理率 | 387 / **93.54%** | 386 / **100.00%** |
+| `http_req_failed{name:order_create}` | 6.45%（门槛红） | **0.00%**（门槛绿） |
+| 后端 `UnexpectedRollbackException` | 24 条 | **0 条** |
+| 抢车让路实际发生次数 | （静默） | **35 次**（库里 35 条 CONFLICT，理由文本就是新分支那句） |
+
+最后一行是防"没走到这条路径所以当然不报错"的空转复验：新分支被走到了 35 次，一次都没变成 500。
+
+**② 高并发撞唯一键 —— 已修并复验**
+
+`TSK + yyyyMMddHHmmss + random(1000-9999)` 在 60 写手下撞 `t_dispatch_task.uk_task_no`
+（一个 burst 里 3 次异常、10 行日志），订单号 `ORD…` 同形状同风险。改成"毫秒时间戳 + 进程内单调序号"
+（`com.fsd.common.id.BusinessNo`）：同进程内由构造保证唯一，跨进程要同毫秒**且**序号重合才可能撞。
+复验：6.78 单/秒、737 单，`DuplicateKeyException` **0**。
+
+**③ 泊位释放与占位互锁死锁 —— 待本人裁（#17）**
+
+`ParkingFacilityServiceImpl.releaseByVehicle` 按二级索引 `occupied_vehicle_id` 更新，
+`bindVehicleToSlot` 按主键 `id` 更新 ⇒ 同一张表两种取锁顺序，6.78 单/秒时 737 单里 1 次
+`DeadlockLoserDataAccessException`（客户端 500）。两条出路各有代价：整事务重试（对死锁是正解，
+但要新增一层非事务包装并定重试次数/退避）或释放改按主键有序更新（锁序统一，但读快照会漏掉
+"读之后并发提交给同一辆车的新占用"，是语义变化）。低输入率（≤2 单/秒）两轮各 0 次，演示场景不构成风险。
+
+**④ 顺带一条不体现在 HTTP 上的**：饱和那轮后端日志有 230 次 scheduled task 报错
+（`assertCanStartExecute` 对已 EXECUTING 的任务抛 `BusinessException`），它连带回滚同一事务里刚写的
+**车辆遥测快照** —— 丢的是遥测不是订单，单开 #18。低输入率下这两轮计数为 0，复现条件是"车队饱和 + 高频遥测"。
 
 ### 16.5 受理 ≠ 运力：24.54% 的即时命中率意味着什么
 
@@ -905,6 +938,8 @@ it has been marked as rollback-only`，栈顶是 `ParkPilotCommandServiceImpl.cr
 | Git Bash 把 `/scripts/x.sh` 重写成 `C:/.../git/scripts/...` | `docker exec` 报"No such file or directory" | 调用前要先 `MSYS_NO_PATHCONV=1` |
 | 桩与柜**同址**（§15.2 的既成事实） | 取送被配成同一个坐标 ⇒ 后端按"路网上连不通 0 m/0 m"拒 400，污染 `order_geo_reject` | OD 池用 `UNION` 去重；`pickPair()` 按坐标值再校验；`pair_degenerate: count==0` 断言夹具自己 |
 | `db_scalar` 写了 `2>/dev/null` | 列名打错时表现为"返回空"，断言把仪表故障读成"数量 0" | 不再吞 stderr（`t_order` 的列就叫 `status`，不叫 `order_status`） |
+| 拿 Spring 日志措辞当判据 | 我用 `Creating new transaction` 自证"事务 TRACE 已生效"，Spring 6.1 实际只出 `Getting/Completing transaction for [方法]` ⇒ 自证假阴性，整轮负载被我自己提前中止 | 自证判据要用**实测看到的那句原文**，不要用记忆里的框架措辞 |
+| 客户端漏了 `--default-character-set=utf8mb4` | 我用 `CASE WHEN msg LIKE '车辆已被…%'` 分类库里 35 条 CONFLICT，全落进 `other`：SQL 里的中文被按 GBK 送出去，**比较本身**就失败了（同一条已知假信号的第二个变种） | 任何带中文字面量的判据都必须带 charset 参数重跑；先问"判据能不能匹配上"再问"数据对不对" |
 | kind 模式下本机 build 的镜像不在集群里 | Pod 只会 ImagePullBackOff，`IfNotPresent` 不会告诉你原因 | `docker save \| ctr --namespace=k8s.io images import` + 导入后回查 |
 | 本地 `target/` 里的 jar 藏着**没提交的 V66** | 干跑时 Flyway 一路跑到 v66（`energy_recovery_mode=AUTO`），而仓库里根本没有这个文件 | 重跑 `mvn clean package` 后 jar 里最新只到 V65。**另：本机演示库 `flyway_schema_history` 里有 V66 行（2026-09-25 21:41 装的），文件已不存在 ⇒ 干净构建的后端连它会 validate 失败**，待本人定：补回 V66 还是删那一行并回 CHARGE |
 
