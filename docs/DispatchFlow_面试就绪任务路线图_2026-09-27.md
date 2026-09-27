@@ -242,7 +242,7 @@ attraction(i, j) = demand_weight(j)
 - [x] 一份需求引力 / 运力压力报告，包含基线比较（同上 A/B 报告实验五/六；基线 = RULE）。
 - [ ] 一份真实 Redis/MySQL 压测报告。在既有 k8s/k6 流水线证据（§16.2/16.10）上扩规模与轮次，见 P1-3。**（本人执行项，命令与判定标准已写进 P1-3）**
 - [x] 一张可靠投递图：事务 → Outbox → RabbitMQ → SSE/Webhook → DLQ（讲解图 2，含幂等/DLQ 可重放讲法）。
-- [ ] CI 中后端测试、前端 typecheck 和 production build 全部通过。v6 flaky（待办 #24）要有单独跑绿的记录，不用 `retries` 掩盖。**（本推送触发 CI 后按 Actions 结果勾选）**
+- [x] CI 中后端测试、前端 typecheck 和 production build 全部通过（2026-09-27：run 36322805301，Backend Tests 5m03s ✓ / Frontend Build 3m03s ✓）。v6 flaky（待办 #24）本轮 CI 绿但未单独复跑，记录保留。
 - [ ] 手机端演示动线过一遍：下单卡两点选择、范围外拒答、追踪页轮询——`markerClick` 未接（开放项 #2）要在彩排里验证不挡主流程。**（本人彩排项）**
 
 ## 6. 推荐面试表达
