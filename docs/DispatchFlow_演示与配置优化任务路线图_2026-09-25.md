@@ -614,8 +614,8 @@ PC 深色页同样只用它们做次要标注，移动端与 PC 表现一致，�
 | `12,267` | `trip_mileage_sampler.py:133,137,153` | 历史（三处都明写"已被 12,998 m 实测取代"） |
 | `17.84` | `reports/scenario-bench/*.md` 共 23 处 | 历史（每份自带 `roadGraphVersion=osm-expanded-2026-09-21`，旧图 seed 头部确为 17.84，与自身 Config 自洽）；`tmp/reports_n1800_baseline_20260924/*` 同批快照不计 |
 | `17.84` | `ScenarioBench.java:185`（bench 输入常数） | 现行(正确)，改它＝重跑产能＝§7.7 禁 |
-| `17.84` | `ScenarioBench.java:984-985` 现在时写"来自 seed 头部"，而现 seed 头部是 **18.73** | 违规（陈述的出处错了）。**未改**：只改文案不改 :185 会让报告自己打脸，干净修法只有重跑，被 §7.7 禁 ⇒ 记为待裁 |
-| `17.84` | `scripts/geo/amap_route_diff.py:49,52` 及其产物 `reports/amap-route-diff.md` 的产能表 | 违规候选：**第二份产能算式**，与 §0.4 指定现行口径（sampler：18.73 + 14,595 m / 1.10 / 2.51×）不同源。对外只引 sampler；建议在该表抬头标"旧算式对照，非现行值"⇒ 记为待裁 |
+| `17.84` | `ScenarioBench.java:984-985` 现在时写"来自 seed 头部"，而现 seed 头部是 **18.73** | ~~违规~~ **已修（2026-09-27 裁：走文案路线，不动 :185）**：两颗子弹（avgSpeedKmh 17.84、顺带同型缺陷 detourFactor 1.481）都改为『常数出处=旧图 osm-expanded-2026-09-21 的 seed 头部；现行 seed 头部 18.73 / 1.416 与之不同源，引用产能须带旧图口径限定，换新值属口径变更须先裁』——出处陈述不再失真，报告也不打脸：:185 常数与 16.42→17.84 的叙述原样保留 |
+| `17.84` | `scripts/geo/amap_route_diff.py:49,52` 及其产物 `reports/amap-route-diff.md` 的产能表 | 违规候选：**第二份产能算式**，与 §0.4 指定现行口径（sampler：18.73 + 14,595 m / 1.10 / 2.51×）不同源。对外只引 sampler。**已落地（2026-09-27 裁）**：标注加在脚本源头 `amap_route_diff.py` 产能表头（重跑不回退），现存 `reports/amap-route-diff.md` 同步手工补一致 ⇒ 待裁解除 |
 | `0.727` | `tmp/roadmap-orig.md:33,175`、`tmp/rmap-p1.md`（gitignored 草稿，存的是已删旧路线图副本；旧义=提取框面积） | 历史（不在流通） |
 
 ## §13 异常任务队列清理（2026-09-25，本人追加指令"还有很多异常任务清理一下"）
