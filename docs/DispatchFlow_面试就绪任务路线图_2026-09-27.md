@@ -185,20 +185,20 @@ attraction(i, j) = demand_weight(j)
 
 ### P1-3 获取真实 Redis/MySQL 规模证据
 
-> **环境依赖项（2026-09-27 现状）**：流水线在位（`scripts/k8s/run-perf.sh` 九步 + `deploy/k8s/` 清单/seed Job/k6 场景，§16.1/16.2/16.10 实测跑通过），但 500 车 / 5,000–10,000 单 / ≥5,000 节点的扩规模场景与连续三轮稳定证据**需要在本机 k8s 环境跑数小时**，本仓库会话无法替代执行。执行命令与判定标准已就绪，按活文档惯例由本人跑。
+> **2026-09-28 执行**：本机 k8s 单节点上连续三轮冷启动标准档 + 一轮 2× 强度档全部通过（阈值由 k6 Job 判定，不是看绿字），报告落 `reports/scale/2026-09-28-k8s-single-node.md`。**规模边界如实声明**：被测是 35 车 / 707 节点现行 seed——"500 车 / 5,000–10,000 单 / ≥5,000 节点"需要先扩 geo seed（车队与泊位）并重提取路网，该项保持未勾；引用报告必须带这个限定词。
 
 - [x] 保留现有 H2 基准作为开发回归测试（`ScenarioBenchTest` + 压测类测试即此角色）。
-- [ ] 新增 500 台车、5000 至 10000 笔订单、至少 5000 节点路网场景。（用 `Config.lTier` 扩展 + 现行 seed（707 节点/18.73 km/h 口径）重跑；待本人执行）
-- [ ] 使用真实 MySQL、Redis 和 RabbitMQ。（`deploy/k8s/10-infra.yaml` 已提供真实中间件容器）
-- [ ] 记录 P50/P95/P99、Redis RTT、Outbox backlog、锁等待、连接池和失败原因。（k6 输出 + 后端指标抓取脚本待扩）
-- [ ] 报告明确区分 `H2/FAKE` 与 `MySQL/REAL`。（表述纪律已定，报告模板随数字落）
-- [x] 在既有 `scripts/k8s/run-perf.sh` + `deploy/k8s/` 流水线上扩场景（已跑通，不是从零搭，§16.1/16.2/16.10）；沿用其表述纪律——单节点出的是形状结论（读侧先于写侧劣化、积压驱动延迟），不外推"能扛 N 人"。
+- [ ] 新增 500 台车、5000 至 10000 笔订单、至少 5000 节点路网场景。**未做**：前置是 geo seed 车队/泊位扩产 + OSM 路网按 ≥5,000 节点重提取（另含 ScenarioBench lTier 档换现行 seed 口径重跑，属产能口径变更须先裁）。
+- [x] 使用真实 MySQL、Redis 和 RabbitMQ（`deploy/k8s/10-infra.yaml`：MySQL 8.4 / Redis 7.4 / RabbitMQ 3.13 真实容器，非 Fake/内嵌；k6 从 frontend 经 nginx 反代进，与线上同链路）。
+- [ ] 记录 P50/P95/P99、Redis RTT、Outbox backlog、锁等待、连接池和失败原因。**已录**：HTTP P50/P90/P95/max、Outbox backlog 与发布延迟 P50/95/99/max（2,273 条，0 失败 0 死信）、Hikari 池（0 pending）、失败原因分类；**缺**：Redis 客户端 RTT 单值与锁等待——挂待办，两项补齐前不勾。
+- [x] 报告明确区分 `H2/FAKE` 与 `MySQL/REAL`（报告标题即 MySQL/REAL 口径，并显式声明不得与 H2 数字混引）。
+- [x] 在既有 `scripts/k8s/run-perf.sh` + `deploy/k8s/` 流水线上扩场景（2026-09-28：强度维度翻倍——order_vus 60/poll_vus 120 一轮全阈值通过，整园轮询 p95 66→107ms 的退化形状已记；车队/路网维度扩产挂上一条）；沿用其表述纪律——单节点出的是形状结论，不外推"能扛 N 人"。
 
 验收闸门：
 
-- [ ] 真实基础设施下连续运行至少 3 轮。
-- [ ] 无未解释的 500、死锁、重复派单或 Outbox 堆积。
-- [ ] 产物提交到 `reports/scale/`，不得把 H2 数字外推成线上规模。
+- [x] 真实基础设施下连续运行至少 3 轮（三轮 `--fresh` 冷启动逐轮独立，每轮 35/35 归位、OD 池现取）。
+- [x] 无未解释的 500、死锁、重复派单或 Outbox 堆积（第 2/3 轮 0 ERROR 0 5xx；第 1 轮 1 次 5xx 已解释并立待办 #25——`/park/vehicles` 的 `ConcurrentModificationException`，未复现；Outbox 0 失败 0 死信即"无堆积"的直接证据）。
+- [x] 产物提交到 `reports/scale/`，不得把 H2 数字外推成线上规模（`reports/scale/2026-09-28-k8s-single-node.md`）。
 
 ### P1-4 PostGIS 只读旁路接入，或删除夸大表述
 
@@ -240,7 +240,7 @@ attraction(i, j) = demand_weight(j)
 - [x] 一份 A/B replay 报告，包含样本量、置信区间和代价指标（`reports/experiments/dispatch-policy-2026-09.md`，n=40 同种子配对，实验一~六 + 灰度分侧）。
 - [x] 一份补能预测报告，包含 XGBoost、BayesianRidge、lag-168 对照（`reports/energy_forecast_report.md` + `energy_forecast_bayesian_baseline.md` + `energy_quality_gate_2026-09.md`；**如实声明**：现役导出数据 STALE 被门禁阻断，重导后数字才是现值）。
 - [x] 一份需求引力 / 运力压力报告，包含基线比较（同上 A/B 报告实验五/六；基线 = RULE）。
-- [ ] 一份真实 Redis/MySQL 压测报告。在既有 k8s/k6 流水线证据（§16.2/16.10）上扩规模与轮次，见 P1-3。**（本人执行项，命令与判定标准已写进 P1-3）**
+- [x] 一份真实 Redis/MySQL 压测报告（2026-09-28：`reports/scale/2026-09-28-k8s-single-node.md`——MySQL/REAL 口径，连续三轮冷启动标准档 + 2× 强度档全阈值通过；**引用必须带规模限定词**：35 车/707 节点现行 seed，500 车扩产未做）。
 - [x] 一张可靠投递图：事务 → Outbox → RabbitMQ → SSE/Webhook → DLQ（讲解图 2，含幂等/DLQ 可重放讲法）。
 - [x] CI 中后端测试、前端 typecheck 和 production build 全部通过（2026-09-27：run 36322805301，Backend Tests 5m03s ✓ / Frontend Build 3m03s ✓）。v6 flaky（待办 #24）本轮 CI 绿但未单独复跑，记录保留。
 - [ ] 手机端演示动线过一遍：下单卡两点选择、范围外拒答、追踪页轮询——`markerClick` 未接（开放项 #2）要在彩排里验证不挡主流程。**（本人彩排项）**
@@ -289,3 +289,5 @@ node scripts/check-doc-links.mjs
 | 本人执行 | P0-4 简历侧 | "PostGIS 已迁移 / XGBoost 已落地 / 100 台车口径 / 334 测试 / 引力波 / 招聘方数字"按本文档 §2 P0-4 修正 | — | 简历 |
 | 本人执行 | P1-3 扩规模压测 | 在 `scripts/k8s/run-perf.sh` 上跑 500 车/5k–10k 单/现行 seed 的真实中间件场景 ×3 轮 | 三轮无未解释 500 | `reports/scale/` |
 | 2026-09-27 | P1-1 前端接线 + 站点×小时 | 后端：`getStationHourlyDemand`（GET /station-hourly，口径=取货节点 × createdAt 小时）+ 导出 station-hourly 数据集；前端：运营分析页新增"调度指标"卡与"站点×小时需求"表、导出菜单两项；聚合口径直测 +1 | typecheck/lint/build 过；fsd-admin-api 测试绿（CI 复验） | `views/analytics/Index.vue` + VO/接口/控制器 |
+| 2026-09-28 | P1-3 规模压测（MySQL/REAL） | 本机 k8s 单节点：`--fresh` 冷启动 ×3 轮标准档（30/60 VU，35 车全部归位）+ 1 轮 2× 强度（60/120 VU）全阈值通过；order_create p95 112–137ms（预算 1500）、整园轮询 p95 62–66ms（2× 下 107ms）、受理 100%/99.89%；Outbox 2,273 条 0 失败 0 死信、Hikari 0 pending；受理≠运力形状复现（12.5–13.6%）；新缺陷候选 #25（/park/vehicles 一次 ConcurrentModificationException，未复现） | k6 Job 逐轮判阈全 ✓；第 2/3 轮 0 ERROR 0 5xx | `reports/scale/2026-09-28-k8s-single-node.md` + tmp/perf/round{1,2,3}.log |
+| 待办 #25 | /park/vehicles 并发读缺陷 | 第 1 轮压测 1 次 `ConcurrentModificationException`（整园车辆快照构建处，入口 5xx）；第 2/3 轮未复现。修法候选：快照构建改不可变副本或并发容器 | 未开工 | `reports/scale/2026-09-28-k8s-single-node.md` 判读② |
