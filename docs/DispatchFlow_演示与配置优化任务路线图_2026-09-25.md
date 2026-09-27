@@ -944,13 +944,16 @@ vehicleService.occupyVehicle(...)   // @Transactional：抢不到车 ⇒ throw V
 
 ### 16.7 这一节明确没做完的
 
-- **集群那一轮没跑**：等 Docker Desktop 的 Kubernetes GUI 开关。清单与脚本已在本机同序列实跑通过，
-  但 `kubectl apply`/Job 编排/镜像导入这三段仍是**未执行代码**，第一次跑必按要求逐段验。
+- ~~集群那一轮没跑~~ **已作废**：Docker Desktop 的 Kubernetes 已开，`scripts/k8s/run-perf.sh` 全序列
+  在集群里跑通（九步、含 Job 编排与镜像导入），实测数字与它照出的缺陷见 §16.10。
+  这一段现在剩下的是**判读口径**没做完：#13 换电会话抖动、#17 泊位死锁修法待裁、#18 遥测回滚待裁。
 - 阈值刻度来自本机单进程后端；集群里后端有 `limits: memory 2Gi`、且多一层 nginx，数字会变。
+
 - 单节点 ≠ 生产容量：这里出的是**形状结论**（读侧先于写侧劣化、积压驱动延迟），不是"能扛 N 人"。
 - 压测集群的前端只是可访问（`runtime-config.js` 为空 ⇒ 高德 JS key 没有，地图区是空的），**不要拿它当演示环境**。
 - 匿名下单没有速率闸门：限流只在带 key 的路径上，而那条被 `Math.min(rateLimitPerMinute, 30)` 硬顶在 30/min
   （§15 的既有事实）。带不带限流上线是本人 2026-09-25 已定的演示口径，这里只把测量口径记清楚：**压的是没限流的形态**。
+
 ### 16.8 读侧修复：`/park/track` 聚合端点（本人裁"新增一个聚合端点"）
 
 **做了什么**：`GET /api/admin/park/track?parkId&orderId&recentLimit` 一次返回
@@ -982,7 +985,7 @@ vehicleService.occupyVehicle(...)   // @Transactional：抢不到车 ⇒ throw V
 
 | 门 | 断言 | 位置 |
 | --- | --- | --- |
-| 匿名端点跨不了园区 | 拿别园区的 `orderId` 必须 `PARK_SCOPE_DENIED`，且不得构建任何车快照 | `ParkPilotServiceImplTrackTest`（4 例全绿） |
+| 匿名端点跨不了园区 | 拿别园区的 `orderId` 必须 `PARK_SCOPE_DENIED`，且不得构建任何车快照 | `ParkPilotServiceImplTrackTest`（当时 4 例全绿；**这四轮下来它照出的那个 NPE 见 §16.10**，第 5 例就是补的这道门） |
 | 移动页不再轮询整园 | 6 s 窗口内 `/park/orders`+`/park/vehicles` 命中数必须为 0，且 `/park/track` ≥2 次 | `v12-request-budget.spec.ts` |
 | 聚合读的预算不反弹 | `aggregate_bytes avg<16 KB`（实测 3.1–4.5 KB）、`whole_park_bytes avg>16 KB`（反向证据：基线没被我偷偷改小） | `deploy/k8s/k6/track-compare.js` |
 
@@ -1009,6 +1012,59 @@ v13/v14 补了聚合响应的 fixture）；`vue-tsc`、ESLint、e2e 与后端 43
 
 > ⚠ 演示前照旧要过 §11.2 那条 SW 尾巴：老访客第一次导航拿到的还是旧壳。开页 → 刷一次 → 再刷一次，
 > 网络面板里看到 `/park/track` 才算换到新前端。
+
+### 16.10 集群那一轮跑完了（2026-09-27）：它照出的第一个缺陷是**我写进 `/park/track` 的 NPE**
+
+环境：Docker Desktop 的 Kubernetes（kind 单节点）+ k6 Job，栈 = MySQL 8.4 / Redis / RabbitMQ / 后端 1 副本
+（只限内存 2 Gi、**不限 CPU** ⇒ 测形状不测上限）/ nginx 反代；匿名下单路径（与线上 `.env` 同配置）。
+档位：`order_flow` 30 VUs + `poll_only` 60 VUs，爬坡 90 s / 平台 180 s / 退坡 45 s，`TRACKING_POLLS=3`。
+
+**同一个档位跑了两遍，差别只有那一行 NPE 修复**：
+
+| 指标 | 第一轮（红） | 第二轮（全绿） |
+| --- | --- | --- |
+| `http_req_failed{scenario:order_flow}` | ✗ **36.15%**（1 358 / 3 756） | ✓ **0.00%** |
+| 移动页聚合读 500 占比 | **48.2%**（1 358 / 2 817 次轮询） | 0 |
+| `mobile_track_bytes` avg（min） | 2,195（**min 79** = 错误体） | 3,953（min 3,079） |
+| `mobile_track_poll` p95 | 11.01 ms | **8.77 ms** |
+| `order_create` p95 / 下单量 | 148.55 ms / 939 单 @2.61/s | 129.87 ms / 938 单 @2.59/s |
+| `whole_park_poll` p95 / bytes avg | 71.15 ms / 209,829 B | 66.82 ms / 209,758 B |
+| `order_accepted` / `task_assigned` | 100% / 12.99% | 100% / **14.71%** |
+| 后端 ERROR 行 | 619（**下界**，见下） | **1** |
+| 收尾库存 | `WAITING_DISPATCH=817`，idle 20 / busy 15 / soc≤30=24（最低 8） | `WAITING_DISPATCH=800`，idle 26 / busy 9 / soc≤30=25（最低 8） |
+
+**根因（是我这次改动带进去的，不是负载问题）**：`buildTrackSnapshot` 的精简行按
+`taskById.get(order.getDispatchTaskId())` 取任务，而 `loadTasksFor` 在"候选一条任务都没配上"时返回
+`Map.of()` —— **JDK 的不可变 Map 对 null 键抛 NPE**（`HashMap` 才返回 null）。待派发的单
+`dispatchTaskId` 正是 null，所以只有"候选窗口整批都是 `WAITING_DISPATCH`"的那些次轮询会炸；
+第二轮 938 单里 800 单没派到车，这个形状在压测里是**常态**，在生产是偶发。
+
+**为什么四道旧门全没拦住**：`ParkPilotServiceImplTrackTest` 那 4 例的候选都带 `dispatchTaskId`，
+于是 `loadTasksFor` 走的是 `Collectors.toMap` 那条（HashMap，容忍 null 键）；本机 A/B 跑的时候
+最近窗口里总有已派单的单。⇒ **"接口形状正确"的门拦不住"数据形状没覆盖"的缺陷**。
+第 5 例 `candidateOrdersThatHaveNoTaskYetDoNotBreakTheRecentList` 就是补这一形：
+它在修之前跑是**红的**（`NullPointerException`），修后才绿。
+
+**定位过程里仪表先骗了我一次**：后端 pod 的 stdout 会被容器日志轮掉（15 分钟的窗口实际只剩最后
+10 分钟），`readout` 那句"ERROR 行：619"因此是**下界**，而我按它去 grep 栈时**一条都找不到**，
+一度以为"500 不是后端发的"。真正给出事实的是 nginx 的访问日志（活过了整轮）：
+`1358 × 500` 全部落在 `/api/admin/park/track`，`15490 × 200`。⇒ 三处仪表已补：
+① k6 自己把失败请求的状态码+响应体头 140 字节打进 Job 日志（每 VU 限 3 条）；
+② `readout` 现在打"日志可读起点"（起点晚于压测开始 = 计数只作下界看）、异常分类、入口 5xx 按路径；
+③ 自建镜像改成**每次强制重导入** —— 它们在集群里永远叫同一个 tag，按名字判定"已在集群内"会让
+重 build 的镜像原样被旧镜像顶掉，表现是"改了代码、重跑压测、数字一模一样"。
+
+**顺带**：第二轮仍剩 1 个 500（`/park/vehicles`，15 684 次轮询里的 1 次），k6 的新日志行第一次
+自己抓住了 #17 那条泊位释放死锁。**这一轮的 rc 也自伤过一次**：`readout` 里 `| head -1` 在
+`set -o pipefail` 下被 SIGPIPE 打成 141，把一轮**全绿**的压测报成 `PERF_RC=1`
+（k6 Job 实际 `succeeded=1`、无 Failed 条件）—— 已修。
+
+**这一轮的结论仍然只是形状**：单节点 ≠ 生产容量；读侧的聚合读在 800 单积压下 p95 8.77 ms / 3.9 KB，
+整园读 66.82 ms / 209 KB，**积压对读侧的影响已被接口形状吃掉**（§16.3 那条"延迟与积压成正比"对新端点不再成立）。
+
+**压测顺手照出的生产问题（另计，见待办 #21）**：同一时段生产库里 22 个充电桩位全 `OCCUPIED` 而
+`ACTIVE` 会话为 0、16 台车同时挂两个车位 ⇒ 全车队 35 台 8–30% 电量、22 小时没充进一度电。
+压测环境是冷启动库，所以它**不会**在压测里复现——这是数据生命周期缺陷，不是容量缺陷。
 
 ---
 

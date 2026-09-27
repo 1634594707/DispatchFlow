@@ -4,8 +4,9 @@
 // 已关，所以不带任何凭证；带 X-Mobile-Api-Key 会被 MobileOrderAuthServiceImpl 硬顶在
 // 30 次/分钟，测出来的平台期是那行代码，不是系统）：
 //   POST /api/admin/park/orders          下单（受理→吸附→建任务→派单，写路径全在这里）
-//   GET  /api/admin/park/orders          追踪快照（手机页 1.5s 轮询）
-//   GET  /api/admin/park/vehicles        车队快照（同上）
+//   GET  /api/admin/park/track           移动页的追踪聚合读（§16.8 之后手机页只打这一条）
+//   GET  /api/admin/park/orders          整园订单快照 —— **大屏/PC 口径**，本场景用它当对照
+//   GET  /api/admin/park/vehicles        整园车队快照（同上）
 //   GET  /api/admin/park/stations        页面载入时的点位（setup 里取一次，不进循环）
 //   GET  /api/admin/park/layout          地图底图（页面载入，重读）
 //
@@ -54,10 +55,12 @@ const taskAssigned = new Rate('task_assigned')
 const ordersPosted = new Counter('orders_posted')
 // 夹具自身的不变量（OD 池退化到只剩同址点），不是被测系统的指标 —— 见 pickPair()
 const pairDegenerate = new Counter('pair_degenerate')
-// 一次追踪轮询（orders + vehicles 两个请求）的响应体合计字节数。
+// 一次轮询的响应体合计字节数：移动页的聚合读与 PC 的整园读**分开记**，
+// 因为这一轮改的就是"手机页从两条整园读换成一条聚合读"（§16.8），合在一起就看不出差别了。
 // 第二个参数是 isTime，**必须是 false**：写成 true 时 k6 把字节数按毫秒排版，
 // 本机预压那轮就打印成了 `avg=3m29s`（其实是 209,000 字节），一眼看去像时间指标坏了。
-const pollBytes = new Trend('tracking_poll_bytes', false)
+const pollBytes = new Trend('mobile_track_bytes', false)
+const wholeParkBytes = new Trend('whole_park_bytes', false)
 
 const GEO_CODES = /OUT_OF|SERVICE_AREA|SNAP|GEO|RANGE|FENCE|UNREACHABLE|ENDPOINT/i
 const CAP_CODES = /NO_AVAILABLE|CAPACITY|NO_VEHICLE|IDLE/i
@@ -95,10 +98,14 @@ export const options = {
       'http_req_failed{name:order_create}': ['rate<0.02'],
       'http_req_failed{scenario:order_flow}': ['rate<0.02'],
       'http_req_duration{name:order_create}': ['p(95)<1500'],
-      'http_req_duration{name:tracking_poll}': ['p(95)<800'],
+      'http_req_duration{name:mobile_track_poll}': ['p(95)<800'],
+      'http_req_duration{name:whole_park_poll}': ['p(95)<800'],
       order_geo_reject: ['rate<0.005'],
       order_other_reject: ['rate<0.02'],
       pair_degenerate: ['count==0'],
+      // 聚合读的体积预算：实测 3.1–4.5 KB（见 §16.8），16 KB 是一倍余量；
+      // 谁把整园车队塞回这条响应，这里立刻红。
+      mobile_track_bytes: ['avg<16384'],
     },
     // 只有真下单的档位才断言"发过单"。MODE=poll 是纯读档，那里 0 单是设计如此。
     MODE === 'poll' ? {} : { order_accepted: ['rate>0.9'], orders_posted: ['count>=1'] },
@@ -128,6 +135,15 @@ export function setup() {
   }
   console.log(`入口自检通过：park=${PARK_ID} 站点=${active.length} OD 对来源=${PAIRS.length} 个坐标 MODE=${MODE}`)
   return { parkId: PARK_ID }
+}
+
+// 失败原因要留在 Job 自己的日志里：后端 pod 的 stdout 会被容器日志轮掉（上一轮 15 分钟就只剩
+// 最后 10 分钟，1 358 个 500 的栈全没了），只剩"k6 说它红"而说不出为什么。
+// 每个 VU 只留前 3 条：一千多条一模一样的 500 只是把真信号埋起来。
+let failuresLogged = 0
+function sayFailure(kind, target, res) {
+  if (failuresLogged++ >= 3) return
+  console.error(`${kind} → HTTP ${res.status} ${target} body=${(res.body || '').slice(0, 140)}`)
 }
 
 function pickPair() {
@@ -196,33 +212,48 @@ function postOrder() {
   // 所以派单结果单独量，并且**不设门槛**：它是车队容量结论，不是平台结论。
   taskAssigned.add(accepted && data.vehicleId != null)
   check(res, { 'order http<500': (r) => r.status < 500 })
-  return accepted
+  // 返回**订单号**而不是布尔：追踪轮询要按这一单去问（§16.8 的聚合读入参）
+  return accepted ? data.orderId || null : null
 }
 
-function pollOnce() {
-  const r1 = http.get(`${BASE}/api/admin/park/orders?parkId=${PARK_ID}`, { tags: { name: 'tracking_poll' } })
-  const r2 = http.get(`${BASE}/api/admin/park/vehicles?parkId=${PARK_ID}`, { tags: { name: 'tracking_poll' } })
-  // 轮询变慢的第一嫌疑是**体积**不是 CPU：这两个接口返回的是整园快照（订单 + 车队），
-  // 单量堆起来后每次轮询的字节数跟着长。不把体积记成指标，就只能说"p95 变差了"而说不出为什么。
-  pollBytes.add((r1.body || '').length + (r2.body || '').length)
-  check(r1, { 'poll ok': (r) => r.status === 200 })
-  check(r2, { 'poll ok': (r) => r.status === 200 })
+/** 手机页口径（§16.8 之后）：一条聚合读。 */
+function pollOnce(orderId) {
+  const url = `${BASE}/api/admin/park/track?parkId=${PARK_ID}&recentLimit=8`
+    + (orderId ? `&orderId=${orderId}` : '')
+  const res = http.get(url, { tags: { name: 'mobile_track_poll' } })
+  pollBytes.add((res.body || '').length)
+  const ok = check(res, { 'poll ok': (r) => r.status === 200 })
+  if (!ok) sayFailure('poll', `orderId=${orderId || '(auto)'}`, res)
+}
+
+/** 大屏/PC 口径：两条整园读。留着它是为了同一轮里能同时看到"聚合读省掉了什么"。 */
+function pollWholePark() {
+  const r1 = http.get(`${BASE}/api/admin/park/orders?parkId=${PARK_ID}`, { tags: { name: 'whole_park_poll' } })
+  const r2 = http.get(`${BASE}/api/admin/park/vehicles?parkId=${PARK_ID}`, { tags: { name: 'whole_park_poll' } })
+  // 轮询变慢的第一嫌疑是**体积**不是 CPU：这两个接口返回整园快照（35 台车各带三条折线），
+  // 单量堆起来后字节数跟着长。不把体积记成指标，就只能说"p95 变差了"而说不出为什么。
+  wholeParkBytes.add((r1.body || '').length + (r2.body || '').length)
+  const ok1 = check(r1, { 'poll ok': (r) => r.status === 200 })
+  const ok2 = check(r2, { 'poll ok': (r) => r.status === 200 })
+  if (!ok1) sayFailure('whole-park orders', `parkId=${PARK_ID}`, r1)
+  if (!ok2) sayFailure('whole-park vehicles', `parkId=${PARK_ID}`, r2)
 }
 
 export function orderFlow() {
+  let orderId = null
   if (MODE !== 'poll') {
-    postOrder()
+    orderId = postOrder()
     sleep(randomIntBetween(1, 2))
   }
   for (let i = 0; i < TRACKING_POLLS; i++) {
-    pollOnce()
+    pollOnce(orderId)
     sleep(1.5)
   }
   sleep(randomIntBetween(1, 3))   // 手机页不是死循环：人是看一眼、再看的
 }
 
-/** 纯读洪峰：模拟"大屏/many 用户只看不动"，用来把读扩展性和写争用分开。 */
+/** 纯读洪峰：大屏那一档（整园两条读），用来把读扩展性和写争用分开。 */
 export function pollOnly() {
-  pollOnce()
+  pollWholePark()
   sleep(randomIntBetween(1, 3))
 }

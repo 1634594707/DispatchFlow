@@ -16,6 +16,11 @@
 # 口令：这里**不从 .env 抄生产口令**。压测集群用一套一次性随机凭据，把生产口令复制进另一个
 #   上下文没有收益，只有"它出现在不该出现的地方"的风险。口令落在 tmp/perf/（已 gitignore），
 #   第二次跑复用同一把 —— MySQL 卷里存的还是第一把，换了就连不上。
+#
+# 第一次跑要有耐心，也第一次大概率会踩网络：backend 镜像里是**容器内冷缓存的 `mvn clean package`**，
+#   本机实测约 35 分钟；2026-09-26 第一次跑就在依赖下载上红了一次，同样的 build 重跑就过了。
+#   所以 build 失败先分辨是不是下载失败（`docker build --progress=plain` 看得到），别急着改代码；
+#   pom 不动之后重跑加 `--skip-build` 直接沿用镜像。
 set -euo pipefail
 
 NS=dispatchflow-perf
@@ -23,6 +28,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && (pwd -W 2>/dev/null ||
 KDIR="$REPO_ROOT/deploy/k8s"
 TMP="$REPO_ROOT/tmp/perf"
 BUILD_TAG="${BUILD_TAG:-perf}"
+K6_IMAGE="${K6_IMAGE:-grafana/k6:1.6.1}"
+MYSQL_IMAGE="${MYSQL_IMAGE:-mysql:8.4}"
+REDIS_IMAGE="${REDIS_IMAGE:-redis:7.4}"
+RABBIT_IMAGE="${RABBIT_IMAGE:-rabbitmq:3.13-management}"
 SMOKE=0; DOWN=0; FRESH=0; SKIP_BUILD=0; NO_K6=0
 
 for a in "$@"; do
@@ -67,58 +76,97 @@ TXT
 }
 
 # ───────────────────────────── 镜像 ─────────────────────────────
-# Docker Desktop 的 k8s 现在是 kind 模式（见 `docker desktop kubernetes status` 的 Mode 字段）：
-# 本机 build 出来的镜像**不一定**在集群可见，Pod 只会卡在 ImagePullBackOff，而 imagePullPolicy:
-# IfNotPresent 不会告诉你"是没这个镜像"还是"镜像坏了"。所以先查一次，缺了就 docker save | ctr import。
+# Docker Desktop 的 k8s 是 kind 模式（`docker desktop kubernetes status` 的 Mode 字段）：
+# 宿主机 build/pull 的镜像**不在集群的 containerd 里**，Pod 只会 ImagePullBackOff，
+# 而 `imagePullPolicy: IfNotPresent` 不会区分"没这个镜像"和"镜像坏了"。
+# 所以要 `docker save | ctr -n k8s.io images import`，并且导入后回查。
+#
+# ⚠ 节点容器 `desktop-control-plane` **不出现在 `docker ps` 里**（Docker Desktop 把它放在系统作用域），
+#   但 `docker inspect` 查得到。2026-09-26 首次实跑就栽在这：按 `docker ps` 找节点找不到，
+#   而旧兜底写的是"找不到就当共享镜像存储、无需导入" ⇒ 四个镜像全被报成"集群可见"，
+#   Pod 集体 ImagePullBackOff。现在的规则：**找不到节点就中止**，不替集群下结论。
 kind_node() {
   if [ -n "${KIND_NODE:-}" ]; then printf '%s' "$KIND_NODE"; return; fi
-  KIND_NODE="$(docker ps --format '{{.Names}}\t{{.Image}}' \
-    | awk 'tolower($2) ~ /kindest|node/ || $1 ~ /control-plane$/ {print $1; exit}')"
-  printf '%s' "${KIND_NODE:-}"
+  local n
+  for n in desktop-control-plane docker-desktop-control-plane; do
+    if [ "$(docker inspect -f '{{.State.Status}}' "$n" 2>/dev/null || echo missing)" = "running" ]; then
+      printf '%s' "$n"; return
+    fi
+  done
+  # 自己起的 kind 集群也在这一支里找到（名字以 -control-plane 结尾）
+  docker ps -a --format '{{.Names}}	{{.Image}}'     | awk 'tolower($2) ~ /kindest\/node/ || $1 ~ /control-plane$/ {print $1; exit}'
 }
 
-image_in_cluster() {
-  local node img="$1"
-  local node
-  node=$(kind_node)
-  # 找不到 kind 节点 ⇒ 当作"与 docker 共享镜像存储"，交给 kubelet 自己看
-  if [ -z "$node" ]; then return 0; fi
-  docker exec "$node" ctr -n k8s.io images ls 2>/dev/null | grep -q "docker.io/library/$img "
+canonical_ref() {  # 镜像短名 → containerd 里的规范名（library 与非 library 不是一回事）
+  case "$1" in
+    */*/*) printf '%s' "$1" ;;                              # 已带 registry
+    */*)   printf 'docker.io/%s' "$1" ;;                    # grafana/k6 → docker.io/grafana/k6
+    *)     printf 'docker.io/library/%s' "$1" ;;            # mysql:8.4 → docker.io/library/mysql:8.4
+  esac
+}
+
+image_in_cluster() {  # image_in_cluster <节点> <镜像短名>
+  # 曾经这里一律拼 `docker.io/library/…`，于是 grafana/k6 明明导入成功却被判成"集群仍看不到它"
+  # （假红）。非 library 命名空间是 `docker.io/<org>/<repo>`，必须分开拼。
+  local ref
+  ref=$(canonical_ref "$2")
+  docker exec "$1" ctr -n k8s.io images ls 2>/dev/null | grep -q "$ref "
 }
 
 load_image() {
-  local img="$1" node
-  if image_in_cluster "$img"; then
-    echo "  [ok] $img 集群可见"
-    return 0
-  fi
+  local img="$1" force="${2:-}" node
   node=$(kind_node)
   if [ -z "$node" ]; then
-    echo "  [i] 没找到 kind 节点容器，按共享镜像存储处理：$img 无需导入"
+    die "找不到 k8s 节点容器（试过 desktop-control-plane 与 docker ps 里的 kindest/control-plane）。
+        镜像送不进集群。先确认 docker desktop kubernetes status 是 running；
+        节点名不一样就 KIND_NODE=<容器名> 重跑。这里不再假设「集群与 docker 共享镜像存储」。"
+  fi
+  # `force=1` 给三个自建镜像：它们在集群里**永远叫同一个 tag**（dispatchflow-backend:perf），
+  # 而 containerd 按名字判定"已在集群内" ⇒ 宿主机重 build 之后，旧镜像会原样留下并被用上。
+  # 这个坑的形状是"改了代码、重跑了压测、数字一模一样"，读的人只会得出"修了没用"。
+  # 拉来的基础设施镜像（mysql/k6/…）没有重 build 的问题，才允许按名字跳过。
+  if [ "$force" != "1" ] && image_in_cluster "$node" "$img"; then
+    echo "  [ok] $img 已在集群内（节点 $node）"
     return 0
   fi
-  echo "  导入 $img → $node"
+  echo "  导入 $img → $node（宿主机 image ID $(docker image inspect -f '{{.Id}}' "$img" | cut -c8-19)）"
   docker save "$img" | docker exec -i "$node" ctr --namespace=k8s.io images import - >/dev/null
-  image_in_cluster "$img" || die "$img 导入后集群仍看不到它"
+  image_in_cluster "$node" "$img" || die "$img 导入后集群仍看不到它"
+}
+
+pull_if_missing() {  # 宿主机没有才去拉；拉不到就明说，不静默降级
+  local img="$1"
+  docker image inspect "$img" >/dev/null 2>&1 && return 0
+  echo "  宿主机没有 $img，正在拉取"
+  docker pull -q "$img" >/dev/null     || die "拉取 $img 失败：这台机器到 Docker Hub 的鉴权偶发 EOF（auth.docker.io），重试或走镜像源"
+}
+
+# 要进集群的全部镜像：三个自建的 + k6 + 三个基础设施。
+# 基础设施那几个宿主机早就有（本机 dev 容器在用），但 kind 节点的 containerd 里没有，
+# 而在集群里拉 Docker Hub 又受这台机器的网络摆布 ⇒ 一律本地导入，不赌网络。
+load_all_images() {
+  local img
+  # 第二个参数 1 = 每次都重导入，见 load_image 里那段"同名 tag 换内容"的注释
+  for img in "dispatchflow-backend:$BUILD_TAG" "dispatchflow-frontend:$BUILD_TAG" \
+             "dispatchflow-sql:$BUILD_TAG"; do
+    pull_if_missing "$img"
+    load_image "$img" 1
+  done
+  for img in "$K6_IMAGE" "$MYSQL_IMAGE" "$REDIS_IMAGE" "$RABBIT_IMAGE"; do
+    pull_if_missing "$img"
+    load_image "$img"
+  done
 }
 
 build_images() {
   if [ "$SKIP_BUILD" = 1 ]; then
-    echo "  [skip] --skip-build"
-  else
-    log "  构建三个镜像（backend 走 maven、frontend 走 npm ci+vite，各几分钟）"
-    docker build -q -t "dispatchflow-backend:$BUILD_TAG" -f "$REPO_ROOT/back/Dockerfile" "$REPO_ROOT/back"
-    docker build -q -t "dispatchflow-frontend:$BUILD_TAG" -f "$REPO_ROOT/front/Dockerfile" "$REPO_ROOT/front"
-    docker build -q -t "dispatchflow-sql:$BUILD_TAG" -f "$KDIR/Dockerfile.sql" "$REPO_ROOT/back/sql"
+    echo "  [skip] --skip-build（沿用已有镜像；pom 没动就该走这条）"
+    return 0
   fi
-  load_image "dispatchflow-backend:$BUILD_TAG"
-  load_image "dispatchflow-frontend:$BUILD_TAG"
-  load_image "dispatchflow-sql:$BUILD_TAG"
-  # k6 是公共镜像：本机没有就先 pull，再按同一条路径导入集群。
-  # 不这么做的话，kind 模式下它会去 docker.io 拉 —— 集群里没有凭据也没关系，
-  # 但"卡在 ImagePullBackOff 而日志只写 pull quota/exceeded"是这台机器上最难归因的一类红。
-  docker image inspect grafana/k6:1.6.1 >/dev/null 2>&1 || docker pull -q grafana/k6:1.6.1
-  load_image "grafana/k6:1.6.1"
+  log "  构建三个镜像（backend 是容器内冷缓存 mvn，本机实测约 35 分钟）"
+  docker build -q -t "dispatchflow-backend:$BUILD_TAG" -f "$REPO_ROOT/back/Dockerfile" "$REPO_ROOT/back"
+  docker build -q -t "dispatchflow-frontend:$BUILD_TAG" -f "$REPO_ROOT/front/Dockerfile" "$REPO_ROOT/front"
+  docker build -q -t "dispatchflow-sql:$BUILD_TAG" -f "$KDIR/Dockerfile.sql" "$REPO_ROOT/back/sql"
 }
 
 # ───────────────────────────── Secret / ConfigMap ─────────────────────────────
@@ -225,14 +273,37 @@ k6_objects() {
 
 # ───────────────────────────── 等待原语 ─────────────────────────────
 wait_deploy() {
-  local d="$1" t="${2:-420s}"
-  kne rollout status "deployment/$d" --timeout="$t" >/dev/null || die "deployment/$d 没在 $t 内 Ready"
-  echo "  [ok] deployment/$d Ready"
+  local d="$1" t="${2:-420s}" waited=0 state avail want
+  local gen='' obs='' upd='' rdy=''
+  # `600s` 这种写法是给 kubectl --timeout 用的，轮询自己要的是秒数
+  local secs="${t%s}"
+  case "$secs" in ('' | *[!0-9]*) die "wait_deploy 的超时参数不是秒数：$t" ;; esac
+  # 不用 `kubectl rollout status`：它读 Deployment 的进度判定历史 —— 一旦某次因镜像拉不到触发过
+  # ProgressDeadlineExceeded，之后即使 Pod 全部 Available 它照样报 "exceeded its progress deadline"
+  # （2026-09-26 首次实跑正是：三个 pod 已 1/1 Running，脚本却红在等 mysql）。
+  # 也不用 `--for=condition=available`：旧 ReplicaSet 撑着 available 时，刚 `set env` 触发的
+  # 新 rollout 会被误判成"已经好了"。所以自己轮四件事：observedGeneration 跟上、
+  # available / updated / ready 都等于期望副本数。
+  while [ "$waited" -lt "$secs" ]; do
+    state=$(kne get deploy "$d" -o jsonpath='{.metadata.generation} {.status.observedGeneration} {.spec.replicas} {.status.availableReplicas} {.status.updatedReplicas} {.status.readyReplicas}' 2>/dev/null)
+    read -r gen obs want avail upd rdy <<<"${state:-}"
+    if [ -n "$gen" ] && [ "$gen" = "${obs:-}" ] && [ "${avail:-0}" = "$want" ] \
+       && [ "${upd:-0}" = "$want" ] && [ "${rdy:-0}" = "$want" ]; then
+      echo "  [ok] deployment/$d Ready（$want/$want，observedGeneration=$obs）"
+      return 0
+    fi
+    sleep 5; waited=$((waited + 5))
+  done
+  kne get pods -l app="$d" -o wide | sed 's/^/  | /' >&2
+  kne describe deploy "$d" | tail -12 >&2
+  die "deployment/$d 没在 $t 内真正滚动完成（最后状态：gen=$gen obs=${obs:-?} want=$want avail=${avail:-?} upd=${upd:-?} ready=${rdy:-?}）"
 }
 
 wait_job() {  # 失败要立刻看出来，不能等满超时才报 —— 所以自己轮两个条件
   local name="$1" t="${2:-900s}" waited=0
-  while [ "$waited" -lt "$t" ]; do
+  local secs="${t%s}"
+  case "$secs" in ('' | *[!0-9]*) die "wait_job 的超时参数不是秒数：$t" ;; esac
+  while [ "$waited" -lt "$secs" ]; do
     if [ "$(kne get job "$name" -o jsonpath='{.status.succeeded}' 2>/dev/null)" = "1" ]; then return 0; fi
     if [ "$(kne get job "$name" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null)" = "True" ]; then
       return 1
@@ -251,7 +322,7 @@ run_job() {
   case "$rc" in
     0) echo "  [ok] job/$name" ;;
     1) die "job/$name 失败（上面是它的日志）" ;;
-    *) die "job/$name 在 ${t}s 内没结束" ;;
+    *) die "job/$name 在 $t 内没结束" ;;
   esac
 }
 
@@ -269,6 +340,7 @@ main() {
 
   log "1/9 镜像 + Secret + ConfigMap"
   build_images
+  load_all_images
   apply_infra_objects
 
   log "2/9 依赖三件套（mysql/redis/rabbitmq）"
@@ -339,6 +411,19 @@ readout() {
   # `grep -c` 无匹配时退出码是 1：这里必须 `|| true`，否则"零 ERROR"这种最好的结果会让脚本自己先退出
   err=$(kne logs deployment/backend --since=15m 2>/dev/null | grep -c ' ERROR ' || true)
   echo "  后端 15 分钟内 ERROR 行：${err:-0}（>0 就把时间戳贴进文档，别只记一个数）"
+  # 上一轮的教训：这个计数是**下界**。容器日志会轮，15 分钟的窗口里后端只剩最后 10 分钟的行，
+  # 那 1 358 个 500 的栈就是这么丢的。把可读到的最早时间戳打出来，截断就看得见。
+  local first
+  # 每条 `| head -N` 都要 `|| true`：head 提前关管道会让上游 kubectl 吃到 SIGPIPE（141），
+  # 而 `set -o pipefail` 把它变成整条命令的失败 —— 这一段就因此把一轮**全绿**的压测报成 rc=1。
+  first=$(kne logs deployment/backend --since=15m --timestamps 2>/dev/null | head -1 | cut -d' ' -f1 || true)
+  echo "  （日志可读起点：${first:-无}；起点晚于压测开始 = 这段已被轮掉，计数只作下界看）"
+  # 异常分类比计数有用：计数只能说"红"，这一行说"红在哪"。
+  kne logs deployment/backend --since=15m 2>/dev/null | grep -aoE '[A-Za-z0-9_.]+Exception' | sort | uniq -c | sort -rn | head -5 | sed 's/^/    /' || true
+  # nginx 的访问日志是这一轮**唯一**活过日志轮的现场（后端 stdout 没活过）：按状态码给出总数。
+  local bad
+  bad=$(kne logs deployment/frontend --since=15m 2>/dev/null | awk '$0 ~ / 5[0-9][0-9] /{print $7}' | sed -E 's/\?.*//' | sort | uniq -c | sort -rn | head -5 || true)
+  echo "  入口 5xx 按路径：$(echo "${bad:-无}" | tr '\n' ' ')"
 }
 
 main "$@"
