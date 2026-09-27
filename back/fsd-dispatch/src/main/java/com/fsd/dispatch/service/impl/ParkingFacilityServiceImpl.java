@@ -102,6 +102,13 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
         if (slot == null) {
             return false;
         }
+        if (vehicleId.equals(slot.getOccupiedVehicleId())) {
+            // 这个位本来就记在这台车名下 ⇒ **续用**，不判成抢占失败，也不改行（状态由调用方维持）。
+            // 少了这一条会自锁：车位行留着 OCCUPIED + 绑定而会话已经没了（重启丢内存态、#17 死锁回滚）时，
+            // 真正站在这根桩上的那台车自己也抢不到它 —— 生产实测 22 根桩里有 6 根正是这个状态，
+            // 而对账器**不该**放它们（车确实在位上），所以只能靠这里闭环。
+            return true;
+        }
         int slotUpdated = parkingSlotMapper.update(null, new UpdateWrapper<ParkingSlotEntity>()
                 .eq("id", slot.getId())
                 .eq("status", ParkingSlotStatus.FREE.name())
@@ -140,6 +147,44 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
                 .eq("deleted", 0)
                 .set("occupied_vehicle_id", null)
                 .set("status", ParkingSlotStatus.FREE.name()));
+    }
+
+    /** 像素坐标的"在场"容差（画布 1600×1854 对应约 4.2 km 宽，2 px ≈ 2.6 m）。 */
+    private static final double PRESENT_TOLERANCE_PX = 2.0D;
+    /** GCJ 坐标的"在场"容差 ≈ 2 m。SIM 行的 current_longitude 存像素、真车行存经纬度，所以两边都比一次。 */
+    private static final double PRESENT_TOLERANCE_DEG = 0.00002D;
+
+    @Override
+    @Transactional
+    public int releaseOrphanEnergySlots() {
+        List<ParkingSlotEntity> orphans = parkingSlotMapper.selectList(new QueryWrapper<ParkingSlotEntity>()
+                .eq("deleted", 0)
+                .isNotNull("occupied_vehicle_id")
+                .in("status", ParkingSlotStatus.RESERVED.name(), ParkingSlotStatus.OCCUPIED.name())
+                // 只管补能位：待命位没有会话可查，按①判会把正常待命的车全放掉
+                .apply("EXISTS (SELECT 1 FROM t_charging_pile p"
+                        + " WHERE p.parking_slot_id = t_parking_slot.id AND p.deleted = 0)")
+                .apply("NOT EXISTS (SELECT 1 FROM t_charging_session cs"
+                        + " WHERE cs.deleted = 0 AND cs.session_status = 'ACTIVE'"
+                        + " AND cs.vehicle_id = t_parking_slot.occupied_vehicle_id)")
+                .apply("NOT EXISTS (SELECT 1 FROM t_vehicle v"
+                        + " WHERE v.id = t_parking_slot.occupied_vehicle_id AND v.deleted = 0"
+                        + " AND ((ABS(t_parking_slot.coord_x - v.current_longitude) < {0}"
+                        + " AND ABS(t_parking_slot.coord_y - v.current_latitude) < {1})"
+                        + " OR (ABS(t_parking_slot.coord_lng - v.current_longitude) < {2}"
+                        + " AND ABS(t_parking_slot.coord_lat - v.current_latitude) < {2})))",
+                        PRESENT_TOLERANCE_PX, PRESENT_TOLERANCE_PX, PRESENT_TOLERANCE_DEG));
+        for (ParkingSlotEntity slot : orphans) {
+            parkingSlotMapper.update(null, new UpdateWrapper<ParkingSlotEntity>()
+                    .eq("id", slot.getId())
+                    .set("occupied_vehicle_id", null)
+                    .set("status", ParkingSlotStatus.FREE.name()));
+            chargingPileMapper.update(null, new UpdateWrapper<ChargingPileEntity>()
+                    .eq("parking_slot_id", slot.getId())
+                    .set("occupied_vehicle_id", null)
+                    .set("status", ParkingSlotStatus.FREE.name()));
+        }
+        return orphans.size();
     }
 
     /** 释放这台车在**其它**位上的 RESERVED 绑定（保留刚占下的 `keepSlotId`）。 */
@@ -200,7 +245,11 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
         }
         // 幂等守卫：空闲态每个 tick 都会来问一次待命点，不续用同一个位就会让车在车位之间来回跳。
         Optional<ParkingSlotEntity> held = findSlotByVehicle(vehicleId);
-        if (held.isPresent() && ParkingSlotType.STANDBY.name().equals(held.get().getSlotType())) {
+        if (held.isPresent()) {
+            // **任何**已绑定位都算"这辆车有位了"，不只是 STANDBY。原来只续用 STANDBY 型：
+            // 插在桩上待命（plugged-in standby）的那批车手里是桩位，于是这里会给它们再发一个待命位，
+            // 一台车挂两个位，而它原来那个 OCCUPIED 桩位没人再解（`releaseOtherReservations` 只放
+            // RESERVED）⇒ 生产实测 16 台车双绑、22 个桩位成孤儿。
             return Optional.of(toPoint(held.get()));
         }
         List<ParkingSlotEntity> candidates = parkingSlotMapper.selectList(new QueryWrapper<ParkingSlotEntity>()

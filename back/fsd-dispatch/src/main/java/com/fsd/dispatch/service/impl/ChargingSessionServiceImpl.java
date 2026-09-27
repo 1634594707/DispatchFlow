@@ -364,15 +364,20 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
             // update also prevents clobbering a manual operator action that may have
             // transitioned the vehicle to BUSY/UNAVAILABLE in the meantime.
             // Free the parking slot/pile if it was held.
+            // ⚠ 必须连 `occupied_vehicle_id` 一起清：`reserveSlot` 的准入条件是
+            //   `status=FREE 且 occupied_vehicle_id IS NULL`，只放 status 的话这条位**仍然谁也抢不到**，
+            //   这条回收就等于没做（生产实测那 22 个孤儿桩位里有 6 个是 STANDBY 型桩位，同一条判据）。
             if (session.getChargingPileId() != null) {
                 chargingPileMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ChargingPileEntity>()
                         .eq("id", session.getChargingPileId())
-                        .set("status", ParkingSlotStatus.FREE.name()));
+                        .set("status", ParkingSlotStatus.FREE.name())
+                        .set("occupied_vehicle_id", null));
             }
             if (session.getParkingSlotId() != null) {
                 parkingSlotMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ParkingSlotEntity>()
                         .eq("id", session.getParkingSlotId())
-                        .set("status", ParkingSlotStatus.FREE.name()));
+                        .set("status", ParkingSlotStatus.FREE.name())
+                        .set("occupied_vehicle_id", null));
             }
             count++;
         }

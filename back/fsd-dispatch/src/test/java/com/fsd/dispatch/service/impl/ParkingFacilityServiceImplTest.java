@@ -284,4 +284,81 @@ class ParkingFacilityServiceImplTest {
         parkingFacilityService.releaseSlotReservation(51L, "  ");
         verify(parkingSlotMapper, org.mockito.Mockito.never()).update(any(), any());
     }
+
+    @Test
+    void reserveStandbySlotMustNotHandOutASecondSlot() {
+        // 生产实测 16 台车同时挂两个位：插在桩上待命（plugged-in standby）的车手里是**桩位**，
+        // 而旧守卫只认 STANDBY 型 ⇒ 它每 tick 都会再去抢一个待命位，原来那个 OCCUPIED 桩位从此
+        // 没人解（releaseOtherReservations 只放 RESERVED）⇒ 22 个桩位成孤儿、全车队充不上电。
+        ParkingSlotEntity pile = new ParkingSlotEntity();
+        pile.setId(1001L);
+        pile.setParkId(1L);
+        pile.setSlotCode("E1B1");
+        pile.setSlotType("CHARGING_ONLY");
+        pile.setStatus(ParkingSlotStatus.OCCUPIED.name());
+        Page<ParkingSlotEntity> held = new Page<>();
+        held.setRecords(java.util.List.of(pile));
+        when(parkingSlotMapper.selectPage(any(), any())).thenReturn(held);
+
+        var point = parkingFacilityService.reserveStandbySlot(1L, 42L);
+
+        assertTrue(point.isPresent());
+        assertEquals("E1B1", point.get().getCode(), "已经挂着位就续用它那个位，不再发第二个");
+        verify(parkingSlotMapper, org.mockito.Mockito.never()).selectList(any());
+        verify(parkingSlotMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void releaseOrphanEnergySlotsFreesSlotAndPileTogether() {
+        ParkingSlotEntity orphan = new ParkingSlotEntity();
+        orphan.setId(1001L);
+        orphan.setSlotCode("E1B1");
+        orphan.setOccupiedVehicleId(42L);
+        orphan.setStatus(ParkingSlotStatus.OCCUPIED.name());
+        when(parkingSlotMapper.selectList(any(Wrapper.class))).thenReturn(java.util.List.of(orphan));
+
+        assertEquals(1, parkingFacilityService.releaseOrphanEnergySlots());
+
+        var slotCaptor = org.mockito.ArgumentCaptor.forClass(UpdateWrapper.class);
+        verify(parkingSlotMapper).update(org.mockito.ArgumentMatchers.isNull(), slotCaptor.capture());
+        assertTrue(slotCaptor.getValue().getSqlSet().contains("occupied_vehicle_id"),
+                "必须连绑定一起清：reserveSlot 的准入是 status=FREE 且 occupied_vehicle_id IS NULL，"
+                        + "只放 status 等于这条回收没做");
+        var pileCaptor = org.mockito.ArgumentCaptor.forClass(UpdateWrapper.class);
+        verify(chargingPileMapper).update(org.mockito.ArgumentMatchers.isNull(), pileCaptor.capture());
+        assertTrue(pileCaptor.getValue().getSqlSegment().contains("parking_slot_id"),
+                "桩行要跟着车位一起解，否则 t_charging_pile 自己停在 OCCUPIED");
+    }
+
+    @Test
+    void reserveSlotRenewsASlotAlreadyBoundToTheSameVehicle() {
+        // 泄漏的桩位上往往**正站着那台车**（生产 22 根里有 6 根这样，且对账器按判据②不会放它们）。
+        // 没有"续用"这一条，那台车自己也抢不到名下的位：准入是 occupied_vehicle_id IS NULL。
+        ParkingSlotEntity slot = new ParkingSlotEntity();
+        slot.setId(1001L);
+        slot.setParkId(1L);
+        slot.setSlotCode("E1B1");
+        slot.setStatus(ParkingSlotStatus.OCCUPIED.name());
+        slot.setOccupiedVehicleId(42L);
+        Page<ParkingSlotEntity> page = new Page<>();
+        page.setRecords(java.util.List.of(slot));
+        when(parkingSlotMapper.selectPage(any(), any())).thenReturn(page);
+
+        assertTrue(parkingFacilityService.reserveSlot(1L, 42L, "E1B1"));
+
+        verify(parkingSlotMapper, org.mockito.Mockito.never()).update(any(), any());
+    }
+
+    @Test
+    void orphanSelectionKeepsBothGuardConditionsAndOnlyTouchesEnergySlots() {        when(parkingSlotMapper.selectList(any(Wrapper.class))).thenReturn(java.util.List.of());
+
+        assertEquals(0, parkingFacilityService.releaseOrphanEnergySlots());
+
+        var captor = org.mockito.ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.query.QueryWrapper.class);
+        verify(parkingSlotMapper).selectList(captor.capture());
+        String where = captor.getValue().getSqlSegment();
+        assertTrue(where.contains("t_charging_pile"), "只作用于补能位：正常待命的车没有会话，按①判会被误放");
+        assertTrue(where.contains("t_charging_session"), "判据①：没有 ACTIVE 充电会话");
+        assertTrue(where.contains("t_vehicle"), "判据②：那台车此刻不在该位坐标上");
+    }
 }

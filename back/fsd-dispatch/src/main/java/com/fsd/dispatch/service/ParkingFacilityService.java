@@ -44,6 +44,21 @@ public interface ParkingFacilityService {
     void releaseSlotReservation(Long vehicleId, String slotCode);
 
     /**
+     * 释放"没有任何依据"的补能位占用，返回释放条数。
+     *
+     * <p>为什么需要：车位绑定与充电会话是两套状态，而只有会话侧有超时回收（ALG-10）。补能完成路径
+     * 只要有一次没走到释放（重启丢掉仿真内存态、#17 那条 {@code releaseByVehicle} 死锁回滚、
+     * {@code reserveStandbySlot} 曾给同一台车发第二个位），桩位行就永远停在 RESERVED/OCCUPIED，
+     * 而 {@code reserveSlot} 要求 {@code status=FREE 且 occupied_vehicle_id IS NULL} ⇒ 谁也抢不到，
+     * 包括那台名义上还挂着它的车。生产实测：22 个桩位全占、ACTIVE 会话 0、35 台车 8–30% 电量、
+     * 22 小时没充进一度电。
+     *
+     * <p>判据是**两条同时成立**，缺一都不放：① 这台车没有 ACTIVE 充电会话；② 这台车此刻不在该位坐标上。
+     * 只查①会误放"插在桩上待命"的车（那是设计状态），只查②会误放正在充电但遥测迟到的车。
+     */
+    int releaseOrphanEnergySlots();
+
+    /**
      * Reserve preferred charging slot, or the next free charging bay in the park.
      */
     Optional<ParkPointResponse> reserveChargingSlot(Long parkId, Long vehicleId, String preferredSlotCode);
