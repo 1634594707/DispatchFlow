@@ -6,6 +6,7 @@ import type {
   AnalyticsEfficiency,
   AnalyticsEnergyForecast,
   AnalyticsExceptionAnalysis,
+  AnalyticsStationHourResponse,
   AnalyticsParkCompareItem,
 } from '@/types/analytics'
 
@@ -15,6 +16,12 @@ function parkParams(parkId?: number | null) {
 
 export function getAnalyticsEfficiency(period: 'day' | 'week' | 'month' = 'week', parkId?: number | null) {
   return request.get<any, ApiResponse<AnalyticsEfficiency>>('/admin/analytics/efficiency', {
+    params: { period, ...parkParams(parkId) },
+  })
+}
+
+export function getAnalyticsStationHourly(period: 'day' | 'week' | 'month' = 'week', parkId?: number | null) {
+  return request.get<any, ApiResponse<AnalyticsStationHourResponse>>('/admin/analytics/station-hourly', {
     params: { period, ...parkParams(parkId) },
   })
 }

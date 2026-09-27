@@ -13,6 +13,7 @@ import com.fsd.admin.vo.AdminAnalyticsEfficiencyResponse;
 import com.fsd.admin.vo.AdminAnalyticsEnergyForecastResponse;
 import com.fsd.admin.vo.AdminAnalyticsExceptionResponse;
 import com.fsd.admin.vo.AdminAnalyticsParkCompareItem;
+import com.fsd.admin.vo.AdminAnalyticsStationHourResponse;
 import java.util.List;
 import com.fsd.common.model.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -59,6 +60,20 @@ public class AdminAnalyticsController {
             HttpServletRequest request) {
         AdminAuthSupport.requireAuth(request);
         return ApiResponse.success(analyticsAdminService.getEfficiency(period, parkId));
+    }
+
+    @GetMapping("/station-hourly")
+    @Operation(summary = "Station-hourly demand", description = "P1-1: order demand aggregated by pickup station and hour of day")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Station-hourly demand returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Not authenticated")
+    })
+    public ApiResponse<AdminAnalyticsStationHourResponse> stationHourly(
+            @RequestParam(defaultValue = "week") String period,
+            @RequestParam(required = false) Long parkId,
+            HttpServletRequest request) {
+        AdminAuthSupport.requireAuth(request);
+        return ApiResponse.success(analyticsAdminService.getStationHourlyDemand(period, parkId));
     }
 
     @GetMapping("/exceptions")

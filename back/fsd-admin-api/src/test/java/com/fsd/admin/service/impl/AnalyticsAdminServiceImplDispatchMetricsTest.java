@@ -88,6 +88,33 @@ class AnalyticsAdminServiceImplDispatchMetricsTest {
         assertEquals(0.5D, metrics.getSupplyDemandRatio(), 1e-9, "1 可用 / 2 backlog");
     }
 
+    @Test
+    @DisplayName("站点×小时聚合：按 pickupNodeCode × createdAt 小时计数，空编码记未知")
+    void stationHourRowsFollowTheDeclaredSemantics() {
+        com.fsd.order.entity.OrderEntity a = order("COMPLETED");
+        a.setPickupNodeCode("N-A");
+        a.setCreatedAt(java.time.LocalDateTime.of(2026, 9, 27, 9, 15));
+        com.fsd.order.entity.OrderEntity b = order("COMPLETED");
+        b.setPickupNodeCode("N-A");
+        b.setCreatedAt(java.time.LocalDateTime.of(2026, 9, 27, 9, 45));
+        com.fsd.order.entity.OrderEntity c = order("COMPLETED");
+        c.setPickupNodeCode("N-B");
+        c.setCreatedAt(java.time.LocalDateTime.of(2026, 9, 27, 10, 5));
+        com.fsd.order.entity.OrderEntity d = order("COMPLETED");
+        d.setPickupNodeCode(" ");
+        d.setCreatedAt(java.time.LocalDateTime.of(2026, 9, 27, 10, 30));
+
+        var rows = service.buildStationHourRows(List.of(a, b, c, d));
+        assertEquals(3, rows.size());
+        assertEquals("N-A", rows.get(0).getStation());
+        assertEquals(9, rows.get(0).getHour());
+        assertEquals(2L, rows.get(0).getOrders());
+        assertEquals("N-B", rows.get(1).getStation());
+        assertEquals(10, rows.get(1).getHour());
+        assertEquals("未知", rows.get(2).getStation());
+        assertEquals(1L, rows.get(2).getOrders());
+    }
+
     private com.fsd.vehicle.entity.VehicleEntity vehicle(Long id, String dispatchStatus, Integer soc) {
         com.fsd.vehicle.entity.VehicleEntity vehicle = new com.fsd.vehicle.entity.VehicleEntity();
         vehicle.setId(id);

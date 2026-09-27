@@ -11,12 +11,34 @@ export interface AnalyticsHourlyPoint {
   taskCount: number
 }
 
+export interface AnalyticsDispatchMetrics {
+  availableVehicles: number
+  busyVehicles: number
+  chargingVehicles: number
+  manualPendingVehicles: number
+  pendingOrders: number
+  supplyDemandRatio: number
+  lowSocVehicles: number
+}
+
 export interface AnalyticsEfficiency {
   period: string
   orderCompletionTrend: AnalyticsTrendPoint[]
   avgTaskDurationMinutes: number
   vehicleUtilizationRate: number
   peakHours: AnalyticsHourlyPoint[]
+  dispatchMetrics?: AnalyticsDispatchMetrics
+}
+
+export interface AnalyticsStationHourRow {
+  station: string
+  hour: number
+  orders: number
+}
+
+export interface AnalyticsStationHourResponse {
+  period: string
+  rows: AnalyticsStationHourRow[]
 }
 
 export interface AnalyticsTypeCount {

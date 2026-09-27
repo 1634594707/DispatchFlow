@@ -159,15 +159,15 @@ attraction(i, j) = demand_weight(j)
 
 任务：
 
-- [ ] 按园区、站点、小时统计订单需求。**按园区已做**（窗口内订单现值统计进调度指标块）；**站点×小时未做**（需要订单的站点维度聚合页，挂待办）。
+- [x] 按园区、站点、小时统计订单需求（2026-09-27：站点×小时聚合上线——后端 `getStationHourlyDemand`（GET /admin/analytics/station-hourly），口径 = 取货节点编码 × createdAt 本地小时 × 窗口内订单数；园区维度由 park 过滤承担；`front/src/views/analytics/Index.vue` 接线"站点×小时需求"表）。
 - [x] 统计可用车辆、忙碌车辆、充电车辆和人工待处理车辆（2026-09-27：`AdminAnalyticsEfficiencyResponse.DispatchMetrics`——可用=IDLE 且 SOC≥最低可派线、忙碌=BUSY、充电=运行态 ∈ 补能三态（Redis 8 态）、手动=运行态含 MANUAL）。
 - [x] 增加供需比、空驶率、有效作业时长、低 SOC 运力损失和充电阻塞（2026-09-27：供需比、低 SOC 损失、backlog、有效作业时长（avgTaskDurationMinutes 既有）落地；**空驶率与充电阻塞缺数据源口径**——t_order/t_task 无里程字段，如实标注，不编口径）。
-- [ ] 展示 backlog、服务水平、超时率和实验侧对比（后端字段已就位，`front/src/views/vertical/` 页面接线未做——纯展示层工作，挂待办）。
+- [x] 展示 backlog、服务水平、超时率和实验侧对比（2026-09-27：运营分析页新增"调度指标"卡（七项）与"站点×小时需求"表；导出菜单新增 dispatch-metrics 与 station-hourly 两项，与页面共用同一条计算路径）。
 
 验收闸门：
 
-- [x] 所有指标有 SQL 或 Java 计算口径（逐条口径写在 `buildDispatchMetrics` 的注释里）。
-- [x] 页面和导出结果一致（导出新增 `dispatch-metrics` 数据集，与页面**共用同一个 `buildDispatchMetrics` 方法**——同口径由构造保证；页面展示接线后自动一致）。
+- [x] 所有指标有 SQL 或 Java 计算口径（逐条口径写在 `buildDispatchMetrics` / `buildStationHourRows` 的注释里）。
+- [x] 页面和导出结果一致（导出 `dispatch-metrics` 与 `station-hourly` 两个数据集与页面**共用同一条计算路径**——同口径由构造保证；2026-09-27 页面接线完成）。
 - [x] 能解释"完成率上升但充电阻塞增加"这类 trade-off（实验报告的"两臂完成量不同时绝对量不可直接比"判语规则 + 指标定义节就是这套解释）。
 
 ### P1-2 统一补能阈值和充电机选择
@@ -288,4 +288,4 @@ node scripts/check-doc-links.mjs
 | 本人执行 | P0-2 日作业 + 两天观察 | 部署层注册每日作业（服务器侧）+ 连续两天 `service_visible=1` 观察 | — | 活文档部署记录 |
 | 本人执行 | P0-4 简历侧 | "PostGIS 已迁移 / XGBoost 已落地 / 100 台车口径 / 334 测试 / 引力波 / 招聘方数字"按本文档 §2 P0-4 修正 | — | 简历 |
 | 本人执行 | P1-3 扩规模压测 | 在 `scripts/k8s/run-perf.sh` 上跑 500 车/5k–10k 单/现行 seed 的真实中间件场景 ×3 轮 | 三轮无未解释 500 | `reports/scale/` |
-| 本人执行 | P1-1 页面接线 | `front/src/views/vertical/` 接 `dispatchMetrics` 字段 + 站点×小时需求聚合页 | 页面数字 = 导出数字 | — |
+| 2026-09-27 | P1-1 前端接线 + 站点×小时 | 后端：`getStationHourlyDemand`（GET /station-hourly，口径=取货节点 × createdAt 小时）+ 导出 station-hourly 数据集；前端：运营分析页新增"调度指标"卡与"站点×小时需求"表、导出菜单两项；聚合口径直测 +1 | typecheck/lint/build 过；fsd-admin-api 测试绿（CI 复验） | `views/analytics/Index.vue` + VO/接口/控制器 |

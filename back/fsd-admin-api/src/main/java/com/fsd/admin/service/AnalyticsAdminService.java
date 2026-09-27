@@ -7,6 +7,7 @@ import com.fsd.admin.vo.AdminAnalyticsEfficiencyResponse;
 import com.fsd.admin.vo.AdminAnalyticsEnergyForecastResponse;
 import com.fsd.admin.vo.AdminAnalyticsExceptionResponse;
 import com.fsd.admin.vo.AdminAnalyticsParkCompareItem;
+import com.fsd.admin.vo.AdminAnalyticsStationHourResponse;
 import com.fsd.admin.vo.AdminPeakCompareResponse;
 import java.time.LocalDate;
 import java.util.List;
@@ -14,6 +15,9 @@ import java.util.List;
 public interface AnalyticsAdminService {
 
     AdminAnalyticsEfficiencyResponse getEfficiency(String period, Long parkId);
+
+    /** P1-1：站点×小时订单需求聚合（口径见 {@link AdminAnalyticsStationHourResponse}）。 */
+    AdminAnalyticsStationHourResponse getStationHourlyDemand(String period, Long parkId);
 
     AdminAnalyticsExceptionResponse getExceptionAnalysis(String period, Long parkId);
 

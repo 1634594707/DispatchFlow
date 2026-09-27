@@ -20,6 +20,8 @@
               <a-menu-item key="tasks">任务</a-menu-item>
               <a-menu-item key="exceptions">异常</a-menu-item>
               <a-menu-item key="vehicles">车辆</a-menu-item>
+              <a-menu-item key="dispatch-metrics">调度指标</a-menu-item>
+              <a-menu-item key="station-hourly">站点×小时</a-menu-item>
             </a-menu>
           </template>
         </a-dropdown>
@@ -99,6 +101,30 @@
             :items="efficiencyItems"
             aria-label="效率指标"
             @activate="handleEfficiencyMetricActivate"
+          />
+        </section>
+
+        <section v-if="efficiency?.dispatchMetrics" class="panel metrics-panel">
+          <h3>调度指标</h3>
+          <div class="dispatch-metrics-grid">
+            <div><span>可用车辆</span><strong>{{ efficiency!.dispatchMetrics.availableVehicles }}</strong></div>
+            <div><span>忙碌车辆</span><strong>{{ efficiency!.dispatchMetrics.busyVehicles }}</strong></div>
+            <div><span>充电中</span><strong>{{ efficiency!.dispatchMetrics.chargingVehicles }}</strong></div>
+            <div><span>手动接管</span><strong>{{ efficiency!.dispatchMetrics.manualPendingVehicles }}</strong></div>
+            <div><span>低 SOC 车</span><strong>{{ efficiency!.dispatchMetrics.lowSocVehicles }}</strong></div>
+            <div><span>待派 backlog</span><strong>{{ efficiency!.dispatchMetrics.pendingOrders }}</strong></div>
+            <div><span>供需比</span><strong>{{ efficiency!.dispatchMetrics.supplyDemandRatio }}</strong></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>站点×小时需求</h3>
+          <a-table
+            size="small"
+            :data-source="stationHourly?.rows || []"
+            :columns="stationHourColumns"
+            :row-key="stationHourRowKey"
+            :pagination="{ pageSize: 10 }"
           />
         </section>
 
@@ -186,6 +212,7 @@ import {
   getAnalyticsExceptions,
   getAnalyticsChainKpi,
   getAnalyticsPeakCompare,
+  getAnalyticsStationHourly,
   type AnalyticsPeakCompare,
   getAnalyticsExportUrl,
   getAnalyticsPdfUrl,
@@ -198,6 +225,7 @@ import type {
   AnalyticsEfficiency,
   AnalyticsExceptionAnalysis,
   AnalyticsParkCompareItem,
+  AnalyticsStationHourResponse,
   AnalyticsTrendPoint,
 } from '@/types/analytics'
 import { useParkScopeStore } from '@/stores/parkScope'
@@ -212,6 +240,7 @@ const dailySummary = ref<AnalyticsDailySummary | null>(null)
 const parkCompare = ref<AnalyticsParkCompareItem[]>([])
 const chainKpi = ref<AnalyticsChainKpi | null>(null)
 const peakCompare = ref<AnalyticsPeakCompare | null>(null)
+const stationHourly = ref<AnalyticsStationHourResponse | null>(null)
 const loadError = ref('')
 const lastSuccessAt = ref<number | null>(null)
 const lastSuccessLabel = computed(() =>
@@ -226,6 +255,16 @@ const parkCompareColumns = [
   { title: '成功任务', dataIndex: 'taskSuccessCount', width: 100 },
   { title: 'OPEN 异常', dataIndex: 'openExceptionCount', width: 100 },
 ]
+
+const stationHourColumns = [
+  { title: '站点（取货节点）', dataIndex: 'station' },
+  { title: '小时', dataIndex: 'hour', width: 70 },
+  { title: '订单数', dataIndex: 'orders', width: 90 },
+]
+
+function stationHourRowKey(record: { station: string; hour: number }) {
+  return `${record.station}#${record.hour}`
+}
 
 const chainKpiItems = computed<MetricStripItem[]>(() => {
   if (!chainKpi.value) return []
@@ -318,9 +357,10 @@ async function loadAll() {
       getAnalyticsDailySummary(undefined, parkId),
       getAnalyticsChainKpi(period.value, parkId),
       getAnalyticsPeakCompare(period.value, parkId),
+      getAnalyticsStationHourly(period.value, parkId),
     ] as const
     if (parkId == null) {
-      const [effRes, excRes, summaryRes, chainRes, peakRes, parkRes] = await Promise.all([
+      const [effRes, excRes, summaryRes, chainRes, peakRes, stationRes, parkRes] = await Promise.all([
         ...requests,
         getAnalyticsParkComparison(period.value),
       ])
@@ -329,14 +369,16 @@ async function loadAll() {
       dailySummary.value = summaryRes.data
       chainKpi.value = chainRes.data
       peakCompare.value = peakRes.data
+      stationHourly.value = stationRes.data
       parkCompare.value = parkRes.data
     } else {
-      const [effRes, excRes, summaryRes, chainRes, peakRes] = await Promise.all(requests)
+      const [effRes, excRes, summaryRes, chainRes, peakRes, stationRes] = await Promise.all(requests)
       efficiency.value = effRes.data
       exceptionAnalysis.value = excRes.data
       dailySummary.value = summaryRes.data
       chainKpi.value = chainRes.data
       peakCompare.value = peakRes.data
+      stationHourly.value = stationRes.data
       parkCompare.value = []
     }
     loadError.value = ''
@@ -349,6 +391,7 @@ async function loadAll() {
     dailySummary.value = null
     chainKpi.value = null
     peakCompare.value = null
+    stationHourly.value = null
     parkCompare.value = []
     loadError.value = err instanceof Error ? err.message : String(err)
   } finally {
@@ -409,6 +452,26 @@ watch(
 </script>
 
 <style scoped lang="less">
+.dispatch-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+
+  div {
+    display: flex;
+    flex-direction: column;
+
+    span {
+      color: var(--fsd-text-secondary, #8c8c8c);
+      font-size: 12px;
+    }
+
+    strong {
+      font-size: 18px;
+    }
+  }
+}
+
 .analytics-error {
   margin-bottom: 12px;
 }

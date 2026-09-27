@@ -161,6 +161,41 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 .build();
     }
 
+    @Override
+    public com.fsd.admin.vo.AdminAnalyticsStationHourResponse getStationHourlyDemand(String period, Long parkId) {
+        String normalized = normalizePeriod(period);
+        List<OrderEntity> orders = filterOrdersByPark(loadOrdersSince(rangeStart(normalized)), parkId);
+        return com.fsd.admin.vo.AdminAnalyticsStationHourResponse.builder()
+                .period(normalized)
+                .rows(buildStationHourRows(orders))
+                .build();
+    }
+
+    /**
+     * P1-1：站点×小时聚合（页面 /station-hourly 与导出 dataset=station-hourly 共用本方法，天然一致）。
+     * 站点 = 订单取货节点编码（pickupNodeCode，空记"未知"）；小时 = createdAt 本地小时；值为窗口内订单数。
+     */
+    java.util.List<com.fsd.admin.vo.AdminAnalyticsStationHourResponse.Row> buildStationHourRows(
+            List<OrderEntity> orders) {
+        java.util.Map<String, java.util.Map<Integer, Long>> byStationHour = new java.util.TreeMap<>();
+        for (OrderEntity order : orders) {
+            String station = order.getPickupNodeCode() == null || order.getPickupNodeCode().isBlank()
+                    ? "未知"
+                    : order.getPickupNodeCode();
+            int hour = order.getCreatedAt() == null ? 0 : order.getCreatedAt().getHour();
+            byStationHour.computeIfAbsent(station, key -> new java.util.TreeMap<>())
+                    .merge(hour, 1L, Long::sum);
+        }
+        java.util.List<com.fsd.admin.vo.AdminAnalyticsStationHourResponse.Row> rows = new java.util.ArrayList<>();
+        byStationHour.forEach((station, hours) -> hours.forEach((hour, count) -> rows.add(
+                com.fsd.admin.vo.AdminAnalyticsStationHourResponse.Row.builder()
+                        .station(station)
+                        .hour(hour)
+                        .orders(count)
+                        .build())));
+        return rows;
+    }
+
     /**
      * P1-1：调度指标块。口径（页面与 {@code exportCsv("dispatch-metrics", ...)} 共用本方法，天然一致）：
      * <ul>
@@ -523,6 +558,17 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 appendRow(sb, rows, () -> sb.append("lowSocVehicles,").append(metrics.getLowSocVehicles()).append('\n'));
                 appendRow(sb, rows, () -> sb.append("pendingOrders,").append(metrics.getPendingOrders()).append('\n'));
                 appendRow(sb, rows, () -> sb.append("supplyDemandRatio,").append(metrics.getSupplyDemandRatio()).append('\n'));
+            }
+            case "station-hourly" -> {
+                // P1-1：与页面 /station-hourly 共用 buildStationHourRows——页面与导出同口径
+                com.fsd.admin.vo.AdminAnalyticsStationHourResponse demand =
+                        getStationHourlyDemand(normalized, parkId);
+                sb.append("station,hour,orders\n");
+                for (com.fsd.admin.vo.AdminAnalyticsStationHourResponse.Row row : demand.getRows()) {
+                    appendRow(sb, rows, () -> sb.append(csv(row.getStation())).append(',')
+                            .append(row.getHour()).append(',')
+                            .append(row.getOrders()).append('\n'));
+                }
             }
             default -> throw new IllegalArgumentException("Unsupported dataset: " + dataset);
         }
