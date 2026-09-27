@@ -57,6 +57,7 @@ const BUDGETS: PageBudget[] = [
     'GET /api/admin/analytics/chain-kpi',
     'GET /api/admin/analytics/peak-compare',
     'GET /api/admin/analytics/park-comparison',
+    'GET /api/admin/analytics/station-hourly',
     'GET /api/admin/parks',
   ], maxStreamHandshakes: 2 },
   { route: '/vehicles', own: ['POST /api/admin/vehicles/query', 'GET /api/admin/parks'], maxStreamHandshakes: 2 },
