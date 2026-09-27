@@ -360,5 +360,11 @@ class ParkingFacilityServiceImplTest {
         assertTrue(where.contains("t_charging_pile"), "只作用于补能位：正常待命的车没有会话，按①判会被误放");
         assertTrue(where.contains("t_charging_session"), "判据①：没有 ACTIVE 充电会话");
         assertTrue(where.contains("t_vehicle"), "判据②：那台车此刻不在该位坐标上");
+
+        // 状态集合本身就是判据的一部分：RESERVED = 车刚抢到位、还在去桩路上，
+        // 那一条同时满足"无会话"和"人不在位"，扫它就是把车路上的桩位抽走（上线后 26 条 ERROR 的成因）。
+        var bound = captor.getValue().getParamNameValuePairs().values().stream().map(String::valueOf).toList();
+        assertTrue(bound.contains("OCCUPIED") && bound.contains("CHARGING"), "OCCUPIED/CHARGING 才是该扫的状态");
+        assertFalse(bound.contains("RESERVED"), "对账器不能扫 RESERVED");
     }
 }

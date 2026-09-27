@@ -160,7 +160,12 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
         List<ParkingSlotEntity> orphans = parkingSlotMapper.selectList(new QueryWrapper<ParkingSlotEntity>()
                 .eq("deleted", 0)
                 .isNotNull("occupied_vehicle_id")
-                .in("status", ParkingSlotStatus.RESERVED.name(), ParkingSlotStatus.OCCUPIED.name())
+                // ⚠ 只放 OCCUPIED / CHARGING，**绝不能碰 RESERVED**：`reserveSlot` 之后、车开到桩之前
+                // 那一段就是"RESERVED + 无会话 + 人不在位"，三条判据全都满足 —— 放掉它就是把正在
+                // 路上的车的桩位抽走，它到桩前 markCharging 必抛"occupied by another vehicle"
+                // （第 15 轮上线后 30 分钟内 26 条 ERROR 就是这么来的）。
+                // 生产那 22 个孤儿全是 OCCUPIED，所以不收 RESERVED 不影响这次要修的问题。
+                .in("status", ParkingSlotStatus.OCCUPIED.name(), ParkingSlotStatus.CHARGING.name())
                 // 只管补能位：待命位没有会话可查，按①判会把正常待命的车全放掉
                 .apply("EXISTS (SELECT 1 FROM t_charging_pile p"
                         + " WHERE p.parking_slot_id = t_parking_slot.id AND p.deleted = 0)")
@@ -279,6 +284,31 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
                         .orderByAsc("sort_order"))
                 .stream()
                 .map(this::toPoint)
+                .toList();
+    }
+
+    @Override
+    public List<ParkPointResponse> listSlotMarkers(Long parkId) {
+        if (parkId == null) {
+            return List.of();
+        }
+        return parkingSlotMapper.selectList(new QueryWrapper<ParkingSlotEntity>()
+                        .eq("park_id", parkId)
+                        .eq("deleted", 0)
+                        .isNotNull("coord_lng")
+                        .isNotNull("coord_lat")
+                        .orderByAsc("sort_order"))
+                .stream()
+                .map(slot -> ParkPointResponse.builder()
+                        .code(slot.getSlotCode())
+                        .x(slot.getCoordX())
+                        .y(slot.getCoordY())
+                        .longitude(slot.getCoordLng())
+                        .latitude(slot.getCoordLat())
+                        .slotType(slot.getSlotType())
+                        .status(slot.getStatus())
+                        .occupiedVehicleId(slot.getOccupiedVehicleId())
+                        .build())
                 .toList();
     }
 
