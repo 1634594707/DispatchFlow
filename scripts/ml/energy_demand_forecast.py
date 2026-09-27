@@ -268,7 +268,8 @@ def run_forecast(frame: pd.DataFrame, backend: str, model_version: str) -> Forec
 # --------------------------------------------------------------------------- #
 
 def write_outputs(result: ForecastResult, out_dir: str, dataset_label: str,
-                  forecast_dates: list) -> dict:
+                  forecast_dates: list, *, publish: bool = True,
+                  quality: dict | None = None) -> dict:
     """产出预测 CSV / 导入 SQL / 评估报告。
 
     落库口径（关键）：模型的产出是**逐小时需求剖面**（每站点 24 条），而
@@ -300,26 +301,33 @@ def write_outputs(result: ForecastResult, out_dir: str, dataset_label: str,
         handle.write("-- ALG-FC 预测导入（由 scripts/ml/energy_demand_forecast.py 生成）\n")
         handle.write(f"-- model_version={result.model_version} backend={result.backend}\n")
         handle.write(f"-- dataset={dataset_label} 回测行={len(rows)} "
-                     f"剖面站点×小时={len(profile)} forecast_dates={stamped}\n\n")
-        handle.write("USE `fsd_core`;\n\n")
-        for forecast_date in forecast_dates:
-            for _, row in profile.iterrows():
-                hour = int(row["hour_of_day"])
-                handle.write(
-                    "INSERT INTO `t_energy_forecast` "
-                    "(`park_id`,`station_id`,`station_code`,`forecast_date`,`hour_of_day`,"
-                    "`demand_p50`,`demand_p90`,`pressure_p95`,`sample_count`,`model_version`,"
-                    "`generated_at`,`remark`,`deleted`)\n"
-                    f"VALUES ({int(row['park_id'])},{int(row['station_id'])},"
-                    f"'{row['station_code']}','{forecast_date}',{hour},"
-                    f"{row['demand_p50']:.4f},{row['demand_p90']:.4f},{row['pressure_p95']:.4f},"
-                    f"{result.train_rows},'{result.model_version}','{generated_at}',"
-                    f"'{dataset_label}','0')\n"
-                    "ON DUPLICATE KEY UPDATE "
-                    "`demand_p50`=VALUES(`demand_p50`),`demand_p90`=VALUES(`demand_p90`),"
-                    "`pressure_p95`=VALUES(`pressure_p95`),`sample_count`=VALUES(`sample_count`),"
-                    "`generated_at`=VALUES(`generated_at`),`remark`=VALUES(`remark`);\n"
-                )
+                     f"剖面站点×小时={len(profile)} forecast_dates={stamped}\n")
+        if not publish:
+            # P0-2 发布门禁：欠校准的预测不能变成可消费的版本——文件里一个 INSERT 都不放，
+            # Java 侧读不到新版本就自然留在纯阈值策略上（回退本身有日志与指标可观测）
+            handle.write("-- ⛔ 发布被门禁阻断：P90 覆盖率未达阈值（见同名 .md 报告）。\n")
+            handle.write("-- 本文件不含任何 INSERT；Java 侧继续使用纯阈值策略。\n\n")
+        else:
+            handle.write("\n")
+            handle.write("USE `fsd_core`;\n\n")
+            for forecast_date in forecast_dates:
+                for _, row in profile.iterrows():
+                    hour = int(row["hour_of_day"])
+                    handle.write(
+                        "INSERT INTO `t_energy_forecast` "
+                        "(`park_id`,`station_id`,`station_code`,`forecast_date`,`hour_of_day`,"
+                        "`demand_p50`,`demand_p90`,`pressure_p95`,`sample_count`,`model_version`,"
+                        "`generated_at`,`remark`,`deleted`)\n"
+                        f"VALUES ({int(row['park_id'])},{int(row['station_id'])},"
+                        f"'{row['station_code']}','{forecast_date}',{hour},"
+                        f"{row['demand_p50']:.4f},{row['demand_p90']:.4f},{row['pressure_p95']:.4f},"
+                        f"{result.train_rows},'{result.model_version}','{generated_at}',"
+                        f"'{dataset_label}','0')\n"
+                        "ON DUPLICATE KEY UPDATE "
+                        "`demand_p50`=VALUES(`demand_p50`),`demand_p90`=VALUES(`demand_p90`),"
+                        "`pressure_p95`=VALUES(`pressure_p95`),`sample_count`=VALUES(`sample_count`),"
+                        "`generated_at`=VALUES(`generated_at`),`remark`=VALUES(`remark`);\n"
+                    )
 
     with open(report_path, "w", encoding="utf-8") as handle:
         handle.write("# 站点补能需求预测评估报告（ALG-FC）\n\n")
@@ -346,6 +354,19 @@ def write_outputs(result: ForecastResult, out_dir: str, dataset_label: str,
         for key, value in result.metrics.items():
             formatted = f"{value:.4f}" if isinstance(value, float) else str(value)
             handle.write(f"| {label_map.get(key, key)} | {formatted} |\n")
+        if not publish:
+            handle.write("\n## ⛔ 发布被门禁阻断\n\n")
+            handle.write(f"- P90 覆盖率 {result.metrics['p90_coverage']:.4f} 低于阈值：本版本不落表，"
+                         "Java 侧继续纯阈值策略（回退在 EnergyForecastServiceImpl 有日志与指标可观测）。\n")
+        if quality is not None:
+            handle.write("\n## 数据质量结论\n\n")
+            if quality["ok"]:
+                handle.write("- 数据质量门禁：✅ 通过\n")
+            else:
+                handle.write(f"- 数据质量门禁：⛔ 命中 {'、'.join(quality['codes'])}"
+                             "（训练是被 --allow-unsafe-input 强放的，产出不得用于生产）\n")
+            for detail in quality["details"]:
+                handle.write(f"- {detail}\n")
         handle.write("\n## 数据说明\n\n")
         if dataset_label == "synthetic":
             handle.write("> ⚠️ 本报告基于**仿真数据**（固定种子可复现）训练，用于验证"
@@ -361,6 +382,7 @@ def write_outputs(result: ForecastResult, out_dir: str, dataset_label: str,
         "predictions": predictions_path,
         "sql": sql_path,
         "report": report_path,
+        "publish": publish,
         "profile_hours": int(len(profile)),
         "forecast_dates": [d.isoformat() for d in forecast_dates],
         "insert_rows": int(len(profile) * len(forecast_dates)),
@@ -382,14 +404,33 @@ def main() -> int:
     parser.add_argument("--forecast-days", type=int, default=1,
                         help="从起始日期起连续落库的天数（默认 1；生产建议 2，"
                              "以容忍日作业跨过午夜执行）")
+    parser.add_argument("--stale-days", type=int, default=3,
+                        help="数据质量门禁：最新数据允许的年龄（天）")
+    parser.add_argument("--min-coverage", type=float, default=0.8,
+                        help="发布门禁：P90 覆盖率低于该值不落表（Java 侧继续阈值策略）")
+    parser.add_argument("--allow-unsafe-input", action="store_true",
+                        help="数据质量门禁命中时仍强制训练（报告带 UNSAFE 标记，产出不得用于生产）")
+    parser.add_argument("--allow-low-coverage", action="store_true",
+                        help="P90 覆盖率未达阈值时仍强制落表（仅实验用）")
     args = parser.parse_args()
 
+    quality = None
     if args.synthesize or not args.input:
         raw = synthesize_features(days=args.days, station_count=args.stations)
         dataset_label = "synthetic"
     else:
         raw = load_features(args.input)
         dataset_label = os.path.basename(args.input)
+        # P0-2 数据质量门禁：命中即阻断训练/发布，Java 侧继续纯阈值策略
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from energy_quality_gate import evaluate_quality, to_markdown
+        quality = evaluate_quality(raw, stale_days=args.stale_days)
+        if not quality["ok"] and not args.allow_unsafe_input:
+            print(to_markdown(quality, dataset_label), file=sys.stderr)
+            raise SystemExit("⛔ 数据质量门禁阻断：错误或平坦的数据不能写入可消费的预测版本"
+                             "（仅实验可加 --allow-unsafe-input 强放，产出带 UNSAFE 标记）")
+        if not quality["ok"]:
+            dataset_label += "-UNSAFE-INPUT"
 
     backend = resolve_backend(args.backend)
     frame = build_feature_frame(raw)
@@ -404,7 +445,13 @@ def main() -> int:
     model_version = args.model_version or f"energy-demand-{backend}-{dataset_label}-{stamp}"
 
     result = run_forecast(frame, backend, model_version)
-    outputs = write_outputs(result, args.out_dir, dataset_label, forecast_dates)
+    # P0-2 发布门禁：P90 覆盖率不达标就不落表——预测缺失/欠校准时 Java 侧留在纯阈值策略
+    publish = result.metrics["p90_coverage"] >= args.min_coverage or args.allow_low_coverage
+    outputs = write_outputs(result, args.out_dir, dataset_label, forecast_dates,
+                            publish=publish, quality=quality)
+    if not publish:
+        print(f"⛔ P90 覆盖率 {result.metrics['p90_coverage']:.4f} < {args.min_coverage}："
+              f"result.sql 已写成阻断占位（无 INSERT），不落表。", file=sys.stderr)
 
     print(json.dumps({
         "backend": result.backend,
@@ -412,10 +459,11 @@ def main() -> int:
         "model_version": result.model_version,
         "train_rows": result.train_rows,
         "test_rows": result.test_rows,
+        "publish": publish,
         "metrics": result.metrics,
         "outputs": outputs,
     }, ensure_ascii=False, indent=2))
-    return 0
+    return 0 if publish else 2
 
 
 if __name__ == "__main__":
