@@ -69,6 +69,7 @@ export {
   buildStationGeoMarkers,
   buildOperationalStationMarkers,
   buildSlotMarkers,
+  serviceAreaShape,
   buildVehicleGeoMarkers,
   markerColor,
   orderColor,

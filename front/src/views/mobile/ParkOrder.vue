@@ -35,6 +35,7 @@
         :has-tracked-order="Boolean(trackedOrder)"
         :park-options="parkOptions"
         :map-center="orderMapCenter"
+        :service-areas="orderServiceAreas"
         @update:park-id="handleParkIdUpdate"
         @update:pickup-endpoint="pickupEndpoint = $event"
         @update:dropoff-endpoint="dropoffEndpoint = $event"
@@ -101,6 +102,7 @@ import {
   isGeoDeliveryTrackRow,
   MOBILE_SERVICE_FENCE_PREFIX,
   pilotMapCenter,
+  serviceAreaShape,
   syncDefaultOrderStations,
   vehicleGeoPosition,
 } from '@/maps'
@@ -334,6 +336,12 @@ const trackingGeoPolygons = computed(() =>
     fenceCodePrefix: MOBILE_SERVICE_FENCE_PREFIX,
     flashOutline: serviceFenceFlash.value,
   }),
+)
+
+const orderServiceAreas = computed(() =>
+  // 判据是围栏的 `dispatchable`，与后端拒单用的同一个字段 —— 不在这层再加"按前缀筛"之类的口径，
+  // 否则会出现"地图上亮着、点下去被后端拒"，而那种不一致用户只会算到界面头上。
+  serviceAreaShape(parkGeofences.value),
 )
 
 const trackingFitViewPoints = computed((): [number, number][] => {

@@ -51,6 +51,7 @@
         :model-value="amapModel"
         :center="mapCenter"
         :zoom="mapZoom"
+        :service-areas="serviceAreas"
         @update:model-value="onMapPick"
       />
       <p v-if="!mapAvailable" class="coord-hint">
@@ -93,6 +94,7 @@
 import { computed, ref, watch } from 'vue'
 import AmapPointPicker from '@/components/infrastructure/AmapPointPicker.vue'
 import { isAmapConfigured } from '@/maps'
+import { isOrderablePoint, type ServiceAreaShape } from '@/maps/parkGeoMapLayers'
 import type { MobileStationSelectGroup } from '@/maps/stationLayers'
 import type { ParkOrderEndpoint } from '@/types/park'
 
@@ -108,6 +110,8 @@ const props = withDefaults(
     loadingStations?: boolean
     mapCenter?: [number, number]
     mapZoom?: number
+    /** 可下单范围：透传给点选地图，让它把范围画出来并把范围外的点挡掉 */
+    serviceAreas?: ServiceAreaShape | null
     /**
      * 设施模型 v2 后送货侧已经没有可选站点（取货固定为总发货仓库，送货由用户任意点决定），
      * 所以送货侧初始就该停在"在地图上点"，否则会落在一个空的下拉上、看着像坏了。
@@ -121,6 +125,7 @@ const props = withDefaults(
     loadingStations: false,
     mapCenter: undefined,
     mapZoom: 15,
+    serviceAreas: null,
     defaultMode: 'station',
   },
 )
@@ -174,8 +179,20 @@ function onStationChange(value: number) {
   emit('update:modelValue', { kind: 'station', stationId: value })
 }
 
+/**
+ * 范围挡点：地图点选与手输走**同一条**判据。
+ * 只在地图上拦、手输能过，等于两套口径 —— 而手输恰恰是没高德 key 时唯一的路径。
+ */
+function outsideServiceArea(lng: number, lat: number): boolean {
+  if (!props.serviceAreas) return false
+  if (isOrderablePoint(props.serviceAreas, [lng, lat])) return false
+  entryError.value = '这里不在可下单范围内：请在亮色的受理区里选点（当前值未改动）'
+  return true
+}
+
 function onMapPick(point: { lng: number; lat: number } | null) {
   entryError.value = ''
+  if (point && outsideServiceArea(point.lng, point.lat)) return
   emit('update:modelValue', point ? { kind: 'coord', lng: point.lng, lat: point.lat } : null)
 }
 
@@ -195,6 +212,7 @@ function applyManualCoord() {
     entryError.value = '经纬度超出取值范围（经度 ±180，纬度 ±90）'
     return
   }
+  if (outsideServiceArea(lng, lat)) return
   entryError.value = ''
   emit('update:modelValue', { kind: 'coord', lng, lat })
 }

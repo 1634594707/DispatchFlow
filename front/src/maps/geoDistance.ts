@@ -45,3 +45,21 @@ export function formatDistance(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`
   return `${(meters / 1000).toFixed(1)} km`
 }
+
+/**
+ * 射线法：点是否落在环内（GCJ-02 经纬度平面上判，园区尺度 ~8 km 内地球曲率可忽略）。
+ *
+ * 边界上的点算"外"—— 这不是精度问题，是刻意的：贴着围栏线的点本来就该被后端拒，
+ * 前端把它当范围外，用户得到的反馈与提交结果一致。
+ */
+export function pointInRing(point: [number, number], ring: [number, number][]): boolean {
+  if (ring.length < 3) return false
+  const [x, y] = point
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}

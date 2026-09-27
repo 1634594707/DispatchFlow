@@ -484,8 +484,11 @@ test.describe('移动端追踪地图页面门（乘客视角：只画本单车 +
     await page.goto('/mobile/order')
 
     await page.getByTestId('endpoint-dropoff-mode-coord').click()
-    await page.getByTestId('endpoint-dropoff-lng').fill('121.553210')
-    await page.getByTestId('endpoint-dropoff-lat').fill('31.209870')
+    // 这个点在**画出来的**受理框内：W1-c 之后，框外的点在录入那一步就被前端挡下了，
+    // 走不到提交。这条测的是剩下的那一类 —— 界面几何与后端判据不一致（围栏取数滞后，
+    // 或后端还叠加了吸附/可达判据）时，拒单原因仍然要说清楚、围栏仍然要闪一次。
+    await page.getByTestId('endpoint-dropoff-lng').fill('121.080000')
+    await page.getByTestId('endpoint-dropoff-lat').fill('31.965000')
     await page.getByTestId('endpoint-dropoff-apply').click()
     await page.getByRole('button', { name: '确认下单' }).click()
 

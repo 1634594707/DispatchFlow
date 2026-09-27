@@ -9,7 +9,7 @@ import { toAvGeoMarker } from './vehicleMapIcon'
 import type { GeoMapCircle, GeoMapMarker, GeoMapPolygon, GeoMapPolyline } from './types'
 import { ZJF_L0_COVERAGE, ZJF_PILOT_GEO } from './zjfPilotGeo'
 import { ZJF_DELIVERY_ZONES, ZJF_BASE_GEO_RADIUS_METERS } from './zjfStationAnchors'
-import { haversineMeters } from './geoDistance'
+import { haversineMeters, pointInRing } from './geoDistance'
 import { shouldDrawPlannedRoute } from './routeValidation'
 import { workbenchStationRole } from './stationLayers'
 
@@ -354,6 +354,42 @@ export interface GeofencePolygonOptions {
   fenceCodePrefix?: string
   /** 描边闪一次：移动端"围栏外/吸附失败"拒单时把服务范围描边加粗提亮（仅样式，不改几何）。 */
   flashOutline?: boolean
+}
+
+/** 可下单范围的几何：`allowed` 是受理区，`excluded` 是落在受理区里的禁区。 */
+export interface ServiceAreaShape {
+  /** 每个受理围栏一个环；多个受理围栏就是多个环（后端是 anyMatch，这里也是 some） */
+  allowed: [number, number][][]
+  excluded: [number, number][][]
+}
+
+/**
+ * 从围栏表算"能在哪儿下单"。
+ *
+ * 判据只认 `dispatchable === true` —— 那是后端 `OrderEndpointResolver.assertInsideServiceArea`
+ * 用的同一个字段。这里若改成"按前缀筛"或"排除 RESTRICTED"，就是自造第二套口径，
+ * 表现是"地图上亮着、点下去被后端拒"或反过来；两套几何一旦分叉，用户看到的永远是界面的错。
+ */
+export function serviceAreaShape(geofences: ParkGeofence[]): ServiceAreaShape {
+  const ringsOf = (fence: ParkGeofence) =>
+    (fence.polygon ?? []).map((point) => [Number(point[0]), Number(point[1])] as [number, number])
+  const usable = (fence: ParkGeofence) => fence.status === 'ACTIVE' && (fence.polygon?.length ?? 0) >= 3
+  return {
+    allowed: geofences.filter((fence) => usable(fence) && fence.dispatchable === true).map(ringsOf),
+    // 禁区不是范围：后端不看它，所以这里也**不拿它拦人**，只负责画出来让人别走进去
+    excluded: geofences.filter((fence) => usable(fence) && fence.fenceType === 'RESTRICTED').map(ringsOf),
+  }
+}
+
+/**
+ * 这个点能不能下单。
+ *
+ * `allowed` 为空时返回 true：围栏没读到**不能**把用户挡在门外（那是取数故障，不是范围问题），
+ * 让后端在提交时按同一套几何拒，前端只负责"看得见"。
+ */
+export function isOrderablePoint(shape: ServiceAreaShape, point: [number, number]): boolean {
+  if (!shape.allowed.length) return true
+  return shape.allowed.some((ring) => pointInRing(point, ring))
 }
 
 export function buildGeofencePolygons(

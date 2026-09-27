@@ -234,3 +234,49 @@ test.describe('W1 任意点下单（坐标入口 + 拒单原因可见）', () =>
     await expect(page.getByText('SO-9001')).toHaveCount(0)
   })
 })
+
+/**
+ * 前端挡点必须与后端同一块几何（§4 顺丰化①）。
+ *
+ * 后端 `assertInsideServiceArea` 只认 `dispatchable === true` 的围栏；这里刻意再放一条
+ * `dispatchable=false` 的**全球大框**当反证 —— 要是前端按"有没有围栏"或按前缀筛，
+ * 这个大框会把判据吞掉，范围外的点就又能提交了。
+ */
+const SERVICE_POLYGON = [
+  [SERVICE_BOX.minLng, SERVICE_BOX.minLat],
+  [SERVICE_BOX.maxLng, SERVICE_BOX.minLat],
+  [SERVICE_BOX.maxLng, SERVICE_BOX.maxLat],
+  [SERVICE_BOX.minLng, SERVICE_BOX.maxLat],
+]
+
+test.describe('W1-c 超范围即时拒答', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      sessionStorage.setItem('fsd_mobile_api_key', 'e2e-mobile-key')
+    })
+  })
+
+  test('范围外的坐标在录入这一步就被拒，范围内的照常通过', async ({ page }) => {
+    await seedMobileOrderPage(page)
+    await page.route(api('/admin/park/geofences**'), (r) =>
+      r.fulfill({ json: ok([
+        { id: 1, parkId: 1, fenceCode: 'ZJF-ZONE-SVC-01', fenceName: '可派单范围', fenceType: 'BOUNDARY', dispatchable: true, status: 'ACTIVE', polygon: SERVICE_POLYGON },
+        { id: 2, parkId: 1, fenceCode: 'DEFAULT-BOUNDARY', fenceName: '展示包络', fenceType: 'BOUNDARY', dispatchable: false, status: 'ACTIVE', polygon: [[0, 0], [140, 0], [140, 80], [0, 80]] },
+      ]) }),
+    )
+    await page.goto('/mobile/order')
+
+    await page.getByTestId('endpoint-dropoff-mode-coord').click()
+    await page.getByTestId('endpoint-dropoff-lng').fill(String(OUT_OF_AREA.lng))
+    await page.getByTestId('endpoint-dropoff-lat').fill(String(OUT_OF_AREA.lat))
+    await page.getByTestId('endpoint-dropoff-apply').click()
+
+    await expect(page.getByTestId('endpoint-dropoff-error')).toContainText('不在可下单范围内')
+    await expect(page.getByTestId('endpoint-dropoff-picked')).toHaveCount(0)
+
+    await page.getByTestId('endpoint-dropoff-lng').fill(String(IN_AREA.lng))
+    await page.getByTestId('endpoint-dropoff-lat').fill(String(IN_AREA.lat))
+    await page.getByTestId('endpoint-dropoff-apply').click()
+    await expect(page.getByTestId('endpoint-dropoff-picked')).toContainText(IN_AREA.lng.toFixed(6))
+  })
+})

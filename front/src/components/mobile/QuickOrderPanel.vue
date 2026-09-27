@@ -60,6 +60,7 @@
                 :loading-stations="loadingStations"
                 station-placeholder="选择取货服务点"
                 :map-center="mapCenter"
+                :service-areas="serviceAreas"
                 @update:model-value="$emit('update:pickupEndpoint', $event)"
               />
             </a-form-item>
@@ -76,6 +77,7 @@
                 :loading-stations="loadingStations"
                 station-placeholder="选择送货服务点"
                 :map-center="mapCenter"
+                :service-areas="serviceAreas"
                 @update:model-value="$emit('update:dropoffEndpoint', $event)"
               />
             </a-form-item>
@@ -193,6 +195,7 @@ import OrderEndpointInput from '@/components/order/OrderEndpointInput.vue'
 import { endpointSummary } from '@/constants/orderEndpoints'
 import type { OrderRejection } from '@/constants/orderEndpoints'
 import { buildGroupedMobileStationOptions, filterMobileOrderStations } from '@/maps/stationLayers'
+import type { ServiceAreaShape } from '@/maps/parkGeoMapLayers'
 import type { ParkOrderEndpoint, ParkStation } from '@/types/park'
 
 const props = defineProps<{
@@ -213,6 +216,8 @@ const props = defineProps<{
   hasTrackedOrder?: boolean
   parkOptions?: { value: number; label: string }[]
   mapCenter?: [number, number]
+  /** 可下单范围：透传给两个端点的地图选点，让用户在选点时就看得见范围 */
+  serviceAreas?: ServiceAreaShape | null
 }>()
 
 const emit = defineEmits<{
