@@ -81,7 +81,7 @@ function drawServiceAreas() {
     const polygon = new AMapNs.Polygon({
       path,
       strokeColor: color,
-      strokeWeight: 2,
+      strokeWeight: 3,
       fillColor: color,
       fillOpacity,
       bubble: true,
@@ -90,8 +90,10 @@ function drawServiceAreas() {
     polygon.setMap(map)
     areaPolygons.push(polygon)
   }
-  shape.allowed.forEach((path) => add(path, '#2DE08A', 0.12))
-  shape.excluded.forEach((path) => add(path, '#FF5C7C', 0.22))
+  // 0.16 不是审美值：浅色底图上 0.12 的绿几乎看不出来（本机截图实测），
+  // 而这块面存在的唯一目的就是"让人在点之前就知道边界在哪"。
+  shape.allowed.forEach((path) => add(path, '#2DE08A', 0.16))
+  shape.excluded.forEach((path) => add(path, '#FF5C7C', 0.26))
 }
 
 async function mountMap() {

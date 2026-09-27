@@ -44,46 +44,40 @@
           />
         </a-form-item>
 
-        <div class="address-stack">
-          <span class="address-rail"
-            ><i class="pickup-dot" /><i class="rail-line" /><i class="dropoff-dot"
-          /></span>
-          <div class="address-fields">
-            <a-form-item label="从哪里取货">
-              <OrderEndpointInput
-                :model-value="pickupEndpoint"
-                :groups="pickupGroups"
-                title="取货点"
-                test-id="pickup"
-                size="large"
-                :disabled="submitting"
-                :loading-stations="loadingStations"
-                station-placeholder="选择取货服务点"
-                :map-center="mapCenter"
-                :service-areas="serviceAreas"
-                @update:model-value="$emit('update:pickupEndpoint', $event)"
-              />
-            </a-form-item>
-
-            <a-form-item label="送到哪里">
-              <OrderEndpointInput
-                :model-value="dropoffEndpoint"
-                :groups="dropoffGroups"
-                title="送货点"
-                test-id="dropoff"
-                size="large"
-                default-mode="coord"
-                :disabled="submitting"
-                :loading-stations="loadingStations"
-                station-placeholder="选择送货服务点"
-                :map-center="mapCenter"
-                :service-areas="serviceAreas"
-                @update:model-value="$emit('update:dropoffEndpoint', $event)"
-              />
-            </a-form-item>
-          </div>
+        <div class="address-card">
+          <OrderEndpointInput
+            :model-value="pickupEndpoint"
+            :groups="pickupGroups"
+            title="从哪里取"
+            test-id="pickup"
+            :open="openRow === 'pickup'"
+            size="large"
+            :disabled="submitting"
+            :loading-stations="loadingStations"
+            station-placeholder="选择取货服务点"
+            :map-center="mapCenter"
+            :service-areas="serviceAreas"
+            @update:model-value="$emit('update:pickupEndpoint', $event)"
+            @toggle="openRow = $event ? 'pickup' : 'none'"
+          />
+          <OrderEndpointInput
+            :model-value="dropoffEndpoint"
+            :groups="dropoffGroups"
+            title="送到哪里"
+            test-id="dropoff"
+            :open="openRow === 'dropoff'"
+            size="large"
+            default-mode="coord"
+            :disabled="submitting"
+            :loading-stations="loadingStations"
+            station-placeholder="选择送货服务点"
+            :map-center="mapCenter"
+            :service-areas="serviceAreas"
+            @update:model-value="$emit('update:dropoffEndpoint', $event)"
+            @toggle="openRow = $event ? 'dropoff' : 'none'"
+          />
           <button type="button" class="swap-btn" title="交换取送货点" @click="swapEndpoints">
-            <SwapOutlined />
+            <SwapOutlined /> 交换取送
           </button>
         </div>
       </a-form>
@@ -169,6 +163,7 @@
     <footer class="submit-bar">
       <div class="submit-summary">
         <span class="summary-route">{{ pickupPreview }} → {{ dropoffPreview }}</span>
+        <span v-if="etaPreview" class="summary-eta" data-testid="order-eta-preview">{{ etaPreview }}</span>
         <span v-if="weight" class="summary-weight">配重 {{ weight }}kg</span>
       </div>
       <button
@@ -193,6 +188,7 @@ import {
 } from '@ant-design/icons-vue'
 import OrderEndpointInput from '@/components/order/OrderEndpointInput.vue'
 import { endpointSummary } from '@/constants/orderEndpoints'
+import { formatDeliveryEta, formatDistance, haversineMeters } from '@/maps/geoDistance'
 import type { OrderRejection } from '@/constants/orderEndpoints'
 import { buildGroupedMobileStationOptions, filterMobileOrderStations } from '@/maps/stationLayers'
 import type { ServiceAreaShape } from '@/maps/parkGeoMapLayers'
@@ -299,9 +295,43 @@ const dropoffGroups = computed(() =>
   }),
 )
 
+/**
+ * 一次只展开一行（顺丰那张卡的开合方式）。
+ *
+ * 初始展开“送到哪里”：设施 v2 之后送货端是用户任意点，是这条流里唯一必须动手的字段；
+ * 取货端有页面同步的默认仓库，收成一行摘要正好让人先确认它。
+ */
+const openRow = ref<'pickup' | 'dropoff' | 'none'>('dropoff')
+
 const pickupPreview = computed(() => endpointSummary(props.pickupEndpoint, props.stations))
 
 const dropoffPreview = computed(() => endpointSummary(props.dropoffEndpoint, props.stations))
+
+/** 端点落到坐标：站点查它自己的经纬度，坐标端直接用。 */
+function endpointCoord(endpoint: ParkOrderEndpoint | null): [number, number] | null {
+  if (!endpoint) return null
+  if (endpoint.kind === 'coord') return [endpoint.lng, endpoint.lat]
+  const station = props.stations.find((item) => item.stationId === endpoint.stationId)
+  return station?.coordLng != null && station?.coordLat != null
+    ? [Number(station.coordLng), Number(station.coordLat)]
+    : null
+}
+
+/**
+ * 下单前的用时预估。
+ *
+ * 写的是**直线**距离而不是"预计送达 X 分钟"：路网里程要后端规划，提交前拿不到；
+ * 车速 `MEASURED_NETWORK_SPEED_MPS` 是实测值，但直线距离不是车实际会走的路。
+ * 把两者混成一句"预计送达"就是编数，所以这里让"直线"两个字留在界面上。
+ */
+const etaPreview = computed(() => {
+  const from = endpointCoord(props.pickupEndpoint)
+  const to = endpointCoord(props.dropoffEndpoint)
+  if (!from || !to) return ''
+  const meters = haversineMeters(from, to)
+  if (!(meters > 0)) return ''
+  return `直线 ${formatDistance(meters)} · ${formatDeliveryEta(meters)}`
+})
 </script>
 
 <style scoped lang="less">
@@ -522,62 +552,36 @@ const dropoffPreview = computed(() => endpointSummary(props.dropoffEndpoint, pro
   }
 }
 
-.address-stack {
-  position: relative;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) var(--fsd-touch-target-min);
-  gap: var(--fsd-space-2);
-  align-items: center;
-  padding: var(--fsd-space-3) var(--fsd-space-2);
-  border-block: 1px solid var(--fsd-border);
-  background: transparent;
+/* ── 取送两点卡：一张卡两行，每行自己带点、自己展开（顺丰那张卡的形态） ── */
+.address-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--fsd-space-2);
+  border: 1px solid var(--fsd-border);
+  border-radius: var(--fsd-radius-lg);
+  background: var(--fsd-bg-elevated);
 }
 
-.address-fields {
-  min-width: 0;
-
-  :deep(.ant-form-item:last-child) {
-    margin-bottom: 0;
-  }
-}
-
-.address-rail {
-  align-self: stretch;
-  display: grid;
-  grid-template-rows: 12px 1fr 12px;
-  justify-items: center;
-  padding: 28px 0 22px;
-}
-
-.pickup-dot,
-.dropoff-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: var(--fsd-radius-full);
-}
-
-.pickup-dot {
-  background: var(--fsd-text-tertiary);
-}
-
-.dropoff-dot {
-  background: var(--fsd-accent);
-}
-
-.rail-line {
-  width: 1px;
-  min-height: 42px;
-  background: var(--fsd-border-strong);
+/* 两行之间一条虚线，代替原来那根画在左边的"轨道"：点已经在每行里了 */
+.address-card :deep(.endpoint-input + .endpoint-input) {
+  margin-top: 2px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--fsd-border);
 }
 
 .swap-btn {
-  width: var(--fsd-touch-target-min);
-  height: var(--fsd-touch-target-min);
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--fsd-touch-target-min);
+  padding: 0 14px;
   border: 1px solid var(--fsd-border);
-  border-radius: var(--fsd-radius-sm);
+  border-radius: var(--fsd-radius-full);
   background: var(--fsd-bg-hover);
   color: var(--fsd-text-secondary);
-  font-size: 16px;
+  font-size: 13px;
   cursor: pointer;
 
   &:active {
@@ -898,6 +902,12 @@ const dropoffPreview = computed(() => endpointSummary(props.dropoffEndpoint, pro
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.summary-eta {
+  font-size: 11px;
+  color: var(--fsd-text-tertiary);
+  letter-spacing: 0.02em;
 }
 
 .summary-route {

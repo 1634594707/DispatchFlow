@@ -465,6 +465,8 @@ test.describe('移动端追踪地图页面门（乘客视角：只画本单车 +
     await seedMobilePage(page)
     await page.goto('/mobile/order')
 
+    // 卡头默认展开的是「送到哪里」；取货行先点卡头展开
+    await page.getByTestId('endpoint-pickup-row').click()
     await page.getByTestId('endpoint-pickup-mode-station').click()
     await page.getByTestId('endpoint-pickup-station').click()
     const options = page.locator('.mobile-order-select-dropdown .ant-select-item-option')

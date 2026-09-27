@@ -272,7 +272,9 @@ test.describe('W1-c 超范围即时拒答', () => {
     await page.getByTestId('endpoint-dropoff-apply').click()
 
     await expect(page.getByTestId('endpoint-dropoff-error')).toContainText('不在可下单范围内')
-    await expect(page.getByTestId('endpoint-dropoff-picked')).toHaveCount(0)
+    // 送货端一进来就有页面同步的默认值，所以"没被采用"不能断成"没有摘要"，
+    // 要断成"摘要里不是那个被拒的坐标"。
+    await expect(page.getByTestId('endpoint-dropoff-picked')).not.toContainText(OUT_OF_AREA.lng.toFixed(6))
 
     await page.getByTestId('endpoint-dropoff-lng').fill(String(IN_AREA.lng))
     await page.getByTestId('endpoint-dropoff-lat').fill(String(IN_AREA.lat))
