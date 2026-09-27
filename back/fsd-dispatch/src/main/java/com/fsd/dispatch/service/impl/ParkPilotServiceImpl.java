@@ -338,7 +338,12 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                         .eq(OrderEntity::getDeleted, 0)
                         .notIn(OrderEntity::getStatus, TERMINAL_ORDER_STATUSES)))
                 .recentOrders(candidates.stream()
-                        .map(order -> toRecentOrder(order, taskById.get(order.getDispatchTaskId()), parkStations))
+                        // 派发中的单 dispatchTaskId 为 null，不能直接拿去 get：loadTasksFor 在"候选一条
+                        // 任务都没配上"时返回 Map.of()，而 JDK 的不可变 Map 对 null 键**抛 NPE**（HashMap
+                        // 才返回 null）。本机 k8s 集群压测实测：候选窗口全是 WAITING_DISPATCH 的那些次
+                        // 轮询因此 500，占移动页请求 48%。
+                        .map(order -> toRecentOrder(order, order.getDispatchTaskId() == null
+                                ? null : taskById.get(order.getDispatchTaskId()), parkStations))
                         .toList())
                 .build();
     }

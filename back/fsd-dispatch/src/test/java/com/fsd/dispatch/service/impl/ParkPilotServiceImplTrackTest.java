@@ -141,6 +141,23 @@ class ParkPilotServiceImplTrackTest {
         verify(vehicleMapper, never()).selectById(any());
     }
 
+    @Test
+    void candidateOrdersThatHaveNoTaskYetDoNotBreakTheRecentList() {
+        // 集群压测里移动页 48% 的请求 500 就是这个形状：候选窗口整批都是"还没配上任务"的单，
+        // 于是 loadTasksFor 走 Map.of() 那条早退分支，再按 null 键去查它 —— JDK 的不可变 Map
+        // 对 null 键抛 NPE（HashMap 返回 null）。其余三个用例的候选都带 dispatchTaskId，
+        // 拿到的是 Collectors.toMap 造的 HashMap，所以这条必须单独立一个门。
+        stubRecentQuery(List.of(unassignedOrder(ORDER_ID), unassignedOrder(ORDER_ID - 1),
+                unassignedOrder(ORDER_ID - 2)));
+        when(orderMapper.selectCount(any())).thenReturn(3L);
+
+        ParkTrackResponse response = service.buildTrackSnapshot(PARK_ID, null, 8);
+
+        assertEquals(3, response.getRecentOrders().size());
+        assertNull(response.getRecentOrders().get(0).getVehicleId());
+        verify(dispatchTaskMapper, never()).selectBatchIds(any());
+    }
+
     private void stubRecentQuery(List<OrderEntity> candidates) {
         when(orderMapper.selectList(any(Wrapper.class))).thenReturn(candidates);
     }
@@ -165,6 +182,14 @@ class ParkPilotServiceImplTrackTest {
         order.setDropoffPointId(DROPOFF_STATION_ID);
         order.setDispatchTaskId(TASK_ID);
         order.setDeleted(0);
+        return order;
+    }
+
+    /** 刚下完、还没派到车的单：线上绝大多数候选行是这一形状（压测那轮 939 单里 817 单 WAITING_DISPATCH）。 */
+    private static OrderEntity unassignedOrder(Long id) {
+        OrderEntity order = order(id, PARK_ID);
+        order.setStatus("WAITING_DISPATCH");
+        order.setDispatchTaskId(null);
         return order;
     }
 
