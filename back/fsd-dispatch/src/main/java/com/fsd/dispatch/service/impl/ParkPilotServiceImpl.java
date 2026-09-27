@@ -11,6 +11,7 @@ import com.fsd.dispatch.entity.DispatchTaskEntity;
 import com.fsd.dispatch.entity.ParkEntity;
 import com.fsd.dispatch.mapper.DispatchTaskMapper;
 import com.fsd.dispatch.service.ParkGeofenceService;
+import com.fsd.dispatch.service.ParkingFacilityService;
 import com.fsd.dispatch.service.ParkPilotService;
 import com.fsd.dispatch.service.ParkRoutePlannerService;
 import com.fsd.dispatch.service.ParkStationService;
@@ -58,6 +59,7 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     private final FleetSnapshotAssembler fleetSnapshotAssembler;
     private final ParkGeofenceService parkGeofenceService;
     private final com.fsd.dispatch.geo.VehiclePositionResolver vehiclePositionResolver;
+    private final ParkingFacilityService parkingFacilityService;
 
     public ParkPilotServiceImpl(ParkPilotProperties parkPilotProperties,
                                 ParkStationService parkStationService,
@@ -69,7 +71,8 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                                 FleetRuntimeService fleetRuntimeService,
                                 FleetSnapshotAssembler fleetSnapshotAssembler,
                                 ParkGeofenceService parkGeofenceService,
-                                com.fsd.dispatch.geo.VehiclePositionResolver vehiclePositionResolver) {
+                                com.fsd.dispatch.geo.VehiclePositionResolver vehiclePositionResolver,
+                                ParkingFacilityService parkingFacilityService) {
         this.parkPilotProperties = parkPilotProperties;
         this.parkStationService = parkStationService;
         this.parkPilotSimulationService = parkPilotSimulationService;
@@ -81,6 +84,7 @@ public class ParkPilotServiceImpl implements ParkPilotService {
         this.fleetSnapshotAssembler = fleetSnapshotAssembler;
         this.parkGeofenceService = parkGeofenceService;
         this.vehiclePositionResolver = vehiclePositionResolver;
+        this.parkingFacilityService = parkingFacilityService;
     }
 
     @Override
@@ -117,13 +121,10 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                 .centerLat(resolveCenterLat(park))
                 .mapProvider(resolveMapProvider(park))
                 .stations(listStations(parkId))
-                .parkingSpots(parkPilotProperties.getParkingSpots().stream()
-                        .map(point -> ParkPointResponse.builder()
-                                .code(point.getCode())
-                                .x(point.getX())
-                                .y(point.getY())
-                                .build())
-                        .toList())
+                // 车位层来自 t_parking_slot。原来这里给的是 application.yml 的 P1..P6 ——
+                // 那组是老示意图像素坐标（x=80..200 / y=700..740），对现役 1600×1854 画布没有意义，
+                // 而真 35 个待命位从没进过响应，于是"车明明停在位上"在大屏上读起来像乱停。
+                .parkingSpots(parkingFacilityService.listSlotMarkers(parkId))
                 .roadNodes(parkPilotProperties.getRoadNodes().stream()
                         .map(node -> ParkRoadNodeResponse.builder()
                                 .code(node.getCode())

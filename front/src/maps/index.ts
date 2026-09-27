@@ -68,6 +68,7 @@ export {
   MOBILE_SERVICE_FENCE_PREFIX,
   buildStationGeoMarkers,
   buildOperationalStationMarkers,
+  buildSlotMarkers,
   buildVehicleGeoMarkers,
   markerColor,
   orderColor,

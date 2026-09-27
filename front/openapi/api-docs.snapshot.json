@@ -6852,6 +6852,63 @@
         ]
       }
     },
+    "/api/admin/park/track": {
+      "get": {
+        "tags": [
+          "Dispatch Admin"
+        ],
+        "summary": "Tracking aggregate for the mobile order page",
+        "description": "Admin token or X-Mobile-Api-Key; one order + its vehicle + compact recent rows",
+        "operationId": "getParkTrack",
+        "parameters": [
+          {
+            "name": "parkId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "recentLimit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 8
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseParkTrackResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminToken": []
+          }
+        ]
+      }
+    },
     "/api/admin/park/stations": {
       "get": {
         "tags": [
@@ -14742,6 +14799,16 @@
           },
           "latitude": {
             "type": "number"
+          },
+          "slotType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "occupiedVehicleId": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -14861,7 +14928,7 @@
           }
         }
       },
-      "ApiResponseListParkStationResponse": {
+      "ApiResponseParkTrackResponse": {
         "type": "object",
         "properties": {
           "success": {
@@ -14874,10 +14941,67 @@
             "type": "string"
           },
           "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ParkStationResponse"
-            }
+            "$ref": "#/components/schemas/ParkTrackResponse"
+          }
+        }
+      },
+      "ParkOrderSnapshotResponse": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "orderNo": {
+            "type": "string"
+          },
+          "orderStatus": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "taskNo": {
+            "type": "string"
+          },
+          "taskStatus": {
+            "type": "string"
+          },
+          "vehicleId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vehicleCode": {
+            "type": "string"
+          },
+          "vehicleName": {
+            "type": "string"
+          },
+          "runtimeStage": {
+            "type": "string"
+          },
+          "pickupStation": {
+            "$ref": "#/components/schemas/ParkStationResponse"
+          },
+          "dropoffStation": {
+            "$ref": "#/components/schemas/ParkStationResponse"
+          },
+          "assignTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -14932,6 +15056,81 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "ParkTrackResponse": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/ParkOrderSnapshotResponse"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/ParkVehicleSnapshotResponse"
+          },
+          "recentOrders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentOrder"
+            }
+          },
+          "activeCount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RecentOrder": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "orderNo": {
+            "type": "string"
+          },
+          "orderStatus": {
+            "type": "string"
+          },
+          "runtimeStage": {
+            "type": "string"
+          },
+          "vehicleId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pickupStationCode": {
+            "type": "string"
+          },
+          "pickupStationArea": {
+            "type": "string"
+          },
+          "dropoffStationCode": {
+            "type": "string"
+          },
+          "dropoffStationArea": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiResponseListParkStationResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParkStationResponse"
+            }
           }
         }
       },
@@ -15054,66 +15253,6 @@
           }
         }
       },
-      "ParkOrderSnapshotResponse": {
-        "type": "object",
-        "properties": {
-          "orderId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "orderNo": {
-            "type": "string"
-          },
-          "orderStatus": {
-            "type": "string"
-          },
-          "taskId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "taskNo": {
-            "type": "string"
-          },
-          "taskStatus": {
-            "type": "string"
-          },
-          "vehicleId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "vehicleCode": {
-            "type": "string"
-          },
-          "vehicleName": {
-            "type": "string"
-          },
-          "runtimeStage": {
-            "type": "string"
-          },
-          "pickupStation": {
-            "$ref": "#/components/schemas/ParkStationResponse"
-          },
-          "dropoffStation": {
-            "$ref": "#/components/schemas/ParkStationResponse"
-          },
-          "assignTime": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "startTime": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "finishTime": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
       "ApiResponseParkLayoutResponse": {
         "type": "object",
         "properties": {
@@ -15199,10 +15338,10 @@
               "$ref": "#/components/schemas/ParkRoadSegmentResponse"
             }
           },
-          "yfieldAlias": {
+          "xfieldAlias": {
             "type": "string"
           },
-          "xfieldAlias": {
+          "yfieldAlias": {
             "type": "string"
           }
         }

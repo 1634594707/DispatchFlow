@@ -71,6 +71,7 @@ test('order submit carries idempotency key and rotates after success', async ({ 
   await page.route(api('/admin/park/layout**'), route =>
     route.fulfill({ json: ok({ parkId: 1, width: 1000, height: 600, centerLng: 121.1, centerLat: 31.9 }) }))
   await page.route(api('/admin/park/geofences**'), route => route.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/park/layout**'), route => route.fulfill({ json: ok({ parkingSpots: [] }) }))
   await page.route(api('/admin/park/stations**'), route => route.fulfill({ json: ok([
     { stationId: 504, stationCode: 'ZJF-PICK-01', stationName: '取货点', x: 100, y: 100, coordLng: 121.1, coordLat: 31.9, orderable: true },
     { stationId: 506, stationCode: 'ZJF-DROP-01', stationName: '送货点', x: 800, y: 450, coordLng: 121.11, coordLat: 31.91, orderable: true },

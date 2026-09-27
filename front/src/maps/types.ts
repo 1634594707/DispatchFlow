@@ -11,7 +11,7 @@ export interface GeoMapMarker {
   iconUrl?: string
   heading?: number
   status?: GeoMapMarkerStatus | string
-  markerType?: 'vehicle' | 'pickup' | 'dropoff' | 'express' | 'charging' | 'idle' | 'target' | 'swap' | 'warehouse'
+  markerType?: 'vehicle' | 'pickup' | 'dropoff' | 'express' | 'charging' | 'idle' | 'target' | 'swap' | 'warehouse' | 'slot'
   selected?: boolean
   showLabel?: boolean
   /** 由 `aggregateMarkersByPosition` 合并出来的计数徽标（§7.5「14 对象叠一点」）。 */

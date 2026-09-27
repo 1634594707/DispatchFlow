@@ -1,6 +1,7 @@
 import type {
   ParkGeofence,
   ParkOrderSnapshot,
+  ParkPoint,
   ParkStation,
   ParkVehicleSnapshot,
 } from '@/types/park'
@@ -223,6 +224,41 @@ export function buildOperationalStationMarkers(
 
 function stationIconUrl(station: Pick<ParkStation, 'stationCode' | 'stationType'>): string {
   return `/icons/map-station-${workbenchStationRole(station)}.svg`
+}
+
+/**
+ * 车位层（待命位 + 桩位）。
+ *
+ * 只认带 `slotType` 的点：`/park/layout.parkingSpots` 在 2026-09-27 之前给的是
+ * `application.yml` 里 P1..P6 的老示意图像素坐标（§16.11①），那种形状画上去是**错位的点**，
+ * 所以这里宁可什么都不画 —— 少画一层可以，画一层假的不行。
+ */
+export function buildSlotMarkers(
+  spots: ParkPoint[],
+  options?: { selectedId?: string | null; vehicleCode?: (vehicleId: number) => string | null },
+): GeoMapMarker[] {
+  return spots.flatMap((spot) => {
+    if (!spot.slotType || spot.longitude == null || spot.latitude == null) return []
+    const id = `slot-${spot.code}`
+    const selected = options?.selectedId === id
+    const occupant = spot.occupiedVehicleId != null ? (options?.vehicleCode?.(spot.occupiedVehicleId) ?? null) : null
+    return [
+      {
+        id,
+        position: [Number(spot.longitude), Number(spot.latitude)],
+        label: occupant ? `${spot.code} · ${occupant}` : `${spot.code} · 空`,
+        iconUrl: slotIconUrl(spot),
+        markerType: 'slot',
+        selected,
+        showLabel: selected,
+      } satisfies GeoMapMarker,
+    ]
+  })
+}
+
+function slotIconUrl(spot: ParkPoint): string {
+  if (spot.slotType === 'CHARGING_ONLY') return '/icons/map-slot-charging.svg'
+  return spot.occupiedVehicleId != null ? '/icons/map-slot-occupied.svg' : '/icons/map-slot-free.svg'
 }
 
 export function buildGeoPolylines(

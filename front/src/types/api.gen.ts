@@ -2311,6 +2311,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/park/track": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tracking aggregate for the mobile order page
+         * @description Admin token or X-Mobile-Api-Key; one order + its vehicle + compact recent rows
+         */
+        get: operations["getParkTrack"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/park/stations": {
         parameters: {
             query?: never;
@@ -5281,6 +5301,10 @@ export interface components {
             y?: number;
             longitude?: number;
             latitude?: number;
+            slotType?: string;
+            status?: string;
+            /** Format: int64 */
+            occupiedVehicleId?: number;
         };
         ParkVehicleSnapshotResponse: {
             /** Format: int64 */
@@ -5324,11 +5348,36 @@ export interface components {
             routeInvalid?: boolean;
             manualOverride?: boolean;
         };
-        ApiResponseListParkStationResponse: {
+        ApiResponseParkTrackResponse: {
             success?: boolean;
             code?: string;
             message?: string;
-            data?: components["schemas"]["ParkStationResponse"][];
+            data?: components["schemas"]["ParkTrackResponse"];
+        };
+        ParkOrderSnapshotResponse: {
+            /** Format: int64 */
+            orderId?: number;
+            orderNo?: string;
+            orderStatus?: string;
+            /** Format: int64 */
+            taskId?: number;
+            taskNo?: string;
+            taskStatus?: string;
+            /** Format: int64 */
+            vehicleId?: number;
+            vehicleCode?: string;
+            vehicleName?: string;
+            runtimeStage?: string;
+            pickupStation?: components["schemas"]["ParkStationResponse"];
+            dropoffStation?: components["schemas"]["ParkStationResponse"];
+            /** Format: date-time */
+            assignTime?: string;
+            /** Format: date-time */
+            startTime?: string;
+            /** Format: date-time */
+            finishTime?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
         ParkStationResponse: {
             /** Format: int64 */
@@ -5350,6 +5399,32 @@ export interface components {
             /** Format: int32 */
             capacityLimit?: number;
             status?: string;
+        };
+        ParkTrackResponse: {
+            order?: components["schemas"]["ParkOrderSnapshotResponse"];
+            vehicle?: components["schemas"]["ParkVehicleSnapshotResponse"];
+            recentOrders?: components["schemas"]["RecentOrder"][];
+            /** Format: int64 */
+            activeCount?: number;
+        };
+        RecentOrder: {
+            /** Format: int64 */
+            orderId?: number;
+            orderNo?: string;
+            orderStatus?: string;
+            runtimeStage?: string;
+            /** Format: int64 */
+            vehicleId?: number;
+            pickupStationCode?: string;
+            pickupStationArea?: string;
+            dropoffStationCode?: string;
+            dropoffStationArea?: string;
+        };
+        ApiResponseListParkStationResponse: {
+            success?: boolean;
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["ParkStationResponse"][];
         };
         ApiResponseRoadRouteHealthResponse: {
             success?: boolean;
@@ -5395,31 +5470,6 @@ export interface components {
             message?: string;
             data?: components["schemas"]["ParkOrderSnapshotResponse"][];
         };
-        ParkOrderSnapshotResponse: {
-            /** Format: int64 */
-            orderId?: number;
-            orderNo?: string;
-            orderStatus?: string;
-            /** Format: int64 */
-            taskId?: number;
-            taskNo?: string;
-            taskStatus?: string;
-            /** Format: int64 */
-            vehicleId?: number;
-            vehicleCode?: string;
-            vehicleName?: string;
-            runtimeStage?: string;
-            pickupStation?: components["schemas"]["ParkStationResponse"];
-            dropoffStation?: components["schemas"]["ParkStationResponse"];
-            /** Format: date-time */
-            assignTime?: string;
-            /** Format: date-time */
-            startTime?: string;
-            /** Format: date-time */
-            finishTime?: string;
-            /** Format: date-time */
-            updatedAt?: string;
-        };
         ApiResponseParkLayoutResponse: {
             success?: boolean;
             code?: string;
@@ -5448,8 +5498,8 @@ export interface components {
             parkingSpots?: components["schemas"]["ParkPointResponse"][];
             roadNodes?: components["schemas"]["ParkRoadNodeResponse"][];
             roadSegments?: components["schemas"]["ParkRoadSegmentResponse"][];
-            yfieldAlias?: string;
             xfieldAlias?: string;
+            yfieldAlias?: string;
         };
         ParkRoadNodeResponse: {
             code?: string;
@@ -10545,6 +10595,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListParkVehicleSnapshotResponse"];
+                };
+            };
+        };
+    };
+    getParkTrack: {
+        parameters: {
+            query?: {
+                parkId?: number;
+                orderId?: number;
+                recentLimit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseParkTrackResponse"];
                 };
             };
         };

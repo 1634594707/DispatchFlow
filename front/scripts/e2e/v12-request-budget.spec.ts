@@ -47,7 +47,7 @@ interface PageBudget {
 }
 
 const BUDGETS: PageBudget[] = [
-  { route: '/workbench', own: ['GET /api/admin/park/metadata', 'GET /api/admin/park/geofences', 'GET /api/admin/park/stations', 'GET /api/admin/parks'], maxStreamHandshakes: 2 },
+  { route: '/workbench', own: ['GET /api/admin/park/metadata', 'GET /api/admin/park/geofences', 'GET /api/admin/park/stations', 'GET /api/admin/park/layout', 'GET /api/admin/parks'], maxStreamHandshakes: 2 },
   { route: '/tasks', own: ['POST /api/admin/tasks/query', 'GET /api/admin/parks'], maxStreamHandshakes: 2 },
   { route: '/orders', own: ['POST /api/admin/orders/query', 'GET /api/admin/parks'], maxStreamHandshakes: 2 },
   { route: '/analytics', own: [

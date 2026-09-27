@@ -9,6 +9,10 @@ export interface ParkPoint {
   latitude?: number | null
   /** P2-1: 轨迹点类型，未设置时由调用方按所属字段（trajectory / plannedRouteGeo / geoTrajectory）推断 */
   type?: TrajectoryPointType
+  /** 以下三个只有 `/park/layout` 的车位层（来自 t_parking_slot）会带；轨迹点、站点等留空 */
+  slotType?: 'STANDBY' | 'CHARGING_ONLY' | string | null
+  slotStatus?: string | null
+  occupiedVehicleId?: number | null
 }
 
 export interface ParkSummary {

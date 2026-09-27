@@ -81,4 +81,13 @@ public interface ParkingFacilityService {
      * 没有 vehicleId 可占位，只能按序号轮转分配初始位置。
      */
     List<ParkPointResponse> listStandbySlots(Long parkId);
+
+    /**
+     * 园区内**全部**车位（待命位 + 桩位），带状态与占用者车号，给地图画车位层用。
+     *
+     * <p>为什么不能复用 {@link #listStandbySlots(Long)}：那条只给 STANDBY 型、且不带占用信息，
+     * 而"车为什么不停到位上"这个问题恰恰需要看见桩位与被谁占着。也不给 {@code FREE} 位过滤 ——
+     * 空位也要画，否则看不出"位在这儿、车没回来"。
+     */
+    List<ParkPointResponse> listSlotMarkers(Long parkId);
 }

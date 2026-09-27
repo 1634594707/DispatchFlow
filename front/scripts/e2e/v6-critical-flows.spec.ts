@@ -74,6 +74,7 @@ test('mobile order initializes with mobile key and stale tracking hint', async (
   await page.route(api('/admin/parks'), route => route.fulfill({ json: ok([{ parkId: 1, parkName: '叠石桥 L1', defaultPark: true }]) }))
   await page.route(api('/admin/park/layout**'), route => route.fulfill({ json: ok({ parkId: 1, width: 1000, height: 600, centerLng: 121.1, centerLat: 31.9 }) }))
   await page.route(api('/admin/park/geofences**'), route => route.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/park/layout**'), route => route.fulfill({ json: ok({ parkingSpots: [] }) }))
   await page.route(api('/admin/park/stations**'), route => route.fulfill({ json: ok([
     { stationId: 1, stationCode: 'ZJF-PICK-01', stationName: '取货点', x: 100, y: 100, coordLng: 121.1, coordLat: 31.9, orderable: true },
     { stationId: 2, stationCode: 'ZJF-DROP-01', stationName: '送货点', x: 800, y: 450, coordLng: 121.11, coordLat: 31.91, orderable: true },
@@ -300,6 +301,7 @@ test('tracking demo orders by road-node coordinates, not by station IDs', async 
     { vehicleId: 6, vehicleCode: 'ZJF-AV-01', vehicleName: '演示车', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 82 },
   ]) }))
   await page.route(api('/admin/park/geofences**'), route => route.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/park/layout**'), route => route.fulfill({ json: ok({ parkingSpots: [] }) }))
   // 演示单的起终点 = 后端自己发布的路网落点（`GEO_POINT`）。设施 v2 之后 ACTIVE 站点里
   // 已经没有任何 PICKUP/DROPOFF，所以演示链路必须吃坐标，不能再吃 stationId。
   await page.route(api('/admin/park/stations**'), route => route.fulfill({ json: ok([
@@ -365,6 +367,7 @@ test('demo mode states why it cannot start instead of silently stopping (设施 
     { vehicleId: 6, vehicleCode: 'ZJF-AV-01', vehicleName: '演示车', linkMode: 'SIM', onlineStatus: 'ONLINE', dispatchStatus: 'IDLE', batteryLevel: 82 },
   ]) }))
   await page.route(api('/admin/park/geofences**'), route => route.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/park/layout**'), route => route.fulfill({ json: ok({ parkingSpots: [] }) }))
   // 那批站点在设施 v2 里已全部 INACTIVE、接口不再返回 ⇒ 旧版"按前缀找取送货站点"恒为空，
   // 点了"开始演示"只是静默自停。现网真实形态 = 只有总仓库、没有任何 GEO_POINT 落点。
   await page.route(api('/admin/park/stations**'), route => route.fulfill({ json: ok([

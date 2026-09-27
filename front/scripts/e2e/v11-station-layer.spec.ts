@@ -36,6 +36,7 @@ async function seed(page: Page) {
   await page.route(api('/admin/parks'), r => r.fulfill({ json: ok([{ parkId: 1, parkCode: 'ZJF', parkName: '叠石桥 L1', defaultPark: true }]) }))
   await page.route(api('/admin/park/metadata**'), r => r.fulfill({ json: ok({ parkId: 1, anchorLng: 121.093236, anchorLat: 31.937344, parkWidthMeters: 7957.7, parkHeightMeters: 9221.0 }) }))
   await page.route(api('/admin/park/geofences**'), r => r.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/park/layout**'), r => r.fulfill({ json: ok({ parkingSpots: [] }) }))
 }
 
 test.describe('cockpit station layer (§6.4 站点几何改读接口)', () => {

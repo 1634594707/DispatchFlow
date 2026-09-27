@@ -205,6 +205,7 @@ test('vehicles without real coordinates are counted as unknown instead of drawn 
     stations: [], parkingSpots: [], roadNodes: [], roadSegments: [],
   }) }))
   await page.route(api('/admin/park/geofences**'), route => route.fulfill({ json: ok([]) }))
+  await page.route(api('/admin/park/layout**'), route => route.fulfill({ json: ok({ parkingSpots: [] }) }))
   await page.route(api('/admin/park/stations**'), route => route.fulfill({ json: ok([]) }))
   await page.route(api('/admin/park/orders**'), route => route.fulfill({ json: ok([]) }))
   await page.route(api('/admin/sse-ticket'), route => route.fulfill({ json: ok({ ticket: 'test-ticket' }) }))
@@ -233,6 +234,7 @@ async function mockParkOverviewEndpoints(page: Page, options?: { fail?: boolean 
     ],
     '/admin/park/orders': [],
     '/admin/park/geofences': [],
+    '/admin/park/layout': { parkingSpots: [] },
     '/admin/park/stations': [],
     '/admin/station-service-positions/map-versions/active': { versionCode: 'V61' },
   }

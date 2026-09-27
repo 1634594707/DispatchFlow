@@ -68,6 +68,15 @@
         </p>
 
         <p
+          v-if="slotsError"
+          class="scope-hint status-stale"
+          role="status"
+          style="margin: 0 0 8px"
+        >
+          车位层读取失败，待命位与桩位已停止绘制（不退回 application.yml 那组老像素点）：{{ slotsError }}
+        </p>
+
+        <p
           v-if="!stationsError && missingPlanCodes.length"
           class="scope-hint"
           role="status"
@@ -273,11 +282,12 @@ import ParkDeliveryOrderModal from '@/components/park/ParkDeliveryOrderModal.vue
 import { useAuthStore } from '@/stores/auth'
 import { useParkScopeStore } from '@/stores/parkScope'
 import { useWorkbenchStore } from '@/stores/workbench'
-import { getParkGeofences, getParkStations } from '@/api/park'
+import { getParkGeofences, getParkLayout, getParkStations } from '@/api/park'
 import { useParkMetadata } from '@/composables/useParkMetadata'
 import {
   basePositionFromStations,
   buildGeofencePolygons,
+  buildSlotMarkers,
   buildVehicleGeoMarkers,
   splitVehiclesByBasePresence,
   vehicleGeoPosition,
@@ -293,7 +303,7 @@ import {
 } from '@/maps/deliveryOperationsPlan'
 import type { TaskStatus } from '@/constants/enums'
 import type { GeoMapMarker } from '@/maps'
-import type { ParkGeofence, ParkStation } from '@/types/park'
+import type { ParkGeofence, ParkPoint, ParkStation } from '@/types/park'
 
 type SceneMode = 'delivery' | 'charging' | 'all'
 type MapLevel = 'L0' | 'L1' | 'L2'
@@ -313,6 +323,9 @@ const mapLevel = ref<MapLevel>('L1')
 const parkGeofences = ref<ParkGeofence[]>([])
 const parkStations = ref<ParkStation[]>([])
 const stationsError = ref('')
+/** 车位层（待命位 + 桩位）。取不到时是空数组 + 一句 slotsError，不退回任何模块副本。 */
+const parkSlots = ref<ParkPoint[]>([])
+const slotsError = ref('')
 const selectedMapMarkerId = ref<string | null>('operations-base')
 
 const parkMeta = useParkMetadata()
@@ -358,6 +371,11 @@ const selectedVehicleId = computed(() => {
   return Number.isFinite(id) ? id : null
 })
 const mapMarkers = computed(() => [
+  // 车位画在最底层：车压在位上时，点击命中的应该是车不是位
+  ...buildSlotMarkers(parkSlots.value, {
+    selectedId: selectedMapMarkerId.value,
+    vehicleCode: (vehicleId) => roadVehicles.value.find((v) => v.vehicleId === vehicleId)?.vehicleCode ?? null,
+  }),
   ...stationMarkers.value.map((marker) => {
     const selected = marker.id === selectedMapMarkerId.value
     return { ...marker, selected, showLabel: selected }
@@ -446,16 +464,27 @@ function exceptionSeverity(type: string) {
 }
 
 async function refresh() {
-  const [fenceResponse, stationResponse] = await Promise.all([
+  const [fenceResponse, stationResponse, layoutResponse] = await Promise.all([
     getParkGeofences(parkScope.selectedParkId),
     getParkStations(parkScope.selectedParkId).catch((err: unknown) => {
       stationsError.value = err instanceof Error ? err.message : String(err)
+      return null
+    }),
+    getParkLayout(parkScope.selectedParkId).catch((err: unknown) => {
+      slotsError.value = err instanceof Error ? err.message : String(err)
       return null
     }),
     store.fetchQueue(),
     parkMeta.refresh(),
   ])
   parkGeofences.value = fenceResponse.data || []
+  // 车位层取不到就什么都不画（不退回 yml 那组老像素点 —— 那正是 §16.11① 的成因）
+  if (layoutResponse?.success) {
+    parkSlots.value = layoutResponse.data?.parkingSpots || []
+    slotsError.value = ''
+  } else {
+    parkSlots.value = []
+  }
   if (stationResponse) {
     if (stationResponse.success && stationResponse.data?.length) {
       parkStations.value = stationResponse.data
