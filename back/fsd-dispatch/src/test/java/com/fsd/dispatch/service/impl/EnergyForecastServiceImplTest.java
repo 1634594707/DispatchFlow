@@ -52,8 +52,12 @@ class EnergyForecastServiceImplTest {
         properties = new EnergyForecastProperties();
         fleetEnergyProperties = new FleetEnergyProperties();
         registry = new SimpleMeterRegistry();
+        // P1-2 后临界阈值走 FleetChargePolicy（内含 resolver：null 模板回退 YAML，行为同旧默认值）
+        var chargePolicy = new com.fsd.dispatch.fleet.policy.FleetChargePolicyImpl(
+                fleetEnergyProperties,
+                new com.fsd.dispatch.fleet.policy.FleetEnergyThresholdResolver(null, fleetEnergyProperties));
         service = new EnergyForecastServiceImpl(properties, fleetEnergyProperties, energyForecastMapper,
-                new EnergyForecastMetrics(registry));
+                new EnergyForecastMetrics(registry), chargePolicy);
     }
 
     @Test

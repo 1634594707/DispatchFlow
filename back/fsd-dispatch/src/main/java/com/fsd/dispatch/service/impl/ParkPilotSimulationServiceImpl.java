@@ -419,7 +419,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
 
     /** 派单积压且无可派车时，仿真车快速恢复至可派单 SOC 并退出 WAIT_CHARGING。 */
     private void recoverFleetUnderDispatchPressure(String prefix) {
-        int targetSoc = fleetEnergyProperties.getMinAssignableSoc();
+        int targetSoc = fleetChargePolicy.minAssignableSoc();
         for (VehicleEntity vehicle : listPilotVehicles(prefix)) {
             if (!VehicleOnlineStatus.ONLINE.name().equals(vehicle.getOnlineStatus())
                     || !VehicleDispatchStatus.IDLE.name().equals(vehicle.getDispatchStatus())) {
@@ -1338,7 +1338,8 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         state.pluggedIn = false;
         Long parkId = defaultParkId();
         String preferred = state.chargingPoint != null ? state.chargingPoint.getCode() : null;
-        var reserved = parkingFacilityService.reserveChargingSlot(parkId, vehicle.getId(), preferred);
+        var reserved = parkingFacilityService.reserveChargingSlot(parkId, vehicle.getId(), preferred,
+                state.lastX == null ? null : state.lastX.doubleValue(), state.lastY == null ? null : state.lastY.doubleValue());
         if (reserved.isEmpty()) {
             // ⚠ 释放必须放在"真的抢到桩"之后，且等桩的车要回到自己的待命位。
             // 原来这里是无条件 `releaseByVehicle` + 直接 `WAIT_CHARGING`：车先把自己刚占的待命位解开，

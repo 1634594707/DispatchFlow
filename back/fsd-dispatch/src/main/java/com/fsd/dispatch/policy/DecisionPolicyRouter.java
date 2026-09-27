@@ -5,6 +5,7 @@ import com.fsd.dispatch.core.DecisionInput;
 import com.fsd.dispatch.core.DecisionOutcome;
 import com.fsd.dispatch.core.DecisionPolicy;
 import com.fsd.dispatch.core.DecisionTrace;
+import com.fsd.dispatch.core.GrayBuckets;
 import com.fsd.dispatch.core.RankedCandidate;
 import com.fsd.dispatch.metrics.DispatchDecisionMetrics;
 import java.util.List;
@@ -160,12 +161,9 @@ public class DecisionPolicyRouter {
         return overrideMode != null || overrideGrayPercent != null || overrideChallenger != null;
     }
 
-    /** 稳定分桶：同一键恒定落在同一侧，且不用随机数（§7.2 灰度重掷缺陷的根因）。 */
+    /** 稳定分桶：同一键恒定落在同一侧，且不用随机数（§7.2 灰度重掷缺陷的根因）。实现下沉在纯函数内核。 */
     public static int bucket(String bucketKey) {
-        if (bucketKey == null || bucketKey.isBlank()) {
-            return 0;
-        }
-        return Math.floorMod(bucketKey.hashCode(), 100);
+        return GrayBuckets.of(bucketKey);
     }
 
     private DecisionPolicy challenger() {

@@ -92,4 +92,14 @@ public class FleetEnergyProperties {
      * Set to 0 to disable the timeout (not recommended for production).
      */
     private int chargingTimeoutMinutes = 240;
+
+    /**
+     * P1-2 选桩口径：基线功率（kW）下每补 1% SOC 的秒数。
+     * 折算依据与仿真 bench 同源：20→90 共 70 个百分点 ≈ 2 小时 ⇒ ≈103 s/百分点；
+     * 这里取 100 作基线（略乐观），按桩的 {@code max_power_kw} 与基线功率的比例缩放。
+     */
+    private double chargeSecondsPerPercent = 100D;
+
+    /** P1-2 选桩口径：基线充电功率（kW），桩没有功率信息时按它计。 */
+    private double baseChargingPowerKw = 60D;
 }

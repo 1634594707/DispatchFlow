@@ -89,6 +89,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
     private final MeterRegistry meterRegistry;
     private final EnergyForecastService energyForecastService;
     private final EnergyForecastProperties energyForecastProperties;
+    /** P1-1：调度指标的低 SOC 线等阈值统一从补能策略出口取（Redis 热更新 + YAML 回退）。 */
+    private final com.fsd.dispatch.fleet.policy.FleetChargePolicy fleetChargePolicy;
 
     public AnalyticsAdminServiceImpl(OrderMapper orderMapper,
                                      DispatchTaskMapper dispatchTaskMapper,
@@ -102,7 +104,8 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                                      AdminParkScopeService adminParkScopeService,
                                      MeterRegistry meterRegistry,
                                      EnergyForecastService energyForecastService,
-                                     EnergyForecastProperties energyForecastProperties) {
+                                     EnergyForecastProperties energyForecastProperties,
+                                     com.fsd.dispatch.fleet.policy.FleetChargePolicy fleetChargePolicy) {
         this.orderMapper = orderMapper;
         this.dispatchTaskMapper = dispatchTaskMapper;
         this.exceptionRecordMapper = exceptionRecordMapper;
@@ -116,6 +119,7 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
         this.meterRegistry = meterRegistry;
         this.energyForecastService = energyForecastService;
         this.energyForecastProperties = energyForecastProperties;
+        this.fleetChargePolicy = fleetChargePolicy;
     }
 
     @Override
@@ -134,15 +138,18 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 .orElse(0D);
 
         long busyTasks = tasks.stream().filter(task -> "EXECUTING".equals(task.getStatus())).count();
-        long onlineVehicles = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
+        List<VehicleEntity> onlineFleet = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
                         .eq(VehicleEntity::getDeleted, 0)
                         .eq(VehicleEntity::getOnlineStatus, "ONLINE"))
                 .stream()
                 .filter(vehicle -> matchesVehicleEntityPark(vehicle, parkId))
-                .count();
+                .toList();
+        long onlineVehicles = onlineFleet.size();
         double utilization = onlineVehicles <= 0 ? 0D : (double) busyTasks / onlineVehicles;
 
         List<AdminAnalyticsHourlyPoint> peakHours = buildPeakHours(orders, tasks);
+        com.fsd.admin.vo.AdminAnalyticsEfficiencyResponse.DispatchMetrics dispatchMetrics =
+                buildDispatchMetrics(onlineFleet, orders);
 
         return AdminAnalyticsEfficiencyResponse.builder()
                 .period(normalized)
@@ -150,6 +157,72 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                 .avgTaskDurationMinutes(round1(avgDuration))
                 .vehicleUtilizationRate(round1(utilization * 100))
                 .peakHours(peakHours)
+                .dispatchMetrics(dispatchMetrics)
+                .build();
+    }
+
+    /**
+     * P1-1：调度指标块。口径（页面与 {@code exportCsv("dispatch-metrics", ...)} 共用本方法，天然一致）：
+     * <ul>
+     *   <li>availableVehicles = 在线 && dispatchStatus=IDLE && SOC ≥ 最低可派线（补能策略出口）</li>
+     *   <li>busyVehicles = dispatchStatus=BUSY；chargingVehicles = 运行态 ∈ {TO_CHARGING, CHARGING, WAIT_CHARGING}
+     *       （8 态中的补能三态，来自 Redis 运行态，缺态的车不计入）</li>
+     *   <li>manualPendingVehicles = 运行态含 MANUAL（手动接管）</li>
+     *   <li>lowSocVehicles = 在线 && SOC &lt; 低电告警线——低 SOC 运力损失的代理口径（这些车即将退出可派集合）</li>
+     *   <li>pendingOrders = 窗口内 status ∈ {CREATED, WAITING_DISPATCH}（未派 backlog）</li>
+     *   <li>supplyDemandRatio = availableVehicles / max(pendingOrders, 1)，保留 2 位</li>
+     * </ul>
+     */
+    /** 包级私有以便同包测试直测口径；页面与导出走同一方法，天然一致。 */
+    com.fsd.admin.vo.AdminAnalyticsEfficiencyResponse.DispatchMetrics buildDispatchMetrics(
+            List<VehicleEntity> onlineFleet, List<OrderEntity> orders) {
+        int minAssignableSoc = fleetChargePolicy.minAssignableSoc();
+        int lowSocLine = fleetChargePolicy.lowSocThreshold();
+        java.util.List<Long> vehicleIds = onlineFleet.stream().map(VehicleEntity::getId).toList();
+        java.util.Map<Long, com.fsd.dispatch.fleet.model.FleetRuntime> runtimes =
+                fleetRuntimeService.getBatch(vehicleIds);
+
+        long available = 0L;
+        long busy = 0L;
+        long charging = 0L;
+        long manual = 0L;
+        long lowSoc = 0L;
+        for (VehicleEntity vehicle : onlineFleet) {
+            String dispatchStatus = vehicle.getDispatchStatus();
+            Integer soc = vehicle.getBatteryLevel();
+            if ("BUSY".equals(dispatchStatus)) {
+                busy++;
+            }
+            if ("IDLE".equals(dispatchStatus) && soc != null && soc >= minAssignableSoc) {
+                available++;
+            }
+            if (soc != null && soc < lowSocLine) {
+                lowSoc++;
+            }
+            com.fsd.dispatch.fleet.model.FleetRuntime runtime = runtimes.get(vehicle.getId());
+            String stage = runtime == null ? null : runtime.getRuntimeStage();
+            if (stage != null) {
+                if ("TO_CHARGING".equals(stage) || "CHARGING".equals(stage) || "WAIT_CHARGING".equals(stage)) {
+                    charging++;
+                }
+                if (stage.contains("MANUAL")) {
+                    manual++;
+                }
+            }
+        }
+        long pending = orders.stream()
+                .filter(order -> "CREATED".equals(order.getStatus())
+                        || "WAITING_DISPATCH".equals(order.getStatus()))
+                .count();
+        double ratio = pending <= 0 ? available : Math.round(available / (double) pending * 100D) / 100D;
+        return com.fsd.admin.vo.AdminAnalyticsEfficiencyResponse.DispatchMetrics.builder()
+                .availableVehicles(available)
+                .busyVehicles(busy)
+                .chargingVehicles(charging)
+                .manualPendingVehicles(manual)
+                .lowSocVehicles(lowSoc)
+                .pendingOrders(pending)
+                .supplyDemandRatio(ratio)
                 .build();
     }
 
@@ -430,6 +503,26 @@ public class AnalyticsAdminServiceImpl implements AnalyticsAdminService {
                                 .append(csv(vehicle.getOnlineStatus())).append(',')
                                 .append(csv(vehicle.getDispatchStatus())).append(',')
                                 .append(vehicle.getBatteryLevel()).append('\n')));
+            }
+            case "dispatch-metrics" -> {
+                // P1-1：与 getEfficiency 的 dispatchMetrics 共用 buildDispatchMetrics——页面与导出同口径
+                String normalizedPeriod = normalized;
+                List<VehicleEntity> fleet = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
+                                .eq(VehicleEntity::getDeleted, 0)
+                                .eq(VehicleEntity::getOnlineStatus, "ONLINE"))
+                        .stream()
+                        .filter(vehicle -> matchesVehicleEntityPark(vehicle, parkId))
+                        .toList();
+                var metrics = buildDispatchMetrics(fleet,
+                        filterOrdersByPark(loadOrdersSince(rangeStart(normalizedPeriod)), parkId));
+                sb.append("metric,value\n");
+                appendRow(sb, rows, () -> sb.append("availableVehicles,").append(metrics.getAvailableVehicles()).append('\n'));
+                appendRow(sb, rows, () -> sb.append("busyVehicles,").append(metrics.getBusyVehicles()).append('\n'));
+                appendRow(sb, rows, () -> sb.append("chargingVehicles,").append(metrics.getChargingVehicles()).append('\n'));
+                appendRow(sb, rows, () -> sb.append("manualPendingVehicles,").append(metrics.getManualPendingVehicles()).append('\n'));
+                appendRow(sb, rows, () -> sb.append("lowSocVehicles,").append(metrics.getLowSocVehicles()).append('\n'));
+                appendRow(sb, rows, () -> sb.append("pendingOrders,").append(metrics.getPendingOrders()).append('\n'));
+                appendRow(sb, rows, () -> sb.append("supplyDemandRatio,").append(metrics.getSupplyDemandRatio()).append('\n'));
             }
             default -> throw new IllegalArgumentException("Unsupported dataset: " + dataset);
         }

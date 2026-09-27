@@ -39,6 +39,10 @@ class ParkingFacilityServiceImplTest {
     private ChargingSessionService chargingSessionService;
     @Mock
     private VehicleService vehicleService;
+    @Mock
+    private com.fsd.dispatch.config.FleetEnergyProperties energyProperties;
+    @Mock
+    private com.fsd.dispatch.fleet.policy.FleetChargePolicy fleetChargePolicy;
 
     @InjectMocks
     private ParkingFacilityServiceImpl parkingFacilityService;

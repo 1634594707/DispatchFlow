@@ -6,8 +6,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fsd.common.enums.ParkingSlotStatus;
 import com.fsd.common.enums.ParkingSlotType;
 import com.fsd.common.exception.BusinessException;
+import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.entity.ChargingPileEntity;
 import com.fsd.dispatch.entity.ParkingSlotEntity;
+import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.mapper.ChargingPileMapper;
 import com.fsd.dispatch.mapper.ParkingSlotMapper;
 import com.fsd.dispatch.service.ChargingSessionService;
@@ -16,10 +18,10 @@ import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.service.VehicleService;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,15 +32,22 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
     private final ChargingPileMapper chargingPileMapper;
     private final ChargingSessionService chargingSessionService;
     private final VehicleService vehicleService;
+    /** P1-2 选桩口径：充电时长按基线秒数与桩功率折算；阈值从补能策略出口取。 */
+    private final FleetEnergyProperties energyProperties;
+    private final FleetChargePolicy fleetChargePolicy;
 
     public ParkingFacilityServiceImpl(ParkingSlotMapper parkingSlotMapper,
                                       ChargingPileMapper chargingPileMapper,
                                       ChargingSessionService chargingSessionService,
-                                      VehicleService vehicleService) {
+                                      VehicleService vehicleService,
+                                      FleetEnergyProperties energyProperties,
+                                      FleetChargePolicy fleetChargePolicy) {
         this.parkingSlotMapper = parkingSlotMapper;
         this.chargingPileMapper = chargingPileMapper;
         this.chargingSessionService = chargingSessionService;
         this.vehicleService = vehicleService;
+        this.energyProperties = energyProperties;
+        this.fleetChargePolicy = fleetChargePolicy;
     }
 
     @Override
@@ -233,10 +242,24 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
     @Override
     @Transactional
     public Optional<ParkPointResponse> reserveChargingSlot(Long parkId, Long vehicleId, String preferredSlotCode) {
-        List<String> candidates = listChargingSlotCodes(parkId, preferredSlotCode);
-        for (String slotCode : candidates) {
-            if (reserveSlot(parkId, vehicleId, slotCode)) {
-                return Optional.of(toPoint(requireSlot(parkId, slotCode)));
+        return reserveChargingSlot(parkId, vehicleId, preferredSlotCode, null, null);
+    }
+
+    @Override
+    @Transactional
+    public Optional<ParkPointResponse> reserveChargingSlot(Long parkId, Long vehicleId, String preferredSlotCode,
+                                                           Double fromX, Double fromY) {
+        List<ChargingCandidate> candidates = listChargingCandidates(parkId, preferredSlotCode);
+        // P1-2：候选按"预计完成时间"升序尝试（preferred 粘滞保持首位）。
+        // 忙桩不进候选（抢不到的桩谈不了排队，排队体现为"忙桩被排除"），
+        // 真正的权衡是"近而慢的桩 vs 远而快的桩"——按桩功率折算充电时长后排序。
+        int soc = resolveVehicleSoc(vehicleId);
+        List<ChargingCandidate> ordered = orderChargingCandidates(candidates, preferredSlotCode, fromX, fromY,
+                soc, fleetChargePolicy.chargeCompleteSoc(),
+                energyProperties.getChargeSecondsPerPercent(), energyProperties.getBaseChargingPowerKw());
+        for (ChargingCandidate candidate : ordered) {
+            if (reserveSlot(parkId, vehicleId, candidate.slotCode())) {
+                return Optional.of(toPoint(requireSlot(parkId, candidate.slotCode())));
             }
         }
         return Optional.empty();
@@ -322,22 +345,75 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
                 .build();
     }
 
-    private List<String> listChargingSlotCodes(Long parkId, String preferredSlotCode) {
+    /** 一根桩的候选事实：车位编码 + 车位（坐标）+ 桩功率。 */
+    record ChargingCandidate(String slotCode, ParkingSlotEntity slot, Double powerKw) {
+    }
+
+    /** 像素 → 秒的启发式折算（≈5 m/s ÷ 1.385 m/px）；排序用的相对量，不是 ETA 承诺。 */
+    private static final double TRAVEL_PIXELS_PER_SECOND = 3.6D;
+
+    private List<ChargingCandidate> listChargingCandidates(Long parkId, String preferredSlotCode) {
         List<ChargingPileEntity> piles = chargingPileMapper.selectList(new QueryWrapper<ChargingPileEntity>()
                 .eq("park_id", parkId)
                 .eq("deleted", 0)
                 .orderByAsc("sort_order"));
-        Set<String> ordered = new LinkedHashSet<>();
+        Map<String, ChargingCandidate> byCode = new LinkedHashMap<>();
         if (preferredSlotCode != null && !preferredSlotCode.isBlank()) {
-            ordered.add(preferredSlotCode);
+            byCode.put(preferredSlotCode, new ChargingCandidate(preferredSlotCode, null, null));
         }
         for (ChargingPileEntity pile : piles) {
             ParkingSlotEntity slot = parkingSlotMapper.selectById(pile.getParkingSlotId());
             if (slot != null && parkId.equals(slot.getParkId())) {
-                ordered.add(slot.getSlotCode());
+                byCode.put(slot.getSlotCode(),
+                        new ChargingCandidate(slot.getSlotCode(), slot, pile.getMaxPowerKw() == null
+                                ? null : pile.getMaxPowerKw().doubleValue()));
             }
         }
-        return new ArrayList<>(ordered);
+        return new ArrayList<>(byCode.values());
+    }
+
+    /**
+     * P1-2 的排序内核（纯函数，可直接单测）：preferred 粘滞首位，其余按
+     * {@link #chargingEta} 升序。忙桩早在 {@code reserveSlot} 一层就被挡，
+     * 这里只在可抢的候选里挑"最快做完"的。
+     */
+    static List<ChargingCandidate> orderChargingCandidates(List<ChargingCandidate> candidates,
+                                                           String preferredCode, Double fromX, Double fromY,
+                                                           int soc, int chargeCompleteSoc,
+                                                           double secondsPerPercent, double basePowerKw) {
+        List<ChargingCandidate> ordered = new ArrayList<>(candidates.size());
+        List<ChargingCandidate> rest = new ArrayList<>(candidates.size());
+        for (ChargingCandidate candidate : candidates) {
+            if (candidate.slotCode().equals(preferredCode)) {
+                ordered.add(candidate);
+            } else {
+                rest.add(candidate);
+            }
+        }
+        rest.sort(java.util.Comparator.comparingDouble(candidate -> chargingEta(
+                fromX, fromY, candidate.slot(), candidate.powerKw(),
+                soc, chargeCompleteSoc, secondsPerPercent, basePowerKw)));
+        ordered.addAll(rest);
+        return ordered;
+    }
+
+    /**
+     * 预计完成秒数：行驶（无起点按 0）+ 充电（桩功率缺省按基线，功率越大越快）。
+     * 像素 → 秒用启发式常数（≈5 m/s、1.385 m/px ⇒ 3.6 px/s）：这是排序用的相对量，
+     * 不是 ETA 承诺——对外口径见移动端"直线 X · 约 N 分钟"的诚实写法。
+     */
+    static double chargingEta(Double fromX, Double fromY, ParkingSlotEntity slot, Double pilePowerKw,
+                              int soc, int chargeCompleteSoc, double secondsPerPercent, double basePowerKw) {
+        double travel = 0D;
+        if (fromX != null && fromY != null && slot != null
+                && slot.getCoordX() != null && slot.getCoordY() != null) {
+            double dx = fromX - slot.getCoordX().doubleValue();
+            double dy = fromY - slot.getCoordY().doubleValue();
+            travel = Math.sqrt(dx * dx + dy * dy) / TRAVEL_PIXELS_PER_SECOND;
+        }
+        double power = pilePowerKw == null || pilePowerKw <= 0 ? basePowerKw : pilePowerKw;
+        int need = Math.max(0, chargeCompleteSoc - soc);
+        return travel + need * secondsPerPercent * (basePowerKw / power);
     }
 
     private BindContext bindVehicleToSlot(Long parkId, Long vehicleId, String slotCode, ParkingSlotStatus targetStatus) {
@@ -387,7 +463,7 @@ public class ParkingFacilityServiceImpl implements ParkingFacilityService {
 
     private int resolveVehicleSoc(Long vehicleId) {
         VehicleEntity vehicle = vehicleService.getById(vehicleId);
-        return vehicle.getBatteryLevel() == null ? 0 : vehicle.getBatteryLevel();
+        return vehicle == null || vehicle.getBatteryLevel() == null ? 0 : vehicle.getBatteryLevel();
     }
 
     private ParkingSlotEntity requireSlot(Long parkId, String slotCode) {

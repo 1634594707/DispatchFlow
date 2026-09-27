@@ -66,7 +66,11 @@ class AnalyticsEnergyForecastTest {
                 adminParkScopeService,
                 new SimpleMeterRegistry(),
                 energyForecastService,
-                properties);
+                properties,
+                new com.fsd.dispatch.fleet.policy.FleetChargePolicyImpl(
+                        new com.fsd.dispatch.config.FleetEnergyProperties(),
+                        new com.fsd.dispatch.fleet.policy.FleetEnergyThresholdResolver(
+                                null, new com.fsd.dispatch.config.FleetEnergyProperties())));
     }
 
     private static EnergyForecastService.StationHourlyProfile profile(Long parkId,

@@ -24,7 +24,8 @@ public class FleetChargePolicyImpl implements FleetChargePolicy {
 
     @Override
     public boolean isLowSoc(Integer batteryLevel) {
-        return normalizeSoc(batteryLevel) <= fleetEnergyProperties.getLowSocThreshold();
+        // P1-2：低电档与其它四档同走热更新通道，不再直读 YAML
+        return normalizeSoc(batteryLevel) <= thresholdResolver.getLowSocThreshold();
     }
 
     @Override
@@ -81,5 +82,30 @@ public class FleetChargePolicyImpl implements FleetChargePolicy {
 
     private int normalizeSoc(Integer batteryLevel) {
         return batteryLevel == null ? fleetEnergyProperties.getFullSoc() : batteryLevel;
+    }
+
+    @Override
+    public int returnToChargeThreshold() {
+        return thresholdResolver.getReturnToChargeThreshold();
+    }
+
+    @Override
+    public int criticalSocThreshold() {
+        return thresholdResolver.getCriticalSocThreshold();
+    }
+
+    @Override
+    public int minAssignableSoc() {
+        return thresholdResolver.getMinAssignableSoc();
+    }
+
+    @Override
+    public int lowSocThreshold() {
+        return thresholdResolver.getLowSocThreshold();
+    }
+
+    @Override
+    public int chargeCompleteSoc() {
+        return thresholdResolver.getChargeCompleteSoc();
     }
 }

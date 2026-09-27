@@ -23,4 +23,19 @@ public interface FleetChargePolicy {
     boolean isActivelyCharging(String runtimeStage);
 
     boolean isActivelySwapping(String runtimeStage);
+
+    /**
+     * P1-2：补能阈值统一出口。所有补能入口（返充预测、错峰延迟、压力恢复、可派判定）
+     * 都从这里拿阈值——背后是 {@link FleetEnergyThresholdResolver} 的 Redis 热更新 + YAML 回退，
+     * 不允许各处直读 {@code FleetEnergyProperties}（那是热更新覆盖不到的旁路）。
+     */
+    int returnToChargeThreshold();
+
+    int criticalSocThreshold();
+
+    int minAssignableSoc();
+
+    int lowSocThreshold();
+
+    int chargeCompleteSoc();
 }

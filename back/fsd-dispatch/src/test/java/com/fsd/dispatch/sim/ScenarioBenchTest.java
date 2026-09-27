@@ -60,7 +60,7 @@ class ScenarioBenchTest {
 
         List<Summary> summaries = ScenarioBench.summarise(cfg);
 
-        assertEquals(17, summaries.size());
+        assertEquals(23, summaries.size());
         for (Summary s : summaries) {
             assertTrue(s.n() == cfg.repeats(), s.metric() + " 样本数不是重复次数");
             assertTrue(s.high() >= s.mean() && s.mean() >= s.low(), s.metric() + " 置信区间不包均值");
@@ -132,8 +132,8 @@ class ScenarioBenchTest {
         Config aggressive = defer.withPressureWindow(base.horizonMinutes() * 60 / ScenarioBench.TICK_SECONDS, 1);
         List<PairedSummary> sensitivity = ScenarioBench.comparePaired(aggressive, opportunistic);
 
-        assertEquals(13, onOff.size());
-        assertEquals(13, peakShift.size());
+        assertEquals(16, onOff.size());
+        assertEquals(16, peakShift.size());
         for (PairedSummary s : onOff) {
             assertTrue(s.high() >= s.diff() && s.diff() >= s.low(), s.metric() + " 差值不在自己的区间里");
             assertEquals(base.repeats(), s.n(), s.metric() + " 配对样本数不等于重复次数");
@@ -155,7 +155,7 @@ class ScenarioBenchTest {
         Config peakOn = peakBase.withChargeTiming(ScenarioBench.ChargeTiming.DEFER_IN_PEAK);
         Config peakOff = peakBase.withChargeTiming(ScenarioBench.ChargeTiming.OPPORTUNISTIC);
         List<PairedSummary> inPeak = ScenarioBench.comparePaired(peakOn, peakOff);
-        assertEquals(13, inPeak.size());
+        assertEquals(16, inPeak.size());
         assertTrue(inPeak.stream().anyMatch(s -> Math.abs(s.diff()) > 0D),
                 "有峰段场景里 DEFER_IN_PEAK 与现状完全相同 —— 峰段信号没接进去");
 
@@ -166,7 +166,7 @@ class ScenarioBenchTest {
         Config peakOffAtPile = peakOff.withChargeLayout(Config.ChargeLayouts.singlePointSixPiles(),
                 Config.PileChoice.NEAREST_FREE);
         List<PairedSummary> inPeakWithLeg = ScenarioBench.comparePaired(peakOnAtPile, peakOffAtPile);
-        assertEquals(13, inPeakWithLeg.size());
+        assertEquals(16, inPeakWithLeg.size());
 
         // ⑥ 真车常数下必须在**稳态窗口**重做一遍"补不补"：2 小时窗口里一次 2 h 的补能永远做不完，
         //    ①那张表量到的是初始 SOC 的 transient（实测顺势补臂反而低 5.82pp）。要判断
@@ -174,7 +174,7 @@ class ScenarioBenchTest {
         Config steadyOn = opportunistic.withHorizon(Config.ENERGY_BINDING_HORIZON_MINUTES);
         Config steadyOff = never.withHorizon(Config.ENERGY_BINDING_HORIZON_MINUTES);
         List<PairedSummary> steady = ScenarioBench.comparePaired(steadyOn, steadyOff);
-        assertEquals(13, steady.size());
+        assertEquals(16, steady.size());
         assertTrue(steady.stream().anyMatch(s -> Math.abs(s.diff()) > 0D),
                 "8 小时班次里补不补能逐指标完全相同 —— 补能链路在稳态下是死的，先查 chargeTiming");
 
@@ -287,7 +287,7 @@ class ScenarioBenchTest {
 
         List<PairedSummary> rows = ScenarioBench.comparePaired(batch, greedy);
 
-        assertEquals(13, rows.size());
+        assertEquals(16, rows.size());
         assertTrue(rows.stream().anyMatch(s -> Math.abs(s.diff()) > 0D),
                 "批量撮合与贪心逐指标完全相同 —— matchStrategy 没接进去，等于没测");
         long distinguishable = rows.stream().filter(PairedSummary::distinguishable).count();
@@ -299,8 +299,8 @@ class ScenarioBenchTest {
         Config batchW = batch.withMatchWindow(windowTicks);
         List<PairedSummary> pairingOnly = ScenarioBench.comparePaired(batchW, greedyW);   // 固定窗口，只看配对
         List<PairedSummary> totalEffect = ScenarioBench.comparePaired(batchW, greedy);    // 含窗口带来的等待
-        assertEquals(13, pairingOnly.size());
-        assertEquals(13, totalEffect.size());
+        assertEquals(16, pairingOnly.size());
+        assertEquals(16, totalEffect.size());
         assertTrue(totalEffect.stream().anyMatch(s -> Math.abs(s.diff()) > 0D),
                 "开了决策窗口却逐指标与即时派单相同 —— 窗口没生效，检查 matchWindowTicks");
 
@@ -372,7 +372,7 @@ class ScenarioBenchTest {
 
         List<PairedSummary> rows = ScenarioBench.comparePaired(on, off);
 
-        assertEquals(13, rows.size());
+        assertEquals(16, rows.size());
         assertTrue(rows.stream().anyMatch(s -> Math.abs(s.diff()) > 0D),
                 "开预置与不开逐指标相同 —— 预置分支没触发，检查空闲阈值/站点场景");
         PairedSummary relocations = rows.stream()
@@ -380,7 +380,7 @@ class ScenarioBenchTest {
         assertTrue(relocations.diff() > 0D, "预置臂的挪车次数没有增加，说明策略没干活");
 
         List<PairedSummary> rowsWithLeg = ScenarioBench.comparePaired(onAtPile, offAtPile);
-        assertEquals(13, rowsWithLeg.size());
+        assertEquals(16, rowsWithLeg.size());
         assertTrue(rowsWithLeg.stream().anyMatch(s -> Math.abs(s.diff()) > 0D),
                 "有腿模型里开预置与不开逐指标相同 —— 预置分支在该场景下不干活");
 
@@ -436,7 +436,7 @@ class ScenarioBenchTest {
         List<PairedSummary> queuePolicy = ScenarioBench.comparePaired(queueAware, spread);
         List<PairedSummary> loadedPolicy = ScenarioBench.comparePaired(leastLoaded, spread);
         for (List<PairedSummary> rows : List.of(legCost, layoutValue, queuePolicy, loadedPolicy)) {
-            assertEquals(13, rows.size());
+            assertEquals(16, rows.size());
         }
 
         // 方向留给报告下判语，这里只钉"链路确实进了模拟"：完全相同就说明参数没被消费
@@ -629,7 +629,7 @@ class ScenarioBenchTest {
         Config third = anchor.withChargeCurve(Config.ChargeCurve.TAPER_80_THIRD);
         List<PairedSummary> vsHalf = ScenarioBench.comparePaired(half, anchor);
         List<PairedSummary> vsThird = ScenarioBench.comparePaired(third, anchor);
-        assertEquals(13, vsHalf.size());
+        assertEquals(16, vsHalf.size());
         assertTrue(vsHalf.stream().anyMatch(s -> Math.abs(s.diff()) > 0D),
                 "改曲线却逐指标相同 —— chargeCurve 没接进 chargeTicks");
         PairedSummary completion = metric(vsHalf, "completion_rate");

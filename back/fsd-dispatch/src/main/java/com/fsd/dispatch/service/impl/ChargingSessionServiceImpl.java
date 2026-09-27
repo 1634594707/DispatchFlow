@@ -18,6 +18,7 @@ import com.fsd.dispatch.geo.ParkGeoTransformService;
 import com.fsd.dispatch.geo.ParkGeoTransformService.GeoPoint;
 import com.fsd.dispatch.geo.ParkGeoTransformService.ParkPoint;
 import com.fsd.dispatch.geo.VehiclePositionResolver;
+import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.mapper.ChargingPileMapper;
 import com.fsd.dispatch.mapper.ChargingSessionMapper;
 import com.fsd.dispatch.mapper.ParkingSlotMapper;
@@ -60,6 +61,8 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
     private final ParkRoutePlannerService parkRoutePlannerService;
     private final ParkGeoTransformService parkGeoTransformService;
     private final VehiclePositionResolver vehiclePositionResolver;
+    /** P1-2：返充阈值统一从补能策略出口取（Redis 热更新 + YAML 回退），不再直读 YAML。 */
+    private final FleetChargePolicy fleetChargePolicy;
 
     public ChargingSessionServiceImpl(ChargingSessionMapper chargingSessionMapper,
                                       ChargingPileMapper chargingPileMapper,
@@ -68,7 +71,8 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
                                       FleetEnergyProperties fleetEnergyProperties,
                                       ParkRoutePlannerService parkRoutePlannerService,
                                       ParkGeoTransformService parkGeoTransformService,
-                                      VehiclePositionResolver vehiclePositionResolver) {
+                                      VehiclePositionResolver vehiclePositionResolver,
+                                      FleetChargePolicy fleetChargePolicy) {
         this.chargingSessionMapper = chargingSessionMapper;
         this.chargingPileMapper = chargingPileMapper;
         this.parkingSlotMapper = parkingSlotMapper;
@@ -77,6 +81,7 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
         this.parkRoutePlannerService = parkRoutePlannerService;
         this.parkGeoTransformService = parkGeoTransformService;
         this.vehiclePositionResolver = vehiclePositionResolver;
+        this.fleetChargePolicy = fleetChargePolicy;
     }
 
     @Override
@@ -127,7 +132,7 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
 
     @Override
     public int predictChargingDemand(Long parkId, int lookaheadMinutes) {
-        int threshold = fleetEnergyProperties.getReturnToChargeThreshold();
+        int threshold = fleetChargePolicy.returnToChargeThreshold();
 
         List<VehicleEntity> onlineVehicles = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
                 .eq(VehicleEntity::getDeleted, 0)
@@ -240,7 +245,7 @@ public class ChargingSessionServiceImpl implements ChargingSessionService {
 
     @Override
     public List<Long> getChargingQueue(Long parkId) {
-        int threshold = fleetEnergyProperties.getReturnToChargeThreshold();
+        int threshold = fleetChargePolicy.returnToChargeThreshold();
 
         List<VehicleEntity> lowSocVehicles = vehicleMapper.selectList(new LambdaQueryWrapper<VehicleEntity>()
                         .eq(VehicleEntity::getDeleted, 0)

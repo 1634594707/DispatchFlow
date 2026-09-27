@@ -64,6 +64,16 @@ public interface ParkingFacilityService {
     Optional<ParkPointResponse> reserveChargingSlot(Long parkId, Long vehicleId, String preferredSlotCode);
 
     /**
+     * P1-2：带起点坐标的选桩重载。候选按"预计完成时间"升序尝试——
+     * 行驶时间（有起点才算，像素坐标按启发式速度折算）+ 按桩 {@code max_power_kw}
+     * 折算的充电时长；忙桩不进候选（抢不到位 = 谈不了排队），
+     * 所以真实的权衡发生在"近而慢的桩 vs 远而快的桩"。
+     * {@code preferredSlotCode} 仍是首位（粘滞）：已经开去 A 桩的车不因排序被半路改派。
+     */
+    Optional<ParkPointResponse> reserveChargingSlot(Long parkId, Long vehicleId, String preferredSlotCode,
+                                                    Double fromX, Double fromY);
+
+    /**
      * 空闲车"回待命区"占一个 {@code STANDBY} 车位（幂等：已经占着 STANDBY 位就续用同一个）。
      *
      * <p>为什么要有这一条：仿真器原来把待命点回退到 {@code application.yml} 里那组老示意图像素坐标，

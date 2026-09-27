@@ -5,6 +5,7 @@ import com.fsd.dispatch.core.DecisionInput;
 import com.fsd.dispatch.core.DecisionOutcome;
 import com.fsd.dispatch.core.DecisionPolicy;
 import com.fsd.dispatch.core.DecisionWeights;
+import com.fsd.dispatch.core.GrayBuckets;
 import com.fsd.dispatch.core.RankedCandidate;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -527,9 +528,26 @@ public final class ScenarioBench {
      * @param chargeBlockedCarMinutes 空闲车想补能却没有空桩的"车·分钟"累计（§1.3 的桩位硬上限信号；
      *                                排队等待是另一个指标，只统计必充那一支）
      */
+    /** 灰度某一侧（按"这一单实际被哪个策略接走"归属）的订单级指标。
+     * 只含能归属到单的量：接驾与载货段里程；补能/充电是车队级成本，不进侧。
+     * 配对丢失（MATCH_LOST）同样按侧归属——它发生在"这单归谁"已定之后，是策略组合的真实代价。
+     */
+    public record SideStat(String policyId,
+                           int served,
+                           int pairingLost,
+                           int completed,
+                           double waitMeanSeconds,
+                           double waitP50Seconds,
+                           double waitP95Seconds,
+                           double avgPickupDistanceMeters,
+                           double deadheadShare) {
+    }
+
     public record RunResult(double completionMeanSeconds,
                             double completionP95Seconds,
                             double pickupWaitMeanSeconds,
+                            double pickupWaitP50Seconds,
+                            double pickupWaitP95Seconds,
                             double avgPickupDistanceMeters,
                             int relocations,
                             Map<String, Integer> pickupArrivals,
@@ -545,7 +563,15 @@ public final class ScenarioBench {
                             int arrived,
                             Map<String, Integer> failureReasons,
                             double hindsightDistanceMeters,
-                            double regretVsHindsight) {
+                            double regretVsHindsight,
+                            int lowSocDispatchFails,
+                            long decisionCompared,
+                            long decisionAgreed,
+                            double regretMean,
+                            double regretMax,
+                            int challengerFallbacks,
+                            SideStat ruleSide,
+                            SideStat challengerSide) {
     }
 
     /** N 次重复的汇总：均值 + 95% 置信区间（小样本用 t 分位数，不是 1.96）。 */
@@ -562,10 +588,25 @@ public final class ScenarioBench {
 
     // ---------------------------------------------------------------- 运行
 
+    /** 便捷入口：全在位策略（历史基线口径），无灰度。 */
     public static RunResult run(Config cfg, long runSeed) {
+        return run(cfg, runSeed, null, 0);
+    }
+
+    /** 挑战者全量接管（PRIMARY 臂）：所有决策都由挑战者产出。 */
+    public static RunResult run(Config cfg, long runSeed, DecisionPolicy challenger) {
+        return run(cfg, runSeed, challenger, 100);
+    }
+
+    /**
+     * 灰度世界：{@code bucket(单 id) < grayPercent} 的单由挑战者接，其余由在位策略接。
+     * 分桶函数与生产 {@code DecisionPolicyRouter#bucket} 逐字同源（同一单重放必落同一侧）；
+     * 挑战者抛错按生产 Router 的回退语义回落到在位策略并计数，本单不丢。
+     */
+    public static RunResult run(Config cfg, long runSeed, DecisionPolicy challenger, int grayPercent) {
         cfg.validate();
         Random rng = new Random(runSeed);
-        DecisionPolicy policy = new com.fsd.dispatch.core.RulePolicy();
+        DecisionPolicy incumbent = new com.fsd.dispatch.core.RulePolicy();
         DecisionWeights weights = new DecisionWeights(1.0D, 0.15D, 80.0D, 0.5D, 30.0D, cfg.fullSoc(),
                 DecisionWeights.DEFAULT_PRIORITY_HIGH_FACTOR, DecisionWeights.DEFAULT_PRIORITY_LOW_FACTOR,
                 DecisionWeights.DEFAULT_PEAK_SOC_DAMPING, DecisionWeights.DEFAULT_PLUGGED_BONUS_FALLOFF_METRES);
@@ -594,6 +635,28 @@ public final class ScenarioBench {
         Map<String, Integer> pickupCounts = new TreeMap<>();
         double pickupDistanceTotal = 0D;
         int relocations = 0;
+        // —— 实验闭环状态：等待样本、灰度分侧归属、挑战者对照 ——
+        List<Double> waitSamples = new ArrayList<>();
+        Map<String, java.util.ArrayDeque<Integer>> stationArrivalTicks = new LinkedHashMap<>();
+        List<Double> ruleWaits = new ArrayList<>();
+        List<Double> challengerWaits = new ArrayList<>();
+        int ruleServed = 0;
+        int challengerServedCount = 0;
+        int ruleLost = 0;
+        int challengerLost = 0;
+        int ruleCompletedSide = 0;
+        int challengerCompletedSide = 0;
+        double rulePickupMeters = 0D;
+        double challengerPickupMeters = 0D;
+        double ruleLoadedMeters = 0D;
+        double challengerLoadedMeters = 0D;
+        double ruleDriveMeters = 0D;
+        double challengerDriveMeters = 0D;
+        long decisionCompared = 0L;
+        long decisionAgreed = 0L;
+        double regretSum = 0D;
+        double regretMax = 0D;
+        int challengerFallbacks = 0;
         int ticks = (int) Math.ceil(cfg.horizonMinutes() * 60D / TICK_SECONDS);
         double baseArrivalsPerTick = cfg.ordersPerHour() / 3600D * TICK_SECONDS;
 
@@ -614,6 +677,8 @@ public final class ScenarioBench {
                 if (!order.pickupStation().isEmpty()) {
                     // 键 = 站点#小时，一次同时喂给"热区在线估计"（按前缀汇总）与 M6 的站点×小时分布
                     pickupCounts.merge(order.pickupStation() + "#" + (tick * TICK_SECONDS / 3600), 1, Integer::sum);
+                    // 压力项的在线计数源：同一 deque 供 stationPressure 按窗口取数
+                    stationArrivalTicks.computeIfAbsent(order.pickupStation(), k -> new java.util.ArrayDeque<>()).addLast(tick);
                 }
                 arrived++;
             }
@@ -647,13 +712,39 @@ public final class ScenarioBench {
                     unassigned++;
                     continue;
                 }
-                Map<Vehicle, RankedCandidate> scored = scoreEligible(order, free, policy, weights, cfg);
-                if (scored.isEmpty()) {
+                List<DecisionInput.CandidateState> states = eligibleStates(order, free, cfg,
+                        stationArrivalTicks, nowTick);
+                if (states.isEmpty()) {
                     failures.merge("LOW_SOC", 1, Integer::sum);
                     unassigned++;
                     continue;
                 }
-                plans.add(new Plan(order, scored));
+                DecisionInput input = new DecisionInput(order.priority(), false, 1.0D, weights, states);
+                DecisionOutcome incumbentOutcome = incumbent.decide(input);
+                DecisionOutcome outcome = incumbentOutcome;
+                boolean servedByChallenger = false;
+                if (challenger != null && GrayBuckets.of(orderKey(order)) < grayPercent) {
+                    try {
+                        outcome = challenger.decide(input);
+                        servedByChallenger = true;
+                        decisionCompared++;
+                        if (sameTop1(outcome, incumbentOutcome)) {
+                            decisionAgreed++;
+                        } else {
+                            // regret 用在位标尺量（与生产 Router 同口径）：这一换按在位打分亏多少
+                            double regret = regretOnIncumbentScale(incumbentOutcome, outcome);
+                            if (!Double.isNaN(regret)) {
+                                regretSum += regret;
+                                regretMax = Math.max(regretMax, regret);
+                            }
+                        }
+                    } catch (RuntimeException ex) {
+                        // 生产 Router 的回退语义：挑战者异常回落到在位策略，本单不丢；计数即告警面
+                        challengerFallbacks++;
+                        outcome = incumbentOutcome;
+                    }
+                }
+                plans.add(new Plan(order, byVehicle(outcome, free), servedByChallenger));
             }
             Map<Order, Vehicle> pairing = cfg.matchStrategy() == MatchStrategy.HUNGARIAN
                     ? hungarianPairing(plans) : greedyPairing(plans);
@@ -662,6 +753,12 @@ public final class ScenarioBench {
                 if (chosen == null) {
                     failures.merge("MATCH_LOST", 1, Integer::sum);
                     unassigned++;
+                    // 归属侧已知（这单归谁已定）才谈得上"配对丢了"：这是策略组合的真实代价
+                    if (plan.challengerServed()) {
+                        challengerLost++;
+                    } else {
+                        ruleLost++;
+                    }
                     continue;
                 }
                 RankedCandidate best = plan.scored().get(chosen);
@@ -681,7 +778,24 @@ public final class ScenarioBench {
                 // 端到端口径：等派时间必须算进完成时长，否则"攒窗口再配对"看起来是免费的。
                 double waitSeconds = (tick - order.arrivalTick()) * (double) TICK_SECONDS;
                 queueWaitSeconds += waitSeconds;
+                waitSamples.add(waitSeconds);
                 completionSeconds.add(waitSeconds + driveSeconds + cfg.serviceSeconds());
+                // 侧归属：只有"这一单实际被哪个策略接走"可归属的量才进侧
+                if (plan.challengerServed()) {
+                    challengerServedCount++;
+                    challengerCompletedSide++;
+                    challengerWaits.add(waitSeconds);
+                    challengerPickupMeters += toPickup;
+                    challengerLoadedMeters += loaded;
+                    challengerDriveMeters += driveMeters;
+                } else {
+                    ruleServed++;
+                    ruleCompletedSide++;
+                    ruleWaits.add(waitSeconds);
+                    rulePickupMeters += toPickup;
+                    ruleLoadedMeters += loaded;
+                    ruleDriveMeters += driveMeters;
+                }
             }
 
             // 补能时机。阈值全部对齐 FleetEnergyProperties，策略分支对齐 EnergyForecastServiceImpl：
@@ -749,10 +863,24 @@ public final class ScenarioBench {
         }
 
         completionSeconds.sort(Double::compare);
+        waitSamples.sort(Double::compare);
         double mean = completionSeconds.stream().mapToDouble(Double::doubleValue).average().orElse(0D);
         double p95 = percentile(completionSeconds, 0.95);
+        double waitMean = waitSamples.stream().mapToDouble(Double::doubleValue).average().orElse(0D);
+        double waitP50 = percentile(waitSamples, 0.5);
+        double waitP95 = percentile(waitSamples, 0.95);
         int completed = completionSeconds.size();
-        return new RunResult(mean, p95, completed == 0 ? 0D : queueWaitSeconds / completed,
+        SideStat ruleSide = challenger == null ? null
+                : new SideStat(incumbent.id(), ruleServed, ruleLost, ruleCompletedSide,
+                        meanOf(ruleWaits), percentileOf(ruleWaits, 0.5), percentileOf(ruleWaits, 0.95),
+                        ruleServed == 0 ? 0D : rulePickupMeters / ruleServed,
+                        ruleDriveMeters <= 0 ? 0D : 1D - ruleLoadedMeters / ruleDriveMeters);
+        SideStat challengerSide = challenger == null ? null
+                : new SideStat(challenger.id(), challengerServedCount, challengerLost, challengerCompletedSide,
+                        meanOf(challengerWaits), percentileOf(challengerWaits, 0.5), percentileOf(challengerWaits, 0.95),
+                        challengerServedCount == 0 ? 0D : challengerPickupMeters / challengerServedCount,
+                        challengerDriveMeters <= 0 ? 0D : 1D - challengerLoadedMeters / challengerDriveMeters);
+        return new RunResult(mean, p95, waitMean, waitP50, waitP95,
                 completed == 0 ? 0D : pickupDistanceTotal / completed, relocations, new TreeMap<>(pickupCounts),
                 totalDistance,
                 totalDistance <= 0 ? 0D : 1D - loadedDistance / totalDistance,
@@ -763,7 +891,21 @@ public final class ScenarioBench {
                 decisionAttempts == 0 ? 0D : candidateEvaluations / (double) decisionAttempts,
                 completed, arrived,
                 new LinkedHashMap<>(failures), hindsightDistance,
-                hindsightDistance <= 0 ? 0D : (totalDistance - hindsightDistance) / hindsightDistance);
+                hindsightDistance <= 0 ? 0D : (totalDistance - hindsightDistance) / hindsightDistance,
+                failures.getOrDefault("LOW_SOC", 0),
+                decisionCompared, decisionAgreed,
+                decisionCompared == 0 ? 0D : regretSum / decisionCompared, regretMax,
+                challengerFallbacks, ruleSide, challengerSide);
+    }
+
+    private static double meanOf(List<Double> values) {
+        return values.stream().mapToDouble(Double::doubleValue).average().orElse(0D);
+    }
+
+    private static double percentileOf(List<Double> values, double q) {
+        List<Double> sorted = new ArrayList<>(values);
+        sorted.sort(Double::compare);
+        return percentile(sorted, q);
     }
 
     /** N 次重复 + 95% 置信区间。同一种子序列，所以两次调用逐数字相同。 */
@@ -790,6 +932,12 @@ public final class ScenarioBench {
         out.add(sum("candidates_per_decision", runs, r -> r.candidatesPerDecision()));
         out.add(sum("hindsight_distance_served_m", runs, r -> r.hindsightDistanceMeters()));
         out.add(sum("regret_vs_hindsight", runs, r -> r.regretVsHindsight()));
+        out.add(sum("pickup_wait_p50_s", runs, RunResult::pickupWaitP50Seconds));
+        out.add(sum("pickup_wait_p95_s", runs, RunResult::pickupWaitP95Seconds));
+        out.add(sum("low_soc_fail_rate", runs, r -> r.arrived() == 0 ? 0D : r.lowSocDispatchFails() / (double) r.arrived()));
+        out.add(sum("decision_agreement", runs, r -> r.decisionCompared() == 0 ? 1D : r.decisionAgreed() / (double) r.decisionCompared()));
+        out.add(sum("decision_regret_mean", runs, RunResult::regretMean));
+        out.add(sum("challenger_fallbacks", runs, r -> r.challengerFallbacks()));
         return out;
     }
 
@@ -819,20 +967,43 @@ public final class ScenarioBench {
             ra.add(run(a, runSeed));
             rb.add(run(b, runSeed));
         }
+        return pairedRows(ra, rb);
+    }
+
+    /**
+     * PRIMARY 臂配对对照：同一份 Config、同一串种子，A 臂全在位策略、B 臂全挑战者。
+     * 与 {@link #comparePaired} 共享同一套指标行，报告可直接同表引用。
+     */
+    public static List<PairedSummary> comparePoliciesPaired(Config cfg, DecisionPolicy challenger) {
+        List<RunResult> ra = new ArrayList<>(cfg.repeats());
+        List<RunResult> rb = new ArrayList<>(cfg.repeats());
+        for (int i = 0; i < cfg.repeats(); i++) {
+            long runSeed = cfg.seed() * 31 + i;
+            ra.add(run(cfg, runSeed));
+            rb.add(run(cfg, runSeed, challenger));
+        }
+        return pairedRows(ra, rb);
+    }
+
+    private static List<PairedSummary> pairedRows(List<RunResult> ra, List<RunResult> rb) {
         List<PairedSummary> out = new ArrayList<>();
         out.add(diffOf("completion_rate", ra, rb, r -> r.arrived() == 0 ? 0D : r.completed() / (double) r.arrived()));
         out.add(diffOf("completion_mean_s", ra, rb, RunResult::completionMeanSeconds));
         out.add(diffOf("pickup_wait_mean_s", ra, rb, RunResult::pickupWaitMeanSeconds));
+        out.add(diffOf("pickup_wait_p95_s", ra, rb, RunResult::pickupWaitP95Seconds));
         out.add(diffOf("avg_pickup_distance_m", ra, rb, RunResult::avgPickupDistanceMeters));
         out.add(diffOf("relocations", ra, rb, r -> r.relocations()));
         out.add(diffOf("completed_orders", ra, rb, r -> r.completed()));
         out.add(diffOf("total_distance_m", ra, rb, RunResult::totalDistanceMeters));
         out.add(diffOf("deadhead_share", ra, rb, RunResult::deadheadShare));
+        out.add(diffOf("low_soc_fail_rate", ra, rb,
+                r -> r.arrived() == 0 ? 0D : r.lowSocDispatchFails() / (double) r.arrived()));
         out.add(diffOf("charge_sessions", ra, rb, r -> r.chargeSessions()));
         out.add(diffOf("charge_blocked_car_min", ra, rb, RunResult::chargeBlockedCarMinutes));
         out.add(diffOf("charge_travel_m_session", ra, rb, RunResult::chargeTravelMetersPerSession));
         out.add(diffOf("pile_session_spread", ra, rb, RunResult::pileSessionSpread));
         out.add(diffOf("regret_vs_hindsight", ra, rb, RunResult::regretVsHindsight));
+        out.add(diffOf("decision_regret_mean", ra, rb, RunResult::regretMean));
         return out;
     }
 
@@ -887,6 +1058,169 @@ public final class ScenarioBench {
         for (String s : assumptions()) {
             sb.append("- ").append(s).append('\n');
         }
+        return sb.toString();
+    }
+
+    // ---------------------------------------------------------------- 灰度扫描
+
+    /**
+     * 单个灰度档的汇总：每个 run 是一个灰度世界（两侧共享同一批到达与车队），侧指标跨 repeats 取
+     * Summary；侧差按 run 配对——同 run 内两侧同世界，差值只含"策略归属"效应。
+     * 差值方向：挑战者 − 在位。completion_rate 差为正是收益，wait/pickup 差为正是代价。
+     */
+    public record GrayArm(int grayPercent,
+                          List<Summary> ruleSide,
+                          List<Summary> challengerSide,
+                          List<PairedSummary> sideDiffs,
+                          List<String> warnings) {
+    }
+
+    /** 恶化告警阈值：完成率掉超过 5 个百分点、侧等待 P95 恶化超过 20%，且配对差 95% CI 不跨 0 才告警。 */
+    static final double COMPLETION_DROP_ALERT = 0.05D;
+    static final double WAIT_P95_RATIO_ALERT = 1.20D;
+
+    /** 一条灰度档：跑 N 个灰度世界并聚合两侧指标 + 恶化告警。 */
+    public static GrayArm grayArm(Config cfg, DecisionPolicy challenger, int grayPercent) {
+        List<RunResult> runs = new ArrayList<>(cfg.repeats());
+        for (int i = 0; i < cfg.repeats(); i++) {
+            runs.add(run(cfg, cfg.seed() * 31 + i, challenger, grayPercent));
+        }
+        List<Summary> rule = List.of(
+                sum("side_served", runs, r -> side(r.ruleSide(), SideStat::served)),
+                sum("side_service_rate", runs, r -> rate(r.ruleSide())),
+                sum("side_wait_mean_s", runs, r -> side(r.ruleSide(), SideStat::waitMeanSeconds)),
+                sum("side_wait_p95_s", runs, r -> side(r.ruleSide(), SideStat::waitP95Seconds)),
+                sum("side_avg_pickup_m", runs, r -> side(r.ruleSide(), SideStat::avgPickupDistanceMeters)),
+                sum("side_deadhead_share", runs, r -> side(r.ruleSide(), SideStat::deadheadShare)));
+        List<Summary> chal = List.of(
+                sum("side_served", runs, r -> side(r.challengerSide(), SideStat::served)),
+                sum("side_service_rate", runs, r -> rate(r.challengerSide())),
+                sum("side_wait_mean_s", runs, r -> side(r.challengerSide(), SideStat::waitMeanSeconds)),
+                sum("side_wait_p95_s", runs, r -> side(r.challengerSide(), SideStat::waitP95Seconds)),
+                sum("side_avg_pickup_m", runs, r -> side(r.challengerSide(), SideStat::avgPickupDistanceMeters)),
+                sum("side_deadhead_share", runs, r -> side(r.challengerSide(), SideStat::deadheadShare)));
+        List<PairedSummary> diffs = List.of(
+                sideDiff("side_service_rate", runs, r -> rate(r.ruleSide()), r -> rate(r.challengerSide())),
+                sideDiff("side_wait_mean_s", runs,
+                        r -> side(r.ruleSide(), SideStat::waitMeanSeconds),
+                        r -> side(r.challengerSide(), SideStat::waitMeanSeconds)),
+                sideDiff("side_wait_p95_s", runs,
+                        r -> side(r.ruleSide(), SideStat::waitP95Seconds),
+                        r -> side(r.challengerSide(), SideStat::waitP95Seconds)),
+                sideDiff("side_avg_pickup_m", runs,
+                        r -> side(r.ruleSide(), SideStat::avgPickupDistanceMeters),
+                        r -> side(r.challengerSide(), SideStat::avgPickupDistanceMeters)),
+                sideDiff("side_deadhead_share", runs,
+                        r -> side(r.ruleSide(), SideStat::deadheadShare),
+                        r -> side(r.challengerSide(), SideStat::deadheadShare)));
+        long fallbacks = runs.stream().mapToLong(RunResult::challengerFallbacks).sum();
+        int exposed = runs.stream().mapToInt(r -> r.challengerSide() == null ? 0 : r.challengerSide().served()).sum();
+        return new GrayArm(grayPercent, rule, chal, diffs, regressionWarnings(grayPercent, fallbacks, exposed, diffs));
+    }
+
+    /** 多档扫描：{@code grayScan(cfg, challenger, 10, 25, 50)}。 */
+    public static List<GrayArm> grayScan(Config cfg, DecisionPolicy challenger, int... percents) {
+        List<GrayArm> out = new ArrayList<>(percents.length);
+        for (int percent : percents) {
+            out.add(grayArm(cfg, challenger, percent));
+        }
+        return out;
+    }
+
+    private static double side(SideStat s, java.util.function.ToDoubleFunction<SideStat> f) {
+        return s == null ? 0D : f.applyAsDouble(s);
+    }
+
+    private static double rate(SideStat s) {
+        int attempts = s == null ? 0 : s.served() + s.pairingLost();
+        return attempts == 0 ? 0D : s.served() / (double) attempts;
+    }
+
+    private static PairedSummary sideDiff(String name, List<RunResult> runs,
+                                          java.util.function.ToDoubleFunction<RunResult> ruleF,
+                                          java.util.function.ToDoubleFunction<RunResult> challengerF) {
+        int n = runs.size();
+        double[] d = new double[n];
+        double meanRule = 0D;
+        double meanChallenger = 0D;
+        for (int i = 0; i < n; i++) {
+            double x = ruleF.applyAsDouble(runs.get(i));
+            double y = challengerF.applyAsDouble(runs.get(i));
+            meanRule += x / n;
+            meanChallenger += y / n;
+            d[i] = y - x;
+        }
+        double mean = 0D;
+        for (double v : d) {
+            mean += v / n;
+        }
+        double sq = 0D;
+        for (double v : d) {
+            sq += (v - mean) * (v - mean);
+        }
+        double sd = n > 1 ? Math.sqrt(sq / (n - 1)) : 0D;
+        double half = studentT(n) * sd / Math.sqrt(n);
+        return new PairedSummary(name, meanRule, meanChallenger, mean, mean - half, mean + half, n);
+    }
+
+    /**
+     * 恶化告警（P0-1 的"指标恶化告警条件"）：两条规则 + 回退计数，全部显式写在判据里，不做黑箱打分。
+     * 完成率按"掉超过 5 个百分点且 CI 不跨 0"，等待 P95 按"恶化超过 20% 且 CI 不跨 0"。
+     * 纯函数：fallbacks / exposed 由调用方算好传入，判据本身可直接单测。
+     */
+    static List<String> regressionWarnings(int grayPercent, long fallbacks, int exposed,
+                                           List<PairedSummary> diffs) {
+        List<String> out = new ArrayList<>();
+        if (fallbacks > 0) {
+            out.add("挑战者在 " + fallbacks + " 次决策里抛错并已自动回退到在位策略——先修稳定性再看收益");
+        }
+        if (exposed == 0) {
+            out.add("挑战者侧 0 单：检查 grayPercent 与分桶键");
+            return out;
+        }
+        for (PairedSummary d : diffs) {
+            boolean bad;
+            if (d.metric().equals("side_service_rate")) {
+                bad = d.diff() < -COMPLETION_DROP_ALERT && d.distinguishable();
+            } else if (d.metric().equals("side_wait_p95_s")) {
+                bad = d.armA() > 0 && d.armB() / d.armA() > WAIT_P95_RATIO_ALERT && d.distinguishable();
+            } else {
+                continue;
+            }
+            if (bad) {
+                out.add(String.format(java.util.Locale.ROOT,
+                        "%s 恶化：在位 %.4f → 挑战者 %.4f（配对差 95%% CI [%.4f, %.4f]），gray=%d%%",
+                        d.metric(), d.armA(), d.armB(), d.low(), d.high(), grayPercent));
+            }
+        }
+        return out;
+    }
+
+    /** 灰度扫描的 Markdown 小节：侧差表 + 告警清单。 */
+    public static String grayScanReport(Config cfg, DecisionPolicy challenger, List<GrayArm> arms) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("### 灰度分侧（challenger=").append(challenger.id())
+                .append("，分桶=生产 bucket(单 id)，世界同种子）\n\n");
+        sb.append("| gray% | 指标 | 在位侧 | 挑战者侧 | 配对差(挑战者−在位) 95% CI | 判读 |\n");
+        sb.append("| --- | --- | --- | --- | --- | --- |\n");
+        for (GrayArm arm : arms) {
+            for (PairedSummary d : arm.sideDiffs()) {
+                sb.append(String.format(java.util.Locale.ROOT, "| %d | %s | %.4f | %.4f | %+.4f [%.4f, %.4f] | %s |%n",
+                        arm.grayPercent(), d.metric(), d.armA(), d.armB(), d.diff(), d.low(), d.high(),
+                        d.distinguishable() ? (d.diff() > 0 ? "挑战者侧更高" : "在位侧更高") : "分不出来"));
+            }
+        }
+        sb.append('\n');
+        boolean anyWarning = arms.stream().anyMatch(a -> !a.warnings().isEmpty());
+        sb.append(anyWarning ? "**恶化告警（未过闸，逐条如下）**\n\n" : "无恶化告警（完成率、等待 P95 两条规则与回退计数都干净）。\n");
+        for (GrayArm arm : arms) {
+            for (String w : arm.warnings()) {
+                sb.append("- gray=").append(arm.grayPercent()).append("%：").append(w).append('\n');
+            }
+        }
+        sb.append("\n侧指标只含订单可归属的量（接驾/载货里程、等待、完成、配对丢失）；补能与充电是车队级成本，不进侧。\n");
+        sb.append("side_service_rate = served / (served + 配对丢失)：被接走的单必然完成（模型语义），侧层面能坏的只有配对丢单这一环。\n");
+        sb.append("两侧同世界共享到达与车队，所以侧差不是独立两臂的差：它量化的是「同一辆车的每一单归谁接」的净效应。\n\n");
         return sb.toString();
     }
 
@@ -977,12 +1311,18 @@ public final class ScenarioBench {
 
     public static List<String> assumptions() {
         return List.of(
-                "距离 = 直线欧氏距离 × detourFactor。**detourFactor 已从假设转实测**：对扩范围路网最大连通分量"
-                        + "的 5486 个可通行点对跑最短路/直线距离，均值 1.481、中位 1.374、P90 1.946"
-                        + "（`scripts/geo/osm_to_road_graph.py::detour_factor`，统计写在 seed 头部）。"
-                        + "取均值 1.481，§1.1 原假设 1.3 相当于中位数",
-                "均速 avgSpeedKmh = 17.84，来自 seed 头部 speed_weighted_avg_kmh（按边长加权的限速均值）。"
-                        + "裁掉提取框外的路之后从 16.42 升到 17.84 —— 框外多是低速 service 路。仍是单一常数，不分路段等级",
+                "距离 = 直线欧氏距离 × detourFactor。**detourFactor 已从假设转实测**：对旧图"
+                        + "（roadGraphVersion=osm-expanded-2026-09-21，91 节点，现存 data/backup/zjf_road_network.pre-corridor.sql）"
+                        + "最大连通分量的 5486 个可通行点对跑最短路/直线距离，均值 1.481、中位 1.374、P90 1.946"
+                        + "（`scripts/geo/osm_to_road_graph.py::detour_factor`，统计写在**那版** seed 头部）。"
+                        + "取均值 1.481，§1.1 原假设 1.3 相当于中位数。"
+                        + "**东界扩围后现行 seed 头部（back/sql/seed/zjf_road_network.sql）是 1.416，与本表常数不同源**："
+                        + "产能引用须带旧图口径限定，换 1.416 属口径变更（§7.7 须先裁定）",
+                "均速 avgSpeedKmh = 17.84 —— 本表输入常数（mTier Config 钉死），出处是旧图"
+                        + "（osm-expanded-2026-09-21）seed 头部的 speed_weighted_avg_kmh（按边长加权的限速均值）："
+                        + "裁掉提取框外的路之后从 16.42 升到 17.84 —— 框外多是低速 service 路。"
+                        + "**现行 seed 头部是 18.73，与本表常数不同源**：产能引用须带旧图口径限定，"
+                        + "换 18.73 属产能口径变更（§7.7 禁随手重跑，须先裁定）。仍是单一常数，不分路段等级",
                 "场景范围 1613 × 500 m = **现役**派单围栏的外接框（§0.1 实测）。这不是 §1.12 的规划范围"
                         + "（近场 L1 2.19 km² + 三条干线走廊 ≈11.0 km²）：原述的\"M 档目标范围 1.35 km²\"已作废"
                         + "（实测并集只有 0.992 km²，§13.71），而 L1/干线的点位要等走廊 OSM 重提取 + 吸附后才能进库，"
@@ -1022,7 +1362,14 @@ public final class ScenarioBench {
                 "§5 第 3 条列的\"SOC 抛锚次数\"在本模型里**恒为 0，且是构造性的**：全链路 SOC 前置检查"
                         + "（沿用生产的 canCompleteTaskWithSoc 语义）不允许接一趟跑不完的单，所以\"跑到一半没电\"不可观测。"
                         + "可观测的替代信号是 LOW_SOC 落单次数与\"补能被桩位挡住\"的车·分钟，两者都已导出",
-                "所有数字都必须带档位标签（S/M/L）；跨档引用即为违规（§1.3）");
+                "所有数字都必须带档位标签（S/M/L）；跨档引用即为违规（§1.3）",
+                "灰度实验的分桶键 = 单 id 字符串，桶函数 = core.GrayBuckets（生产 Router 委托的同一份实现，"
+                        + "同一单重放必落同一侧，不引随机数）。压力项是**每台候选各自**的：取离它最近的取货站"
+                        + "（它此刻所属站区）的在线计数（pressureWindowTicks 窗口内落单数 / pressureDeferOrders，"
+                        + "封顶 1），对应生产『车辆目标/所属站点的预测压力』——把车从高压力站区拉走的候选被惩罚；"
+                        + "它是 t_energy_forecast 的在线代理而非预测表本身。UNIFORM 需求（无站点）恒 0 ⇒"
+                        + " FORECAST 与 RULE 逐位相同（构造保证的回退基线）。regret 用在位标尺量，"
+                        + "与生产 Router 同口径；挑战者抛错自动回落在位并计数，本单不丢");
     }
 
     // ---------------------------------------------------------------- 内部模型
@@ -1271,14 +1618,107 @@ public final class ScenarioBench {
 
     // ---------------------------------------------------------------- 撮合
 
-    /** 一单在本 tick 快照下的可行候选及其分数（分数越低越优，与 {@code RulePolicy} 一致）。 */
-    private record Plan(Order order, Map<Vehicle, RankedCandidate> scored) {
+    /** 一单在本 tick 快照下的可行候选及其分数（分数越低越优，与 {@code RulePolicy} 一致），及归属侧。 */
+    private record Plan(Order order, Map<Vehicle, RankedCandidate> scored, boolean challengerServed) {
     }
 
-    private static Map<Vehicle, RankedCandidate> scoreEligible(Order order, List<Vehicle> free,
-                                                               DecisionPolicy policy, DecisionWeights weights,
-                                                               Config cfg) {
+    /**
+     * 在线热区压力（0..1）：pressureWindowTicks 窗口内该取货站的落单数 / pressureDeferOrders，封顶 1。
+     * 这是 {@code t_energy_forecast} 的<b>在线计数代理</b>，不是预测表本身；UNIFORM 需求（无站点）恒 0。
+     */
+    private static double stationPressure(String station, Map<String, java.util.ArrayDeque<Integer>> arrivals,
+                                          int nowTick, int windowTicks, int deferOrders) {
+        if (station == null || station.isEmpty() || deferOrders <= 0) {
+            return 0D;
+        }
+        return Math.min(1D, windowArrivals(station, arrivals, nowTick, windowTicks) / (double) deferOrders);
+    }
+
+    /** 窗口内落单数（原始计数，运力压力公式的需求项）；顺带把 deque 头部滑出窗口的旧 tick 修剪掉。 */
+    private static int windowArrivals(String station, Map<String, java.util.ArrayDeque<Integer>> arrivals,
+                                      int nowTick, int windowTicks) {
+        if (station == null || station.isEmpty()) {
+            return 0;
+        }
+        java.util.ArrayDeque<Integer> ticks = arrivals.get(station);
+        if (ticks == null) {
+            return 0;
+        }
+        int from = nowTick - Math.max(1, windowTicks) + 1;
+        while (!ticks.isEmpty() && ticks.peekFirst() < from) {
+            ticks.removeFirst();
+        }
+        return ticks.size();
+    }
+
+    /** 单 id 字符串进生产分桶函数；id 是到达序号，同一种子下跨 run 稳定。 */
+    private static String orderKey(Order order) {
+        return Integer.toString(order.id());
+    }
+
+    private static boolean sameTop1(DecisionOutcome a, DecisionOutcome b) {
+        Long x = a.ranked().isEmpty() ? null : a.ranked().get(0).vehicleId();
+        Long y = b.ranked().isEmpty() ? null : b.ranked().get(0).vehicleId();
+        return x != null && x.equals(y);
+    }
+
+    /** 挑战者的选择按在位标尺的分差（≥0）；选择不在在位清单里 ⇒ 无共同标尺，NaN。 */
+    private static double regretOnIncumbentScale(DecisionOutcome incumbent, DecisionOutcome challenger) {
+        if (challenger.ranked().isEmpty()) {
+            return Double.NaN;
+        }
+        Long winner = challenger.ranked().get(0).vehicleId();
+        Double best = null;
+        Double winnerScore = null;
+        for (RankedCandidate c : incumbent.ranked()) {
+            if (best == null) {
+                best = c.totalScore();
+            }
+            if (c.vehicleId() != null && c.vehicleId().equals(winner)) {
+                winnerScore = c.totalScore();
+            }
+        }
+        if (best == null || winnerScore == null) {
+            return Double.NaN;
+        }
+        return winnerScore - best;
+    }
+
+    private static Map<Vehicle, RankedCandidate> byVehicle(DecisionOutcome outcome, List<Vehicle> free) {
+        Map<Vehicle, RankedCandidate> byVehicle = new LinkedHashMap<>();
+        for (RankedCandidate ranked : outcome.ranked()) {
+            free.stream().filter(v -> v.id == ranked.identity().vehicleId()).findFirst()
+                    .ifPresent(v -> byVehicle.put(v, ranked));
+        }
+        return byVehicle;
+    }
+
+    /**
+     * 把可派车折成策略入参：硬过滤（minAssignableSoc 与全链路 SOC 可达）保留在状态构建里，与生产语义一致。
+     * 压力是**每台候选各自**的：取"离它最近的取货站"（它此刻所属的站区）的在线计数——同一单的候选
+     * 压力各不相同，FORECAST 才可能真的重排；若按订单取货站取值，全候选同值 ⇒ 惩罚是常数 ⇒ 永远等于 RULE。
+     */
+    private static List<DecisionInput.CandidateState> eligibleStates(Order order, List<Vehicle> free,
+                                                                     Config cfg,
+                                                                     Map<String, java.util.ArrayDeque<Integer>> stationArrivalTicks,
+                                                                     int nowTick) {
         List<DecisionInput.CandidateState> states = new ArrayList<>(free.size());
+        boolean stationBased = cfg.demand().stationBased();
+        // 供给 = 本 tick 候选集里"所属站区"的空闲车数（含自身）：运力压力公式的分母
+        Map<String, Integer> supplyByStation = new LinkedHashMap<>();
+        if (stationBased) {
+            for (Vehicle v : free) {
+                if (v.soc >= cfg.minAssignableSoc()) {
+                    supplyByStation.merge(nearestPickupStation(v, cfg), 1, Integer::sum);
+                }
+            }
+        }
+        // 目的地引力：本单卸货点所属站区的在窗需求。对同一单的所有候选同值——逐单贪心下不改排序，
+        // 进 Hungarian 成本矩阵才携带跨单信号（同一台车配高需求目的地 vs 低需求目的地的差别）
+        double destinationDemand = stationBased
+                ? windowArrivals(nearestStation(order.dropoffX(), order.dropoffY(), cfg.demand().dropoffs()),
+                        stationArrivalTicks, nowTick, cfg.pressureWindowTicks())
+                : 0;
         for (Vehicle v : free) {
             if (v.soc < cfg.minAssignableSoc()) {
                 continue;
@@ -1289,21 +1729,37 @@ public final class ScenarioBench {
             if (v.soc - metersToSoc(task, cfg) < cfg.minAssignableSoc()) {
                 continue;
             }
+            String home = stationBased ? nearestPickupStation(v, cfg) : "";
+            int homeDemand = windowArrivals(home, stationArrivalTicks, nowTick, cfg.pressureWindowTicks());
+            double pressure = stationPressure(home, stationArrivalTicks, nowTick,
+                    cfg.pressureWindowTicks(), cfg.pressureDeferOrders());
             states.add(new DecisionInput.CandidateState(
                     new DecisionInput.RankedCandidateIdentity(v.id, "SIM-" + v.id),
-                    v.soc, toPickup, false, 0L));
+                    v.soc, toPickup, false, 0L, pressure,
+                    new DecisionInput.GravityView(homeDemand,
+                            supplyByStation.getOrDefault(home, 0), destinationDemand)));
         }
-        if (states.isEmpty()) {
-            return Map.of();
+        return states;
+    }
+
+    /** 候选车最近的取货站 = 它此刻"所属"的站区；UNIFORM 需求（无站点）返回空串 → 压力 0。 */
+    private static String nearestPickupStation(Vehicle v, Config cfg) {
+        return nearestStation(v.x, v.y, cfg.demand().pickups());
+    }
+
+    private static String nearestStation(double x, double y, List<Station> stations) {
+        String best = "";
+        double bestD = Double.POSITIVE_INFINITY;
+        for (Station s : stations) {
+            double dx = x - s.x();
+            double dy = y - s.y();
+            double d = dx * dx + dy * dy;
+            if (d < bestD) {
+                bestD = d;
+                best = s.code();
+            }
         }
-        DecisionOutcome outcome = policy.decide(new DecisionInput(
-                order.priority(), false, 1.0D, weights, states));
-        Map<Vehicle, RankedCandidate> byVehicle = new LinkedHashMap<>();
-        for (RankedCandidate ranked : outcome.ranked()) {
-            free.stream().filter(v -> v.id == ranked.identity().vehicleId()).findFirst()
-                    .ifPresent(v -> byVehicle.put(v, ranked));
-        }
-        return byVehicle;
+        return best;
     }
 
     /** 先到先得：按到达顺序，各单拿自己还没被抢走的最优车。 */

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fsd.dispatch.config.EnergyForecastProperties;
 import com.fsd.dispatch.config.FleetEnergyProperties;
 import com.fsd.dispatch.entity.EnergyForecastEntity;
+import com.fsd.dispatch.fleet.policy.FleetChargePolicy;
 import com.fsd.dispatch.mapper.EnergyForecastMapper;
 import com.fsd.dispatch.metrics.EnergyForecastMetrics;
 import com.fsd.dispatch.service.EnergyForecastService;
@@ -42,15 +43,19 @@ public class EnergyForecastServiceImpl implements EnergyForecastService {
     private final FleetEnergyProperties fleetEnergyProperties;
     private final EnergyForecastMapper energyForecastMapper;
     private final EnergyForecastMetrics forecastMetrics;
+    /** P1-2：临界档阈值从补能策略出口取（Redis 热更新 + YAML 回退），不再直读 YAML。 */
+    private final FleetChargePolicy fleetChargePolicy;
 
     public EnergyForecastServiceImpl(EnergyForecastProperties properties,
                                      FleetEnergyProperties fleetEnergyProperties,
                                      EnergyForecastMapper energyForecastMapper,
-                                     EnergyForecastMetrics forecastMetrics) {
+                                     EnergyForecastMetrics forecastMetrics,
+                                     FleetChargePolicy fleetChargePolicy) {
         this.properties = properties;
         this.fleetEnergyProperties = fleetEnergyProperties;
         this.energyForecastMapper = energyForecastMapper;
         this.forecastMetrics = forecastMetrics;
+        this.fleetChargePolicy = fleetChargePolicy;
     }
 
     @Override
@@ -134,7 +139,7 @@ public class EnergyForecastServiceImpl implements EnergyForecastService {
         if (!isEnabled() || !properties.isDeferReturnEnabled() || batteryLevel == null) {
             return false;
         }
-        int deferFloor = fleetEnergyProperties.getCriticalSocThreshold() + properties.getDeferMarginSoc();
+        int deferFloor = fleetChargePolicy.criticalSocThreshold() + properties.getDeferMarginSoc();
         if (batteryLevel <= deferFloor) {
             // 安全优先：接近临界 SOC 时必须立即返充，不参与错峰。这条与预测可用性无关，故不记退化
             return false;
