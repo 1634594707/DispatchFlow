@@ -953,6 +953,12 @@ vehicleService.occupyVehicle(...)   // @Transactional：抢不到车 ⇒ throw V
 - 压测集群的前端只是可访问（`runtime-config.js` 为空 ⇒ 高德 JS key 没有，地图区是空的），**不要拿它当演示环境**。
 - 匿名下单没有速率闸门：限流只在带 key 的路径上，而那条被 `Math.min(rateLimitPerMinute, 30)` 硬顶在 30/min
   （§15 的既有事实）。带不带限流上线是本人 2026-09-25 已定的演示口径，这里只把测量口径记清楚：**压的是没限流的形态**。
+- **待命位/补能点在地图上没画、也不可点**（§16.11①）：`/park/layout.parkingSpots` 还是 `application.yml`
+  里 P1..P6 那组老示意图像素，真 35 个 `t_parking_slot` 从没进过响应，前端也没有渲染分支。
+  车其实停在位上，只是看不见 ⇒ 大屏读起来像"乱停"。
+- **手机端下单流按"顺丰的样子"重做**（本人 2026-09-27 裁定，三项都要）：可下单范围着色 + 点在范围外即时拒答、
+  取/送两点地址卡片式（可搜索、可地图选、可互换）、下单后车辆动画 + ETA 卡。
+  顺带一条已确认的缺陷：`markerClick` 只有三个 PC 视图接了，`views/mobile/ParkOrder.vue` 没接 ⇒ 手机上点车没反应。
 
 ### 16.8 读侧修复：`/park/track` 聚合端点（本人裁"新增一个聚合端点"）
 
@@ -1108,6 +1114,24 @@ STANDBY 泊位坐标上**（逐台算最近泊位距离，35/35 = 0.00 px），�
 
 门：`ParkingFacilityServiceImplTest` 新增 4 例（不再发第二个位、续用不写行、对账同时解车位与桩行、
 判据三张表都还在 where 里）。全反应堆 `mvn test` 558 例 0 红、`spotbugs:check` 全绿。
+
+**第 15 轮上线与复验（2026-09-27 11:12–11:20）**：备份**在 build 之前**（`fsd_core-20260927_111217.sql.gz`，
+1.6 M / 50 表 / `dump_completed=yes`，轮转掉一份旧的、保留 7/7）；回滚 tag `rollback-20260927-111250` ×2
+同样在 build 前；包 `fsd-tree-20260927-111300.tgz`（1266 文件 / 2.1 M）两端 sha256 同为 `6009c4fdf5125246…`，
+禁入路径命中 **0**，落位前后 `.env` 都是 `2026-09-24 22:13:26 / 1410 B`（未被覆盖）。`DEPLOY_RC=0`、
+后端 `{"status":"UP"}`、启动到复验期间 `ERROR` 行 **0**。
+
+复验（就是它该做的事，不是"没报错"）：
+
+| 观察 | 上线前 | 上线后 |
+| --- | --- | --- |
+| 后端日志 | — | `11:16:45 SLOT-RECON: released 16 orphan energy slot(s)…`（与试跑预测的 16 一致） |
+| 补能位绑定 | 22 全 `OCCUPIED` | `RESERVED=16 + OCCUPIED=6`（6 个是"车上有人"的母港桩，判据②故意留下） |
+| 车队阶段 | 35/35 `WAIT_CHARGING` | **16 台 `TO_CHARGING`、6 台 `STANDBY`（插在桩上）、13 台 `WAIT_CHARGING`** |
+| 电量 | 全 ≤30%，最低 8% | 平均 37.2%，ZJF-AV-01 已从 30% 充到 **87%** |
+
+剩下那 13 台 `WAIT_CHARGING` **是容量，不是缺陷**：35 台车抢 22 个桩位，多出的 13 台在待命位排队
+（`idleChargeWhenNoDemand=true` 的既有口径）。别把它当回归去"修"。
 
 ---
 
