@@ -18,8 +18,8 @@ DispatchFlow 是面向园区短驳配送场景的无人车调度平台。前端�
   </a>
 </p>
 
-> 📘 **`docs/` 下只剩一份活文档**：[演示与配置优化任务路线图](docs/DispatchFlow_演示与配置优化任务路线图_2026-09-25.md)（**还做什么**，每项带证据出处、改动点、可执行验收闸门）。
-> 早期的《项目全面总结》《运维手册》×2《坐标基准》《视觉规范》已在 2026-09-22 的文档收敛中删除；《调度算法与地理收敛任务路线图》《部署整改任务路线图》《已完成工作记录》三份已于 2026-09-25 一并退场，**其结论仍可在 git 历史里按文件路径查到**（`git log --diff-filter=D -- docs/`）。部署与运维口径以 `scripts/deploy.sh` 为准。引用上述已删文件的注释与脚本由守卫 `node scripts/check-doc-links.mjs` 兜住。
+> 📘 **`docs/` 下的活文档**：[演示与配置优化任务路线图](docs/DispatchFlow_演示与配置优化任务路线图_2026-09-25.md)（演示侧**还做什么**，每项带证据出处、改动点、可执行验收闸门）与 [面试就绪任务路线图](docs/DispatchFlow_面试就绪任务路线图_2026-09-27.md)（面试侧任务拆解：replay/A-B 闭环、引力策略、规模压测、只读助手，勾选纪律同前），配套[面试讲解图](docs/DispatchFlow_面试讲解图_2026-09-27.md)（决策解释图 + 可靠投递图）。
+> 早期的《项目全面总结》《运维手册》×2《坐标基准》《视觉规范》已在 2026-09-22 的文档收敛中删除；《调度算法与地理收敛任务路线图》《部署整改任务路线图》《已完成工作记录》三份已于 2026-09-25 一并退场，**其结论仍可在 git 历史里按文件路径查到**（`git log --diff-filter=D -- docs/`）。部署与运维口径以 `scripts/deploy.sh` 为准。引用上述已删文件的注释与脚本由守卫 `node scripts/check-doc-links.mjs` 兜住。实验与压测产物：`reports/experiments/dispatch-policy-2026-09.md`、`reports/scale/2026-09-28-k8s-single-node.md`。
 
 ## 目录
 
@@ -322,7 +322,9 @@ mvn -pl fsd-bootstrap -am test
 | --- | --- |
 | [back/README.md](back/README.md) | 后端模块、启动、测试与 Docker 说明 |
 | [front/README.md](front/README.md) | 前端页面、开发、构建与环境说明 |
-| [docs/DispatchFlow_演示与配置优化任务路线图_2026-09-25.md](docs/DispatchFlow_演示与配置优化任务路线图_2026-09-25.md) | 当前唯一的活任务清单：每项带证据出处、改动点与可执行验收闸门 |
+| [docs/DispatchFlow_演示与配置优化任务路线图_2026-09-25.md](docs/DispatchFlow_演示与配置优化任务路线图_2026-09-25.md) | 演示侧活任务清单：每项带证据出处、改动点与可执行验收闸门 |
+| [docs/DispatchFlow_面试就绪任务路线图_2026-09-27.md](docs/DispatchFlow_面试就绪任务路线图_2026-09-27.md) | 面试侧任务路线图：replay/A-B 闭环、引力策略、规模压测、只读助手（勾选纪律同前） |
+| [docs/DispatchFlow_面试讲解图_2026-09-27.md](docs/DispatchFlow_面试讲解图_2026-09-27.md) | 决策解释图与可靠投递图（Mermaid）+ 三分钟讲法 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献流程 |
 | [SECURITY.md](SECURITY.md) | 安全问题报告方式 |

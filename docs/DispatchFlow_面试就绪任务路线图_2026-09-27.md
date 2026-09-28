@@ -222,10 +222,12 @@ attraction(i, j) = demand_weight(j)
 
 ### P2-1 只读 Spring AI 调度助手
 
-- [ ] 查询站点压力、车辆状态、实验指标和异常 case。
-- [ ] 解释决策快照中的候选漏斗和评分项。
-- [ ] 生成异常摘要和日报。
-- [ ] 禁止大模型直接执行派车、重派、阈值修改等确定性操作。
+> **2026-09-28 进展**：只读数据层与四条边界已实现（`DispatchAssistantService` + `/admin/assistant/{briefing,decisions/{orderId},digest}`，GET-only）。**LLM 对话层挂起**：Spring AI 1.0 GA 的官方基线是 Boot 3.4.x，本仓 3.3.12——升级属框架变更需另行安排；升级后对话层只消费本服务的只读结果，不再新增写路径。
+
+- [x] 查询站点压力、车辆状态、实验指标和异常 case（briefing：预测可用性 + 站点数、`dispatchMetrics` 七项、快照近貌（漏斗均值/影子一致率）、异常类型分布——数据全部复用分析服务同口径）。
+- [x] 解释决策快照中的候选漏斗和评分项（`explainDecision(orderId)`：漏斗逐级、winner/次优分差/并列、Top-1 分量、影子对照、失败原因人话映射、MAPF 负分差注记——全部由快照确定性生成）。
+- [x] 生成异常摘要和日报（digest：复用 daily summary 与异常分析，不另立第二套统计）。
+- [x] 禁止大模型直接执行派车、重派、阈值修改等确定性操作（服务没有写方法，控制器只暴露 GET——只读由构造保证，不靠提示词约束）。
 
 ### P2-2 Elasticsearch
 
@@ -293,3 +295,4 @@ node scripts/check-doc-links.mjs
 | 待办 #25 | ~~/park/vehicles 并发读缺陷~~ **已修（2026-09-28）** | 根因：`SimulationMotionState.trail`（ArrayDeque）/`geoTrail`（ArrayList）被 tick 线程写、被 HTTP 读线程在 `buildSnapshots → publishTelemetry` 迭代。修复 = 换 `ConcurrentLinkedDeque`（淘汰 `remove(0)`→`pollFirst()` 语义不变）+ 并发回归测试 2 例；重建镜像重压一轮：0 ERROR 0 5xx | 471 测试全绿 + round4 负载验证 | `reports/scale/2026-09-28-k8s-single-node.md` 判读② |
 | ~~待办 #26~~ | ~~lettuce RTT 覆盖缺口~~ **已排除（2026-09-28，误报）** | 全量命令计数：GET 594,113 / SETEX 518,029 / SET 127,265 / EXISTS 3,055 / EVALSHA 1,802——覆盖完整；先前的"SET/GET 各 1 次"是分析 grep 未排序截断造成的伪影，非系统问题 | 全量列表复核 | `reports/scale/2026-09-28-k8s-single-node.md` 仪表化节 |
 | 2026-09-28 | P1-3 补轮（今日代码） | 重建镜像（含 #25 修复与仪表化）重压标准档：受理 100%、order_create p95 116.2ms、整园 60.6ms、追踪 7.3ms，0 ERROR 0 5xx；首轮仪表读数：锁 1,802 对均值 0.20/0.28ms、lettuce RTT 已按命令可观测 | k6 判阈全 ✓ | 报告第 4 轮节 |
+| 2026-09-28 | P2-1 只读助手数据层 | `DispatchAssistantService` + 3 端点（briefing / decisions/{orderId} / digest，GET-only）：简报四源复用分析服务同口径；决策解释由快照确定性生成（漏斗/分量/影子/失败原因人话/MAPF 注记）；无快照明确报错。LLM 对话层挂起：Spring AI 1.0 GA 基线 Boot 3.4.x ≠ 当前 3.3.12，升级后接 ChatClient 即完成 | fsd-admin-api 测试绿（新增 4 例直测；CI 复验） | VO×3 + 服务 + 控制器 + 测试 |
