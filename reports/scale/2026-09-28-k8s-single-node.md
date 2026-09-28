@@ -50,10 +50,34 @@
 | Hikari 连接池（静置抓拍） | active 0 / idle 10 / **pending 0**（无池等待） |
 | 决策快照写入 | 937 条全 ok（write_total ok=937，failed 无） |
 
+## 第 4 轮：今日代码验证轮（含 #25 修复与仪表化，镜像重建）
+
+> 镜像重建自 2026-09-28 工作区（含 #25 修复、Redis/Lock 仪表化；本轮跑完 471 测试全绿后构建）。
+
+| 指标 | 实测 | 阈值 |
+| --- | --- | --- |
+| 下单 p50 / p95 / max (ms) | 25.8 / **116.2** / 607.8 | p95<1500 ✓ |
+| 移动追踪轮询 p95 (ms) | **7.3** | p95<800 ✓ |
+| 整园轮询 p95 (ms) | **60.6** | p95<800 ✓ |
+| 下单受理率 | 100%（939/939） | >0.9 ✓ |
+| 派到车率 | 8.09%（76/939） | 观测项 |
+| 后端 ERROR / 入口 5xx | **0 / 0** | — |
+
+**#25 验证**：修复前 4 轮中第 1 轮出现 1 次 `/park/vehicles` 的 `ConcurrentModificationException` 5xx；修复后本轮 **0 ERROR 0 5xx**——回归测试 + 负载验证双确认。
+
+**仪表化首轮读数（actuator/prometheus）**：
+
+| 指标 | 值 |
+| --- | --- |
+| 派单锁 acquire（SET NX 往返） | 1,802 次，均值 **0.20 ms**，P50/P95/P99 量化值 <1ms，失败 0 |
+| 派单锁 release（compare-and-del Lua） | 1,802 次，均值 **0.28 ms** |
+| Redis RTT（Lettuce，按命令） | `lettuce_command_completion_seconds` 已按命令类型落 Prometheus：EVALSHA 1,802 次（均值 0.139ms）、EXISTS 3,055 次（均值 0.121ms）、DEL 50 次等 |
+| 已知覆盖缺口 | SET/GET 计数与负载不符（各 1 次）——部分 Redis 调用疑似走了未共享 `ClientResources` 的连接路径，**立待办 #26 排查**；不影响"RTT 已可观测"的结论 |
+
 ## 判读（三条，全部有现场证据）
 
 1. **"受理 ≠ 运力"形状再次复现（§16.5 同源）**：接口层受理 100%，派到车率 12.5–13.6%，每轮 811–816 单落 MANUAL_PENDING——35 台车的运力在 2.6 单/秒的灌入下几分钟内饱和（第 1 轮读数：车队 idle=26 / busy=9 / SOC≤30 有 26 台、最低 8%）。这是**容量事实**不是缺陷： backlog 是"车队规模 vs 灌入速率"的结果。引用时必须带着"35 台车"这个前提，不能说成"系统拒单"。
-2. **一个新缺陷候选（立待办 #25）**：第 1 轮出现 1 次 `java.util.ConcurrentModificationException`（`/api/admin/park/vehicles`，入口 5xx 1 次；第 2/3 轮未复现）。属并发读路径的快照构建问题，量级极小但真实存在。
+2. **#25 已修并经负载验证（2026-09-28）**：第 1 轮出现 1 次 `java.util.ConcurrentModificationException`（`/api/admin/park/vehicles`）。根因是 `SimulationMotionState.trail`（ArrayDeque）/`geoTrail`（ArrayList）被 tick 线程写、被 HTTP 读线程在 `buildSnapshots → publishTelemetry` 里迭代——读线程与 tick 线程真的会同时碰这两个容器。修复 = 换 `ConcurrentLinkedDeque`（淘汰 `remove(0)` 改 `pollFirst()`，语义不变），并发回归测试 2 例 + 本轮负载验证（0 ERROR 0 5xx）。
 3. **2× 强度下延迟形状稳定**：写路径（下单）与聚合读（追踪）对负载翻倍不敏感；整园轮询随负载线性-ish 增长——它正是 §16.8 已经修掉的读侧大头，若要再上量，优先级仍是继续压整园读。
 
 ## 诚实边界（引用本报告必须带的限定词）

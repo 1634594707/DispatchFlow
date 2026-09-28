@@ -40,8 +40,10 @@ public class RedisDispatchLockService implements DispatchLockService {
     @Override
     public String acquireTaskLock(Long taskId) {
         String lockToken = UUID.randomUUID().toString();
+        long begin = System.nanoTime();
         Boolean acquired = stringRedisTemplate.opsForValue()
                 .setIfAbsent(buildLockKey(taskId), lockToken, properties.getTtl());
+        metrics.recordAcquireLatency(Duration.ofNanos(System.nanoTime() - begin));
         if (!Boolean.TRUE.equals(acquired)) {
             metrics.recordAcquireFailure();
             log.warn("Dispatch task lock conflict taskId={}", taskId);
@@ -53,7 +55,9 @@ public class RedisDispatchLockService implements DispatchLockService {
 
     @Override
     public void releaseTaskLock(Long taskId, String lockToken) {
+        long begin = System.nanoTime();
         stringRedisTemplate.execute(RELEASE_SCRIPT, Collections.singletonList(buildLockKey(taskId)), lockToken);
+        metrics.recordReleaseLatency(Duration.ofNanos(System.nanoTime() - begin));
         Long acquiredAt = acquiredAtByToken.remove(lockToken);
         if (acquiredAt != null) {
             metrics.recordHeldDuration(Duration.ofNanos(System.nanoTime() - acquiredAt));

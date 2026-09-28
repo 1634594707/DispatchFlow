@@ -19,6 +19,9 @@ public class DispatchLockMetrics {
 
     private final Counter acquireFailure;
     private final Timer heldDuration;
+    /** P1-3 仪表化：acquire（SET NX）的 Redis 往返耗时——单次尝试锁的"等待"就是这次 RTT。 */
+    private final Timer acquireLatency;
+    private final Timer releaseLatency;
 
     public DispatchLockMetrics(MeterRegistry registry) {
         acquireFailure = Counter.builder("dispatchflow.dispatch.lock.acquire.failed")
@@ -26,6 +29,14 @@ public class DispatchLockMetrics {
                 .register(registry);
         heldDuration = Timer.builder("dispatchflow.dispatch.lock.held")
                 .description("How long dispatch task locks are held")
+                .publishPercentiles(0.5, 0.95, 0.99)
+                .register(registry);
+        acquireLatency = Timer.builder("dispatchflow.dispatch.lock.acquire.latency")
+                .description("Redis roundtrip of task lock acquisition (SET NX)")
+                .publishPercentiles(0.5, 0.95, 0.99)
+                .register(registry);
+        releaseLatency = Timer.builder("dispatchflow.dispatch.lock.release.latency")
+                .description("Redis roundtrip of task lock release (compare-and-del script)")
                 .publishPercentiles(0.5, 0.95, 0.99)
                 .register(registry);
     }
@@ -37,6 +48,14 @@ public class DispatchLockMetrics {
     public void recordHeldDuration(Duration duration) {
         long durationMs = Math.max(0L, duration.toMillis());
         heldDuration.record(durationMs, TimeUnit.MILLISECONDS);
+    }
+
+    public void recordAcquireLatency(Duration duration) {
+        acquireLatency.record(duration);
+    }
+
+    public void recordReleaseLatency(Duration duration) {
+        releaseLatency.record(duration);
     }
 
     public long getAcquireFailureCount() {

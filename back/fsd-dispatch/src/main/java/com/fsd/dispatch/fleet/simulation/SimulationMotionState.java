@@ -5,11 +5,21 @@ import com.fsd.dispatch.geo.RoadRouteFollower;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
+/**
+ * 仿真运动状态：单台车的可变运行态。
+ *
+ * <p><b>线程契约（#25）</b>：state 由仿真 tick 线程写，但 HTTP 读线程会在
+ * {@code buildSnapshots} 里对同一份 state 调 {@code publishTelemetry}——所以
+ * <b>轨迹容器必须是并发容器</b>：{@code trail} 与 {@code geoTrail} 曾是
+ * ArrayDeque/ArrayList，压测第 1 轮在读线程迭代时被 tick 线程的
+ * add/淘汰打断，抛 {@code ConcurrentModificationException}（/park/vehicles 5xx 一次）。
+ * {@code route} / {@code plannedGeoPolyline} 走整体引用替换，本就安全，保持 List。
+ */
 public class SimulationMotionState {
 
     public String stage;
@@ -37,7 +47,7 @@ public class SimulationMotionState {
     public int routeIndex;
     public int busyMoveTicks;
     public boolean pluggedIn;
-    public final Deque<ParkPointResponse> trail = new ArrayDeque<>();
+    public final Deque<ParkPointResponse> trail = new ConcurrentLinkedDeque<>();
 
     /** 当前路段道路 polyline 跟随器（M8）。 */
     public RoadRouteFollower geoFollower;
@@ -54,7 +64,7 @@ public class SimulationMotionState {
 
     public double headingDegrees;
 
-    public final List<GeoPoint> geoTrail = new ArrayList<>();
+    public final Deque<GeoPoint> geoTrail = new ConcurrentLinkedDeque<>();
 
     public String routeSource;
 

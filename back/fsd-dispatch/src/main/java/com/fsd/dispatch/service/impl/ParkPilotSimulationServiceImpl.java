@@ -1028,7 +1028,7 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
             trailPoint.longitude(state.geoLongitude).latitude(state.geoLatitude);
             state.geoTrail.add(new GeoPoint(state.geoLongitude, state.geoLatitude));
             while (state.geoTrail.size() > parkPilotProperties.getSimulation().getMaxTrailSize()) {
-                state.geoTrail.remove(0);
+                state.geoTrail.pollFirst();
             }
         }
         state.trail.addLast(trailPoint.build());

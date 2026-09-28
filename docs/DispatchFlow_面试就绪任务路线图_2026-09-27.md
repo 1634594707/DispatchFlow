@@ -190,7 +190,7 @@ attraction(i, j) = demand_weight(j)
 - [x] 保留现有 H2 基准作为开发回归测试（`ScenarioBenchTest` + 压测类测试即此角色）。
 - [ ] 新增 500 台车、5000 至 10000 笔订单、至少 5000 节点路网场景。**未做**：前置是 geo seed 车队/泊位扩产 + OSM 路网按 ≥5,000 节点重提取（另含 ScenarioBench lTier 档换现行 seed 口径重跑，属产能口径变更须先裁）。
 - [x] 使用真实 MySQL、Redis 和 RabbitMQ（`deploy/k8s/10-infra.yaml`：MySQL 8.4 / Redis 7.4 / RabbitMQ 3.13 真实容器，非 Fake/内嵌；k6 从 frontend 经 nginx 反代进，与线上同链路）。
-- [ ] 记录 P50/P95/P99、Redis RTT、Outbox backlog、锁等待、连接池和失败原因。**已录**：HTTP P50/P90/P95/max、Outbox backlog 与发布延迟 P50/95/99/max（2,273 条，0 失败 0 死信）、Hikari 池（0 pending）、失败原因分类；**缺**：Redis 客户端 RTT 单值与锁等待——挂待办，两项补齐前不勾。
+- [ ] 记录 P50/P95/P99、Redis RTT、Outbox backlog、锁等待、连接池和失败原因。**已录（2026-09-28 仪表化后）**：HTTP P50/P90/P95/max、Outbox backlog 与发布延迟、Hikari 池、失败原因分类、**锁等待（1,802 对 acquire/release，均值 0.20/0.28ms，失败 0）**、**Redis RTT（Lettuce `lettuce_command_completion_seconds` 按命令落 Prometheus：EVALSHA 1,802 / EXISTS 3,055 等，均值 0.12–0.14ms）**；遗留一格：SET/GET 的 lettuce 计数与负载不符（各 1 次），疑似部分调用走了未共享 `ClientResources` 的连接路径——立待办 #26 排查，排查前该项保留未勾。
 - [x] 报告明确区分 `H2/FAKE` 与 `MySQL/REAL`（报告标题即 MySQL/REAL 口径，并显式声明不得与 H2 数字混引）。
 - [x] 在既有 `scripts/k8s/run-perf.sh` + `deploy/k8s/` 流水线上扩场景（2026-09-28：强度维度翻倍——order_vus 60/poll_vus 120 一轮全阈值通过，整园轮询 p95 66→107ms 的退化形状已记；车队/路网维度扩产挂上一条）；沿用其表述纪律——单节点出的是形状结论，不外推"能扛 N 人"。
 
@@ -290,4 +290,6 @@ node scripts/check-doc-links.mjs
 | 本人执行 | P1-3 扩规模压测 | 在 `scripts/k8s/run-perf.sh` 上跑 500 车/5k–10k 单/现行 seed 的真实中间件场景 ×3 轮 | 三轮无未解释 500 | `reports/scale/` |
 | 2026-09-27 | P1-1 前端接线 + 站点×小时 | 后端：`getStationHourlyDemand`（GET /station-hourly，口径=取货节点 × createdAt 小时）+ 导出 station-hourly 数据集；前端：运营分析页新增"调度指标"卡与"站点×小时需求"表、导出菜单两项；聚合口径直测 +1 | typecheck/lint/build 过；fsd-admin-api 测试绿（CI 复验） | `views/analytics/Index.vue` + VO/接口/控制器 |
 | 2026-09-28 | P1-3 规模压测（MySQL/REAL） | 本机 k8s 单节点：`--fresh` 冷启动 ×3 轮标准档（30/60 VU，35 车全部归位）+ 1 轮 2× 强度（60/120 VU）全阈值通过；order_create p95 112–137ms（预算 1500）、整园轮询 p95 62–66ms（2× 下 107ms）、受理 100%/99.89%；Outbox 2,273 条 0 失败 0 死信、Hikari 0 pending；受理≠运力形状复现（12.5–13.6%）；新缺陷候选 #25（/park/vehicles 一次 ConcurrentModificationException，未复现） | k6 Job 逐轮判阈全 ✓；第 2/3 轮 0 ERROR 0 5xx | `reports/scale/2026-09-28-k8s-single-node.md` + tmp/perf/round{1,2,3}.log |
-| 待办 #25 | /park/vehicles 并发读缺陷 | 第 1 轮压测 1 次 `ConcurrentModificationException`（整园车辆快照构建处，入口 5xx）；第 2/3 轮未复现。修法候选：快照构建改不可变副本或并发容器 | 未开工 | `reports/scale/2026-09-28-k8s-single-node.md` 判读② |
+| 待办 #25 | ~~/park/vehicles 并发读缺陷~~ **已修（2026-09-28）** | 根因：`SimulationMotionState.trail`（ArrayDeque）/`geoTrail`（ArrayList）被 tick 线程写、被 HTTP 读线程在 `buildSnapshots → publishTelemetry` 迭代。修复 = 换 `ConcurrentLinkedDeque`（淘汰 `remove(0)`→`pollFirst()` 语义不变）+ 并发回归测试 2 例；重建镜像重压一轮：0 ERROR 0 5xx | 471 测试全绿 + round4 负载验证 | `reports/scale/2026-09-28-k8s-single-node.md` 判读② |
+| 待办 #26 | lettuce RTT 覆盖缺口 | `lettuce_command_completion_seconds` 已按命令落 Prometheus，但 SET/GET 计数与负载不符（各 1 次，EVALSHA/EXISTS 正常）——疑似部分 Redis 调用走了未共享 `ClientResources` 的连接路径（自有工厂/独立 client），排查后锁外主命令的 RTT 才有完整读数 | 未开工 | `reports/scale/2026-09-28-k8s-single-node.md` 第 4 轮仪表化节 |
+| 2026-09-28 | P1-3 补轮（今日代码） | 重建镜像（含 #25 修复与仪表化）重压标准档：受理 100%、order_create p95 116.2ms、整园 60.6ms、追踪 7.3ms，0 ERROR 0 5xx；首轮仪表读数：锁 1,802 对均值 0.20/0.28ms、lettuce RTT 已按命令可观测 | k6 判阈全 ✓ | 报告第 4 轮节 |
