@@ -65,14 +65,15 @@
 
 **#25 验证**：修复前 4 轮中第 1 轮出现 1 次 `/park/vehicles` 的 `ConcurrentModificationException` 5xx；修复后本轮 **0 ERROR 0 5xx**——回归测试 + 负载验证双确认。
 
-**仪表化首轮读数（actuator/prometheus）**：
+**仪表化首轮读数（actuator/prometheus，累计 ~124 万次 Redis 调用）**：
 
 | 指标 | 值 |
 | --- | --- |
-| 派单锁 acquire（SET NX 往返） | 1,802 次，均值 **0.20 ms**，P50/P95/P99 量化值 <1ms，失败 0 |
+| 派单锁 acquire（SET NX 往返） | 1,802 次，均值 **0.20 ms**，失败 0 |
 | 派单锁 release（compare-and-del Lua） | 1,802 次，均值 **0.28 ms** |
-| Redis RTT（Lettuce，按命令） | `lettuce_command_completion_seconds` 已按命令类型落 Prometheus：EVALSHA 1,802 次（均值 0.139ms）、EXISTS 3,055 次（均值 0.121ms）、DEL 50 次等 |
-| 已知覆盖缺口 | SET/GET 计数与负载不符（各 1 次）——部分 Redis 调用疑似走了未共享 `ClientResources` 的连接路径，**立待办 #26 排查**；不影响"RTT 已可观测"的结论 |
+| Redis RTT（Lettuce，按命令，均值 = sum/count） | **GET 594,113 次 0.120ms · SETEX 518,029 次 0.117ms · SET 127,265 次 0.107ms · EXISTS 3,055 次 0.121ms · EVALSHA 1,802 次 0.139ms · DEL 50 次 0.119ms** |
+
+> 复核注记：初读时曾把"SET/GET 计数=1"记为覆盖缺口（立待办 #26）——**是分析 grep 未排序截断造成的伪影**，全量列表复核后覆盖完整，待办已排除。
 
 ## 判读（三条，全部有现场证据）
 
