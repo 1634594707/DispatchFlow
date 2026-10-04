@@ -93,6 +93,10 @@ services:
       # 高德路径 API：prod 一直有透传，本地漏了导致 AmapRoadRouteService.isAvailable() 恒为 false，
       # 本地永远测不到 amap 分支。值仍只在 .env 里，这里只透传。
       FSD_AMAP_WEB_SERVICE_KEY: ${FSD_AMAP_WEB_SERVICE_KEY:-}
+      # key 一旦透传进来，fsd.amap.driving.enabled 的代码默认 true 就会让仿真去打高德路径 API：
+      # 实测本机配额立刻 CUQPS_HAS_EXCEEDED_THE_LIMIT + 连接超时，p95 里混的是第三方而不是系统
+      # （deploy/k8s/20-app.yaml 早就显式关成 false，这里保持同样的口径）。
+      FSD_AMAP_DRIVING_ENABLED: ${FSD_AMAP_DRIVING_ENABLED:-true}
       SPRINGDOC_API_DOCS_ENABLED: "true"
       SPRINGDOC_SWAGGER_UI_ENABLED: "true"
     ports:
