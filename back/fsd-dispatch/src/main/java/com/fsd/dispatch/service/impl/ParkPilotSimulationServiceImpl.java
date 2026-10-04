@@ -424,12 +424,23 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
     }
 
     /** 示意池删除后只有一条池：任何待派需求都算地理池的需求，顺带省掉每 tick 逐单查站点。 */
+    /**
+     * 需求池里是否存在"已经挂着订单"的任务——调用方只要一个布尔。
+     *
+     * <p>这里原来写的是 `selectList(整个需求池).stream().anyMatch(orderId != null)`：把全池读回 JVM 再判断。
+     * A/B 实测积压 2,169 条时**每 tick 送 2,107 行**（500ms tick 下约 4,200 行/秒的空转读），
+     * 且成本随积压线性涨——这就是 §6.12 里"同口径重测的旧标准档 3.06 核远高于 §0 记的 1.54"的主因之一。
+     * 谓词本身可以下推（`order_id IS NOT NULL`），再配 LIMIT 1 后 MySQL 走 `idx_task_pool_status`
+     * 命中第一条就停，只回一个 id 列。隔壁 `hasDispatchDemand()` 用的是 selectCount，不送行，没动。
+     */
     private boolean hasGeoDispatchDemand() {
-        return dispatchTaskMapper.selectList(new LambdaQueryWrapper<DispatchTaskEntity>()
+        return !dispatchTaskMapper.selectList(new LambdaQueryWrapper<DispatchTaskEntity>()
+                        .select(DispatchTaskEntity::getId)
                         .eq(DispatchTaskEntity::getDeleted, 0)
-                        .in(DispatchTaskEntity::getStatus, DISPATCH_DEMAND_STATUSES))
-                .stream()
-                .anyMatch(task -> task.getOrderId() != null);
+                        .in(DispatchTaskEntity::getStatus, DISPATCH_DEMAND_STATUSES)
+                        .isNotNull(DispatchTaskEntity::getOrderId)
+                        .last("LIMIT 1"))
+                .isEmpty();
     }
 
     /** 派单积压且无可派车时，仿真车快速恢复至可派单 SOC 并退出 WAIT_CHARGING。 */
