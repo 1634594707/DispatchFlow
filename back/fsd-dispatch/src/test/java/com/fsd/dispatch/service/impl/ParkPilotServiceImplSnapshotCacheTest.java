@@ -107,14 +107,13 @@ class ParkPilotServiceImplSnapshotCacheTest {
     void orderSnapshotShouldNotReAssembleTheFleet() {
         when(parkStationService.requirePark(PARK_ID)).thenReturn(park());
         when(parkStationService.listStations(PARK_ID)).thenReturn(List.<ParkStationResponse>of());
-        when(dispatchTaskMapper.selectList(any())).thenReturn(List.of());
         when(orderMapper.selectList(any())).thenReturn(List.of());
 
         service.listOrderSnapshots(PARK_ID);
         service.listOrderSnapshots(PARK_ID);
 
         verify(vehicleMapper, times(1)).selectList(any());
-        assertEquals(0, service.listOrderSnapshots(PARK_ID).size());
+        assertEquals(0, service.listOrderSnapshots(PARK_ID).getItems().size());
     }
 
     private static ParkEntity park() {

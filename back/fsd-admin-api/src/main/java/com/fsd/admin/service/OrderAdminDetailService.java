@@ -81,7 +81,7 @@ public class OrderAdminDetailService {
     }
 
     private void enrichRuntimeStage(OrderDetailResponse detail) {
-        parkPilotService.listOrderSnapshots().stream()
+        parkPilotService.listOrderSnapshots().getItems().stream()
                 .filter(snapshot -> detail.getOrderId().equals(snapshot.getOrderId()))
                 .findFirst()
                 .map(ParkOrderSnapshotResponse::getRuntimeStage)

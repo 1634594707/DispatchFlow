@@ -13,16 +13,19 @@ import { useParkScopeStore } from '@/stores/parkScope'
 export function useParkOrders() {
   const parkScope = useParkScopeStore()
   const parkOrders = ref<ParkOrderSnapshot[]>([])
+  const ordersTruncated = ref(false)
 
   const geoOrdersOnMap = computed(() => filterGeoDeliveryOrders(parkOrders.value))
 
   async function refreshOrders() {
     const response = await getParkOrders({ parkId: parkScope.selectedParkId })
-    parkOrders.value = response.data || []
+    parkOrders.value = response.data?.items ?? []
+    ordersTruncated.value = response.data?.truncated ?? false
   }
 
   return {
     parkOrders,
+    ordersTruncated,
     geoOrdersOnMap,
     refreshOrders,
   }

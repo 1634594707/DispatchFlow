@@ -228,7 +228,7 @@ onMounted(async () => {
         getParkStations(parkId),
         getParkGeofences(parkId),
       ])
-      orders.value = orderResp.data || []
+      orders.value = orderResp.data?.items ?? []
       stations.value = stationResp.data || []
       // 分区清单以接口为准：前端副本只有 5 片而库里 8 片，页面上那个"N 个"因此一直在少报
       serviceZones.value = (fenceResp.data || [])

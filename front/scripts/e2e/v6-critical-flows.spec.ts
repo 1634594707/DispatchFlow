@@ -79,7 +79,9 @@ test('mobile order initializes with mobile key and stale tracking hint', async (
     { stationId: 1, stationCode: 'ZJF-PICK-01', stationName: '取货点', x: 100, y: 100, coordLng: 121.1, coordLat: 31.9, orderable: true },
     { stationId: 2, stationCode: 'ZJF-DROP-01', stationName: '送货点', x: 800, y: 450, coordLng: 121.11, coordLat: 31.91, orderable: true },
   ]) }))
-  await page.route(api('/admin/park/orders**'), route => route.fulfill({ json: ok([
+  await page.route(api('/admin/park/orders**'), route => route.fulfill({ json: ok({
+    truncated: false,
+    items: [
     {
       orderId: 1001,
       orderNo: 'MO-1001',
@@ -89,7 +91,8 @@ test('mobile order initializes with mobile key and stale tracking hint', async (
       pickupStation: { stationId: 1, stationCode: 'ZJF-PICK-01', stationName: '取货点', x: 100, y: 100, coordLng: 121.1, coordLat: 31.9 },
       dropoffStation: { stationId: 2, stationCode: 'ZJF-DROP-01', stationName: '送货点', x: 800, y: 450, coordLng: 121.11, coordLat: 31.91 },
     },
-  ]) }))
+    ],
+  }) }))
   // §16.3 之后这一页只读一条聚合接口，所以"部分接口挂了页面还要在"这条注入改打在 /track 上；
   // 整园 vehicles 反而给回正常数据（它现在是 PC 页专用的， mobile 页不该再依赖它）。
   await page.route(api('/admin/park/track**'), route => route.fulfill({ status: 503, json: { success: false, code: 'DOWN', message: 'down' } }))
@@ -310,7 +313,7 @@ test('tracking demo orders by road-node coordinates, not by station IDs', async 
   ]) }))
   await page.route(api('/admin/park/orders'), async route => {
     if (route.request().method() !== 'POST') {
-      await route.fulfill({ json: ok([]) })
+      await route.fulfill({ json: ok({ items: [], truncated: false }) })
       return
     }
     await route.fulfill({ json: ok({ orderId: 9001, orderNo: 'DEMO-9001' }) })
@@ -375,7 +378,7 @@ test('demo mode states why it cannot start instead of silently stopping (设施 
   ]) }))
   await page.route(api('/admin/park/orders'), async route => {
     if (route.request().method() !== 'POST') {
-      await route.fulfill({ json: ok([]) })
+      await route.fulfill({ json: ok({ items: [], truncated: false }) })
       return
     }
     await route.fulfill({ json: ok({ orderId: 9001, orderNo: 'DEMO-9001' }) })

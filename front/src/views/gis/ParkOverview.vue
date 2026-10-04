@@ -330,7 +330,7 @@ async function refreshMapData() {
     getParkStations(),
   ])
   vehicles.value = vehicleRes.data || []
-  parkOrders.value = orderRes.data || []
+  parkOrders.value = orderRes.data?.items ?? []
   parkGeofences.value = fenceRes.data || []
   stations.value = stationRes.data || []
   mapUpdatedAt.value = new Date()

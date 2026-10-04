@@ -2,6 +2,7 @@ package com.fsd.admin.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -39,6 +40,7 @@ import com.fsd.dispatch.vo.DispatchTaskDetailResponse;
 import com.fsd.dispatch.vo.DispatchTaskListItemResponse;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
 import com.fsd.dispatch.vo.ParkOrderCreateResponse;
+import com.fsd.dispatch.vo.ParkOrderSnapshotListResponse;
 import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.dispatch.vo.ParkVehicleSnapshotResponse;
@@ -129,7 +131,8 @@ class AdminDispatchControllerTest {
         when(dispatchAdminQueryService.listTasks(2L)).thenReturn(List.of());
         when(dispatchAdminQueryService.listExceptions(2L)).thenReturn(List.of());
         when(vehicleAdminQueryService.listVehicles(2L)).thenReturn(List.of());
-        when(parkPilotService.listOrderSnapshots(2L)).thenReturn(List.of());
+        when(parkPilotService.listOrderSnapshots(2L))
+                .thenReturn(ParkOrderSnapshotListResponse.builder().items(List.of()).build());
 
         adminDispatchController.listOrders(2L, httpServletRequest);
         adminDispatchController.listTasks(2L, httpServletRequest);
@@ -403,14 +406,17 @@ class AdminDispatchControllerTest {
 
     @Test
     void shouldReturnParkOrders() {
-        when(parkPilotService.listOrderSnapshots()).thenReturn(List.of(
-                ParkOrderSnapshotResponse.builder().orderId(1L).orderNo("ORD-1").runtimeStage("HEADING_TO_PICKUP").build()
-        ));
+        when(parkPilotService.listOrderSnapshots()).thenReturn(ParkOrderSnapshotListResponse.builder()
+                .items(List.of(
+                        ParkOrderSnapshotResponse.builder().orderId(1L).orderNo("ORD-1").runtimeStage("HEADING_TO_PICKUP").build()))
+                .truncated(true)
+                .build());
 
-        ApiResponse<List<ParkOrderSnapshotResponse>> response = adminDispatchController.listParkOrders(httpServletRequest);
+        ApiResponse<ParkOrderSnapshotListResponse> response = adminDispatchController.listParkOrders(httpServletRequest);
 
-        assertEquals(1, response.getData().size());
-        assertEquals("ORD-1", response.getData().getFirst().getOrderNo());
+        assertEquals(1, response.getData().getItems().size());
+        assertEquals("ORD-1", response.getData().getItems().getFirst().getOrderNo());
+        assertTrue(response.getData().isTruncated(), "窗被填满的标志必须原样传到调用方，大屏要靠它区分\"就这 1 条\"和\"我只读到这么多\"");
     }
 
     @Test

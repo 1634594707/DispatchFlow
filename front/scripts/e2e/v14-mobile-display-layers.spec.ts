@@ -350,22 +350,25 @@ async function seedMobilePage(page: Page) {
   await page.route(api('/admin/park/orders**'), (route) => {
     if (route.request().method() !== 'GET') return route.fallback()
     return route.fulfill({
-      json: ok([
-        {
-          orderId: 9001,
-          orderNo: 'SO-9001',
-          orderStatus: 'EXECUTING',
-          taskId: 9501,
-          taskNo: 'T-9501',
-          taskStatus: 'ASSIGNED',
-          vehicleId: 7,
-          vehicleCode: 'ZJF-AV-07',
-          vehicleName: '无人车 07',
-          runtimeStage: 'HEADING_TO_PICKUP',
-          pickupStation: HUB,
-          dropoffStation: AUTO_ENDPOINT,
-        },
-      ]),
+      json: ok({
+        truncated: false,
+        items: [
+          {
+            orderId: 9001,
+            orderNo: 'SO-9001',
+            orderStatus: 'EXECUTING',
+            taskId: 9501,
+            taskNo: 'T-9501',
+            taskStatus: 'ASSIGNED',
+            vehicleId: 7,
+            vehicleCode: 'ZJF-AV-07',
+            vehicleName: '无人车 07',
+            runtimeStage: 'HEADING_TO_PICKUP',
+            pickupStation: HUB,
+            dropoffStation: AUTO_ENDPOINT,
+          },
+        ],
+      }),
     })
   })
   /** 追踪页要展示的那一单（§16.3 之后这一页只读 /track，整园 orders/vehicles 留给 PC 页）。 */

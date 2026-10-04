@@ -4,7 +4,7 @@ import type {
   ParkLayout,
   ParkOrderCreateRequest,
   ParkOrderCreateResponse,
-  ParkOrderSnapshot,
+  ParkOrderSnapshotList,
   ParkStation,
   ParkSummary,
   ParkVehicleSnapshot,
@@ -86,7 +86,7 @@ export function getParkOverview() {
 }
 
 export function getParkOrders(options?: { silent?: boolean; parkId?: number }) {
-  return request.get<any, ApiResponse<ParkOrderSnapshot[]>>('/admin/park/orders', {
+  return request.get<any, ApiResponse<ParkOrderSnapshotList>>('/admin/park/orders', {
     headers: mobileApiHeaders(),
     params: options?.parkId != null ? { parkId: options.parkId } : undefined,
     skipErrorToast: options?.silent,

@@ -2,7 +2,7 @@ package com.fsd.dispatch.service;
 
 import com.fsd.dispatch.vo.ParkGeofenceResponse;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
-import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
+import com.fsd.dispatch.vo.ParkOrderSnapshotListResponse;
 import com.fsd.dispatch.vo.ParkOverviewResponse;
 import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
@@ -31,9 +31,13 @@ public interface ParkPilotService {
 
     List<ParkVehicleSnapshotResponse> listVehicleSnapshots(Long parkId);
 
-    List<ParkOrderSnapshotResponse> listOrderSnapshots();
+    /**
+     * 大屏/工作台的整园订单快照：最多 {@code 20} 条，读的是"非终态 OR 24h 内动过"的一个固定候选窗，
+     * 不是全表 —— 所以 {@code truncated=true} 时这份列表只代表窗内可见单量，历史单走报表/分页接口。
+     */
+    ParkOrderSnapshotListResponse listOrderSnapshots();
 
-    default List<ParkOrderSnapshotResponse> listOrderSnapshots(Long parkId) {
+    default ParkOrderSnapshotListResponse listOrderSnapshots(Long parkId) {
         return listOrderSnapshots();
     }
 

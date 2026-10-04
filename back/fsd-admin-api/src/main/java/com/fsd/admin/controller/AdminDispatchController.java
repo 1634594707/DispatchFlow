@@ -49,7 +49,7 @@ import com.fsd.dispatch.vo.ParkGeofenceResponse;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
 import com.fsd.dispatch.vo.ParkOverviewResponse;
 import com.fsd.dispatch.vo.ParkOrderCreateResponse;
-import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
+import com.fsd.dispatch.vo.ParkOrderSnapshotListResponse;
 import com.fsd.dispatch.vo.ParkResponse;
 import com.fsd.dispatch.vo.ParkStationResponse;
 import com.fsd.dispatch.vo.ParkTrackResponse;
@@ -729,9 +729,11 @@ public class AdminDispatchController {
     }
 
     @GetMapping("/park/orders")
-    @Operation(summary = "List park order snapshots")
+    @Operation(summary = "List park order snapshots",
+            description = "At most 20 rows from a bounded window (non-terminal OR updated within 24h); "
+                    + "truncated=true means the window was exhausted, so this is not the park's full backlog")
     @SecurityRequirement(name = "")
-    public ApiResponse<List<ParkOrderSnapshotResponse>> listParkOrders(
+    public ApiResponse<ParkOrderSnapshotListResponse> listParkOrders(
         @RequestParam(required = false) Long parkId, HttpServletRequest request) {
         requireAdminOrMobileOrderKey(request);
         return ApiResponse.success(parkId == null
@@ -739,7 +741,7 @@ public class AdminDispatchController {
                 : parkPilotService.listOrderSnapshots(parkId));
     }
 
-    public ApiResponse<List<ParkOrderSnapshotResponse>> listParkOrders(HttpServletRequest request) {
+    public ApiResponse<ParkOrderSnapshotListResponse> listParkOrders(HttpServletRequest request) {
         return listParkOrders(null, request);
     }
 

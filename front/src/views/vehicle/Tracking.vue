@@ -326,7 +326,7 @@
             <section class="panel-section panel-section-orders">
               <div class="section-head">
                 <span class="section-title">订单链路</span>
-                <span class="section-count">{{ parkOrders.length }}</span>
+                <span class="section-count">{{ parkOrders.length }}{{ parkOrdersTruncated ? '+' : '' }}</span>
               </div>
               <div class="card-list order-list">
                 <div
@@ -693,6 +693,9 @@ const showL0Circles = ref(
 const currentTime = ref(dayjs().format('HH:mm:ss'))
 const vehicles = ref<ParkVehicleSnapshot[]>([])
 const parkOrders = ref<ParkOrderSnapshot[]>([])
+// 整园订单读的是一个候选窗（P0-3），最多 20 条上屏：窗被填满时这个数不代表积压量，
+// 面板上那个计数要用"+"说清楚，否则大屏会把"20+"读成"20"。
+const parkOrdersTruncated = ref(false)
 const parkLayout = ref<ParkLayout | null>(null)
 const parkGeofences = ref<ParkGeofence[]>([])
 const apiError = ref('')
@@ -1183,7 +1186,8 @@ function stopFallbackPoll() {
 
 async function fetchOrders() {
   const response = await getParkOrders()
-  parkOrders.value = response.data || []
+  parkOrders.value = response.data?.items ?? []
+  parkOrdersTruncated.value = response.data?.truncated ?? false
 }
 
 async function fetchGeofences() {

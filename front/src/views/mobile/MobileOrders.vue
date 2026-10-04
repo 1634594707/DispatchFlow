@@ -207,7 +207,7 @@ async function fetchOrders() {
   loading.value = true
   try {
     const response = await getParkOrders({})
-    orders.value = response.data || []
+    orders.value = response.data?.items ?? []
   } finally {
     loading.value = false
   }

@@ -80,7 +80,7 @@ async function seedMobileOrderPage(page: Page): Promise<CapturedOrder[]> {
   // 受理端：按收到的 payload 现场判定，不给固定答案。
   await page.route(api('/admin/park/orders'), (route) => {
     if (route.request().method() !== 'POST') {
-      return route.fulfill({ json: ok(accepted) })
+      return route.fulfill({ json: ok({ items: accepted, truncated: false }) })
     }
     const body = route.request().postDataJSON() as Record<string, unknown>
     captured.push({ body })

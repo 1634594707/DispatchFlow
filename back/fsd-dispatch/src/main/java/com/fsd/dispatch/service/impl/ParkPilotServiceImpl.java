@@ -18,6 +18,7 @@ import com.fsd.dispatch.vo.ParkGeofenceResponse;
 import com.fsd.dispatch.vo.ParkLayoutResponse;
 import com.fsd.dispatch.vo.ParkOverviewResponse;
 import com.fsd.dispatch.vo.ParkResponse;
+import com.fsd.dispatch.vo.ParkOrderSnapshotListResponse;
 import com.fsd.dispatch.vo.ParkOrderSnapshotResponse;
 import com.fsd.dispatch.vo.ParkPointResponse;
 import com.fsd.dispatch.vo.ParkRoadNodeResponse;
@@ -37,7 +38,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -88,7 +88,7 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                     .maximumSize(64)
                     .build(this::loadVehicleSnapshots);
 
-    private final LoadingCache<Optional<Long>, List<ParkOrderSnapshotResponse>> orderSnapshotCache =
+    private final LoadingCache<Optional<Long>, ParkOrderSnapshotListResponse> orderSnapshotCache =
             Caffeine.newBuilder()
                     .expireAfterWrite(SNAPSHOT_TTL)
                     .maximumSize(64)
@@ -282,44 +282,86 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     }
 
     @Override
-    public List<ParkOrderSnapshotResponse> listOrderSnapshots() {
+    public ParkOrderSnapshotListResponse listOrderSnapshots() {
         return listOrderSnapshots(null);
     }
 
     @Override
-    public List<ParkOrderSnapshotResponse> listOrderSnapshots(Long parkId) {
+    public ParkOrderSnapshotListResponse listOrderSnapshots(Long parkId) {
         return orderSnapshotCache.get(Optional.ofNullable(parkId));
     }
 
-    /**
-     * 整园订单快照的真组装。它内嵌一次 {@code listVehicleSnapshots()}，所以那条缓存命中时这里
-     * 就不会再为车队付一遍 41 次查询 —— 这一层缓存的意义是把"订单读把车队重铺一遍"也合掉。
-     */
-    private List<ParkOrderSnapshotResponse> loadOrderSnapshots(Optional<Long> parkKey) {
-        Long parkId = parkKey.orElse(null);
-        Map<Long, DispatchTaskEntity> taskById = dispatchTaskMapper.selectList(null).stream()
-                .filter(task -> task.getDeleted() == null || task.getDeleted() == 0)
-                .collect(Collectors.toMap(DispatchTaskEntity::getId, Function.identity(), (left, right) -> left));
+    /** 上屏条数：与收敛前一致（原来就是读全表后 {@code limit(20)}），这一项改的是"读多少行"，不是"给几条"。 */
+    private static final int ORDER_SNAPSHOT_LIMIT = 20;
 
+    /**
+     * 候选窗：按主键倒序读这么多行就停 ⇒ 读侧成本与表大小无关。
+     * 3 倍上屏数是为了吸收"窗内混着别的园区/孤儿站点的单"，与 {@code buildTrackSnapshot} 同一口径。
+     */
+    private static final int ORDER_SNAPSHOT_CANDIDATE_WINDOW = ORDER_SNAPSHOT_LIMIT * 3;
+
+    /** 终态单还露多久：超出就交给报表/分页接口，大屏快照不背历史。 */
+    private static final Duration ORDER_SNAPSHOT_RECENT_WINDOW = Duration.ofHours(24);
+
+    /**
+     * 整园订单快照的真组装（缓存未命中时才走）。
+     *
+     * <p>三处无界读都在这里收掉（性能优化方案 P0-3）：
+     * <ul>
+     *   <li>订单：原来 {@code selectList(null)} 把整张 t_order 读回内存再排序，积压上来这条读线性变差；
+     *       现在按主键倒序读一个固定候选窗就停，谓词是"非终态 OR 24h 内动过"。</li>
+     *   <li>任务：原来 {@code dispatchTaskMapper.selectList(null)} 全表读整张任务表建索引；
+     *       现在只按上屏的那 ≤20 条单批量回查（复用 {@code loadTasksFor}）。</li>
+     *   <li>站点：原来每行两次 {@code requireStation}（20 行 = 40 次回查，占这条读 41 次 SELECT 里的 40 次）；
+     *       现在复用本方法一开始就读回来的那张园区站点表。取送点标签拿不到就留 null，
+     *       不再让一个孤儿站点引用把整轮轮询打成 500。</li>
+     * </ul>
+     *
+     * <p>内嵌的 {@code listVehicleSnapshots()} 走 P0-2 那条缓存，车队不会再被订单读重铺一遍。
+     */
+    private ParkOrderSnapshotListResponse loadOrderSnapshots(Optional<Long> parkKey) {
+        Long parkId = parkKey.orElse(null);
+        ParkEntity park = parkId == null
+                ? parkStationService.requireDefaultPark()
+                : parkStationService.requirePark(parkId);
+        Map<Long, ParkStationResponse> stationById = parkStationService.listStations(park.getId()).stream()
+                .collect(Collectors.toMap(ParkStationResponse::getStationId, Function.identity(),
+                        (left, right) -> left, LinkedHashMap::new));
+
+        java.time.LocalDateTime windowStart = java.time.LocalDateTime.now().minus(ORDER_SNAPSHOT_RECENT_WINDOW);
+        List<OrderEntity> inWindow = orderMapper.selectList(Wrappers.<OrderEntity>lambdaQuery()
+                        .eq(OrderEntity::getDeleted, 0)
+                        .and(condition -> condition.notIn(OrderEntity::getStatus, TERMINAL_ORDER_STATUSES)
+                                .or().ge(OrderEntity::getUpdatedAt, windowStart))
+                        .orderByDesc(OrderEntity::getId)
+                        .last("LIMIT " + ORDER_SNAPSHOT_CANDIDATE_WINDOW))
+                .stream()
+                .filter(order -> matchesParkOrder(order, park.getId(), stationById.keySet()))
+                .toList();
+
+        List<OrderEntity> visible = inWindow.stream()
+                .sorted(Comparator.comparing(OrderEntity::getUpdatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(ORDER_SNAPSHOT_LIMIT)
+                .toList();
+
+        Map<Long, DispatchTaskEntity> taskById = loadTasksFor(visible);
         Map<Long, ParkVehicleSnapshotResponse> vehicleByTaskId = listVehicleSnapshots().stream()
                 .filter(vehicle -> vehicle.getCurrentTaskId() != null)
                 .collect(Collectors.toMap(ParkVehicleSnapshotResponse::getCurrentTaskId, Function.identity(), (left, right) -> left));
 
-        ParkEntity defaultPark = parkId == null
-                ? parkStationService.requireDefaultPark()
-                : parkStationService.requirePark(parkId);
-        Set<Long> stationIds = parkStationService.listStations(defaultPark.getId()).stream()
-                .map(ParkStationResponse::getStationId)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        return orderMapper.selectList(null).stream()
-                .filter(order -> order.getDeleted() == null || order.getDeleted() == 0)
-                .filter(order -> matchesParkOrder(order, defaultPark.getId(), stationIds))
-                .sorted(Comparator.comparing(OrderEntity::getUpdatedAt,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .limit(20)
-                .map(order -> toOrderSnapshot(order, taskById.get(order.getDispatchTaskId()), vehicleByTaskId))
-                .toList();
+        return ParkOrderSnapshotListResponse.builder()
+                .items(visible.stream()
+                        // 未派到车的单 dispatchTaskId 就是 null，而 loadTasksFor 的空返回是不可变 Map
+                        // ——对 null 键直接 NPE。这一句判空是它唯一的调用方约定（buildTrackSnapshot 同形）。
+                        .map(order -> toOrderSnapshot(order,
+                                order.getDispatchTaskId() == null ? null : taskById.get(order.getDispatchTaskId()),
+                                vehicleByTaskId, stationById))
+                        .toList())
+                // 窗被填满 = 窗后面还有没读到的行；窗没满但匹配数大于上屏数 = 被 limit 切掉。
+                // 两种都算"这份列表不代表全部"，因为调用方分不清。
+                .truncated(inWindow.size() >= ORDER_SNAPSHOT_CANDIDATE_WINDOW || inWindow.size() > visible.size())
+                .build();
     }
 
     /** "这一单不用再追踪了"的终态集合：自动挑单、activeCount 与精简行的阶段判定共用这一份定义。 */
@@ -382,7 +424,7 @@ public class ParkPilotServiceImpl implements ParkPilotService {
             Map<Long, ParkVehicleSnapshotResponse> vehicleByTaskId = task == null || vehicleSnapshot == null
                     ? Map.of()
                     : Map.of(task.getId(), vehicleSnapshot);
-            orderSnapshot = toOrderSnapshot(tracked, task, vehicleByTaskId);
+            orderSnapshot = toOrderSnapshot(tracked, task, vehicleByTaskId, parkStations);
         }
 
         return ParkTrackResponse.builder()
@@ -527,7 +569,8 @@ public class ParkPilotServiceImpl implements ParkPilotService {
 
     private ParkOrderSnapshotResponse toOrderSnapshot(OrderEntity order,
                                                       DispatchTaskEntity task,
-                                                      Map<Long, ParkVehicleSnapshotResponse> vehicleByTaskId) {
+                                                      Map<Long, ParkVehicleSnapshotResponse> vehicleByTaskId,
+                                                      Map<Long, ParkStationResponse> stationById) {
         ParkVehicleSnapshotResponse vehicleSnapshot = task == null ? null : vehicleByTaskId.get(task.getId());
         return ParkOrderSnapshotResponse.builder()
                 .orderId(order.getId())
@@ -540,8 +583,8 @@ public class ParkPilotServiceImpl implements ParkPilotService {
                 .vehicleCode(vehicleSnapshot == null ? null : vehicleSnapshot.getVehicleCode())
                 .vehicleName(vehicleSnapshot == null ? null : vehicleSnapshot.getVehicleName())
                 .runtimeStage(resolveRuntimeStage(order, task, vehicleSnapshot))
-                .pickupStation(getStation(order.getPickupPointId()))
-                .dropoffStation(getStation(order.getDropoffPointId()))
+                .pickupStation(stationById.get(order.getPickupPointId()))
+                .dropoffStation(stationById.get(order.getDropoffPointId()))
                 .assignTime(task == null ? null : task.getAssignTime())
                 .startTime(task == null ? null : task.getStartTime())
                 .finishTime(task == null ? null : task.getFinishTime())

@@ -166,6 +166,18 @@ export interface ParkOrderSnapshot {
 }
 
 /**
+ * `GET /admin/park/orders` 的返回包（性能优化方案 P0-3）。
+ *
+ * 后端读的是一个固定候选窗（非终态 OR 24h 内动过，按主键倒序取一批就停），上屏最多 20 条。
+ * `truncated=true` 的读法是"这份列表不代表园区全部可见单"，不是"就这些单" —— 积压数量别再从
+ * 这个数组的长度推断。
+ */
+export interface ParkOrderSnapshotList {
+  items: ParkOrderSnapshot[]
+  truncated: boolean
+}
+
+/**
  * `GET /admin/park/track` 的"最近几单"精简行（路线图 §16.3）。
  *
  * 刻意不含站点对象与折线：移动页的订单切换只用 orderNo，"这单还在不在跑"只用 runtimeStage；
