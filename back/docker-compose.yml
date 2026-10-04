@@ -85,6 +85,11 @@ services:
       FSD_DISPATCH_OUTBOX_RETRY_DELAY_MS: 30000
       FSD_ADMIN_AUTH_ENABLED: "false"
       MOBILE_ORDER_REQUIRE_KEY: "false"
+      # 匿名直连的第二把开关以前没透传，只有 prod/k8s 有 ⇒ 本地按 §5 口径起栈只能改文件。
+      # 现在默认仍是 false（与现状一致），要匿名跑压测就 FSD_MOBILE_ORDER_UNSAFE_NO_AUTH=true docker compose up -d。
+      FSD_MOBILE_ORDER_UNSAFE_NO_AUTH: ${FSD_MOBILE_ORDER_UNSAFE_NO_AUTH:-false}
+      # 同上：仿真节拍。prod 与 k8s 都是 500ms，本地以前吃代码默认 1000ms，两端口径对不上。
+      FSD_PARK_SIMULATION_TICK_INTERVAL_MS: ${FSD_PARK_SIMULATION_TICK_INTERVAL_MS:-1000}
       # 高德路径 API：prod 一直有透传，本地漏了导致 AmapRoadRouteService.isAvailable() 恒为 false，
       # 本地永远测不到 amap 分支。值仍只在 .env 里，这里只透传。
       FSD_AMAP_WEB_SERVICE_KEY: ${FSD_AMAP_WEB_SERVICE_KEY:-}
