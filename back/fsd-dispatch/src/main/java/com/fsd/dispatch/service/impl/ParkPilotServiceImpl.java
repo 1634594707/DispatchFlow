@@ -1,8 +1,7 @@
 package com.fsd.dispatch.service.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.fsd.common.enums.VehicleLinkMode;
-import com.fsd.dispatch.fleet.PilotFleetSupport;
+import com.fsd.common.enums.VehicleLinkMode;import com.fsd.dispatch.fleet.PilotFleetSupport;
 import com.fsd.dispatch.fleet.model.FleetRuntime;
 import com.fsd.dispatch.fleet.service.FleetRuntimeService;
 import com.fsd.dispatch.fleet.service.FleetSnapshotAssembler;
@@ -31,7 +30,10 @@ import com.fsd.order.mapper.OrderMapper;
 import com.fsd.vehicle.entity.VehicleEntity;
 import com.fsd.vehicle.mapper.VehicleMapper;
 import com.fsd.order.entity.OrderEntity;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -60,6 +62,37 @@ public class ParkPilotServiceImpl implements ParkPilotService {
     private final ParkGeofenceService parkGeofenceService;
     private final com.fsd.dispatch.geo.VehiclePositionResolver vehiclePositionResolver;
     private final ParkingFacilityService parkingFacilityService;
+
+    /**
+     * 整园快照的请求合流（性能优化方案 P0-2）。数据源头是 500ms 一次的仿真 tick —— 500ms 内这份
+     * 快照根本不会变，而 {@code /park/vehicles}、{@code /park/orders}、每秒广播调度器、SSE 四条路
+     * 各自独立重跑一次组装（一次 = 41 次 MySQL SELECT + 70 次 Redis 往返，见 loadVehicleSnapshots）。
+     *
+     * <p>键用 {@code Optional}：{@code parkId == null} 是"全园区"语义，不是"园区 0"，
+     * 拿哨兵 Long 去代表它随时会和真实自增 id 撞车。
+     *
+     * <p>选 {@code expireAfterWrite} 而不是 {@code refreshAfterWrite}：500ms 是对调用方承诺的新鲜度
+     * 上界，refreshAfterWrite 允许把跨过一个 tick 的旧值发出去。Caffeine 的 LoadingCache 到期后
+     * 只放一个线程进 loader、其余等同一个结果，这已经是方案要的"单飞合流"。
+     *
+     * <p><b>前提是单副本</b>（README 副本模型）：这是 JVM 内缓存，多副本会各持一份、各自重建，
+     * 且各副本 TTL 相位不同 ⇒ 同一时刻不同实例给出的快照能差一个 TTL。真要横向扩展，前置工作是
+     * 先解决 13 个 {@code @Scheduled} 无分布式锁，而不是把这层缓存挪到 Redis。
+     */
+    private static final Duration SNAPSHOT_TTL = Duration.ofMillis(500);
+
+    /** maximumSize 是给 {@code parkId} 查询参数兜底的：键空间由调用方决定，不能不限。 */
+    private final LoadingCache<Optional<Long>, List<ParkVehicleSnapshotResponse>> vehicleSnapshotCache =
+            Caffeine.newBuilder()
+                    .expireAfterWrite(SNAPSHOT_TTL)
+                    .maximumSize(64)
+                    .build(this::loadVehicleSnapshots);
+
+    private final LoadingCache<Optional<Long>, List<ParkOrderSnapshotResponse>> orderSnapshotCache =
+            Caffeine.newBuilder()
+                    .expireAfterWrite(SNAPSHOT_TTL)
+                    .maximumSize(64)
+                    .build(this::loadOrderSnapshots);
 
     public ParkPilotServiceImpl(ParkPilotProperties parkPilotProperties,
                                 ParkStationService parkStationService,
@@ -199,6 +232,18 @@ public class ParkPilotServiceImpl implements ParkPilotService {
 
     @Override
     public List<ParkVehicleSnapshotResponse> listVehicleSnapshots(Long parkId) {
+        return vehicleSnapshotCache.get(Optional.ofNullable(parkId));
+    }
+
+    /**
+     * 整园车队快照的真组装（缓存未命中时才走）。
+     *
+     * <p>一次 = 一遍 t_vehicle 全表读 + 每台车一次 Redis 运行态读与一次回写，实测稳态
+     * 41 次 MySQL SELECT + 70 次 Redis 往返（{@code /api/admin/park/vehicles} 连打 10 次取均值）。
+     * 数据源头是 500ms 一次的仿真 tick，所以 500ms 内这份结果根本不会变 —— 交给上面的缓存合流。
+     */
+    private List<ParkVehicleSnapshotResponse> loadVehicleSnapshots(Optional<Long> parkKey) {
+        Long parkId = parkKey.orElse(null);
         parkPilotSimulationService.initializeVehiclesIfNeeded();
         List<VehicleEntity> vehicles = vehicleMapper.selectList(null).stream()
                 .filter(vehicle -> vehicle.getDeleted() == null || vehicle.getDeleted() == 0)
@@ -243,6 +288,15 @@ public class ParkPilotServiceImpl implements ParkPilotService {
 
     @Override
     public List<ParkOrderSnapshotResponse> listOrderSnapshots(Long parkId) {
+        return orderSnapshotCache.get(Optional.ofNullable(parkId));
+    }
+
+    /**
+     * 整园订单快照的真组装。它内嵌一次 {@code listVehicleSnapshots()}，所以那条缓存命中时这里
+     * 就不会再为车队付一遍 41 次查询 —— 这一层缓存的意义是把"订单读把车队重铺一遍"也合掉。
+     */
+    private List<ParkOrderSnapshotResponse> loadOrderSnapshots(Optional<Long> parkKey) {
+        Long parkId = parkKey.orElse(null);
         Map<Long, DispatchTaskEntity> taskById = dispatchTaskMapper.selectList(null).stream()
                 .filter(task -> task.getDeleted() == null || task.getDeleted() == 0)
                 .collect(Collectors.toMap(DispatchTaskEntity::getId, Function.identity(), (left, right) -> left));
