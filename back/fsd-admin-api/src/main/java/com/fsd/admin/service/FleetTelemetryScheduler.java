@@ -30,6 +30,12 @@ public class FleetTelemetryScheduler {
         try {
             List<ParkResponse> parks = parkPilotService.listParks();
             for (ParkResponse park : parks) {
+                // 先问有没有人看，再组装：listVehicleSnapshots 是 t_vehicle 全表读 + 每台车一次 Redis
+                // 运行态读 + 轨迹组装，而 broadcast 的空订阅短路发生在这些开销已经付完之后。
+                // 没人看大屏时（静置态占多数），这一句把整条链路的每秒成本降到零。
+                if (!streamService.hasClients(park.getParkId())) {
+                    continue;
+                }
                 List<ParkVehicleSnapshotResponse> vehicles = parkPilotService.listVehicleSnapshots(park.getParkId());
                 streamService.broadcast(park.getParkId(), vehicles);
             }

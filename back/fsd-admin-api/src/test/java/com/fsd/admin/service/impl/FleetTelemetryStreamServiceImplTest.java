@@ -1,12 +1,15 @@
 package com.fsd.admin.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fsd.admin.config.AdminSseProperties;
 import com.fsd.common.exception.BusinessException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -55,6 +58,26 @@ class FleetTelemetryStreamServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> service.createStream(1L));
         assertEquals("SSE_CONNECTION_LIMIT_EXCEEDED", ex.getCode());
         assertEquals(1.0, registry.get("dispatchflow.sse.telemetry.connections.rejected").counter().count());
+    }
+
+    @Test
+    void hasClientsShouldMatchBroadcastGroupingKey() {
+        assertFalse(service.hasClients(1L), "未注册任何发射器时不应判定为有客户端");
+
+        service.registerEmitterForTest(new CapturingEmitter(), 1L);
+        assertTrue(service.hasClients(1L));
+        assertFalse(service.hasClients(2L), "订阅按园区分组，不应串园");
+    }
+
+    @Test
+    void hasClientsShouldUseTheSameNullKeyAsBroadcast() {
+        SseEmitter emitter = new CapturingEmitter();
+        service.registerEmitterForTest(emitter, null);
+
+        // broadcast(null) 归到 0 号键：判据必须一致，否则调度器会跳过真正有人在听的键
+        assertTrue(service.hasClients(null));
+        service.broadcast(null, List.of());
+        assertEquals(1, ((CapturingEmitter) emitter).sendCount);
     }
 
     @Test

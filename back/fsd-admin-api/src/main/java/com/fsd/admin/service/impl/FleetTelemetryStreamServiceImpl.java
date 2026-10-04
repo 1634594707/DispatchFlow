@@ -101,6 +101,12 @@ public class FleetTelemetryStreamServiceImpl implements FleetTelemetryStreamServ
     }
 
     @Override
+    public boolean hasClients(Long parkId) {
+        CopyOnWriteArrayList<SseEmitter> emitterList = emitters.get(parkId != null ? parkId : 0L);
+        return emitterList != null && !emitterList.isEmpty();
+    }
+
+    @Override
     public void broadcast(Long parkId, List<ParkVehicleSnapshotResponse> vehicles) {
         Long key = parkId != null ? parkId : 0L;
         CopyOnWriteArrayList<SseEmitter> emitterList = emitters.get(key);
