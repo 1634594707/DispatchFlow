@@ -209,8 +209,17 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
                 .toList();
     }
 
+    /**
+     * 一个 tick 铺 35 台车，但**不能**把这 35 台装进同一个事务：一辆车的上报被订单状态机拒掉
+     * （§6.3：单停在 DISPATCHED 却收到 TASK_SUCCESS）就会把整个事务标成 rollback-only，
+     * 其余 34 台的位移与派单回收跟着一起回滚；而运动状态在 JVM 里、不回滚 ⇒ 库与状态每秒分叉一次，
+     * 大屏上的车队就地冻住，车也永远不释放（实测新单全部落 MANUAL_PENDING，尽管有 19 台车是 IDLE）。
+     *
+     * <p>去掉外层事务后各段仍然各自有边界：`handleReport` 自己 `@Transactional`（从非事务上下文调用
+     * 会新起一个），事件在无事务时由 `RabbitDispatchEventPublisher` 立即发布；车队初始化是计数驱动的
+     * （`ensurePilotFleet`），失败下一 tick 自愈。
+     */
     @Scheduled(initialDelay = 1000, fixedDelayString = "${fsd.park.simulation.tick-interval-ms:1000}")
-    @Transactional
     public void tick() {
         if (!parkPilotProperties.isEnabled() || !parkPilotProperties.getSimulation().isEnabled()) {
             return;
@@ -218,7 +227,13 @@ public class ParkPilotSimulationServiceImpl implements ParkPilotSimulationServic
         initializeVehiclesIfNeeded();
         dispatchDemandActive = hasDispatchDemand();
         for (VehicleEntity vehicle : listPilotVehicles()) {
-            tickVehicle(vehicle);
+            try {
+                tickVehicle(vehicle);
+            } catch (RuntimeException e) {
+                // 一台坏车不许带走整园：但要说是谁，否则这条只剩下每秒一次的匿名堆栈
+                log.warn("Simulation tick skipped vehicle {} (taskId={}): {}",
+                        vehicle.getVehicleCode(), vehicle.getCurrentTaskId(), e.getMessage());
+            }
         }
         if (dispatchDemandActive
                 && hasGeoDispatchDemand()
