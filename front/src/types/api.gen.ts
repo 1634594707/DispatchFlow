@@ -969,7 +969,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List park order snapshots */
+        /**
+         * List park order snapshots
+         * @description At most 20 rows from a bounded window (non-terminal OR updated within 24h); truncated=true means the window was exhausted, so this is not the park's full backlog
+         */
         get: operations["listParkOrders"];
         put?: never;
         /**
@@ -2858,6 +2861,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/analytics/station-hourly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Station-hourly demand
+         * @description P1-1: order demand aggregated by pickup station and hour of day
+         */
+        get: operations["stationHourly"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/analytics/peak-compare": {
         parameters: {
             query?: never;
@@ -3044,6 +3067,66 @@ export interface paths {
          * @description End-to-end dispatch chain key performance indicators
          */
         get: operations["chainKpi"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/assistant/digest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daily digest
+         * @description Exception summary and daily operations digest
+         */
+        get: operations["digest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/assistant/decisions/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Decision explanation
+         * @description Deterministic explanation of why an order was dispatched the way it was
+         */
+        get: operations["explain"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/assistant/briefing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Operations briefing
+         * @description Fleet metrics, forecast availability, snapshot stats and exception overview
+         */
+        get: operations["briefing"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5464,11 +5547,15 @@ export interface components {
             /** Format: int64 */
             busyCount?: number;
         };
-        ApiResponseListParkOrderSnapshotResponse: {
+        ApiResponseParkOrderSnapshotListResponse: {
             success?: boolean;
             code?: string;
             message?: string;
-            data?: components["schemas"]["ParkOrderSnapshotResponse"][];
+            data?: components["schemas"]["ParkOrderSnapshotListResponse"];
+        };
+        ParkOrderSnapshotListResponse: {
+            items?: components["schemas"]["ParkOrderSnapshotResponse"][];
+            truncated?: boolean;
         };
         ApiResponseParkLayoutResponse: {
             success?: boolean;
@@ -5887,6 +5974,23 @@ export interface components {
             message?: string;
             data?: components["schemas"]["AdminDashboardSummaryResponse"];
         };
+        AdminAnalyticsStationHourResponse: {
+            period?: string;
+            rows?: components["schemas"]["Row"][];
+        };
+        ApiResponseAdminAnalyticsStationHourResponse: {
+            success?: boolean;
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["AdminAnalyticsStationHourResponse"];
+        };
+        Row: {
+            station?: string;
+            /** Format: int32 */
+            hour?: number;
+            /** Format: int64 */
+            orders?: number;
+        };
         AdminAnalyticsChainKpiResponse: {
             period?: string;
             /** Format: int64 */
@@ -6017,6 +6121,7 @@ export interface components {
             /** Format: double */
             vehicleUtilizationRate?: number;
             peakHours?: components["schemas"]["AdminAnalyticsHourlyPoint"][];
+            dispatchMetrics?: components["schemas"]["DispatchMetrics"];
         };
         AdminAnalyticsHourlyPoint: {
             /** Format: int32 */
@@ -6031,6 +6136,22 @@ export interface components {
             code?: string;
             message?: string;
             data?: components["schemas"]["AdminAnalyticsEfficiencyResponse"];
+        };
+        DispatchMetrics: {
+            /** Format: int64 */
+            availableVehicles?: number;
+            /** Format: int64 */
+            busyVehicles?: number;
+            /** Format: int64 */
+            chargingVehicles?: number;
+            /** Format: int64 */
+            manualPendingVehicles?: number;
+            /** Format: int64 */
+            pendingOrders?: number;
+            /** Format: double */
+            supplyDemandRatio?: number;
+            /** Format: int64 */
+            lowSocVehicles?: number;
         };
         AdminAnalyticsDailySummaryResponse: {
             date?: string;
@@ -6127,6 +6248,113 @@ export interface components {
             code?: string;
             message?: string;
             data?: components["schemas"]["AdminAnalyticsChainKpiResponse"];
+        };
+        AdminAssistantDigestResponse: {
+            date?: string;
+            /** Format: int64 */
+            parkId?: number;
+            /** Format: int64 */
+            orderTotal?: number;
+            /** Format: int64 */
+            orderCompleted?: number;
+            /** Format: double */
+            orderCompletionRate?: number;
+            /** Format: int64 */
+            taskTotal?: number;
+            /** Format: int64 */
+            taskSuccess?: number;
+            /** Format: int64 */
+            openExceptionCount?: number;
+            /** Format: double */
+            avgResolutionMinutes?: number;
+            exceptionTypes?: components["schemas"]["AdminAnalyticsTypeCount"][];
+            rootCauseHints?: components["schemas"]["AdminAnalyticsTypeCount"][];
+        };
+        ApiResponseAdminAssistantDigestResponse: {
+            success?: boolean;
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["AdminAssistantDigestResponse"];
+        };
+        AdminAssistantDecisionExplanationResponse: {
+            /** Format: int64 */
+            orderId?: number;
+            orderNo?: string;
+            policyId?: string;
+            policyVersion?: string;
+            failReason?: string;
+            failReasonText?: string;
+            /** Format: int32 */
+            candidateTotal?: number;
+            /** Format: int32 */
+            freshTelemetryCount?: number;
+            /** Format: int32 */
+            socEligibleCount?: number;
+            /** Format: int32 */
+            socChainEligibleCount?: number;
+            /** Format: int32 */
+            reachableCount?: number;
+            /** Format: int32 */
+            candidateEvaluated?: number;
+            winnerVehicleCode?: string;
+            winnerScore?: number;
+            runnerUpScore?: number;
+            scoreGap?: number;
+            /** Format: int32 */
+            tieCount?: number;
+            topCandidates?: components["schemas"]["CandidateComponent"][];
+            shadow?: components["schemas"]["Shadow"];
+            explanation?: string;
+            /** Format: date-time */
+            generatedAt?: string;
+        };
+        ApiResponseAdminAssistantDecisionExplanationResponse: {
+            success?: boolean;
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["AdminAssistantDecisionExplanationResponse"];
+        };
+        CandidateComponent: {
+            vehicleCode?: string;
+            total?: number;
+            distance?: number;
+            socMargin?: number;
+            idleBonus?: number;
+            pluggedBonus?: number;
+            forecastPenalty?: number;
+        };
+        AdminAssistantBriefingResponse: {
+            period?: string;
+            /** Format: int64 */
+            parkId?: number;
+            dispatchMetrics?: components["schemas"]["DispatchMetrics"];
+            forecast?: components["schemas"]["Forecast"];
+            snapshotStats?: components["schemas"]["SnapshotStats"];
+            exceptionTypes?: components["schemas"]["AdminAnalyticsTypeCount"][];
+        };
+        ApiResponseAdminAssistantBriefingResponse: {
+            success?: boolean;
+            code?: string;
+            message?: string;
+            data?: components["schemas"]["AdminAssistantBriefingResponse"];
+        };
+        Forecast: {
+            enabled?: boolean;
+            anyData?: boolean;
+            /** Format: int32 */
+            stationCount?: number;
+            /** Format: date */
+            forecastDate?: string;
+        };
+        SnapshotStats: {
+            /** Format: int32 */
+            sampled?: number;
+            /** Format: double */
+            meanCandidateTotal?: number;
+            /** Format: double */
+            shadowAgreedRate?: number;
+            /** Format: int32 */
+            shadowRows?: number;
         };
     };
     responses: never;
@@ -8190,7 +8418,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListParkOrderSnapshotResponse"];
+                    "*/*": components["schemas"]["ApiResponseParkOrderSnapshotListResponse"];
                 };
             };
         };
@@ -11304,6 +11532,38 @@ export interface operations {
             };
         };
     };
+    stationHourly: {
+        parameters: {
+            query?: {
+                period?: string;
+                parkId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Station-hourly demand returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAdminAnalyticsStationHourResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAdminAnalyticsStationHourResponse"];
+                };
+            };
+        };
+    };
     peakCompare: {
         parameters: {
             query?: {
@@ -11611,6 +11871,101 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseAdminAnalyticsChainKpiResponse"];
+                };
+            };
+        };
+    };
+    digest: {
+        parameters: {
+            query?: {
+                date?: string;
+                parkId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Digest returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAdminAssistantDigestResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAdminAssistantDigestResponse"];
+                };
+            };
+        };
+    };
+    explain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Explanation returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAdminAssistantDecisionExplanationResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAdminAssistantDecisionExplanationResponse"];
+                };
+            };
+        };
+    };
+    briefing: {
+        parameters: {
+            query?: {
+                period?: string;
+                parkId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Briefing returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAdminAssistantBriefingResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAdminAssistantBriefingResponse"];
                 };
             };
         };

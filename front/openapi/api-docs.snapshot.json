@@ -128,6 +128,10 @@
       "description": "SSE stream for dashboard, workbench, and exception alerts"
     },
     {
+      "name": "Assistant",
+      "description": "Read-only dispatch assistant (briefing / decision explanation / digest)"
+    },
+    {
       "name": "System Health",
       "description": "Dependency and subsystem health snapshot"
     },
@@ -3243,6 +3247,7 @@
           "Dispatch Admin"
         ],
         "summary": "List park order snapshots",
+        "description": "At most 20 rows from a bounded window (non-terminal OR updated within 24h); truncated=true means the window was exhausted, so this is not the park's full backlog",
         "operationId": "listParkOrders",
         "parameters": [
           {
@@ -3261,7 +3266,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListParkOrderSnapshotResponse"
+                  "$ref": "#/components/schemas/ApiResponseParkOrderSnapshotListResponse"
                 }
               }
             }
@@ -8102,6 +8107,63 @@
         ]
       }
     },
+    "/api/admin/analytics/station-hourly": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Station-hourly demand",
+        "description": "P1-1: order demand aggregated by pickup station and hour of day",
+        "operationId": "stationHourly",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "week"
+            }
+          },
+          {
+            "name": "parkId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Station-hourly demand returned",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminAnalyticsStationHourResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminAnalyticsStationHourResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminToken": []
+          }
+        ]
+      }
+    },
     "/api/admin/analytics/peak-compare": {
       "get": {
         "tags": [
@@ -8628,6 +8690,168 @@
         "security": [
           {
             "adminToken": []
+          }
+        ]
+      }
+    },
+    "/admin/assistant/digest": {
+      "get": {
+        "tags": [
+          "Assistant"
+        ],
+        "summary": "Daily digest",
+        "description": "Exception summary and daily operations digest",
+        "operationId": "digest",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "parkId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Digest returned",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminAssistantDigestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminAssistantDigestResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorization": []
+          }
+        ]
+      }
+    },
+    "/admin/assistant/decisions/{orderId}": {
+      "get": {
+        "tags": [
+          "Assistant"
+        ],
+        "summary": "Decision explanation",
+        "description": "Deterministic explanation of why an order was dispatched the way it was",
+        "operationId": "explain",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Explanation returned",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminAssistantDecisionExplanationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminAssistantDecisionExplanationResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorization": []
+          }
+        ]
+      }
+    },
+    "/admin/assistant/briefing": {
+      "get": {
+        "tags": [
+          "Assistant"
+        ],
+        "summary": "Operations briefing",
+        "description": "Fleet metrics, forecast availability, snapshot stats and exception overview",
+        "operationId": "briefing",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "week"
+            }
+          },
+          {
+            "name": "parkId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Briefing returned",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminAssistantBriefingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminAssistantBriefingResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorization": []
           }
         ]
       }
@@ -15233,7 +15457,7 @@
           }
         }
       },
-      "ApiResponseListParkOrderSnapshotResponse": {
+      "ApiResponseParkOrderSnapshotListResponse": {
         "type": "object",
         "properties": {
           "success": {
@@ -15246,10 +15470,21 @@
             "type": "string"
           },
           "data": {
+            "$ref": "#/components/schemas/ParkOrderSnapshotListResponse"
+          }
+        }
+      },
+      "ParkOrderSnapshotListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ParkOrderSnapshotResponse"
             }
+          },
+          "truncated": {
+            "type": "boolean"
           }
         }
       },
@@ -16433,6 +16668,53 @@
           }
         }
       },
+      "AdminAnalyticsStationHourResponse": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Row"
+            }
+          }
+        }
+      },
+      "ApiResponseAdminAnalyticsStationHourResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminAnalyticsStationHourResponse"
+          }
+        }
+      },
+      "Row": {
+        "type": "object",
+        "properties": {
+          "station": {
+            "type": "string"
+          },
+          "hour": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "orders": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "AdminAnalyticsChainKpiResponse": {
         "type": "object",
         "properties": {
@@ -16773,6 +17055,9 @@
             "items": {
               "$ref": "#/components/schemas/AdminAnalyticsHourlyPoint"
             }
+          },
+          "dispatchMetrics": {
+            "$ref": "#/components/schemas/DispatchMetrics"
           }
         }
       },
@@ -16807,6 +17092,39 @@
           },
           "data": {
             "$ref": "#/components/schemas/AdminAnalyticsEfficiencyResponse"
+          }
+        }
+      },
+      "DispatchMetrics": {
+        "type": "object",
+        "properties": {
+          "availableVehicles": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "busyVehicles": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chargingVehicles": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "manualPendingVehicles": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pendingOrders": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "supplyDemandRatio": {
+            "type": "number",
+            "format": "double"
+          },
+          "lowSocVehicles": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -17035,6 +17353,282 @@
           },
           "data": {
             "$ref": "#/components/schemas/AdminAnalyticsChainKpiResponse"
+          }
+        }
+      },
+      "AdminAssistantDigestResponse": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "parkId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "orderTotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "orderCompleted": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "orderCompletionRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "taskTotal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "taskSuccess": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "openExceptionCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "avgResolutionMinutes": {
+            "type": "number",
+            "format": "double"
+          },
+          "exceptionTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAnalyticsTypeCount"
+            }
+          },
+          "rootCauseHints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAnalyticsTypeCount"
+            }
+          }
+        }
+      },
+      "ApiResponseAdminAssistantDigestResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminAssistantDigestResponse"
+          }
+        }
+      },
+      "AdminAssistantDecisionExplanationResponse": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "orderNo": {
+            "type": "string"
+          },
+          "policyId": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "failReason": {
+            "type": "string"
+          },
+          "failReasonText": {
+            "type": "string"
+          },
+          "candidateTotal": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "freshTelemetryCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "socEligibleCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "socChainEligibleCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reachableCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "candidateEvaluated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "winnerVehicleCode": {
+            "type": "string"
+          },
+          "winnerScore": {
+            "type": "number"
+          },
+          "runnerUpScore": {
+            "type": "number"
+          },
+          "scoreGap": {
+            "type": "number"
+          },
+          "tieCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "topCandidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CandidateComponent"
+            }
+          },
+          "shadow": {
+            "$ref": "#/components/schemas/Shadow"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiResponseAdminAssistantDecisionExplanationResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminAssistantDecisionExplanationResponse"
+          }
+        }
+      },
+      "CandidateComponent": {
+        "type": "object",
+        "properties": {
+          "vehicleCode": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number"
+          },
+          "distance": {
+            "type": "number"
+          },
+          "socMargin": {
+            "type": "number"
+          },
+          "idleBonus": {
+            "type": "number"
+          },
+          "pluggedBonus": {
+            "type": "number"
+          },
+          "forecastPenalty": {
+            "type": "number"
+          }
+        }
+      },
+      "AdminAssistantBriefingResponse": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string"
+          },
+          "parkId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dispatchMetrics": {
+            "$ref": "#/components/schemas/DispatchMetrics"
+          },
+          "forecast": {
+            "$ref": "#/components/schemas/Forecast"
+          },
+          "snapshotStats": {
+            "$ref": "#/components/schemas/SnapshotStats"
+          },
+          "exceptionTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAnalyticsTypeCount"
+            }
+          }
+        }
+      },
+      "ApiResponseAdminAssistantBriefingResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminAssistantBriefingResponse"
+          }
+        }
+      },
+      "Forecast": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "anyData": {
+            "type": "boolean"
+          },
+          "stationCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "forecastDate": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "SnapshotStats": {
+        "type": "object",
+        "properties": {
+          "sampled": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "meanCandidateTotal": {
+            "type": "number",
+            "format": "double"
+          },
+          "shadowAgreedRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "shadowRows": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       }
